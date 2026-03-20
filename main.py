@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 from db.database import init_db
+from db.maintenance import run_maintenance
 from scrapers.mtgtop8 import run as scrape_mtgtop8, FORMATS
 
 
@@ -44,6 +45,8 @@ def main():
         pages=args.pages,
         max_events=args.max_events,
     )
+
+    run_maintenance(formats=[args.format])
 
 
 if __name__ == "__main__":
