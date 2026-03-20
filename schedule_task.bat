@@ -1,33 +1,35 @@
 @echo off
 REM ============================================================
 REM  MTG Meta Analyzer - Windows Task Scheduler Setup
-REM  Run this ONCE as Administrator to register the daily task.
+REM  Double-click to run — it will self-elevate to Administrator.
 REM  Task runs every day at 5:00 PM PST (UTC-8).
 REM ============================================================
 
-SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
-SET PYTHON=python
+REM Self-elevate if not already running as Administrator
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Requesting Administrator access...
+    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\"' -Verb RunAs"
+    exit /b
+)
+
 SET TASK_NAME=MTG-Meta-Analyzer-Daily
 
-REM Remove existing task if present (allows re-running this script to update)
+REM Remove existing task if present
 schtasks /delete /tn "%TASK_NAME%" /f 2>nul
 
-REM Register the new task
-schtasks /create ^
-  /tn "%TASK_NAME%" ^
-  /tr "cmd /c \"%PROJECT_DIR%\run_daily.bat\"" ^
-  /sc daily ^
-  /st 17:00 ^
-  /rl HIGHEST ^
-  /f
+REM Register the task — quotes handle the space in the project folder path
+schtasks /create /tn "%TASK_NAME%" /tr "cmd /c \"E:\vscode ai project\mtg-meta-analyzer\run_daily.bat\"" /sc daily /st 17:00 /rl HIGHEST /f
 
 IF %ERRORLEVEL% EQU 0 (
     echo.
-    echo Task "%TASK_NAME%" registered successfully.
-    echo It will run every day at 5:00 PM.
-    echo Log files will appear in: %PROJECT_DIR%\logs\
+    echo  Task "%TASK_NAME%" registered successfully.
+    echo  Runs daily at 5:00 PM local time.
+    echo  Logs: E:\vscode ai project\mtg-meta-analyzer\logs\
+    echo.
 ) ELSE (
     echo.
-    echo ERROR: Failed to register task. Make sure you are running as Administrator.
+    echo  ERROR: Task registration failed.
+    echo.
 )
 pause
