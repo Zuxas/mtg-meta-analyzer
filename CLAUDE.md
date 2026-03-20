@@ -30,17 +30,23 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - Average deck calculator and deck comparison (`analysis/deck_analysis.py`)
 - CLI query tool (`analysis/query.py`) with: average, compare, search,
   top-cards, last-challenge, meta, trend, h2h, matchups, matrix,
-  field-optimizer subcommands
+  field-optimizer, card, enrich-stats, suggest-aliases, normalize subcommands
 - Win rate / performance tracking (`analysis/win_rates.py`):
   - Placement-based estimated match W/L per archetype
-  - Meta standings table (top8 rate, avg pts, est win%)
-  - Week-by-week trend with meta share
-  - Head-to-head between any two archetypes
-  - Full matchup breakdown (one archetype vs all others)
-  - NxN matchup matrix for top N archetypes
+  - Meta standings, weekly trend, head-to-head, full matchup breakdown
+  - NxN matchup matrix; Field Optimizer (weighted win% vs expected field)
   - Natural language date range filtering ("last 30 days", "feb2-mar9")
-  - Field Optimizer: input expected tournament field, get weighted win%
-    per archetype against that specific field with confidence ratings
+- Scryfall card enrichment (`scrapers/scryfall.py`):
+  - Bulk Oracle Cards download (~75 MB, refreshed weekly)
+  - Enriches `card_data` table: mana cost, CMC, colors, type, oracle text,
+    power/toughness, rarity, set, format legalities
+  - Fuzzy API fallback for cards not found in bulk
+  - `get_card_data()`, `get_cards_data()`, `is_legal()` query helpers
+- Archetype name normalization (`analysis/archetypes.py`):
+  - ALIASES table maps raw scraper names to canonical names
+  - `normalize(name, fuzzy=True)` for analysis queries
+  - `suggest_aliases()` scans DB for likely duplicate names
+  - `thefuzz` fuzzy matching (threshold-gated, opt-in for safety)
 
 ### Primary Format
 Standard is the primary focus format. All scraper defaults are Standard.
@@ -77,7 +83,9 @@ db/database.py            Schema, connections, active + archive DB helpers
 db/maintenance.py         Format-aware archive maintenance + orphan cleanup
 analysis/deck_analysis.py Average deck + deck comparison functions
 analysis/win_rates.py     Performance tracking, matchup matrix, field optimizer
+analysis/archetypes.py    Archetype name normalization + alias table
 analysis/query.py         CLI query interface (all subcommands)
+scrapers/scryfall.py      Scryfall bulk download + card enrichment
 config.example.ini        Committed config template
 config.ini                Local config (gitignored)
 run_daily.bat             Daily scraper script called by Task Scheduler
@@ -104,6 +112,16 @@ python -m scrapers.challenges --format standard
 # Database maintenance (runs automatically, but can run manually)
 python -m db.maintenance --dry-run
 python -m db.maintenance
+
+# Scryfall enrichment (run once after backfill, then weekly auto-refresh)
+python -m scrapers.scryfall                        # enrich all unenriched cards
+python -m scrapers.scryfall --download             # force-refresh bulk file
+python -m scrapers.scryfall --card "Opt"           # look up one card
+python -m analysis.query enrich-stats             # coverage report
+
+# Archetype normalization
+python -m analysis.query normalize "UR Prowess"   # -> "Izzet Prowess"
+python -m analysis.query suggest-aliases           # find likely duplicates
 
 # Meta analysis queries
 python -m analysis.query meta --format standard
@@ -141,9 +159,11 @@ Backend is cleanly separated from CLI layer:
 ## What's Next (not yet built)
 
 ### Near-term
-- Scryfall API integration (card oracle text, set data, legality)
+- Run `python -m scrapers.scryfall` to enrich all cards with Scryfall data
 - MTGDecks.net as a second data source + cross-source verification
-- Trend charts in CLI output (matplotlib, text-based sparklines, or plotly)
+- Trend charts in CLI output (matplotlib / plotly — deps already installed)
+- Apply archetype normalization retroactively to existing DB records
+  (one-time UPDATE pass using `analysis/archetypes.py` ALIASES table)
 
 ### Deck Scoring & Blunder Detection
 Inspired by the mage-bench blunder index concept. Score theoretical decklists
@@ -170,6 +190,26 @@ evaluation report.
 - PyQt6 GUI wrapping all analysis/query functions
 - matplotlib/plotly charts for trend lines, meta share, matchup heatmaps
 - PyInstaller standalone .exe packaging
+
+### Self-Validation & Prediction Learning System
+Track and improve prediction accuracy over time:
+
+- **Prediction logger**: every meta prediction (rising archetype, expected
+  field shift, matchup call) is stored in the DB with a timestamp and
+  the signal(s) that drove it.
+- **Validation runner**: after N weeks, checks each prediction against what
+  actually happened in subsequent tournament results. Marks correct/wrong.
+- **Confidence scoring**: per prediction type (meta share rise, matchup call,
+  win rate trend) — tracks historical accuracy rate.
+- **Automatic weight adjustment**: signals that have historically been accurate
+  (e.g. MTGO 5-0 lists) get higher weight in future predictions. Signals
+  with poor track records (e.g. Regional Championship data for near-term
+  meta calls) get lower weight. Weights stored in DB, updated each validation run.
+- **Prediction history log**: queryable via CLI (`python -m analysis.query predictions`).
+
+This enables the tool to get measurably better over time rather than using
+static weights. Implementation requires: prediction schema in DB, a
+`analysis/predictions.py` module, and a validation cron job.
 
 ### Long-term Roadmap
 

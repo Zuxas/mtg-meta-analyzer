@@ -45,6 +45,8 @@ from analysis.win_rates import (
     optimize_field_composition,
     parse_field_string,
 )
+from scrapers.scryfall import get_card_data, enrich_stats as scryfall_enrich_stats
+from analysis.archetypes import normalize, suggest_aliases, build_canonical_list
 from db.database import get_connection
 
 
@@ -438,6 +440,26 @@ def main():
     p_fo.add_argument("--include-archive", action="store_true")
     _add_date_args(p_fo)
 
+    # card
+    p_card = sub.add_parser("card", help="Look up Scryfall data for a card")
+    p_card.add_argument("name", help="Card name (partial OK)")
+    p_card.add_argument("--format", default=None,
+                        help="Check legality in this format")
+
+    # enrich-stats
+    sub.add_parser("enrich-stats", help="Show Scryfall enrichment coverage")
+
+    # suggest-aliases
+    p_sa = sub.add_parser("suggest-aliases",
+                           help="Find likely duplicate archetype names in the DB")
+    p_sa.add_argument("--threshold", type=int, default=80,
+                      help="Fuzzy similarity threshold 0-100 (default 80)")
+
+    # normalize
+    p_norm = sub.add_parser("normalize",
+                             help="Show what a raw archetype name normalizes to")
+    p_norm.add_argument("name", help="Raw archetype name to normalize")
+
     args = parser.parse_args()
 
     # -----------------------------------------------------------------------
@@ -581,6 +603,60 @@ def main():
             until=until,
         )
         print_field_optimizer(result)
+
+    elif args.cmd == "card":
+        data = get_card_data(args.name)
+        if not data:
+            print(f"\n  '{args.name}' not found in enrichment DB.")
+            print("  Run: python -m scrapers.scryfall --card \"" + args.name + "\"")
+            print("  Or run: python -m scrapers.scryfall  (to enrich all cards)\n")
+            return
+        print(f"\n  {data['name']}")
+        print(f"  Mana cost  : {data.get('mana_cost') or '{0}'}  (CMC {data.get('cmc', 0):.0f})")
+        print(f"  Type       : {data.get('type_line', '?')}")
+        colors = data.get("colors", [])
+        ci     = data.get("color_identity", [])
+        print(f"  Colors     : {', '.join(colors) if colors else 'Colorless'}  "
+              f"(identity: {', '.join(ci) if ci else 'C'})")
+        print(f"  Rarity     : {data.get('rarity', '?')}  ({data.get('set_code', '?').upper()})")
+        oracle = data.get("oracle_text", "")
+        if oracle:
+            for line in oracle.splitlines():
+                print(f"    {line}")
+        if args.format:
+            legalities = data.get("legalities", {})
+            status = legalities.get(args.format.lower(), "unknown") if legalities else "unknown"
+            print(f"  {args.format.title()} legal: {'YES' if status == 'legal' else 'NO'} ({status})")
+        print()
+
+    elif args.cmd == "enrich-stats":
+        s = scryfall_enrich_stats()
+        print(f"\n  Scryfall enrichment coverage:")
+        print(f"    Cards in DB  : {s['total_cards']:,}")
+        print(f"    Enriched     : {s['enriched']:,}  ({s['pct']}%)")
+        print(f"    Unenriched   : {s['unenriched']:,}")
+        if s['unenriched'] > 0:
+            print(f"\n  Run 'python -m scrapers.scryfall' to enrich remaining cards.")
+        print()
+
+    elif args.cmd == "suggest-aliases":
+        groups = suggest_aliases(threshold=args.threshold)
+        if not groups:
+            print(f"\n  No likely duplicates found at threshold {args.threshold}.\n")
+        else:
+            print(f"\n  Likely duplicate archetype names (threshold={args.threshold}):\n")
+            for canonical, similar, score in groups:
+                print(f"  '{canonical}'")
+                for s in similar:
+                    print(f"    ~~ '{s}'")
+            print(f"\n  Add confirmed mappings to analysis/archetypes.py ALIASES.\n")
+
+    elif args.cmd == "normalize":
+        canonical = normalize(args.name, fuzzy=True)
+        if canonical == args.name:
+            print(f"\n  '{args.name}' -> (no mapping found, unchanged)\n")
+        else:
+            print(f"\n  '{args.name}' -> '{canonical}'\n")
 
 
 if __name__ == "__main__":
