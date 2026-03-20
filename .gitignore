@@ -1,3 +1,6 @@
+# Daily scraper logs
+logs/
+
 # Database (can get large, regenerate by running scraper)
 data/*.db
 data/*.db-shm
