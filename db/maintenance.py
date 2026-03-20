@@ -1,10 +1,12 @@
 """
-Database maintenance: format-aware data retention and orphan cleanup.
-Runs automatically at the end of every scraper session.
+Database maintenance: archive old data, clean orphans.
 
-Can also be run standalone:
-    python -m db.maintenance
-    python -m db.maintenance --dry-run
+Data outside the retention window is MOVED to the archive DB (not deleted),
+so historical analysis is always available via --include-archive.
+
+Usage:
+    python -m db.maintenance              # archive across all formats
+    python -m db.maintenance --dry-run    # show what would move, nothing changes
     python -m db.maintenance --format standard
 """
 
@@ -13,7 +15,7 @@ import logging
 import argparse
 import configparser
 from datetime import datetime, timedelta
-from db.database import get_connection, DB_PATH
+from db.database import get_connection, get_archive_connection, DB_PATH, ARCHIVE_PATH
 
 _LOG_PATH = os.path.join(os.path.dirname(DB_PATH), 'maintenance.log')
 
@@ -28,7 +30,6 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Formats the scraper knows about
 ALL_FORMATS = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper']
 
 
@@ -37,23 +38,16 @@ def _load_config():
     cfg = configparser.ConfigParser()
     cfg.read(os.path.join(project_root, 'config.ini'))
 
-    retention = {}
-    for fmt in ALL_FORMATS:
-        days = cfg.getint('retention', fmt, fallback=1095)
-        retention[fmt] = days
-
+    retention = {fmt: cfg.getint('retention', fmt, fallback=1095) for fmt in ALL_FORMATS}
     foundations_days = cfg.getint('retention', 'foundations_days', fallback=1825)
-    foundations_sets_raw = cfg.get('retention', 'foundations_sets', fallback='FDN')
-    foundations_sets = {s.strip().upper() for s in foundations_sets_raw.split(',')}
-
+    foundations_sets = {
+        s.strip().upper()
+        for s in cfg.get('retention', 'foundations_sets', fallback='FDN').split(',')
+    }
     return retention, foundations_days, foundations_sets
 
 
 def _parse_event_date(date_str):
-    """
-    Parse MTGTop8 date strings. Handles DD/MM/YY, DD/MM/YYYY, YYYY-MM-DD.
-    Returns None if unparseable — events with no date are always kept.
-    """
     if not date_str:
         return None
     for fmt in ('%d/%m/%y', '%d/%m/%Y', '%Y-%m-%d'):
@@ -65,129 +59,161 @@ def _parse_event_date(date_str):
 
 
 def _event_contains_foundations_card(conn, event_id, foundations_sets):
-    """
-    Return True if any deck in this event contains a card tagged as a
-    Foundations-lifespan set card. Requires the cards table to have a
-    set_code column (populated by Scryfall enrichment). If that column
-    doesn't exist yet, returns False so we fall back to standard retention.
-    """
     try:
         result = conn.execute("""
-            SELECT 1
-            FROM deck_cards dc
+            SELECT 1 FROM deck_cards dc
             JOIN decks d ON d.id = dc.deck_id
             JOIN cards c ON c.id = dc.card_id
-            WHERE d.event_id = ?
-              AND c.set_code IN ({})
+            WHERE d.event_id = ? AND c.set_code IN ({})
             LIMIT 1
         """.format(','.join('?' * len(foundations_sets))),
             [event_id] + list(foundations_sets)
         ).fetchone()
         return result is not None
     except Exception:
-        # set_code column doesn't exist yet — skip foundations check
-        return False
+        return False  # set_code not available yet
 
 
-def _get_events_to_purge(conn, format_name, cutoff, foundations_cutoff, foundations_sets):
-    """
-    Return a list of event IDs for a given format that fall outside their
-    retention window. Standard events containing Foundations cards use the
-    extended foundations_cutoff instead of the standard cutoff.
-    """
+def _get_events_to_archive(conn, format_name, cutoff, foundations_cutoff, foundations_sets):
     events = conn.execute(
-        "SELECT id, date, name FROM events WHERE format = ?",
-        (format_name,)
+        "SELECT id, date FROM events WHERE format = ?", (format_name,)
     ).fetchall()
 
-    to_purge = []
+    to_archive = []
     for ev in events:
         parsed = _parse_event_date(ev['date'])
         if parsed is None:
-            continue  # no date — keep it
+            continue
 
         if format_name == 'standard' and foundations_cutoff is not None:
             if parsed >= cutoff:
-                continue  # within standard 3-year window — always keep
+                continue  # within active window
             elif parsed >= foundations_cutoff:
-                # Gray zone: 3–5 years old — keep only if event has Foundations cards
                 if _event_contains_foundations_card(conn, ev['id'], foundations_sets):
-                    continue
-                to_purge.append(ev['id'])
+                    continue  # Foundations card — use extended window
+                to_archive.append(ev['id'])
             else:
-                # Older than 5-year extended window — purge regardless
-                to_purge.append(ev['id'])
+                to_archive.append(ev['id'])  # beyond even extended window
         else:
             if parsed < cutoff:
-                to_purge.append(ev['id'])
+                to_archive.append(ev['id'])
 
-    return to_purge
+    return to_archive
 
 
-def purge_format(format_name, retention_days, foundations_days, foundations_sets,
-                 dry_run=False):
+def _copy_events_to_archive(active_conn, archive_conn, event_ids):
     """
-    Purge events for a single format outside its retention window.
-    Returns (events_removed, decks_removed, deck_card_rows_removed).
+    Copy events, their decks, deck_cards, and referenced cards to the archive DB.
+    Cards are copied only if not already present in the archive.
     """
+    ep = ','.join('?' * len(event_ids))
+
+    events    = active_conn.execute(f"SELECT * FROM events WHERE id IN ({ep})", event_ids).fetchall()
+    deck_rows = active_conn.execute(f"SELECT * FROM decks WHERE event_id IN ({ep})", event_ids).fetchall()
+
+    deck_ids = [d['id'] for d in deck_rows]
+    deck_card_rows = []
+    card_ids = set()
+
+    if deck_ids:
+        dp = ','.join('?' * len(deck_ids))
+        deck_card_rows = active_conn.execute(
+            f"SELECT * FROM deck_cards WHERE deck_id IN ({dp})", deck_ids
+        ).fetchall()
+        card_ids = {r['card_id'] for r in deck_card_rows}
+
+    card_rows = []
+    if card_ids:
+        cp = ','.join('?' * len(card_ids))
+        card_rows = active_conn.execute(
+            f"SELECT * FROM cards WHERE id IN ({cp})", list(card_ids)
+        ).fetchall()
+
+    # Insert into archive (ignore conflicts — already archived)
+    for row in card_rows:
+        archive_conn.execute(
+            "INSERT OR IGNORE INTO cards (id, name) VALUES (?, ?)",
+            (row['id'], row['name'])
+        )
+    for row in events:
+        archive_conn.execute("""
+            INSERT OR IGNORE INTO events
+                (id, source_id, source, name, date, format, event_type, url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (row['id'], row['source_id'], row['source'], row['name'],
+              row['date'], row['format'], row['event_type'], row['url']))
+    for row in deck_rows:
+        archive_conn.execute("""
+            INSERT OR IGNORE INTO decks
+                (id, event_id, source_id, player, archetype, placement, url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (row['id'], row['event_id'], row['source_id'], row['player'],
+              row['archetype'], row['placement'], row['url']))
+    for row in deck_card_rows:
+        archive_conn.execute("""
+            INSERT OR IGNORE INTO deck_cards (deck_id, card_id, quantity, is_sideboard)
+            VALUES (?, ?, ?, ?)
+        """, (row['deck_id'], row['card_id'], row['quantity'], row['is_sideboard']))
+
+    return len(events), len(deck_rows), len(deck_card_rows)
+
+
+def _delete_from_active(conn, event_ids, deck_ids):
+    if not event_ids:
+        return
+    ep = ','.join('?' * len(event_ids))
+    if deck_ids:
+        dp = ','.join('?' * len(deck_ids))
+        conn.execute(f"DELETE FROM deck_cards WHERE deck_id IN ({dp})", deck_ids)
+    conn.execute(f"DELETE FROM decks WHERE event_id IN ({ep})", event_ids)
+    conn.execute(f"DELETE FROM events WHERE id IN ({ep})", event_ids)
+
+
+def archive_format(format_name, retention_days, foundations_days, foundations_sets,
+                   dry_run=False):
+    """Move events outside the retention window to the archive DB."""
     if retention_days == 0:
         log.info(f"  {format_name}: retention disabled, skipping.")
         return 0, 0, 0
 
     cutoff = datetime.now() - timedelta(days=retention_days)
+    foundations_cutoff = (
+        datetime.now() - timedelta(days=foundations_days)
+        if format_name == 'standard' and foundations_days > 0 else None
+    )
 
-    foundations_cutoff = None
-    if format_name == 'standard' and foundations_days > 0:
-        foundations_cutoff = datetime.now() - timedelta(days=foundations_days)
-
-    with get_connection() as conn:
-        old_event_ids = _get_events_to_purge(
-            conn, format_name, cutoff, foundations_cutoff, foundations_sets
+    with get_connection() as active_conn, get_archive_connection() as archive_conn:
+        event_ids = _get_events_to_archive(
+            active_conn, format_name, cutoff, foundations_cutoff, foundations_sets
         )
 
-        if not old_event_ids:
+        if not event_ids:
             return 0, 0, 0
 
-        ep = ','.join('?' * len(old_event_ids))
-
-        old_deck_ids = [
-            r['id'] for r in conn.execute(
-                f"SELECT id FROM decks WHERE event_id IN ({ep})", old_event_ids
+        ep = ','.join('?' * len(event_ids))
+        deck_ids = [
+            r['id'] for r in active_conn.execute(
+                f"SELECT id FROM decks WHERE event_id IN ({ep})", event_ids
             ).fetchall()
         ]
 
-        deck_card_count = 0
-        if old_deck_ids:
-            dp = ','.join('?' * len(old_deck_ids))
-            deck_card_count = conn.execute(
-                f"SELECT COUNT(*) FROM deck_cards WHERE deck_id IN ({dp})",
-                old_deck_ids
-            ).fetchone()[0]
+        ev_count, dk_count, dc_count = _copy_events_to_archive(
+            active_conn, archive_conn, event_ids
+        )
 
         if not dry_run:
-            if old_deck_ids:
-                dp = ','.join('?' * len(old_deck_ids))
-                conn.execute(
-                    f"DELETE FROM deck_cards WHERE deck_id IN ({dp})", old_deck_ids
-                )
-            conn.execute(
-                f"DELETE FROM decks WHERE event_id IN ({ep})", old_event_ids
-            )
-            conn.execute(
-                f"DELETE FROM events WHERE id IN ({ep})", old_event_ids
-            )
+            _delete_from_active(active_conn, event_ids, deck_ids)
 
-    return len(old_event_ids), len(old_deck_ids), deck_card_count
+    return ev_count, dk_count, dc_count
 
 
-def purge_orphaned_cards(dry_run=False):
-    """Remove cards with no deck_card references. Returns count removed."""
+def archive_orphaned_cards(dry_run=False):
+    """Remove cards from active DB that no longer appear in any deck_card row."""
     with get_connection() as conn:
         count = conn.execute("""
             SELECT COUNT(*) FROM cards
             WHERE id NOT IN (SELECT DISTINCT card_id FROM deck_cards)
         """).fetchone()[0]
-
         if not dry_run and count > 0:
             conn.execute("""
                 DELETE FROM cards
@@ -198,32 +224,29 @@ def purge_orphaned_cards(dry_run=False):
 
 def run_maintenance(formats=None, dry_run=False):
     """
-    Full maintenance pass across all (or specified) formats.
+    Archive all out-of-window data across formats, then clean orphaned cards.
     Called automatically at the end of every scraper run.
     """
     retention_map, foundations_days, foundations_sets = _load_config()
     target_formats = formats if formats else ALL_FORMATS
     prefix = "[DRY RUN] " if dry_run else ""
 
-    log.info(f"{prefix}--- Maintenance started ---")
+    log.info(f"{prefix}--- Maintenance started (archive mode) ---")
+    log.info(f"{prefix}  Active DB : {DB_PATH}")
+    log.info(f"{prefix}  Archive DB: {ARCHIVE_PATH}")
 
     total_events = total_decks = total_deck_cards = 0
 
     for fmt in target_formats:
         days = retention_map.get(fmt, 1095)
-        cutoff = datetime.now() - timedelta(days=days)
-        cutoff_str = cutoff.strftime('%Y-%m-%d')
-
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         extra = ""
         if fmt == 'standard' and foundations_days > 0:
-            fc = datetime.now() - timedelta(days=foundations_days)
-            extra = f" (Foundations extended to {fc.strftime('%Y-%m-%d')})"
+            fc = (datetime.now() - timedelta(days=foundations_days)).strftime('%Y-%m-%d')
+            extra = f" (Foundations window: {fc})"
+        log.info(f"{prefix}  {fmt.capitalize():<10} cutoff={cutoff}{extra}")
 
-        log.info(
-            f"{prefix}  {fmt.capitalize():<10} cutoff={cutoff_str}{extra}"
-        )
-
-        ev, dk, dc = purge_format(
+        ev, dk, dc = archive_format(
             fmt, days, foundations_days, foundations_sets, dry_run
         )
         total_events += ev
@@ -231,30 +254,30 @@ def run_maintenance(formats=None, dry_run=False):
         total_deck_cards += dc
 
         if ev > 0:
-            log.info(
-                f"{prefix}    Pruned {ev} events, {dk} decks, {dc} deck_card rows"
-            )
+            action = "Would archive" if dry_run else "Archived"
+            log.info(f"{prefix}    {action}: {ev} events, {dk} decks, {dc} deck_card rows")
 
-    orphans = purge_orphaned_cards(dry_run)
+    orphans = archive_orphaned_cards(dry_run)
     if orphans > 0:
-        log.info(f"{prefix}  Orphaned cards removed: {orphans}")
+        action = "Would remove" if dry_run else "Removed"
+        log.info(f"{prefix}  {action} {orphans} orphaned card records from active DB")
 
     if total_events == 0 and orphans == 0:
-        log.info(f"{prefix}  Nothing to prune — all data within retention windows.")
+        log.info(f"{prefix}  Nothing to archive — all data within retention windows.")
 
     log.info(
         f"{prefix}--- Maintenance complete: "
         f"{total_events} events, {total_decks} decks, "
-        f"{total_deck_cards} deck_card rows, {orphans} orphaned cards removed ---"
+        f"{total_deck_cards} deck_card rows archived; {orphans} orphans cleaned ---"
     )
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MTG Meta Analyzer — DB maintenance')
     parser.add_argument('--dry-run', action='store_true',
-                        help='Show what would be pruned without deleting')
+                        help='Show what would be archived without moving anything')
     parser.add_argument('--format', dest='fmt', choices=ALL_FORMATS,
-                        help='Run maintenance for one format only')
+                        help='Run for one format only')
     args = parser.parse_args()
 
     fmt_list = [args.fmt] if args.fmt else None

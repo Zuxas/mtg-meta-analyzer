@@ -205,7 +205,7 @@ def scrape_deck_cards(deck_url):
     return mainboard, sideboard
 
 
-def run(format_name="pioneer", pages=1, max_events=10):
+def run(format_name="standard", pages=1, max_events=10):
     """
     Full pipeline: scrape events -> decks -> cards -> store in DB.
     """

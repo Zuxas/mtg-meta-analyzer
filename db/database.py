@@ -2,75 +2,106 @@ import sqlite3
 import os
 import configparser
 
-def _resolve_db_path():
+def _resolve_path(key, fallback):
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    config_path = os.path.join(project_root, 'config.ini')
     cfg = configparser.ConfigParser()
-    if os.path.exists(config_path):
-        cfg.read(config_path)
-    raw = cfg.get('database', 'path', fallback='data/mtg_meta.db')
-    # If relative, resolve from project root
+    cfg.read(os.path.join(project_root, 'config.ini'))
+    raw = cfg.get('database', key, fallback=fallback)
     if not os.path.isabs(raw):
         return os.path.join(project_root, raw)
     return raw
 
-DB_PATH = _resolve_db_path()
+DB_PATH      = _resolve_path('path',         'data/mtg_meta.db')
+ARCHIVE_PATH = _resolve_path('archive_path', 'data/mtg_archive.db')
 
 
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+_SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS events (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id   TEXT NOT NULL,
+        source      TEXT NOT NULL,
+        name        TEXT,
+        date        TEXT,
+        format      TEXT,
+        event_type  TEXT,
+        url         TEXT,
+        UNIQUE(source, source_id)
+    );
+    CREATE TABLE IF NOT EXISTS decks (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id    INTEGER NOT NULL REFERENCES events(id),
+        source_id   TEXT NOT NULL,
+        player      TEXT,
+        archetype   TEXT,
+        placement   INTEGER,
+        url         TEXT,
+        UNIQUE(event_id, source_id)
+    );
+    CREATE TABLE IF NOT EXISTS cards (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        name    TEXT NOT NULL UNIQUE
+    );
+    CREATE TABLE IF NOT EXISTS deck_cards (
+        deck_id      INTEGER NOT NULL REFERENCES decks(id),
+        card_id      INTEGER NOT NULL REFERENCES cards(id),
+        quantity     INTEGER NOT NULL DEFAULT 1,
+        is_sideboard INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (deck_id, card_id, is_sideboard)
+    );
+"""
+
+
+def _make_connection(path):
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
+def get_connection():
+    return _make_connection(DB_PATH)
+
+
+def get_archive_connection():
+    os.makedirs(os.path.dirname(ARCHIVE_PATH), exist_ok=True)
+    return _make_connection(ARCHIVE_PATH)
+
+
+def get_combined_connection(include_archive=False):
+    """
+    Return an active-DB connection. If include_archive=True, the archive DB
+    is ATTACHed as the alias 'archive' so queries can UNION across both.
+    Usage:
+        conn = get_combined_connection(include_archive=True)
+        rows = conn.execute(
+            "SELECT * FROM events UNION ALL SELECT * FROM archive.events"
+        ).fetchall()
+    """
+    conn = get_connection()
+    if include_archive and os.path.exists(ARCHIVE_PATH):
+        conn.execute("ATTACH ? AS archive", (ARCHIVE_PATH,))
+    return conn
+
+
+def _apply_schema(conn):
+    conn.executescript(_SCHEMA_SQL)
+    try:
+        conn.execute("ALTER TABLE events ADD COLUMN event_type TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with get_connection() as conn:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS events (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_id   TEXT NOT NULL,
-                source      TEXT NOT NULL,
-                name        TEXT,
-                date        TEXT,
-                format      TEXT,
-                event_type  TEXT,
-                url         TEXT,
-                UNIQUE(source, source_id)
-            );
+        _apply_schema(conn)
+    print(f"Active DB : {os.path.abspath(DB_PATH)}")
 
-            CREATE TABLE IF NOT EXISTS decks (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_id    INTEGER NOT NULL REFERENCES events(id),
-                source_id   TEXT NOT NULL,
-                player      TEXT,
-                archetype   TEXT,
-                placement   INTEGER,
-                url         TEXT,
-                UNIQUE(event_id, source_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS cards (
-                id      INTEGER PRIMARY KEY AUTOINCREMENT,
-                name    TEXT NOT NULL UNIQUE
-            );
-
-            CREATE TABLE IF NOT EXISTS deck_cards (
-                deck_id     INTEGER NOT NULL REFERENCES decks(id),
-                card_id     INTEGER NOT NULL REFERENCES cards(id),
-                quantity    INTEGER NOT NULL DEFAULT 1,
-                is_sideboard INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY (deck_id, card_id, is_sideboard)
-            );
-        """)
-        # Migration: add event_type column if upgrading from older schema
-        try:
-            conn.execute("ALTER TABLE events ADD COLUMN event_type TEXT")
-        except sqlite3.OperationalError:
-            pass  # column already exists
-    print(f"Database ready at: {os.path.abspath(DB_PATH)}")
+    os.makedirs(os.path.dirname(ARCHIVE_PATH), exist_ok=True)
+    with get_archive_connection() as conn:
+        _apply_schema(conn)
+    print(f"Archive DB: {os.path.abspath(ARCHIVE_PATH)}")
 
 
 def upsert_event(source, source_id, name, date, fmt, url, event_type=None):

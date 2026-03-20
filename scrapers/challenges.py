@@ -42,7 +42,7 @@ def is_challenge(name):
     return any(kw in lower for kw in CHALLENGE_KEYWORDS)
 
 
-def scrape_challenges(format_name="pioneer", pages=2, list_only=False):
+def scrape_challenges(format_name="standard", pages=2, list_only=False):
     """
     Scrape MTGO Challenge events for a given format.
     Only stores events whose name contains 'Challenge'.
@@ -154,7 +154,7 @@ def get_challenge_decks(event_id):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MTGO Challenge scraper")
-    parser.add_argument("--format", default="pioneer", choices=list(FORMATS.keys()))
+    parser.add_argument("--format", default="standard", choices=list(FORMATS.keys()))
     parser.add_argument("--pages", type=int, default=2,
                         help="Pages of event listings to check (default: 2)")
     parser.add_argument("--list-only", action="store_true",

@@ -1,8 +1,8 @@
 """
 MTG Meta Analyzer — entry point
 Usage:
-    python main.py                        # scrape Pioneer (default), 1 page, up to 10 events
-    python main.py --format modern        # scrape Modern
+    python main.py                        # scrape Standard (default), 1 page, up to 10 events
+    python main.py --format pioneer       # scrape Pioneer
     python main.py --format standard --pages 2 --max-events 20
     python main.py --init-only            # just set up the database
 """
@@ -16,7 +16,7 @@ from scrapers.mtgtop8 import run as scrape_mtgtop8, FORMATS
 def main():
     parser = argparse.ArgumentParser(description="MTG Meta Analyzer scraper")
     parser.add_argument(
-        "--format", default="pioneer",
+        "--format", default="standard",
         choices=list(FORMATS.keys()),
         help="Format to scrape (default: pioneer)"
     )
