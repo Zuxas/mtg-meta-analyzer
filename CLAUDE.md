@@ -142,9 +142,29 @@ Backend is cleanly separated from CLI layer:
 
 ### Near-term
 - Scryfall API integration (card oracle text, set data, legality)
-- Patrick Chapin deck evaluation scoring
 - MTGDecks.net as a second data source + cross-source verification
 - Trend charts in CLI output (matplotlib, text-based sparklines, or plotly)
+
+### Deck Scoring & Blunder Detection
+Inspired by the mage-bench blunder index concept. Score theoretical decklists
+for construction errors using weighted severity tiers:
+
+- **Minor** (low weight): suboptimal card choices, off-curve slots, marginal
+  sideboard picks
+- **Moderate** (medium weight): mana base inconsistencies, color screw risk,
+  curve gaps, over-reliance on a single threat type
+- **Major** (high weight): missing win conditions, no interaction, poor matchup
+  coverage against the expected meta field
+
+Each issue is flagged with a severity level, a description, and a suggested
+fix. The deck receives an overall Blunder Score (lower = cleaner build) and a
+Construction Quality rating.
+
+This module feeds directly into the **Chapin Principles Evaluation** layer,
+which maps blunders to Patrick Chapin's framework for deck construction
+quality (threat density, consistency, redundancy, answers, clock). The two
+systems share the same input (decklist + meta context) and output a combined
+evaluation report.
 
 ### GUI Phase
 - PyQt6 GUI wrapping all analysis/query functions
