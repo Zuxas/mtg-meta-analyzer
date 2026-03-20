@@ -18,6 +18,7 @@ import argparse
 import configparser
 import os
 from datetime import datetime, timedelta
+from scrapers.challenges import classify_event_type
 from scrapers.mtgtop8 import (
     FORMATS, HEADERS, DELAY, BASE_URL,
     _get, _abs_url, _parse_event_id, _parse_deck_id,
@@ -133,6 +134,7 @@ def _scrape_year_page(format_name, meta, page, cutoff, existing_ids):
 
 
 def _process_event(ev, format_name, event_type=None):
+    event_type = event_type or classify_event_type(ev["name"])
     """Store one event and all its decks/cards. Returns deck count."""
     event_db_id = upsert_event(
         source="mtgtop8",
