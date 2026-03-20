@@ -1,7 +1,20 @@
 import sqlite3
 import os
+import configparser
 
-DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'mtg_meta.db')
+def _resolve_db_path():
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_path = os.path.join(project_root, 'config.ini')
+    cfg = configparser.ConfigParser()
+    if os.path.exists(config_path):
+        cfg.read(config_path)
+    raw = cfg.get('database', 'path', fallback='data/mtg_meta.db')
+    # If relative, resolve from project root
+    if not os.path.isabs(raw):
+        return os.path.join(project_root, raw)
+    return raw
+
+DB_PATH = _resolve_db_path()
 
 
 def get_connection():
@@ -23,6 +36,7 @@ def init_db():
                 name        TEXT,
                 date        TEXT,
                 format      TEXT,
+                event_type  TEXT,
                 url         TEXT,
                 UNIQUE(source, source_id)
             );
@@ -51,18 +65,23 @@ def init_db():
                 PRIMARY KEY (deck_id, card_id, is_sideboard)
             );
         """)
+        # Migration: add event_type column if upgrading from older schema
+        try:
+            conn.execute("ALTER TABLE events ADD COLUMN event_type TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     print(f"Database ready at: {os.path.abspath(DB_PATH)}")
 
 
-def upsert_event(source, source_id, name, date, fmt, url):
+def upsert_event(source, source_id, name, date, fmt, url, event_type=None):
     with get_connection() as conn:
         conn.execute("""
-            INSERT INTO events (source, source_id, name, date, format, url)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO events (source, source_id, name, date, format, event_type, url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO UPDATE SET
                 name=excluded.name, date=excluded.date,
-                format=excluded.format, url=excluded.url
-        """, (source, source_id, name, date, fmt, url))
+                format=excluded.format, event_type=excluded.event_type, url=excluded.url
+        """, (source, source_id, name, date, fmt, event_type, url))
         return conn.execute(
             "SELECT id FROM events WHERE source=? AND source_id=?", (source, source_id)
         ).fetchone()["id"]

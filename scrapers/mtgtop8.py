@@ -178,14 +178,14 @@ def scrape_deck_cards(deck_url):
     sideboard = {}
 
     # Cards are in div.deck_line elements.
-    # Sideboard begins after a div whose text contains "Sideboard".
+    # Section headers are div.O14 — "SIDEBOARD" marks the switch to side cards.
     in_sideboard = False
     for div in soup.find_all("div"):
         cls = div.get("class") or []
 
-        # Sideboard section header (MTGTop8 uses a plain div with "Sideboard" text)
-        if not cls and div.get_text(strip=True) == "Sideboard":
-            in_sideboard = True
+        if "O14" in cls:
+            if "SIDEBOARD" in div.get_text(strip=True).upper():
+                in_sideboard = True
             continue
 
         if "deck_line" in cls:

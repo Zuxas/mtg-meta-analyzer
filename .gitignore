@@ -7,6 +7,9 @@ data/*.db-wal
 data/*.json
 data/*.csv
 
+# Local config (DB path may differ per machine)
+config.ini
+
 # Python
 __pycache__/
 *.py[cod]
