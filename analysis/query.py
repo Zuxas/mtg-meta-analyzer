@@ -17,6 +17,13 @@ Usage:
     python -m analysis.query matchups "Izzet Prowess" --range "last 60 days"
     python -m analysis.query matrix --format standard --top 10
     python -m analysis.query field-optimizer --field "Izzet Prowess x4, Mono Green x3, Azorius Control x2"
+
+    python -m analysis.query predict --format standard
+    python -m analysis.query validate-predictions
+    python -m analysis.query prediction-report
+
+    python -m analysis.query blunder "Izzet Prowess" --format standard
+    python -m analysis.query chapin "Izzet Prowess" --format standard
 """
 
 import argparse
@@ -467,6 +474,70 @@ def main():
                              help="Show what a raw archetype name normalizes to")
     p_norm.add_argument("name", help="Raw archetype name to normalize")
 
+    # predict
+    p_pred = sub.add_parser("predict", help="Generate and log meta predictions for next week")
+    p_pred.add_argument("--format", default="standard")
+    p_pred.add_argument("--weeks-back", type=int, default=4)
+    p_pred.add_argument("--dry-run", action="store_true",
+                        help="Show predictions without logging them")
+
+    # validate-predictions
+    p_vp = sub.add_parser("validate-predictions", help="Validate pending predictions against actual results")
+    p_vp.add_argument("--format", default=None)
+
+    # prediction-report
+    p_pr = sub.add_parser("prediction-report", help="Accuracy report for logged predictions")
+    p_pr.add_argument("--format", default=None)
+    p_pr.add_argument("--days", type=int, default=90)
+
+    # blunder
+    p_bl = sub.add_parser("blunder",
+                           help="Analyze an archetype's average deck for construction errors")
+    p_bl.add_argument("archetype", help='e.g. "Izzet Prowess"')
+    p_bl.add_argument("--format", default="standard")
+    p_bl.add_argument("--min-inclusion", type=float, default=0.25)
+    p_bl.add_argument("--include-archive", action="store_true")
+    p_bl.add_argument("--no-legality", action="store_true",
+                      help="Skip format legality check")
+
+    # chapin
+    p_ch = sub.add_parser("chapin",
+                           help="Evaluate an archetype's average deck against Chapin's six principles")
+    p_ch.add_argument("archetype", help='e.g. "Izzet Prowess"')
+    p_ch.add_argument("--format", default="standard")
+    p_ch.add_argument("--min-inclusion", type=float, default=0.25)
+    p_ch.add_argument("--include-archive", action="store_true")
+
+    # chart
+    p_chart = sub.add_parser("chart", help="Generate a visualization chart (saves PNG to data/charts/)")
+    chart_sub = p_chart.add_subparsers(dest="chart_type", required=True)
+
+    # chart meta
+    p_cm = chart_sub.add_parser("meta", help="Meta share over time — top N archetypes")
+    p_cm.add_argument("--format", default="standard")
+    p_cm.add_argument("--top", type=int, default=10, help="Number of archetypes (default 10)")
+    p_cm.add_argument("--weeks", type=int, default=12, help="Weeks of history (default 12)")
+    p_cm.add_argument("--event-type", default=None)
+    p_cm.add_argument("--include-archive", action="store_true")
+    _add_date_args(p_cm)
+
+    # chart trend
+    p_ct = chart_sub.add_parser("trend", help="Single archetype trend — appearances + win/meta rates")
+    p_ct.add_argument("archetype", help='e.g. "Izzet Prowess"')
+    p_ct.add_argument("--format", default="standard")
+    p_ct.add_argument("--weeks", type=int, default=12, help="Weeks of history (default 12)")
+    p_ct.add_argument("--event-type", default=None)
+    p_ct.add_argument("--include-archive", action="store_true")
+    _add_date_args(p_ct)
+
+    # chart heatmap
+    p_ch = chart_sub.add_parser("heatmap", help="NxN matchup heatmap for top archetypes")
+    p_ch.add_argument("--format", default="standard")
+    p_ch.add_argument("--top", type=int, default=12, help="Number of archetypes (default 12)")
+    p_ch.add_argument("--min-appearances", type=int, default=3)
+    p_ch.add_argument("--include-archive", action="store_true")
+    _add_date_args(p_ch)
+
     args = parser.parse_args()
 
     # -----------------------------------------------------------------------
@@ -658,6 +729,130 @@ def main():
             print(f"\n  '{args.name}' -> (no mapping found, unchanged)\n")
         else:
             print(f"\n  '{args.name}' -> '{canonical}'\n")
+
+    elif args.cmd == "predict":
+        from analysis.predictions import generate_predictions
+        preds = generate_predictions(
+            format_name=args.format,
+            weeks_back=args.weeks_back,
+            commit=not args.dry_run,
+        )
+        if args.dry_run:
+            print(f"\n  {len(preds)} predictions (dry run — not logged):\n")
+            for p in preds:
+                rank_str = f"  rank {p['predicted_rank']}" if p.get("predicted_rank") else ""
+                print(f"  [{p['prediction_type']:<14}]{rank_str:>8}  "
+                      f"{p['archetype']:<30}  -> {p['predicted_dir']}"
+                      f"  (target: {p['target_week']})")
+            print()
+
+    elif args.cmd == "validate-predictions":
+        from analysis.predictions import validate_predictions
+        result = validate_predictions(format_name=args.format)
+        print(f"\n  Validated: {result['validated']}  "
+              f"Correct: {result['correct']}  "
+              f"Wrong: {result['wrong']}\n")
+
+    elif args.cmd == "prediction-report":
+        from analysis.predictions import accuracy_report
+        report = accuracy_report(format_name=args.format, limit=args.days)
+        overall = report.pop("_overall")
+        print(f"\n  Prediction Accuracy Report (last {args.days} days)\n")
+        print(f"  {'Type':<20} {'Correct':>7} {'Total':>6} {'Accuracy':>9}")
+        print(f"  {'-'*20} {'-'*7} {'-'*6} {'-'*9}")
+        for pt, s in sorted(report.items()):
+            acc_str = f"{s['accuracy']*100:.0f}%" if s["accuracy"] is not None else "N/A"
+            print(f"  {pt:<20} {s['correct']:>7} {s['total']:>6} {acc_str:>9}")
+        print(f"  {'-'*20} {'-'*7} {'-'*6} {'-'*9}")
+        acc_str = f"{overall['accuracy']*100:.0f}%" if overall["accuracy"] is not None else "N/A"
+        print(f"  {'OVERALL':<20} {overall['correct']:>7} {overall['total']:>6} {acc_str:>9}")
+        print()
+        if overall["total"] == 0:
+            print("  No validated predictions yet. "
+                  "Run 'predict' to log some, then 'validate-predictions' after a week.\n")
+
+    elif args.cmd == "blunder":
+        from analysis.blunders import analyze_deck
+        avg = get_average_deck(
+            args.archetype, args.format,
+            min_inclusion=args.min_inclusion,
+            include_archive=args.include_archive,
+        )
+        if not avg:
+            print(f"\n  No decks found for '{args.archetype}' in {args.format}.\n")
+        else:
+            main_dict = {c["name"]: int(round(c["suggested_qty"])) for c in avg["mainboard"]}
+            side_dict = {c["name"]: int(round(c["suggested_qty"])) for c in avg["sideboard"]}
+            report = analyze_deck(
+                main_dict, side_dict,
+                format_name=args.format,
+                archetype=args.archetype,
+                check_legality=not args.no_legality,
+            )
+            print(report.summary())
+
+    elif args.cmd == "chapin":
+        from analysis.chapin import evaluate_deck
+        avg = get_average_deck(
+            args.archetype, args.format,
+            min_inclusion=args.min_inclusion,
+            include_archive=args.include_archive,
+        )
+        if not avg:
+            print(f"\n  No decks found for '{args.archetype}' in {args.format}.\n")
+        else:
+            main_dict = {c["name"]: int(round(c["suggested_qty"])) for c in avg["mainboard"]}
+            side_dict = {c["name"]: int(round(c["suggested_qty"])) for c in avg["sideboard"]}
+            result = evaluate_deck(
+                main_dict, side_dict,
+                format_name=args.format,
+                archetype=args.archetype,
+            )
+            print(result.summary())
+
+    elif args.cmd == "chart":
+        from analysis.charts import (
+            meta_share_chart, archetype_trend_chart, matchup_heatmap
+        )
+        since, until = _resolve_dates(args)
+
+        if args.chart_type == "meta":
+            path = meta_share_chart(
+                format_name=args.format,
+                top=args.top,
+                weeks=args.weeks,
+                since=since,
+                until=until,
+                include_archive=args.include_archive,
+                event_type=getattr(args, "event_type", None),
+            )
+            if path:
+                print(f"  Chart opened: {path}")
+
+        elif args.chart_type == "trend":
+            path = archetype_trend_chart(
+                args.archetype,
+                format_name=args.format,
+                weeks=args.weeks,
+                since=since,
+                until=until,
+                include_archive=args.include_archive,
+                event_type=getattr(args, "event_type", None),
+            )
+            if path:
+                print(f"  Chart opened: {path}")
+
+        elif args.chart_type == "heatmap":
+            path = matchup_heatmap(
+                format_name=args.format,
+                top=args.top,
+                min_appearances=args.min_appearances,
+                since=since,
+                until=until,
+                include_archive=args.include_archive,
+            )
+            if path:
+                print(f"  Chart opened: {path}")
 
 
 if __name__ == "__main__":

@@ -173,6 +173,69 @@ def build_canonical_list():
     return [r["archetype"] for r in rows]
 
 
+def apply_normalization(dry_run=False, fuzzy=False, fuzzy_threshold=85):
+    """
+    Retroactive migration: update decks.archetype for all known aliases.
+
+    For each distinct archetype name in the DB, if normalize() returns a different
+    canonical name, UPDATE all matching rows.
+
+    Args:
+        dry_run:         Print changes without modifying the DB.
+        fuzzy:           Also apply fuzzy matching (higher false-positive risk).
+        fuzzy_threshold: Minimum fuzzy score to apply (default 85).
+
+    Returns:
+        dict with 'mapped', 'skipped', 'total', 'changes' keys.
+    """
+    from db.database import get_connection
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT archetype, COUNT(*) as cnt FROM decks "
+            "WHERE archetype IS NOT NULL AND archetype != '' "
+            "GROUP BY archetype ORDER BY cnt DESC"
+        ).fetchall()
+
+    changes = []
+    skipped = 0
+    for row in rows:
+        raw = row["archetype"]
+        canonical = normalize(raw, fuzzy=fuzzy, fuzzy_threshold=fuzzy_threshold)
+        if canonical != raw:
+            changes.append((raw, canonical, row["cnt"]))
+        else:
+            skipped += 1
+
+    if not changes:
+        print("  No archetype mappings to apply.")
+        return {"mapped": 0, "skipped": skipped, "total": len(rows), "changes": []}
+
+    print(f"\n  {'DRY RUN — ' if dry_run else ''}Archetype normalization: "
+          f"{len(changes)} mappings, {skipped} already canonical\n")
+
+    for raw, canonical, cnt in changes:
+        print(f"  {raw!r:<40} -> {canonical!r}  ({cnt} decks)")
+
+    if not dry_run:
+        print()
+        with get_connection() as conn:
+            for raw, canonical, _ in changes:
+                conn.execute(
+                    "UPDATE decks SET archetype=? WHERE archetype=?",
+                    (canonical, raw)
+                )
+        print(f"  Applied {len(changes)} mappings to active DB.")
+    else:
+        print(f"\n  (Dry run — no changes made. Run with --apply to commit.)")
+
+    return {
+        "mapped": len(changes),
+        "skipped": skipped,
+        "total": len(rows),
+        "changes": changes,
+    }
+
+
 def suggest_aliases(threshold=80):
     """
     Scan the DB for archetype names that are likely duplicates.
@@ -201,3 +264,27 @@ def suggest_aliases(threshold=80):
             groups.append((name, similar, max(m[1] for m in matches if m[0] in similar)))
 
     return sorted(groups, key=lambda g: -g[2])
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+    parser = argparse.ArgumentParser(
+        description="Apply archetype alias normalization to existing DB records"
+    )
+    parser.add_argument("--apply", action="store_true",
+                        help="Commit changes to the DB (default is dry run)")
+    parser.add_argument("--fuzzy", action="store_true",
+                        help="Also apply fuzzy matching (higher false-positive risk)")
+    parser.add_argument("--fuzzy-threshold", type=int, default=85,
+                        help="Fuzzy score cutoff 0-100 (default 85)")
+    args = parser.parse_args()
+
+    apply_normalization(
+        dry_run=not args.apply,
+        fuzzy=args.fuzzy,
+        fuzzy_threshold=args.fuzzy_threshold,
+    )

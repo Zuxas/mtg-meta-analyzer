@@ -34,6 +34,9 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     average, compare, search, top-cards, last-challenge
     meta, trend, h2h, matchups, matrix, field-optimizer
     card, enrich-stats, suggest-aliases, normalize
+    chart meta, chart trend, chart heatmap
+    predict, validate-predictions, prediction-report
+    blunder, chapin
 - Win rate / performance tracking (`analysis/win_rates.py`):
   - Placement-based estimated match W/L per archetype
   - Meta standings, weekly trend, head-to-head, full matchup breakdown
@@ -52,6 +55,26 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - ALIASES table maps raw scraper names to canonical names
   - `normalize(name, fuzzy=True)` for analysis queries
   - `suggest_aliases()` scans DB for likely duplicate names
+  - `apply_normalization(dry_run, fuzzy)` — retroactive DB migration (13 mappings applied)
+  - Run: `python -m analysis.archetypes --apply`
+- Self-Validation & Prediction Logging (`analysis/predictions.py`):
+  - Auto-generates top_meta / trending_up / trending_down predictions from meta data
+  - Stores in `predictions` SQLite table; validates after target week passes
+  - Accuracy tracked per prediction type (which signals are most reliable)
+  - Run: `python -m analysis.query predict`, `validate-predictions`, `prediction-report`
+- Deck Scoring & Blunder Detection (`analysis/blunders.py`):
+  - Checks: land count, mana curve, color consistency, interaction, threats, deck size, legality
+  - Severity tiers: Major (10pt), Moderate (4pt), Minor (1pt) → Construction Quality rating
+  - Run: `python -m analysis.query blunder "Izzet Prowess"`
+- Chapin Principles Evaluation (`analysis/chapin.py`):
+  - Six principles: Threats (20%), Answers (20%), Consistency (18%), Velocity (15%), Mana (17%), Clock (10%)
+  - Each scored 0-10 with bar display; overall weighted average + recommendation
+  - Run: `python -m analysis.query chapin "Izzet Prowess"`
+- Trend charts (`analysis/charts.py`) — wired into `chart` subcommand:
+  - `chart meta` — line chart, meta share % per week for top N archetypes
+  - `chart trend` — dual-axis: bars=appearances, lines=meta/win/top8 rates
+  - `chart heatmap` — NxN matchup heatmap with RdYlGn colormap
+  - Dark theme, saves PNG to `data/charts/`, auto-opens on Windows
 - VS Code workspace settings (`.vscode/settings.json`)
 - Claude Code project permissions (`.claude/settings.json`)
   - Read-only query commands auto-approved (no confirmation prompt)
@@ -80,19 +103,30 @@ across both active and archive DBs. Populated by `python -m scrapers.scryfall`.
 - Archive-based: old data moves to mtg_archive.db, never deleted
 - Configurable per-format in config.ini (see config.example.ini)
 
+- MTGDecks.net second data source (`scrapers/mtgdecks.py`):
+  - Uses `cloudscraper` (Chrome TLS fingerprint) to bypass Cloudflare 403s
+  - Parses tournament lists, event detail pages, and deck card lists
+  - Card lists from `<textarea id="arena_deck">` (Arena export format — reliable)
+  - Filters: MTGO Challenges always included; others need 50+ players or signal keyword
+  - `source="mtgdecks"` in events table to separate from mtgtop8 data
+
 ## Key Files
 
 ```
 main.py                     CLI entry point (default: Standard, 1 page, 10 events)
 scrapers/mtgtop8.py         Core MTGTop8 scraper
 scrapers/challenges.py      MTGO Challenge-specific scraper
+scrapers/mtgdecks.py        MTGDecks.net scraper (cloudscraper, Cloudflare bypass)
 scrapers/backfill.py        Historical backfill (year-by-year, stops at cutoff)
 scrapers/scryfall.py        Scryfall local card database + enrichment
 db/database.py              Schema, connections, active + archive DB helpers
 db/maintenance.py           Format-aware archive maintenance + orphan cleanup
 analysis/deck_analysis.py   Average deck + deck comparison functions
 analysis/win_rates.py       Performance tracking, matchup matrix, field optimizer
-analysis/archetypes.py      Archetype name normalization + alias table
+analysis/archetypes.py      Archetype name normalization + alias table + DB migration
+analysis/predictions.py     Self-validation & prediction logging system
+analysis/blunders.py        Deck scoring & blunder detection (weighted severity)
+analysis/chapin.py          Chapin Principles Evaluation (6 principles, 0-10 scored)
 analysis/query.py           CLI query interface (all subcommands)
 config.example.ini          Committed config template
 config.ini                  Local config (gitignored)
@@ -143,6 +177,21 @@ python -m analysis.query enrich-stats
 # Archetype normalization
 python -m analysis.query normalize "UR Prowess"       # -> "Izzet Prowess"
 python -m analysis.query suggest-aliases               # find likely duplicates
+python -m analysis.archetypes                          # dry run migration
+python -m analysis.archetypes --apply                  # commit alias migration to DB
+
+# Self-validation & predictions
+python -m analysis.query predict --format standard     # log predictions for next week
+python -m analysis.query validate-predictions          # validate pending predictions
+python -m analysis.query prediction-report             # accuracy report by type
+
+# Deck analysis: Blunder Detection + Chapin Principles
+python -m analysis.query blunder "Izzet Prowess" --format standard
+python -m analysis.query chapin "Izzet Prowess" --format standard
+
+# MTGDecks.net second source
+python -m scrapers.mtgdecks --pages 3 --dry-run
+python -m scrapers.mtgdecks --pages 3
 
 # Database maintenance
 python -m db.maintenance --dry-run
@@ -172,10 +221,7 @@ Backend is cleanly separated from CLI layer:
 ## What's Next
 
 ### Immediate Priorities (see NEXT_STEPS.md)
-1. Apply archetype normalization retroactively to existing DB records
-2. MTGDecks.net as a second data source
-3. Trend charts (matplotlib — deps already installed)
-4. Deck Scoring & Blunder Detection module
+All core analysis features complete. Next phase: PyQt6 GUI + PyInstaller packaging.
 
 ### Deck Scoring & Blunder Detection
 Inspired by the mage-bench blunder index concept. Score theoretical decklists
