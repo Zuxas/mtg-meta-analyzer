@@ -21,8 +21,13 @@ __pycache__/
 venv/
 .venv/
 
-# VS Code
-.vscode/
+# VS Code (commit workspace settings, ignore user-specific files)
+.vscode/*
+!.vscode/settings.json
+
+# Claude Code (commit project permissions, ignore session/cache data)
+.claude/*
+!.claude/settings.json
 
 # Windows
 Thumbs.db

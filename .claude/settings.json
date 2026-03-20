@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m analysis.query *)",
+      "Bash(python -m scrapers.scryfall --stats*)",
+      "Bash(python -m scrapers.scryfall --card *)",
+      "Bash(python -m scrapers.scryfall --search*)",
+      "Bash(python -c *)"
+    ],
+    "deny": []
+  }
+}

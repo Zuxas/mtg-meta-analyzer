@@ -45,7 +45,10 @@ from analysis.win_rates import (
     optimize_field_composition,
     parse_field_string,
 )
-from scrapers.scryfall import get_card_data, enrich_stats as scryfall_enrich_stats
+from scrapers.scryfall import (
+    get_card_data, enrich_stats as scryfall_enrich_stats,
+    search_local, print_card as _scryfall_print_card,
+)
 from analysis.archetypes import normalize, suggest_aliases, build_canonical_list
 from db.database import get_connection
 
@@ -441,10 +444,14 @@ def main():
     _add_date_args(p_fo)
 
     # card
-    p_card = sub.add_parser("card", help="Look up Scryfall data for a card")
-    p_card.add_argument("name", help="Card name (partial OK)")
+    p_card = sub.add_parser("card",
+                             help="Look up a card — exact name, partial, or natural language")
+    p_card.add_argument("name", nargs="+",
+                        help='Card name or NL query, e.g. "what does Sheoldred do"')
     p_card.add_argument("--format", default=None,
-                        help="Check legality in this format")
+                        help="Include legality and usage for this format (default: standard)")
+    p_card.add_argument("--search", action="store_true",
+                        help="Show top fuzzy matches instead of single lookup")
 
     # enrich-stats
     sub.add_parser("enrich-stats", help="Show Scryfall enrichment coverage")
@@ -605,29 +612,23 @@ def main():
         print_field_optimizer(result)
 
     elif args.cmd == "card":
-        data = get_card_data(args.name)
-        if not data:
-            print(f"\n  '{args.name}' not found in enrichment DB.")
-            print("  Run: python -m scrapers.scryfall --card \"" + args.name + "\"")
-            print("  Or run: python -m scrapers.scryfall  (to enrich all cards)\n")
-            return
-        print(f"\n  {data['name']}")
-        print(f"  Mana cost  : {data.get('mana_cost') or '{0}'}  (CMC {data.get('cmc', 0):.0f})")
-        print(f"  Type       : {data.get('type_line', '?')}")
-        colors = data.get("colors", [])
-        ci     = data.get("color_identity", [])
-        print(f"  Colors     : {', '.join(colors) if colors else 'Colorless'}  "
-              f"(identity: {', '.join(ci) if ci else 'C'})")
-        print(f"  Rarity     : {data.get('rarity', '?')}  ({data.get('set_code', '?').upper()})")
-        oracle = data.get("oracle_text", "")
-        if oracle:
-            for line in oracle.splitlines():
-                print(f"    {line}")
-        if args.format:
-            legalities = data.get("legalities", {})
-            status = legalities.get(args.format.lower(), "unknown") if legalities else "unknown"
-            print(f"  {args.format.title()} legal: {'YES' if status == 'legal' else 'NO'} ({status})")
-        print()
+        query = " ".join(args.name)
+        fmt   = args.format or "standard"
+
+        if args.search:
+            # Show top fuzzy matches
+            results = search_local(query, limit=8)
+            if not results:
+                print(f"\n  No matches found for '{query}'.\n")
+            else:
+                print(f"\n  Top matches for '{query}':\n")
+                for r in results:
+                    colors = r.get("colors", [])
+                    print(f"  [{r['match_score']:>3}]  {r.get('canonical_name') or r['name']:<35} "
+                          f"{r.get('mana_cost',''):<12}  {r.get('type_line','')}")
+                print(f"\n  Run without --search to see full details for a specific card.\n")
+        else:
+            _scryfall_print_card(query, format_name=fmt, show_usage=True)
 
     elif args.cmd == "enrich-stats":
         s = scryfall_enrich_stats()

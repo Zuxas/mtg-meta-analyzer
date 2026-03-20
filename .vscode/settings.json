@@ -1,0 +1,14 @@
+{
+  "terminal.integrated.cwd": "E:\\vscode ai project\\mtg-meta-analyzer",
+  "python.defaultInterpreterPath": "python",
+  "python.terminal.activateEnvironment": false,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "data/*.db": true,
+    "data/*.db-shm": true,
+    "data/*.db-wal": true,
+    "data/*.json": true,
+    "logs/": true
+  }
+}
