@@ -27,6 +27,20 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - SQLite database storing events, decks, cards, deck_cards
 - Format-aware archive-based retention policy (not deletion)
 - Daily automated scraper via Windows Task Scheduler (`run_daily.bat`)
+- Average deck calculator and deck comparison (`analysis/deck_analysis.py`)
+- CLI query tool (`analysis/query.py`) with: average, compare, search,
+  top-cards, last-challenge, meta, trend, h2h, matchups, matrix,
+  field-optimizer subcommands
+- Win rate / performance tracking (`analysis/win_rates.py`):
+  - Placement-based estimated match W/L per archetype
+  - Meta standings table (top8 rate, avg pts, est win%)
+  - Week-by-week trend with meta share
+  - Head-to-head between any two archetypes
+  - Full matchup breakdown (one archetype vs all others)
+  - NxN matchup matrix for top N archetypes
+  - Natural language date range filtering ("last 30 days", "feb2-mar9")
+  - Field Optimizer: input expected tournament field, get weighted win%
+    per archetype against that specific field with confidence ratings
 
 ### Primary Format
 Standard is the primary focus format. All scraper defaults are Standard.
@@ -61,7 +75,9 @@ scrapers/challenges.py    MTGO Challenge-specific scraper
 scrapers/backfill.py      Historical backfill (year-by-year, stops at cutoff)
 db/database.py            Schema, connections, active + archive DB helpers
 db/maintenance.py         Format-aware archive maintenance + orphan cleanup
-analysis/                 Meta analysis module (in progress)
+analysis/deck_analysis.py Average deck + deck comparison functions
+analysis/win_rates.py     Performance tracking, matchup matrix, field optimizer
+analysis/query.py         CLI query interface (all subcommands)
 config.example.ini        Committed config template
 config.ini                Local config (gitignored)
 run_daily.bat             Daily scraper script called by Task Scheduler
@@ -88,6 +104,18 @@ python -m scrapers.challenges --format standard
 # Database maintenance (runs automatically, but can run manually)
 python -m db.maintenance --dry-run
 python -m db.maintenance
+
+# Meta analysis queries
+python -m analysis.query meta --format standard
+python -m analysis.query meta --range "last 30 days"
+python -m analysis.query trend "Izzet Prowess" --weeks 8
+python -m analysis.query trend "Izzet Prowess" --range "feb2-mar9"
+python -m analysis.query h2h "Izzet Prowess" "Azorius Control"
+python -m analysis.query matchups "Izzet Prowess"
+python -m analysis.query matrix --top 12
+python -m analysis.query field-optimizer --field "Izzet Prowess x4, Mono Green x3, Azorius Control x2"
+python -m analysis.query average "Izzet Prowess"
+python -m analysis.query search "Prowess"
 ```
 
 ## Automated Daily Scraper
@@ -111,15 +139,31 @@ Backend is cleanly separated from CLI layer:
   without duplicating any query logic
 
 ## What's Next (not yet built)
-- Analysis module: top cards, archetype trends, meta share over time
-- Average deck calculator per archetype
-- Deck comparison: specific list vs archetype average
+
+### Near-term
 - Scryfall API integration (card oracle text, set data, legality)
 - Patrick Chapin deck evaluation scoring
-- MTGDecks.net as a second data source
-- Cross-source verification layer
-- GUI (PyQt6 + matplotlib/plotly charts)
+- MTGDecks.net as a second data source + cross-source verification
+- Trend charts in CLI output (matplotlib, text-based sparklines, or plotly)
+
+### GUI Phase
+- PyQt6 GUI wrapping all analysis/query functions
+- matplotlib/plotly charts for trend lines, meta share, matchup heatmaps
 - PyInstaller standalone .exe packaging
+
+### Long-term Roadmap
+
+#### Game Simulation Engine Integration
+Eventually integrate with a simulation engine (e.g. XMage or a custom MTG
+rules engine) to allow theoretical decklists to be tested against predicted
+meta fields through automated simulation. This would give predicted win
+percentages for untested lists before physical testing — a "paper backtest"
+for deck building.
+
+Phase order: meta analysis + deck building features complete first, then
+simulation layer built on top as a validation/prediction tool.
+
+This is a long-term future phase requiring significant ML/automation work.
 
 ## Always Do at End of Session
 Update this CLAUDE.md to reflect any new features completed or design decisions made.
