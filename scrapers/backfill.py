@@ -13,6 +13,8 @@ Usage:
 """
 
 import re
+import sys
+import io
 import time
 import argparse
 import configparser
@@ -242,7 +244,10 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MTG Meta Analyzer — historical backfill")
+    # Force UTF-8 output so event names with special characters don't crash on Windows
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+    parser = argparse.ArgumentParser(description="MTG Meta Analyzer -- historical backfill")
     parser.add_argument("--format", default="standard", choices=list(FORMATS.keys()))
     parser.add_argument(
         "--since",
