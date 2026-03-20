@@ -1,0 +1,23 @@
+# Database (can get large, regenerate by running scraper)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Raw data dumps
+data/*.json
+data/*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
