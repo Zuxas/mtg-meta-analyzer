@@ -447,6 +447,39 @@ class DeckAnalyzerTab(QWidget):
         self._legality_table.setMaximumHeight(150)
         rv.addWidget(self._legality_table)
 
+        # Divider
+        div3 = QFrame()
+        div3.setFrameShape(QFrame.Shape.HLine)
+        rv.addWidget(div3)
+
+        # Hypergeometric calculator
+        hyper_hdr = QLabel("Hypergeometric Calculator")
+        hyper_hdr.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        rv.addWidget(hyper_hdr)
+
+        hyper_row1 = QHBoxLayout()
+        for label, attr, default in [
+            ("Deck size",    "_hyper_deck",  "60"),
+            ("Copies",       "_hyper_copies","4"),
+            ("Cards drawn",  "_hyper_drawn", "7"),
+            ("Want ≥",       "_hyper_want",  "1"),
+        ]:
+            hyper_row1.addWidget(QLabel(f"{label}:"))
+            field = QLineEdit(default)
+            field.setFixedWidth(44)
+            field.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            field.textChanged.connect(self._calc_hypergeom)
+            setattr(self, attr, field)
+            hyper_row1.addWidget(field)
+        rv.addLayout(hyper_row1)
+
+        self._hyper_result = QLabel("")
+        self._hyper_result.setStyleSheet(
+            f"color: {theme.ACCENT}; font-size: 13px; font-weight: bold; padding: 2px 0;"
+        )
+        rv.addWidget(self._hyper_result)
+        self._calc_hypergeom()   # show initial result
+
         rv.addStretch()
 
         splitter.addWidget(right)
@@ -620,6 +653,47 @@ class DeckAnalyzerTab(QWidget):
     # ------------------------------------------------------------------
     # Analysis
     # ------------------------------------------------------------------
+
+    def _calc_hypergeom(self):
+        """Compute P(drawing >= want copies) from a hypergeometric distribution."""
+        try:
+            N = int(self._hyper_deck.text())
+            K = int(self._hyper_copies.text())
+            n = int(self._hyper_drawn.text())
+            k = int(self._hyper_want.text())
+            if not (0 < N <= 250 and 0 <= K <= N and 0 <= n <= N and 0 <= k <= min(K, n)):
+                raise ValueError
+        except (ValueError, AttributeError):
+            self._hyper_result.setText("—")
+            return
+
+        try:
+            from scipy.stats import hypergeom
+            prob = hypergeom.sf(k - 1, N, K, n)
+        except ImportError:
+            # Manual calculation without scipy
+            def _comb(a, b):
+                if b < 0 or b > a:
+                    return 0
+                import math
+                return math.comb(a, b)
+            total = _comb(N, n)
+            if total == 0:
+                self._hyper_result.setText("—")
+                return
+            prob = sum(
+                _comb(K, i) * _comb(N - K, n - i)
+                for i in range(k, min(K, n) + 1)
+            ) / total
+
+        pct = prob * 100
+        color = theme.OK if pct >= 60 else (theme.WARN if pct >= 30 else theme.ERR)
+        self._hyper_result.setStyleSheet(
+            f"color: {color}; font-size: 13px; font-weight: bold; padding: 2px 0;"
+        )
+        self._hyper_result.setText(
+            f"P(≥{k} in {n} draws)  =  {pct:.1f}%"
+        )
 
     def _on_export(self):
         from gui.widgets.deck_export import show_export_menu

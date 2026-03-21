@@ -245,7 +245,7 @@ class DashboardTab(QWidget):
 
         self._recent_tbl  = self._build_recent_panel(top_layout)
         self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
-            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%"])
+            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Tier"])
         self._pop_tbl, self._pop_hdr = self._build_ranked_panel(
             top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%"])
         self._vsplit.addWidget(top_widget)
@@ -544,6 +544,25 @@ class DashboardTab(QWidget):
     _ROW_RISING  = QColor(18, 48, 22)   # dark green
     _ROW_FALLING = QColor(52, 18, 18)   # dark red
 
+    @staticmethod
+    def _tier_badge(winrate: float, meta_share: float, is_declining: bool):
+        """Return (tier_letter, QColor) for a meta tier badge.
+
+        S = win rate >55% AND meta share >8%
+        A = win rate >52% OR meta share >5%
+        B = everything else in top N
+        C = declining trend
+        """
+        pct   = winrate * 100
+        share = meta_share * 100
+        if pct > 55 and share > 8:
+            return "S", QColor("#FFD700")          # gold
+        if pct > 52 or share > 5:
+            return "A", QColor(theme.OK)            # green
+        if is_declining:
+            return "C", QColor(theme.ERR)           # red
+        return "B", QColor(theme.ACCENT)            # cyan
+
     def _trend_bg(self, archetype: str, prior_map: dict,
                   current_val: float, prior_key: str,
                   threshold: float = 0.02) -> QColor | None:
@@ -566,6 +585,11 @@ class DashboardTab(QWidget):
             [s for s in standings if s.get("est_match_winpct") is not None],
             key=lambda s: -s["est_match_winpct"],
         )[:top_n]
+
+        total_apps  = sum(s["appearances"] for s in standings) or 1
+        prior_total = (sum(p.get("appearances", 0) for p in prior_map.values()) or 1
+                       if prior_map else 1)
+
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
@@ -590,6 +614,23 @@ class DashboardTab(QWidget):
             if bg:
                 pct_item.setBackground(bg)
             tbl.setItem(ri, 2, pct_item)
+
+            # Tier badge
+            meta_share  = s["appearances"] / total_apps
+            prior_apps  = (prior_map[s["archetype"]].get("appearances", 0)
+                           if prior_map and s["archetype"] in prior_map else 0)
+            prior_share = prior_apps / prior_total if prior_map else meta_share
+            is_declining = prior_map is not None and (meta_share - prior_share) < -0.005
+            tier, tier_color = self._tier_badge(s["est_match_winpct"], meta_share, is_declining)
+            tier_item = QTableWidgetItem(tier)
+            tier_item.setForeground(tier_color)
+            tier_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            tier_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            f = tier_item.font(); f.setBold(True); tier_item.setFont(f)
+            if bg:
+                tier_item.setBackground(bg)
+            tbl.setItem(ri, 3, tier_item)
+
         tbl.resizeRowsToContents()
         tbl.setSortingEnabled(True)
         tbl.sortByColumn(2, Qt.SortOrder.DescendingOrder)

@@ -84,6 +84,19 @@ python run_gui.py
 
 ---
 
+## Session 2026-03-21 (session 4) Summary — What was added
+
+1. **Meta tier list badges** (Dashboard win rate panel)
+   - New "Tier" column in the WIN RATE panel (4th column)
+   - `_tier_badge(winrate, meta_share, is_declining)` static method on DashboardTab
+   - S (gold) = win rate >55% AND meta share >8%
+   - A (green) = win rate >52% OR meta share >5%
+   - B (cyan) = everything else in top N
+   - C (red) = declining trend (share dropped >0.5% vs prior period)
+   - No new files — only `gui/tabs/dashboard.py` modified
+
+---
+
 ## Session 2026-03-21 (session 3) Summary — What was added
 
 1. **Archetype normalization — three-layer upgrade** (`analysis/archetypes.py`)
@@ -134,13 +147,29 @@ python run_gui.py
 - Full 75 + each matchup as a section with ON PLAY / ON DRAW IN/OUT + notes
 - Save to exports/ and auto-open; clean enough to print and fold for a tournament
 
-## MEDIUM PRIORITY
+## MEDIUM PRIORITY — Easy wins still TODO (do in order, commit after each)
 
-### Remaining Features
+### 3. Charts Compare Mode (~30 min)
+- Change archetype field in Charts tab to multi-select QListWidget or editable combo
+- Overlay multiple archetypes as lines on one trend chart
+- No new files — only `gui/tabs/charts.py` + `gui/widgets/chart_canvas.py`
+
+### 4. DB layer for My Decks (~20 min)
+- Create `db/saved_decks.py`
+- Tables: `saved_decks` (id, name, format, archetype, mainboard JSON, sideboard JSON, notes, created_at)
+         `saved_sb_plans` (id, deck_id, opponent_archetype, play_in JSON, play_out JSON, draw_in JSON, draw_out JSON, notes, difficulty)
+- Functions: save_deck / get_decks / get_deck / delete_deck / save_sb_plan / get_sb_plans / delete_sb_plan
+- No GUI yet — backend only
+
+### 5. Play/draw split in sideboard guides (~20 min)
+- Upgrade `analysis/sideboard_guides.py`
+- Add in_cards_play / out_cards_play / in_cards_draw / out_cards_draw fields
+- Add difficulty field (Easy/Medium/Hard based on variance between lines)
+- No new files — only `analysis/sideboard_guides.py`
+
+### Remaining lower-priority features
 - **User Preferences System** — format selection in setup wizard (page 0), wire scrapers to skip unselected formats
 - **Knowledge Base improvements** — filter by archetype/format, full-text search, guide rating
-- **Charts Compare Mode** — multi-archetype overlay (already built in session 3)
-- **Play/draw split in sideboard guides** — already built in session 3
 
 ## LOW PRIORITY / FUTURE
 

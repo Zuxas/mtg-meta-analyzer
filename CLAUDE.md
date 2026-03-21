@@ -132,6 +132,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Player column**: Recent Top Finishes shows Place / Colors / Archetype / Player / Event / Date (6 columns)
   - **Mana color pips**: `theme.make_pip_widget()` uses `QPainter.drawEllipse()` with antialiasing — guaranteed true circles regardless of Qt stylesheet limitations
   - **Trend color-coding**: Win Rate and Popular panel rows tinted dark green (rising) / dark red (falling) vs the prior equivalent period
+  - **Meta tier badges**: Win Rate panel has a "Tier" column — S (gold, >55% WR + >8% share), A (green, >52% WR or >5% share), B (cyan, top N rest), C (red, declining trend)
   - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
   - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
   - **Deck parser**: handles all sideboard formats — `Sideboard`, `SIDEBOARD:`, `SB:`, `// Sideboard`, `SB: 4 Card`, blank-line fallback
