@@ -442,10 +442,10 @@ def get_meta_standings(format_name="standard", event_type=None,
             q += " AND e.event_type = ?"
             params.append(event_type)
         if since:
-            q += " AND e.date >= ?"
+            q += f" AND ({_DATE_KEY}) >= ?"
             params.append(_dt_to_db_str(since))
         if until:
-            q += " AND e.date <= ?"
+            q += f" AND ({_DATE_KEY}) <= ?"
             params.append(_dt_to_db_str(until))
 
         all_rows = conn.execute(q, params).fetchall()

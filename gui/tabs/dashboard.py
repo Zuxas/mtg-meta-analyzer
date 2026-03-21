@@ -209,10 +209,10 @@ class DashboardTab(QWidget):
         top_layout.setSpacing(6)
 
         self._recent_tbl  = self._build_recent_panel(top_layout)
-        self._winrate_tbl = self._build_ranked_panel(top_layout, "WIN RATE TODAY",
-                                                     ["", "Archetype", "Win%"])
-        self._pop_tbl     = self._build_ranked_panel(top_layout, "POPULAR THIS WEEK",
-                                                     ["", "Archetype", "Apps", "Meta%"])
+        self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
+            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%"])
+        self._pop_tbl, self._pop_hdr = self._build_ranked_panel(
+            top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%"])
         self._vsplit.addWidget(top_widget)
 
         # -- Bottom: chart + checkbox sidebar --------------------------
@@ -293,7 +293,7 @@ class DashboardTab(QWidget):
 
     def _build_recent_panel(self, parent_layout) -> QTableWidget:
         # Columns: Pl | Colors | Archetype | Player | Event | Date
-        frame, tbl = self._panel_frame("RECENT TOP FINISHES",
+        frame, tbl, _ = self._panel_frame("RECENT TOP FINISHES",
                                        ["Pl", "Colors", "Archetype", "Player", "Event", "Date"])
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -307,8 +307,8 @@ class DashboardTab(QWidget):
         parent_layout.addWidget(frame)
         return tbl
 
-    def _build_ranked_panel(self, parent_layout, title: str, cols: list) -> QTableWidget:
-        frame, tbl = self._panel_frame(title, cols)
+    def _build_ranked_panel(self, parent_layout, title: str, cols: list):
+        frame, tbl, hdr_lbl = self._panel_frame(title, cols)
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -317,10 +317,10 @@ class DashboardTab(QWidget):
         tbl.itemDoubleClicked.connect(self._on_ranked_dblclick)
         tbl.itemClicked.connect(self._on_ranked_dblclick)
         parent_layout.addWidget(frame)
-        return tbl
+        return tbl, hdr_lbl
 
     def _panel_frame(self, title: str, cols: list):
-        """Return (QFrame, QTableWidget) for a titled panel."""
+        """Return (QFrame, QTableWidget, header_QLabel) for a titled panel."""
         frame = QFrame()
         frame.setStyleSheet(
             f"QFrame {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
@@ -342,7 +342,7 @@ class DashboardTab(QWidget):
 
         tbl = _make_panel_table(cols)
         fl.addWidget(tbl, 1)
-        return frame, tbl
+        return frame, tbl, hdr
 
     # ------------------------------------------------------------------
     # Public API
@@ -389,6 +389,11 @@ class DashboardTab(QWidget):
         self._standings = data["standings"]
         n = len(self._standings)
         self._status_lbl.setText(f"{n} archetype{'s' if n != 1 else ''} loaded")
+
+        # Update panel titles to reflect the current timeframe
+        tf_label = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+        self._winrate_hdr.setText(f"  WIN RATE — {tf_label.upper()}")
+        self._pop_hdr.setText(f"  POPULAR — {tf_label.upper()}")
 
         self._populate_winrate(self._standings)
         self._populate_popularity(self._standings)

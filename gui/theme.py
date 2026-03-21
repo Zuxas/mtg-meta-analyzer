@@ -88,22 +88,22 @@ def color_identity(name: str) -> str:
 
 def make_pip_widget(identity: str):
     """
-    Return a QWidget of small colored circles for a mana color identity string.
-    Import lazily to keep theme.py importable before QApplication is created.
+    Return a QWidget of colored filled-circle pip labels for a mana identity.
+    Uses Unicode ● so circles render correctly without Qt border-radius issues.
+    Import lazily so theme.py stays importable before QApplication exists.
     """
     from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
     w = QWidget()
     w.setStyleSheet("background: transparent;")
     hl = QHBoxLayout(w)
     hl.setContentsMargins(4, 0, 4, 0)
-    hl.setSpacing(2)
+    hl.setSpacing(1)
     for ch in identity:
-        color = MANA_COLORS.get(ch, "#888888")
-        lbl = QLabel()
-        lbl.setFixedSize(10, 10)
-        border = "1px solid rgba(200,200,200,0.35);" if ch == "W" else ""
+        # Black (#150B00) is near-invisible on dark bg — use charcoal instead
+        color = "#5a4a40" if ch == "B" else MANA_COLORS.get(ch, "#888888")
+        lbl = QLabel("\u25cf")   # ● FILLED CIRCLE
         lbl.setStyleSheet(
-            f"background: {color}; border-radius: 5px; {border}"
+            f"color: {color}; font-size: 11px; background: transparent;"
         )
         hl.addWidget(lbl)
     hl.addStretch()
