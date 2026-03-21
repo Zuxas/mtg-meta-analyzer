@@ -1,6 +1,6 @@
 # CLAUDE.md - MTG Meta Analyzer Project Context
 
-Last updated: 2026-03-21 (session 2)
+Last updated: 2026-03-21 (session 3)
 
 ## Project Purpose
 Build an automated tool to analyze competitive Magic: The Gathering tournament
@@ -54,12 +54,21 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `get_card_data()`, `get_cards_data()`, `is_legal()` helpers
   - `search_local(query)`: fuzzy + NL search in local file (no API calls)
   - `get_deck_usage(name, format)`: tournament presence stats
-- Archetype name normalization (`analysis/archetypes.py`):
-  - ALIASES table maps raw scraper names to canonical names
-  - `normalize(name, fuzzy=True)` for analysis queries
+- Archetype name normalization (`analysis/archetypes.py`) — three-layer system:
+  - Layer 1: `pre_normalize()` — fixes spacing/hyphens/color abbreviations before alias lookup
+    ("Mono-Green Landfall", "MonoGreen Landfall", "monogreen landfall" → "Mono Green Landfall";
+    "UR Prowess" → "Izzet Prowess"; "UWR Control" → "Jeskai Control" — automatic, no alias needed)
+  - Layer 2: ALIASES table — hard-coded exact mappings (fast, deterministic)
+  - Layer 3: optional fuzzy match via thefuzz
   - `suggest_aliases()` scans DB for likely duplicate names
-  - `apply_normalization(dry_run, fuzzy)` — retroactive DB migration (13 mappings applied)
-  - Run: `python -m analysis.archetypes --apply`
+  - `find_card_based_duplicates(format, name_threshold, card_overlap)` — finds pairs sharing
+    both similar names (fuzzy) AND similar mainboards (≥67% card overlap at 10% inclusion);
+    returns 125 pairs for Standard — use `--card-similarity --apply` for interactive merge
+  - `merge_archetypes(keep, remove)` — renames all decks from one name to another
+  - `apply_normalization(dry_run, fuzzy)` — retroactive DB migration
+  - CLI: `python -m analysis.archetypes --apply`
+  - CLI: `python -m analysis.archetypes --card-similarity --format standard --apply`
+  - CLI: `python -m analysis.archetypes --pre-normalize` (preview format-only fixes)
 - Self-Validation & Prediction Logging (`analysis/predictions.py`):
   - Auto-generates top_meta / trending_up / trending_down predictions from meta data
   - Stores in `predictions` SQLite table; validates after target week passes

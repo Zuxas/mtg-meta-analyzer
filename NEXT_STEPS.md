@@ -84,6 +84,21 @@ python run_gui.py
 
 ---
 
+## Session 2026-03-21 (session 3) Summary — What was added
+
+1. **Archetype normalization — three-layer upgrade** (`analysis/archetypes.py`)
+   - `pre_normalize()`: fixes spacing/hyphens/color abbreviations automatically
+     ("Mono-Green Landfall" / "MonoGreen Landfall" / "monogreen landfall" → "Mono Green Landfall";
+     "UR Prowess" → "Izzet Prowess"; "UWR Control" → "Jeskai Control")
+   - `find_card_based_duplicates()`: finds pairs with similar names AND ≥67% card overlap
+     (10% inclusion threshold); finds 125 pairs in Standard
+   - `merge_archetypes(keep, remove)`: renames DB records for a confirmed merge
+   - CLI: `--card-similarity --apply` for interactive review, `--pre-normalize` for preview
+
+2. **Easy wins** (see below for what was completed this session)
+
+---
+
 ## Session 2026-03-21 (session 2) Summary — What was added
 
 1. **Bug fixes**
@@ -102,57 +117,50 @@ python run_gui.py
 
 ---
 
-## TOP PRIORITIES — Next Session
+## TOP PRIORITIES — Mar 25 Session 1
 
-### 1. PyInstaller Standalone .exe Packaging
+### 1. My Decks GUI tab + RCQ Optimizer upgrade
+- `db/saved_decks.py` already exists (built session 3) — go straight to GUI
+- `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
+- Click deck → shows 75 + all saved SB plans
+- "Open in RCQ Optimizer" passes deck to tournament_prep.py
+- RCQ Optimizer: add saved deck selector dropdown at top
+- Each matchup row: show saved SB plan if exists, fall back to guides table
+- "Edit Plan" button per row → inline play/draw IN/OUT editor with difficulty badge
+- Plans auto-save to saved_sb_plans table
 
+### 2. Printable tournament guide export (Mar 25 Session 2)
+- "Export Guide" on any saved deck → clean .txt or HTML
+- Full 75 + each matchup as a section with ON PLAY / ON DRAW IN/OUT + notes
+- Save to exports/ and auto-open; clean enough to print and fold for a tournament
+
+## MEDIUM PRIORITY
+
+### Remaining Features
+- **User Preferences System** — format selection in setup wizard (page 0), wire scrapers to skip unselected formats
+- **Knowledge Base improvements** — filter by archetype/format, full-text search, guide rating
+- **Charts Compare Mode** — multi-archetype overlay (already built in session 3)
+- **Play/draw split in sideboard guides** — already built in session 3
+
+## LOW PRIORITY / FUTURE
+
+### PyInstaller Standalone .exe Packaging ← NOT YET (app still evolving)
 ```bash
 pip install pyinstaller
 pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
   --add-data "gui/fonts;gui/fonts"
 ```
+Key things to verify when ready:
+- `data/` folder stays external (DB + Scryfall bulk too large to embed)
+- `--register-tasks` re-uses same .exe for UAC elevation
+- `anthropic` optional (conditional import in ask_claude.py)
+- `analysis/charts.py` sets `matplotlib.use("Agg")` — must not import before `run_gui.py` sets `QtAgg`
+- Test on clean machine without Python
 
-Key things to verify:
-- `data/` folder stays external (DB + Scryfall bulk file too large to embed)
-- `--register-tasks` arg re-uses same .exe for UAC elevation (no second binary)
-- `anthropic` package bundled but optional (conditional import in ask_claude.py)
-- `cloudscraper` and all scrapers bundled
-- Hidden imports: `sqlite3`, `matplotlib`, `PyQt6`, `anthropic`
-- Test on a clean machine or VM without Python installed
-- Ship: `MTG Meta Analyzer.exe` + `fill_database.bat` + README
-
-Likely issues to watch:
-- Scryfall bulk file path (use `sys._MEIPASS` for bundled assets, `sys.executable` dir for data/)
-- `analysis/charts.py` sets `matplotlib.use("Agg")` — must not be imported before `run_gui.py` sets `QtAgg`
-- Task Scheduler .bat paths need to point to the .exe location, not python scripts
-
-### 2. First-Time Setup Wizard Testing
-
-The setup wizard (`gui/setup_wizard.py`) runs on first launch when no DB exists.
-Test the full flow:
-- Step 1: Scryfall bulk download (~162 MB)
-- Step 2: Initial backfill (Standard events)
-- Step 3: 50-event unlock gate
-- Verify Task Scheduler registration dialog appears and works
-- Verify wizard is never shown again after completion
-
-Also test the format preference page (TODO — see below).
-
-### 3. RCQ Optimizer End-to-End Test with a Real 75
-
-Submit an actual tournament decklist through the RCQ Optimizer and verify:
-- Paste 60+15 in the Deck Analyzer tab → verify legality check passes
-- In Tournament Prep → RCQ Optimizer: select format, enter player count, pick archetype
-- Enter the actual expected meta field (e.g., "Boros Energy x8, Mono Red x4, ...")
-- Check: weighted WR, field grade, matchup breakdown
-- Click each matchup row → verify G1/G2G3 split, guide IN/OUT plans render correctly
-- Check flip warnings appear for appropriate matchups
-- Verify sideboard recommendations are actionable
-
-Known things to check:
-- Guide data availability (requires guides table populated — run `python -m scrapers.guides` first)
-- Archetype name matching (guides use free-text names — may need alias tweaks)
-- Post-board WR model calibration (conservative: capped at 0.13 swing each way)
+### Apr+ roadmap
+- Cowork audit (card images, KB improvements)
+- Card image hover preview in deck analyzer / search tabs
+- Game simulation engine integration
 
 ---
 

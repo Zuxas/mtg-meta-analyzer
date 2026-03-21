@@ -5,22 +5,113 @@ MTGTop8 uses inconsistent naming: "UR Prowess", "Izzet Prowess", "Jeskai Prowess
 "Blue-Red Aggro" etc. may all refer to the same deck. This module maps raw scraper
 names to canonical names so analysis is consistent across events and time.
 
-Two layers:
-  1. Exact alias table: hard-coded known mappings (fast, deterministic).
-  2. Fuzzy match fallback: uses thefuzz against the canonical name list (configurable
-     threshold). Off by default for scraping; opt-in for analysis queries.
+Three layers:
+  1. Format pre-normalizer: fixes spacing/hyphen/case differences so
+     "Mono-Green Landfall", "MonoGreen Landfall", "monogreen landfall"
+     all reduce to the same string before alias lookup.
+  2. Exact alias table: hard-coded known mappings (fast, deterministic).
+  3. Fuzzy match fallback: uses thefuzz against the canonical name list
+     (configurable threshold). Off by default for scraping; opt-in for
+     analysis queries.
+
+Card-similarity detection (find_card_based_duplicates):
+  Scans the DB for archetype pairs that share both a similar name AND
+  a similar mainboard (≥N of 75 cards in common). Safe to run at any time
+  — it only reads, never writes. Use --card-similarity in the CLI to review
+  and approve merges interactively.
 
 Usage:
     from analysis.archetypes import normalize
 
     canonical = normalize("UR Prowess")         # -> "Izzet Prowess"
+    canonical = normalize("Mono-Green Landfall")# -> "Mono Green Landfall"
     canonical = normalize("Unknown Deck Name")  # -> "Unknown Deck Name" (unchanged)
 
 To add mappings, edit ALIASES below or call register_alias() at runtime.
 To rebuild the canonical list from the DB, call build_canonical_list().
 """
 
+import re
+
 from thefuzz import process as fuzz_process
+
+
+# ---------------------------------------------------------------------------
+# Name format pre-normalizer
+# Runs BEFORE alias lookup so spelling/punctuation variants collapse to the
+# same key without requiring a separate alias entry for every permutation.
+# ---------------------------------------------------------------------------
+
+# Two-letter guild abbreviations → canonical guild name
+_GUILD_MAP = {
+    "uw": "Azorius",  "wu": "Azorius",
+    "ub": "Dimir",    "bu": "Dimir",
+    "br": "Rakdos",   "rb": "Rakdos",
+    "rg": "Gruul",    "gr": "Gruul",
+    "gw": "Selesnya", "wg": "Selesnya",
+    "wb": "Orzhov",   "bw": "Orzhov",
+    "ur": "Izzet",    "ru": "Izzet",
+    "bg": "Golgari",  "gb": "Golgari",
+    "rw": "Boros",    "wr": "Boros",
+    "gu": "Simic",    "ug": "Simic",
+}
+
+# Three-letter shard/wedge abbreviations → canonical name
+_SHARD_MAP = {
+    "uwr": "Jeskai", "wur": "Jeskai", "rwu": "Jeskai",
+    "brw": "Mardu",  "rwb": "Mardu",  "wbr": "Mardu",
+    "bgu": "Sultai", "ugb": "Sultai", "gub": "Sultai",
+    "gwu": "Bant",   "wug": "Bant",   "ugw": "Bant",
+    "rgw": "Naya",   "grw": "Naya",   "wrg": "Naya",
+    "ubr": "Grixis", "bru": "Grixis", "rub": "Grixis",
+    "urb": "Grixis",
+}
+
+
+def _fix_mono_prefix(name: str) -> str:
+    """'MonoRed', 'Mono-Red', 'mono red' -> 'Mono Red'"""
+    return re.sub(
+        r'\bmono[-\s]?([a-z])',
+        lambda m: "Mono " + m.group(1).upper(),
+        name,
+        flags=re.IGNORECASE,
+    )
+
+
+def _expand_color_abbrev(name: str) -> str:
+    """
+    Replace leading two/three-letter color abbreviations with guild/shard names.
+    e.g. 'UR Prowess' -> 'Izzet Prowess', 'UWR Control' -> 'Jeskai Control'
+    Only replaces when the abbreviation appears as a standalone word token.
+    """
+    def _replace(m):
+        token = m.group(1).lower()
+        return _SHARD_MAP.get(token) or _GUILD_MAP.get(token) or m.group(1)
+
+    # Three-letter first (more specific), then two-letter
+    name = re.sub(r'\b([A-Za-z]{3})\b', _replace, name)
+    name = re.sub(r'\b([A-Za-z]{2})\b', _replace, name)
+    return name
+
+
+def pre_normalize(name: str) -> str:
+    """
+    Light formatting clean-up applied before alias lookup.
+    Does NOT rename decks — only standardises spacing/case/abbreviations
+    so that 'Mono-Green Landfall', 'MonoGreen landfall', 'mono green landfall'
+    all produce the same string.
+    """
+    if not name:
+        return name
+    # Title-case
+    result = name.strip().title()
+    # Fix Mono prefix ("Mono-Green" -> "Mono Green", "Monogreen" -> "Mono Green")
+    result = _fix_mono_prefix(result)
+    # Expand color abbreviations in leading position
+    result = _expand_color_abbrev(result)
+    # Collapse multiple spaces
+    result = re.sub(r' {2,}', ' ', result).strip()
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -118,11 +209,12 @@ def normalize(raw_name, fuzzy=False, fuzzy_threshold=85):
     Return the canonical archetype name for raw_name.
 
     Steps:
-      1. If raw_name is already a canonical name, return as-is.
-      2. Check the ALIASES table (case-insensitive exact match).
-      3. If fuzzy=True, try fuzzy matching against canonical names
+      1. Pre-normalize formatting (spacing, hyphens, color abbreviations).
+      2. If the result is already a canonical name, return as-is.
+      3. Check the ALIASES table (case-insensitive exact match).
+      4. If fuzzy=True, try fuzzy matching against canonical names
          (only if score >= fuzzy_threshold).
-      4. Otherwise return raw_name unchanged.
+      5. Otherwise return the pre-normalized name.
 
     fuzzy=False by default — fuzzy matching is only for analysis queries
     where you want to resolve user input, not for the scraper (where
@@ -131,7 +223,7 @@ def normalize(raw_name, fuzzy=False, fuzzy_threshold=85):
     if not raw_name:
         return raw_name
 
-    stripped = raw_name.strip()
+    stripped = pre_normalize(raw_name.strip())
 
     # Already canonical
     if stripped in _CANONICAL_NAMES:
@@ -266,6 +358,174 @@ def suggest_aliases(threshold=80):
     return sorted(groups, key=lambda g: -g[2])
 
 
+# ---------------------------------------------------------------------------
+# Card-similarity duplicate detection
+# ---------------------------------------------------------------------------
+
+def _get_core_cards(conn, archetype: str, format_name: str,
+                    min_inclusion: float = 0.10) -> set:
+    """
+    Return the set of mainboard card names that appear in at least
+    min_inclusion fraction of this archetype's decks in the given format.
+    """
+    total_row = conn.execute("""
+        SELECT COUNT(DISTINCT d.id) AS cnt
+        FROM decks d
+        JOIN events e ON e.id = d.event_id
+        WHERE lower(d.archetype) = lower(?) AND lower(e.format) = lower(?)
+    """, (archetype, format_name)).fetchone()
+    total = total_row["cnt"] if total_row else 0
+    if total == 0:
+        return set()
+
+    card_rows = conn.execute("""
+        SELECT c.name, COUNT(DISTINCT d.id) AS appearances
+        FROM decks d
+        JOIN events e ON e.id = d.event_id
+        JOIN deck_cards dc ON dc.deck_id = d.id
+        JOIN cards c ON c.id = dc.card_id
+        WHERE lower(d.archetype) = lower(?)
+          AND lower(e.format) = lower(?)
+          AND dc.is_sideboard = 0
+        GROUP BY c.name
+        HAVING CAST(appearances AS REAL) / ? >= ?
+    """, (archetype, format_name, total, min_inclusion)).fetchall()
+
+    return {r["name"] for r in card_rows}
+
+
+def find_card_based_duplicates(
+    format_name: str = "standard",
+    name_threshold: int = 60,
+    card_overlap: float = 0.67,
+    min_decks: int = 3,
+) -> list:
+    """
+    Find archetype pairs that are likely the same deck under different names.
+
+    An archetype pair is flagged when BOTH conditions are true:
+      1. Their names have a fuzzy similarity score >= name_threshold
+      2. shared_cards / max(|core_a|, |core_b|) >= card_overlap
+
+    The default card_overlap of 0.67 approximates "50 of 75 cards in common".
+    Core sets are computed at 10% inclusion (cards in >=10% of that archetype's
+    decklists), matching the same threshold used in archetype detail views.
+
+    Args:
+        format_name:     Format to search in.
+        name_threshold:  Minimum thefuzz name similarity score (0-100).
+        card_overlap:    Minimum ratio of shared cards (0.0-1.0, default 0.67).
+        min_decks:       Ignore archetypes with fewer than this many decks.
+
+    Returns:
+        List of dicts, sorted by card overlap descending:
+        {
+            "arch_a":        str,
+            "arch_b":        str,
+            "name_score":    int,
+            "shared_cards":  int,
+            "cards_a":       int,   # size of arch_a's core set
+            "cards_b":       int,   # size of arch_b's core set
+            "shared_names":  set,   # the actual overlapping card names
+            "suggestion":    str,   # recommended canonical name
+        }
+    """
+    from db.database import get_connection
+
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT d.archetype, COUNT(DISTINCT d.id) AS cnt
+            FROM decks d
+            JOIN events e ON e.id = d.event_id
+            WHERE lower(e.format) = lower(?)
+              AND d.archetype IS NOT NULL AND d.archetype != ''
+            GROUP BY d.archetype
+            HAVING cnt >= ?
+            ORDER BY cnt DESC
+        """, (format_name, min_decks)).fetchall()
+
+    archetypes = [r["archetype"] for r in rows]
+    if len(archetypes) < 2:
+        return []
+
+    # Step 1: find name-similar pairs (fast, no DB needed)
+    candidate_pairs = []
+    checked = set()
+    for i, arch_a in enumerate(archetypes):
+        for arch_b in archetypes[i + 1:]:
+            key = (min(arch_a, arch_b), max(arch_a, arch_b))
+            if key in checked:
+                continue
+            checked.add(key)
+            from thefuzz import fuzz
+            score = fuzz.token_sort_ratio(arch_a.lower(), arch_b.lower())
+            if score >= name_threshold:
+                candidate_pairs.append((arch_a, arch_b, score))
+
+    if not candidate_pairs:
+        return []
+
+    # Step 2: load card sets only for candidate archetypes
+    needed = {arch for pair in candidate_pairs for arch in pair[:2]}
+    with get_connection() as conn:
+        core_cache = {
+            arch: _get_core_cards(conn, arch, format_name)
+            for arch in needed
+        }
+
+    # Step 3: compute card overlap for each candidate pair
+    results = []
+    for arch_a, arch_b, name_score in candidate_pairs:
+        core_a = core_cache.get(arch_a, set())
+        core_b = core_cache.get(arch_b, set())
+        if not core_a or not core_b:
+            continue
+        shared = core_a & core_b
+        ratio = len(shared) / max(len(core_a), len(core_b)) if (core_a and core_b) else 0
+        if ratio >= card_overlap:
+            # Pick the canonical suggestion: prefer the name that is longer /
+            # more descriptive, or whichever already exists in the alias table.
+            norm_a = normalize(arch_a)
+            norm_b = normalize(arch_b)
+            if norm_a != arch_a:
+                suggestion = norm_a
+            elif norm_b != arch_b:
+                suggestion = norm_b
+            else:
+                # Pick the more common one (first in list = higher deck count)
+                suggestion = arch_a
+            results.append({
+                "arch_a":        arch_a,
+                "arch_b":        arch_b,
+                "name_score":    name_score,
+                "shared_cards":  len(shared),
+                "overlap_ratio": round(ratio, 2),
+                "cards_a":       len(core_a),
+                "cards_b":       len(core_b),
+                "shared_names":  shared,
+                "suggestion":    suggestion,
+            })
+
+    return sorted(results, key=lambda r: -r["shared_cards"])
+
+
+def merge_archetypes(keep: str, remove: str) -> int:
+    """
+    Rename all decks with archetype `remove` to `keep` in the active DB.
+    Returns the number of rows updated.
+    """
+    from db.database import get_connection
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE decks SET archetype = ? WHERE archetype = ?",
+            (keep, remove)
+        )
+        updated = conn.execute(
+            "SELECT changes() AS n"
+        ).fetchone()["n"]
+    return updated
+
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -281,7 +541,78 @@ if __name__ == "__main__":
                         help="Also apply fuzzy matching (higher false-positive risk)")
     parser.add_argument("--fuzzy-threshold", type=int, default=85,
                         help="Fuzzy score cutoff 0-100 (default 85)")
+    parser.add_argument("--card-similarity", action="store_true",
+                        help="Find duplicates by name similarity + card overlap and "
+                             "prompt to merge interactively")
+    parser.add_argument("--format", default="standard",
+                        help="Format for --card-similarity (default: standard)")
+    parser.add_argument("--name-threshold", type=int, default=60,
+                        help="Min name fuzzy score for --card-similarity (default 60)")
+    parser.add_argument("--card-overlap", type=float, default=0.67,
+                        help="Min card overlap ratio 0-1 for --card-similarity (default 0.67 ≈ 50/75)")
+    parser.add_argument("--pre-normalize", action="store_true",
+                        help="Show how pre_normalize() would reformat all DB archetype names")
     args = parser.parse_args()
+
+    if args.pre_normalize:
+        names = build_canonical_list()
+        changes = [(n, pre_normalize(n)) for n in names if pre_normalize(n) != n]
+        if not changes:
+            print("No formatting changes needed.")
+        else:
+            print(f"{len(changes)} names would be reformatted:\n")
+            for raw, fixed in changes:
+                print(f"  {raw!r:<45} -> {fixed!r}")
+        sys.exit(0)
+
+    if args.card_similarity:
+        print(f"Scanning {args.format} for card-based duplicates "
+              f"(name>={args.name_threshold}, overlap>={args.card_overlap})…\n")
+        dupes = find_card_based_duplicates(
+            format_name=args.format,
+            name_threshold=args.name_threshold,
+            card_overlap=args.card_overlap,
+        )
+        if not dupes:
+            print("No duplicate pairs found with those thresholds.")
+            sys.exit(0)
+
+        print(f"Found {len(dupes)} potential duplicate pair(s):\n")
+        merged = 0
+        for i, d in enumerate(dupes, 1):
+            print(f"  [{i}/{len(dupes)}]")
+            print(f"    A: {d['arch_a']!r}  ({d['cards_a']} core cards)")
+            print(f"    B: {d['arch_b']!r}  ({d['cards_b']} core cards)")
+            print(f"    Name similarity : {d['name_score']}/100")
+            print(f"    Card overlap    : {d['shared_cards']} cards  ({d['overlap_ratio']*100:.0f}%)")
+            sample = sorted(d['shared_names'])[:8]
+            print(f"    Sample overlap  : {', '.join(sample)}"
+                  + (" …" if len(d['shared_names']) > 8 else ""))
+            print(f"    Suggested name  : {d['suggestion']!r}")
+            if args.apply:
+                ans = input("    Merge? [y/N/custom name]: ").strip()
+                if ans.lower() == "y":
+                    keep = d["suggestion"]
+                    remove = d["arch_b"] if keep == d["arch_a"] else d["arch_a"]
+                    n = merge_archetypes(keep, remove)
+                    print(f"    -> Merged {n} decks from {remove!r} into {keep!r}")
+                    merged += 1
+                elif ans and ans.lower() != "n":
+                    # User typed a custom canonical name
+                    keep = ans.strip()
+                    for remove in (d["arch_a"], d["arch_b"]):
+                        if remove != keep:
+                            n = merge_archetypes(keep, remove)
+                            print(f"    -> Renamed {n} decks: {remove!r} -> {keep!r}")
+                    merged += 1
+                else:
+                    print("    Skipped.")
+            print()
+        if args.apply:
+            print(f"Done. {merged}/{len(dupes)} pairs merged.")
+        else:
+            print("Dry run — pass --apply to merge interactively.")
+        sys.exit(0)
 
     apply_normalization(
         dry_run=not args.apply,
