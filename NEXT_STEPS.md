@@ -19,51 +19,47 @@ All backend modules done. Do not rebuild any of these.
 
 ---
 
-## Phase 3: PyQt6 GUI — IN PROGRESS
+## Phase 3: PyQt6 GUI — COMPLETE (theme wired, ready to test)
 
 ### What's built (as of 2026-03-20)
 
-All GUI skeleton files exist and import cleanly. Backend wired up.
-
 ```
 run_gui.py                  ✅ launcher (sets matplotlib QtAgg backend first)
-gui/__init__.py             ✅
-gui/main_window.py          ✅ dark palette, 5 tabs, setup wizard check, background scrape
-gui/setup_wizard.py         ✅ first-time setup: Scryfall download + backfill + event counter
-gui/worker_threads.py       ✅ ScryfallDownloadWorker, BackfillWorker, QuickScrapeWorker, DataLoadWorker
-gui/widgets/__init__.py     ✅
-gui/widgets/chart_canvas.py ✅ FigureCanvasQTAgg — plot_meta_share/plot_trend/plot_heatmap
-gui/widgets/meta_table.py   ✅ QTableWidget with archetype_selected signal
-gui/tabs/__init__.py        ✅
-gui/tabs/dashboard.py       ✅ Table + chart, format/weeks/top-N controls, row-click → trend
-gui/tabs/deck_analyzer.py   ✅ Arena paste → Blunder + Chapin analysis
-gui/tabs/search.py          ✅ Card lookup, deck search (SQL), head-to-head
-gui/tabs/charts.py          ✅ Interactive controls + live chart canvas + Save PNG
-gui/tabs/predictions.py     ✅ Generate/validate/view predictions + accuracy summary
+gui/theme.py                ✅ personal website design system (#3b3c4d / #65bcd5 / Orbitron)
+gui/fonts/Orbitron.ttf      ✅ bundled heading font
+gui/main_window.py          ✅ theme applied, 5 tabs, cmd terminal default
+gui/setup_wizard.py         ✅ website theme colors, first-time setup flow
+gui/worker_threads.py       ✅ all worker threads
+gui/widgets/chart_canvas.py ✅ CHART_PALETTE/BG/PANEL/GRID from theme module
+gui/widgets/meta_table.py   ✅
+gui/tabs/dashboard.py       ✅ theme.btn_primary() for Refresh button
+gui/tabs/deck_analyzer.py   ✅ theme buttons, inline styles removed
+gui/tabs/search.py          ✅ theme.btn_primary() for all search buttons
+gui/tabs/charts.py          ✅ theme buttons, CHART_BG for PNG export
+gui/tabs/predictions.py     ✅ theme.btn_primary/secondary/success()
 ```
 
-### START HERE next session — run the GUI and fix any runtime issues
+### START HERE next session
 
 ```bash
 python run_gui.py
 ```
 
 Expected on first run: setup wizard (if DB < 50 events).
-Expected on returning run: dashboard loads automatically, background scrape runs.
+Expected on returning run: dashboard loads, background scrape starts.
 
 ### Known things to test / likely issues
 
-1. **Setup wizard Scryfall step** — subprocess output parsing may need tuning if
-   the download progress output format changed. If the bar stays at 0%, check
-   `scrapers/scryfall.py --download` stdout output and adjust `ScryfallDownloadWorker`.
+1. **Orbitron font** — `gui/fonts/Orbitron.ttf` is a variable-weight font registered
+   via `QFontDatabase.addApplicationFont()`. If tab labels don't look right, check
+   that `HEADING_FONT` is set correctly in `theme.py` after `apply_theme()` runs.
 
 2. **Chart canvas sizing** — heatmap figure size recalculates dynamically but may
    need `self._canvas.updateGeometry()` or a `draw_idle()` call after resize.
 
 3. **Deck Analyzer legality check** — `analyze_deck()` calls `get_cards_data()`
    which uses the Scryfall local cache. If `data/scryfall_oracle.json` is missing,
-   legality check raises. The `--no-legality` flag in the CLI bypasses this.
-   Add a try/except in `_AnalyzeWorker.run()` around the legality check if needed.
+   legality check raises. Run `python -m scrapers.scryfall --download` first.
 
 4. **search_local() return format** — `card.get("legalities")` may be a JSON string
    (stored as TEXT in SQLite). The search tab already has a `json.loads` fallback.
@@ -71,29 +67,45 @@ Expected on returning run: dashboard loads automatically, background scrape runs
 5. **predictions `accuracy_report()`** — returns `{}` or `None` if no predictions
    exist yet. The tab handles this gracefully but verify on fresh DB.
 
-### Next features after basic run is stable
+---
 
-#### A — First-run data quality
+## Database build scripts — COMPLETE
+
+| Script | Purpose |
+|---|---|
+| `fill_database.bat` | Double-click first-time full build (3-year backfill, all sources) |
+| `fill_database.py` | Python script called by fill_database.bat |
+| `background_fill.bat` | Daily incremental scrape (Standard + Pioneer + Modern) |
+| `schedule_background_fill.bat` | One-time setup: register 6 AM Task Scheduler task |
+
+### Register 6 AM task (if not done yet)
+Right-click `schedule_background_fill.bat` → **Run as Administrator** (once).
+This adds a silent daily 6 AM scrape alongside the existing 5 PM task.
+
+---
+
+## Next features after basic run is stable
+
+### A — First-run data quality
 - After setup wizard completes, auto-run `python -m analysis.archetypes --apply`
-  to normalize any newly scraped archetype names
+  to normalize newly scraped archetype names
 - Add a "Normalize Archetypes" button to main window menu bar
 
-#### B — Dashboard improvements
-- Add "Last N weeks" summary chip below chart (e.g. "Izzet Prowess: +2.3% meta share")
+### B — Dashboard improvements
+- Add "Last N weeks" summary chip below chart (e.g. "+2.3% meta share")
 - Color-code table rows: green = rising, red = falling vs prior 2 weeks
 - Export table as CSV button
 
-#### C — Charts tab polish
+### C — Charts tab polish
 - Auto-populate archetype autocomplete from DB (`get_meta_standings` result)
 - "Compare archetypes" mode: overlay multiple trend lines on one chart
 
-#### D — Deck Analyzer improvements
+### D — Deck Analyzer improvements
 - "Load Average Deck" button: populate the text box with the average deck for
   a selected archetype (calls `get_average_deck()`)
 - Show Chapin explanation text per principle (already in `PrincipleScore.explanation`)
 
-#### E — Packaging
-Once GUI is stable and tested:
+### E — Packaging (after GUI is stable)
 ```bash
 pip install pyinstaller
 pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
@@ -106,12 +118,15 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
 
 ## Data status (as of 2026-03-20)
 
-| Source | Events | Decks |
-|---|---|---|
-| MTGDecks.net (latest scrape) | 29 new | 3,190 |
-| Notable events | RC Turin 2026 (1,025p), TMNT Spotlight (673p), Champions Cup Final (384p), ANZ Super Series (208p) |
+| Format | Events | Decks | Date range |
+|---|---|---|---|
+| Standard | 1,816 | ~20,010 | Jan 2025 – Mar 2026 |
+| Pioneer | 10 | 147 | Recent only |
+| Modern | 0 | 0 | background_fill.bat will populate going forward |
 
-Total Standard events in DB: 1,564
+- No 2023/2024 data — MTGTop8 pagination depth limit reached Jan 2025
+- To get deeper history: run `python -m scrapers.backfill --format standard` manually
+  (may take several hours; will push back further if MTGTop8 has older pages)
 
 ---
 
@@ -124,5 +139,6 @@ Total Standard events in DB: 1,564
 - MTGDecks scraper uses `cloudscraper`. If 403s return:
   `pip install --upgrade cloudscraper`
 - Blunder/Chapin on average decks may show <60 cards (inclusion threshold) — expected.
+- VS Code default terminal is now **cmd** (not Git Bash). New terminals open in cmd.
 - After any new backfill/scrape, enrich new cards:
   `python -m scrapers.scryfall`

@@ -127,6 +127,23 @@ Two local SQLite files are created in `data/` — both are excluded from git:
 
 ---
 
+## Scheduling Automatic Updates
+
+Two Windows Task Scheduler tasks keep the database current:
+
+| Task | Time | Script |
+|------|------|--------|
+| Background fill (all formats) | 6:00 AM daily | `background_fill.bat` |
+| Daily Standard update | 5:00 PM daily | `run_daily.bat` |
+
+**To register the 6 AM task:** right-click `schedule_background_fill.bat` → **Run as Administrator** (once). The script self-elevates and registers the task silently.
+
+**To register the 5 PM task:** right-click `schedule_task.bat` → **Run as Administrator** (once).
+
+All output is logged to `logs/background_fill.log` and `logs/YYYY-MM-DD.log` respectively.
+
+---
+
 ## Updating
 
 To pull new tournament data after the initial build:
