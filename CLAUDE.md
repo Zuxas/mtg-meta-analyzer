@@ -102,6 +102,21 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `flip_analysis(g1_wr, g23_wr, has_guide_data)`: detects FLIPPED matchups,
     significant WR drops, favorable post-board swings
   - `render_guide_html(guide_data, my_arch, opp_arch)`: HTML with IN/OUT for both sides
+- **Real Match W/L Pipeline** (`scrapers/mtgmelee_scraper.py` + `db/matches_queries.py`):
+  - Scrapes MTGMelee round-by-round pairings using DataTables POST API (cloudscraper)
+  - Stores in `matches` table: (event_id, round, player1, player2, player1_arch, player2_arch, winner_arch, result, format, event_date, source)
+  - `source` values: 'mtgmelee' (live scrape), 'bracket_finals', 'bracket_sf' (inferred)
+  - Bracket inference: `--infer-brackets` flag derives finals + SF matches from existing top-8 placement data
+  - `get_real_matchup_winrates(format, since, min_matches=20)` in `analysis/win_rates.py`
+  - `get_real_archetype_winrates(format, since, min_matches=20)` in `analysis/win_rates.py`
+  - Dashboard WIN RATE panel uses real match W/L where n≥20; shows "54.3%★" (star = real data)
+    tooltip shows "Match W/L (n=142): 85W – 57L – 0D" vs "Estimated from placement tier"
+  - CLI: `python -m scrapers.mtgmelee_scraper --format standard --pages 5`
+  - CLI: `python -m scrapers.mtgmelee_scraper --test` (dump raw API for endpoint verification)
+  - CLI: `python -m scrapers.mtgmelee_scraper --infer-brackets`
+  - CLI: `python -m scrapers.mtgmelee_scraper --counts`
+  - **Note**: MTGMelee DataTables endpoints may need adjustment — run `--test` first to verify shapes
+
 - **Live Matchup Data** (`scrapers/matchup_scraper.py` + `db/matchup_queries.py` + `gui/tabs/heatmap_tab.py`):
   - Scrapes MTGDecks.net `/winrates` page using existing `cloudscraper` setup
   - Parses `data-winrate` attribute from the NxN HTML table (256 archetypes, ~3,181 cells for Standard)

@@ -84,9 +84,24 @@ python run_gui.py
 
 ---
 
-## Session 2026-03-21 (session 4) Summary — What was added
+## Session 2026-03-21 (session 5) Summary — What was added
 
-1. **Matchup Data tab fixes** (`gui/tabs/heatmap_tab.py`)
+1. **Real match W/L pipeline** (MTGMelee scraper + matches DB + win_rates additions)
+   - `scrapers/mtgmelee_scraper.py` — DataTables POST scraper for MTGMelee round pairings
+     `--test` flag dumps raw API response for endpoint verification
+     `--infer-brackets` derives finals + SF matches from existing top-8 placement data
+     `--counts` shows stored match counts per format
+     `--dry-run` parses without saving
+   - `db/matches_queries.py` — `matches` table: save_matches / get_matches / get_stored_event_ids / get_match_counts
+   - `analysis/win_rates.py` — `get_real_matchup_winrates()` + `get_real_archetype_winrates()`
+     both require `min_matches=20` threshold; return empty dict silently if table empty
+   - Dashboard WIN RATE panel: real W/L shown as "54.3%★" with tooltip "Match W/L (n=142)"
+     estimated values show as "54.3%" (slightly dimmed) with tooltip explaining source
+   - **FIRST RUN**: `python -m scrapers.mtgmelee_scraper --test` to verify API endpoint shapes
+     Then: `python -m scrapers.mtgmelee_scraper --infer-brackets` (free data from existing DB)
+     Then: `python -m scrapers.mtgmelee_scraper --format standard --pages 5`
+
+2. **Matchup Data tab fixes** (`gui/tabs/heatmap_tab.py`)
    - Fixed "Use Cached" crash: `theme.ERROR` → `theme.ERR` in `_PasteDialog`
    - Null-check: empty cache now shows friendly "No cached data yet — click Fetch Live Data first"
      instead of crashing; tracks `_load_source` to give context-specific message

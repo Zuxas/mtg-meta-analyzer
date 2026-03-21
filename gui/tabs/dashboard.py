@@ -57,6 +57,17 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
         format_name=format_name, top=top, min_appearances=2, since=since_dt,
     )
 
+    # Real match win rates from matches table (MTGMelee + bracket inference).
+    # Silently empty if no data has been scraped yet.
+    real_wrs: dict = {}
+    try:
+        from analysis.win_rates import get_real_archetype_winrates
+        real_wrs = get_real_archetype_winrates(
+            format_name, since=since_dt, min_matches=20
+        )
+    except Exception:
+        pass
+
     # Also fetch the *prior* period (same duration, shifted back) for trend arrows.
     prior_standings = []
     if since_dt:
@@ -92,7 +103,8 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
     finally:
         conn.close()
 
-    return {"standings": standings, "prior_standings": prior_standings, "recent": recent}
+    return {"standings": standings, "prior_standings": prior_standings,
+            "recent": recent, "real_wrs": real_wrs}
 
 
 # ---------------------------------------------------------------------------
@@ -454,7 +466,7 @@ class DashboardTab(QWidget):
         self._pop_hdr.setText(f"  POPULAR — {tf_label.upper()}")
 
         prior_map = {s["archetype"]: s for s in data.get("prior_standings", [])}
-        self._populate_winrate(self._standings, prior_map)
+        self._populate_winrate(self._standings, prior_map, data.get("real_wrs", {}))
         self._populate_popularity(self._standings, prior_map)
         self._populate_recent(data["recent"])
 
@@ -577,7 +589,8 @@ class DashboardTab(QWidget):
             return self._ROW_FALLING
         return None
 
-    def _populate_winrate(self, standings: list, prior_map: dict = None):
+    def _populate_winrate(self, standings: list, prior_map: dict = None,
+                          real_wrs: dict = None):
         tbl = self._winrate_tbl
         tbl.setSortingEnabled(False)
         top_n = int(self._top_n.currentText())
@@ -595,7 +608,20 @@ class DashboardTab(QWidget):
             ident = _color_identity(s["archetype"])
             tbl.setCellWidget(ri, 0, theme.make_pip_widget(ident))
 
-            pct = s["est_match_winpct"] * 100
+            # Use real match W/L where available (MTGMelee / bracket inference)
+            real = (real_wrs or {}).get(s["archetype"])
+            if real:
+                pct        = real["win_rate"] * 100
+                pct_text   = f"{pct:.1f}%\u2605"   # ★ = real data
+                pct_tip    = (f"Match W/L (n={real['total']:,})\n"
+                              f"{real['wins']}W – {real['losses']}L – {real['draws']}D")
+                is_real_wr = True
+            else:
+                pct        = s["est_match_winpct"] * 100
+                pct_text   = f"{pct:.1f}%"
+                pct_tip    = "Estimated from placement tier (no real match data yet)"
+                is_real_wr = False
+
             bg  = self._trend_bg(s["archetype"], prior_map,
                                   s["est_match_winpct"], "est_match_winpct",
                                   threshold=0.02)
@@ -606,10 +632,14 @@ class DashboardTab(QWidget):
 
             clr = QColor(theme.OK) if pct >= 55 else (
                   QColor(theme.WARN) if pct >= 50 else QColor(theme.ERR))
-            pct_item = _SortItem(f"{pct:.1f}%")
+            if not is_real_wr:
+                # Dim estimated values slightly
+                clr = clr.darker(115)
+            pct_item = _SortItem(pct_text)
             pct_item.setData(_SORT_ROLE, pct)
             pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
             pct_item.setForeground(clr)
+            pct_item.setToolTip(pct_tip)
             pct_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             if bg:
                 pct_item.setBackground(bg)

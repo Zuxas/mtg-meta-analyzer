@@ -719,6 +719,167 @@ def get_matchup_matrix(format_name="standard", min_appearances=5,
 
 
 # ---------------------------------------------------------------------------
+# Real match win rates (from matches table — MTGMelee + bracket inference)
+# ---------------------------------------------------------------------------
+
+def get_real_matchup_winrates(format_name: str = "standard",
+                               since=None, min_matches: int = 20) -> dict:
+    """
+    Return per-pairing win rates calculated from real recorded match results.
+
+    Sources: MTGMelee round-by-round data + bracket-inferred finals/SF matches.
+    Only pairs with at least ``min_matches`` recorded games are included.
+
+    Returns:
+        {arch_a: {arch_b: {"win_rate": float, "wins": int, "losses": int,
+                            "draws": int, "total": int}}}
+    where arch_a < arch_b alphabetically (canonical ordering).
+    The caller can look up either direction:
+        rate_a_vs_b = result[a][b]["win_rate"]       # a's win rate vs b
+        rate_b_vs_a = 1.0 - result[a][b]["win_rate"] # b's win rate vs a
+    """
+    try:
+        from db.matches_queries import _ensure_table
+        _ensure_table()
+    except Exception:
+        return {}
+
+    from db.database import get_connection
+    q = """
+        SELECT
+            CASE WHEN player1_arch < player2_arch
+                 THEN player1_arch ELSE player2_arch END  AS arch_a,
+            CASE WHEN player1_arch < player2_arch
+                 THEN player2_arch ELSE player1_arch END  AS arch_b,
+            SUM(CASE
+                WHEN player1_arch < player2_arch AND result = 'player1' THEN 1
+                WHEN player1_arch >= player2_arch AND result = 'player2' THEN 1
+                ELSE 0 END)                               AS wins_a,
+            SUM(CASE
+                WHEN player1_arch < player2_arch AND result = 'player2' THEN 1
+                WHEN player1_arch >= player2_arch AND result = 'player1' THEN 1
+                ELSE 0 END)                               AS wins_b,
+            SUM(CASE WHEN result = 'draw' THEN 1 ELSE 0 END) AS draws,
+            COUNT(*)                                      AS total
+        FROM matches
+        WHERE lower(format) = lower(?)
+          AND player1_arch != ''
+          AND player2_arch != ''
+          AND result IS NOT NULL
+    """
+    params = [format_name]
+    if since:
+        q += " AND event_date >= ?"
+        params.append(since.strftime("%Y-%m-%d") if hasattr(since, "strftime") else str(since))
+    q += " GROUP BY arch_a, arch_b HAVING total >= ?"
+    params.append(min_matches)
+
+    result = {}
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(q, params).fetchall()
+        for r in rows:
+            a, b     = r["arch_a"], r["arch_b"]
+            wins_a   = r["wins_a"] or 0
+            wins_b   = r["wins_b"] or 0
+            draws    = r["draws"]  or 0
+            total    = r["total"]
+            decisive = wins_a + wins_b
+            wr_a     = wins_a / decisive if decisive else 0.5
+            result.setdefault(a, {})[b] = {
+                "win_rate": round(wr_a, 4),
+                "wins":     wins_a,
+                "losses":   wins_b,
+                "draws":    draws,
+                "total":    total,
+            }
+    except Exception:
+        pass
+    return result
+
+
+def get_real_archetype_winrates(format_name: str = "standard",
+                                 since=None, min_matches: int = 20) -> dict:
+    """
+    Return per-archetype win rates from real recorded match results.
+
+    Returns:
+        {archetype: {"win_rate": float, "wins": int, "losses": int,
+                      "draws": int, "total": int, "source": "real"}}
+    Only archetypes with at least ``min_matches`` total games are included.
+    """
+    try:
+        from db.matches_queries import _ensure_table
+        _ensure_table()
+    except Exception:
+        return {}
+
+    from db.database import get_connection
+    since_clause = ""
+    params_base  = [format_name]
+    if since:
+        since_str    = since.strftime("%Y-%m-%d") if hasattr(since, "strftime") else str(since)
+        since_clause = " AND event_date >= ?"
+        params_base.append(since_str)
+
+    q = f"""
+        SELECT archetype,
+               SUM(wins)    AS total_wins,
+               SUM(losses)  AS total_losses,
+               SUM(draws)   AS total_draws,
+               SUM(matches) AS total_matches
+        FROM (
+            SELECT player1_arch AS archetype,
+                   SUM(CASE WHEN result='player1' THEN 1 ELSE 0 END) AS wins,
+                   SUM(CASE WHEN result='player2' THEN 1 ELSE 0 END) AS losses,
+                   SUM(CASE WHEN result='draw'    THEN 1 ELSE 0 END) AS draws,
+                   COUNT(*)                                           AS matches
+            FROM matches
+            WHERE lower(format)=lower(?){since_clause}
+              AND player1_arch != '' AND result IS NOT NULL
+            GROUP BY player1_arch
+            UNION ALL
+            SELECT player2_arch,
+                   SUM(CASE WHEN result='player2' THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN result='player1' THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN result='draw'    THEN 1 ELSE 0 END),
+                   COUNT(*)
+            FROM matches
+            WHERE lower(format)=lower(?){since_clause}
+              AND player2_arch != '' AND result IS NOT NULL
+            GROUP BY player2_arch
+        )
+        GROUP BY archetype
+        HAVING total_matches >= ?
+        ORDER BY (CAST(total_wins AS REAL) / NULLIF(total_wins+total_losses, 0)) DESC
+    """
+    # params: two copies of [format, (since?)] for the two subqueries + min_matches
+    params = params_base + params_base + [min_matches]
+
+    result = {}
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(q, params).fetchall()
+        for r in rows:
+            w = r["total_wins"]  or 0
+            l = r["total_losses"] or 0
+            d = r["total_draws"] or 0
+            n = r["total_matches"] or 0
+            wr = w / (w + l) if (w + l) else 0.5
+            result[r["archetype"]] = {
+                "win_rate": round(wr, 4),
+                "wins":     w,
+                "losses":   l,
+                "draws":    d,
+                "total":    n,
+                "source":   "real",
+            }
+    except Exception:
+        pass
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Field Optimizer
 # ---------------------------------------------------------------------------
 
