@@ -1,27 +1,22 @@
 """
 Reusable interactive matplotlib chart canvas for PyQt6.
 
-Draws charts using the same data functions as analysis/charts.py but renders
-to an embedded Qt widget with a navigation toolbar for zoom/pan/export.
+All data loading runs in background QThread workers so the UI never blocks.
+Drawing always happens on the main thread after the worker completes.
 
 IMPORTANT: This module must be imported AFTER matplotlib.use("QtAgg") is
 set in run_gui.py. Do NOT import analysis.charts here — it sets Agg backend
 at module level and would conflict.
 """
-import os
-import math
-
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 import matplotlib.ticker as mticker
 import matplotlib.colors as mcolors
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import QApplication
 
-# Colour palette — same as analysis/charts.py for visual consistency
 _PALETTE = [
     "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
     "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990",
@@ -45,9 +40,113 @@ def _style_ax(ax, fig):
         spine.set_edgecolor(_GRID)
 
 
+# ---------------------------------------------------------------------------
+# Background data-loading workers
+# ---------------------------------------------------------------------------
+
+class _MetaShareLoader(QThread):
+    done  = pyqtSignal(object)   # dict with data, or None
+    error = pyqtSignal(str)
+
+    def __init__(self, format_name, top, weeks, since, until, standings=None):
+        super().__init__()
+        self.format_name = format_name
+        self.top         = top
+        self.weeks       = weeks
+        self.since       = since
+        self.until       = until
+        self._standings  = standings   # pre-loaded standings to avoid a duplicate DB call
+
+    def run(self):
+        try:
+            from analysis.win_rates import get_meta_standings, get_archetype_trend
+            standings = self._standings
+            if standings is None:
+                standings = get_meta_standings(
+                    format_name=self.format_name, min_appearances=2, top=self.top,
+                    since=self.since, until=self.until,
+                )
+            if not standings:
+                self.done.emit(None)
+                return
+            archetypes = [s["archetype"] for s in standings]
+            all_weeks  = set()
+            arch_data  = {}
+            for arch in archetypes:
+                weekly = get_archetype_trend(
+                    arch, format_name=self.format_name, weeks=self.weeks,
+                    since=self.since, until=self.until,
+                )
+                arch_data[arch] = {w["week_start"]: w["meta_share"] for w in weekly}
+                all_weeks.update(arch_data[arch].keys())
+            if not all_weeks:
+                self.done.emit(None)
+                return
+            self.done.emit({"archetypes": archetypes,
+                            "arch_data":  arch_data,
+                            "all_weeks":  all_weeks,
+                            "format_name": self.format_name})
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class _TrendLoader(QThread):
+    done  = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, archetype, format_name, weeks, since, until):
+        super().__init__()
+        self.archetype   = archetype
+        self.format_name = format_name
+        self.weeks       = weeks
+        self.since       = since
+        self.until       = until
+
+    def run(self):
+        try:
+            from analysis.win_rates import get_archetype_trend
+            weekly = get_archetype_trend(
+                self.archetype, format_name=self.format_name, weeks=self.weeks,
+                since=self.since, until=self.until,
+            )
+            self.done.emit(weekly if weekly else None)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class _HeatmapLoader(QThread):
+    done  = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, format_name, top, min_appearances, since, until):
+        super().__init__()
+        self.format_name     = format_name
+        self.top             = top
+        self.min_appearances = min_appearances
+        self.since           = since
+        self.until           = until
+
+    def run(self):
+        try:
+            from analysis.win_rates import get_matchup_matrix
+            data = get_matchup_matrix(
+                format_name=self.format_name,
+                min_appearances=self.min_appearances,
+                since=self.since, until=self.until, top=self.top,
+            )
+            self.done.emit(data if data else None)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+# ---------------------------------------------------------------------------
+# Chart canvas widget
+# ---------------------------------------------------------------------------
+
 class ChartCanvas(QWidget):
     """
     Embeds a matplotlib Figure with an interactive navigation toolbar.
+    Data loading always runs in a background thread; drawing on the main thread.
 
     Public methods:
         plot_meta_share(format_name, top, weeks, since, until)
@@ -64,11 +163,12 @@ class ChartCanvas(QWidget):
         self._toolbar = NavigationToolbar2QT(self._canvas, self)
         self._toolbar.setStyleSheet(
             "QToolBar { background: #0d0d1e; border: none; spacing: 4px; }"
-            "QToolButton { background: #2a2a4e; color: white; border-radius: 3px; padding: 3px; }"
+            "QToolButton { background: #2a2a4e; color: white; border-radius: 3px;"
+            "              padding: 3px; }"
             "QToolButton:hover { background: #4363d8; }"
         )
 
-        # Overlay label shown before any chart is loaded
+        # Overlay label shown while loading or when no data available
         self._overlay = QLabel("Select a chart type and click Generate", self._canvas)
         self._overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._overlay.setFont(QFont("Arial", 13))
@@ -81,36 +181,28 @@ class ChartCanvas(QWidget):
         layout.addWidget(self._toolbar)
         layout.addWidget(self._canvas, 1)
 
+        # Keep worker references alive until they finish
+        self._worker = None
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _clear_fig(self):
-        self._fig.clear()
-        self._overlay.setVisible(False)
-
-    def _flush(self, msg=None):
-        """Update overlay text then process events so it shows before blocking calls."""
-        if msg:
-            self._overlay.setText(msg)
-            self._overlay.setVisible(True)
-            self._overlay.resize(self._canvas.size())
-            self._canvas.draw()
-            QApplication.processEvents()
+    def _set_overlay(self, msg, color="#555555"):
+        self._overlay.setText(msg)
+        self._overlay.setStyleSheet(f"color: {color}; background: transparent;")
+        self._overlay.setVisible(True)
+        self._overlay.resize(self._canvas.size())
 
     def show_message(self, msg, color="#555555"):
         self._fig.clear()
         ax = self._fig.add_subplot(111)
         ax.set_facecolor(_BG)
         self._fig.patch.set_facecolor(_BG)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        self._overlay.setText(msg)
-        self._overlay.setStyleSheet(f"color: {color}; background: transparent;")
-        self._overlay.setVisible(True)
-        self._overlay.resize(self._canvas.size())
+        ax.set_xticks([]); ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_visible(False)
+        self._set_overlay(msg, color)
         self._canvas.draw()
 
     def clear(self):
@@ -125,38 +217,28 @@ class ChartCanvas(QWidget):
     # ------------------------------------------------------------------
 
     def plot_meta_share(self, format_name="standard", top=10, weeks=12,
-                        since=None, until=None):
-        self._flush("Loading meta data\u2026")
-
-        from analysis.win_rates import get_meta_standings, get_archetype_trend
-
-        standings = get_meta_standings(
-            format_name=format_name, min_appearances=2, top=top,
-            since=since, until=until,
+                        since=None, until=None, standings=None):
+        """standings: pass pre-loaded list from get_meta_standings() to skip that DB call."""
+        self.show_message("Loading meta data\u2026", "#4363d8")
+        self._worker = _MetaShareLoader(format_name, top, weeks, since, until, standings)
+        self._worker.done.connect(self._draw_meta_share)
+        self._worker.error.connect(
+            lambda e: self.show_message(f"Error: {e}", "#e6194b")
         )
-        if not standings:
+        self._worker.start()
+
+    def _draw_meta_share(self, data):
+        if data is None:
             self.show_message("No meta data available for this selection.")
             return
 
-        archetypes = [s["archetype"] for s in standings]
-        all_weeks  = set()
-        arch_data  = {}
-        for arch in archetypes:
-            weekly = get_archetype_trend(
-                arch, format_name=format_name, weeks=weeks,
-                since=since, until=until,
-            )
-            arch_data[arch] = {w["week_start"]: w["meta_share"] for w in weekly}
-            all_weeks.update(arch_data[arch].keys())
+        archetypes   = data["archetypes"]
+        arch_data    = data["arch_data"]
+        sorted_weeks = sorted(data["all_weeks"])
+        x_labels     = [w[5:] for w in sorted_weeks]
 
-        if not all_weeks:
-            self.show_message("No weekly trend data available.")
-            return
-
-        sorted_weeks = sorted(all_weeks)
-        x_labels     = [w[5:] for w in sorted_weeks]   # MM-DD
-
-        self._clear_fig()
+        self._fig.clear()
+        self._overlay.setVisible(False)
         ax = self._fig.add_subplot(111)
         _style_ax(ax, self._fig)
 
@@ -166,19 +248,18 @@ class ChartCanvas(QWidget):
             ax.plot(x_labels, y, marker="o", markersize=4, linewidth=2,
                     color=color, label=_shorten(arch), alpha=0.9)
 
-        ax.set_title(f"Meta Share Over Time \u2014 {format_name.upper()}",
+        ax.set_title(f"Meta Share Over Time \u2014 {data.get('format_name', 'standard').upper()}",
                      color="white", fontsize=13, pad=10)
         ax.set_xlabel("Week", color="white", fontsize=9)
         ax.set_ylabel("Meta Share %", color="white", fontsize=9)
         ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
         for lbl in ax.get_xticklabels():
-            lbl.set_rotation(45)
-            lbl.set_ha("right")
-        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
-        ax.legend(
-            loc="upper left", fontsize=7, framealpha=0.3,
-            labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2,
+            lbl.set_rotation(45); lbl.set_ha("right")
+        ax.yaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
         )
+        ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
+                  labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
         self._fig.tight_layout()
         self._canvas.draw()
 
@@ -188,19 +269,22 @@ class ChartCanvas(QWidget):
 
     def plot_trend(self, archetype, format_name="standard", weeks=12,
                    since=None, until=None):
-        self._flush(f"Loading trend for {archetype}\u2026")
-
-        from analysis.win_rates import get_archetype_trend
-
-        weekly = get_archetype_trend(
-            archetype, format_name=format_name, weeks=weeks,
-            since=since, until=until,
+        self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#4363d8")
+        self._worker = _TrendLoader(archetype, format_name, weeks, since, until)
+        self._worker.done.connect(
+            lambda data: self._draw_trend(data, archetype, format_name)
         )
+        self._worker.error.connect(
+            lambda e: self.show_message(f"Error: {e}", "#e6194b")
+        )
+        self._worker.start()
+
+    def _draw_trend(self, weekly, archetype, format_name):
         if not weekly:
             self.show_message(f"No trend data for \u2018{archetype}\u2019.")
             return
 
-        weekly      = list(reversed(weekly))   # oldest first
+        weekly      = list(reversed(weekly))
         x_labels    = [w["week_start"][5:] for w in weekly]
         appearances = [w["appearances"] for w in weekly]
         meta_share  = [w["meta_share"] * 100 for w in weekly]
@@ -213,7 +297,8 @@ class ChartCanvas(QWidget):
             for w in weekly
         ]
 
-        self._clear_fig()
+        self._fig.clear()
+        self._overlay.setVisible(False)
         ax1 = self._fig.add_subplot(111)
         _style_ax(ax1, self._fig)
         ax2 = ax1.twinx()
@@ -225,8 +310,7 @@ class ChartCanvas(QWidget):
         ax1.tick_params(axis="y", colors=bar_color, labelsize=8)
         ax1.tick_params(axis="x", colors="white", labelsize=8)
         for lbl in ax1.get_xticklabels():
-            lbl.set_rotation(45)
-            lbl.set_ha("right")
+            lbl.set_rotation(45); lbl.set_ha("right")
 
         line_handles, line_labels = [], []
 
@@ -262,8 +346,6 @@ class ChartCanvas(QWidget):
             f"{_shorten(archetype, 40)} \u2014 {format_name.upper()} Trend",
             color="white", fontsize=12, pad=10,
         )
-
-        # Combined legend
         bar_proxy = ax1.bar([], [], color=bar_color, alpha=0.4, label="Appearances")
         ax1.legend(
             [bar_proxy] + line_handles,
@@ -280,16 +362,22 @@ class ChartCanvas(QWidget):
 
     def plot_heatmap(self, format_name="standard", top=10, min_appearances=3,
                      since=None, until=None):
-        self._flush("Loading matchup data\u2026")
-
-        from analysis.win_rates import get_matchup_matrix
-
-        matrix_data = get_matchup_matrix(
-            format_name=format_name, min_appearances=min_appearances,
-            since=since, until=until, top=top,
+        self.show_message("Loading matchup data\u2026", "#4363d8")
+        self._worker = _HeatmapLoader(format_name, top, min_appearances, since, until)
+        self._worker.done.connect(
+            lambda data: self._draw_heatmap(data, format_name)
         )
+        self._worker.error.connect(
+            lambda e: self.show_message(f"Error: {e}", "#e6194b")
+        )
+        self._worker.start()
+
+    def _draw_heatmap(self, matrix_data, format_name):
         if not matrix_data:
-            self.show_message("Not enough matchup data available.\nTry lowering min appearances or expanding the date range.")
+            self.show_message(
+                "Not enough matchup data.\n"
+                "Try lowering min appearances or expanding the date range."
+            )
             return
 
         archetypes = list(matrix_data.keys())
@@ -305,18 +393,18 @@ class ChartCanvas(QWidget):
                 if val is not None:
                     grid[i][j] = val * 100
 
-        self._clear_fig()
-        # Adjust figure height for larger matrices
-        self._fig.set_size_inches(max(8, n * 0.8), max(5, n * 0.75))
+        self._fig.clear()
+        self._overlay.setVisible(False)
+        self._fig.set_size_inches(max(8, n * 0.85), max(5, n * 0.80))
 
         ax = self._fig.add_subplot(111)
         _style_ax(ax, self._fig)
 
-        cmap = mcolors.LinearSegmentedColormap.from_list(
+        cmap   = mcolors.LinearSegmentedColormap.from_list(
             "rdylgn", ["#e6194b", "#fffac8", "#3cb44b"]
         )
         masked = np.ma.masked_invalid(grid)
-        im = ax.imshow(masked, cmap=cmap, vmin=30, vmax=70, aspect="auto")
+        im     = ax.imshow(masked, cmap=cmap, vmin=30, vmax=70, aspect="auto")
 
         short_names = [_shorten(a, 18) for a in archetypes]
         ax.set_xticks(range(n))
@@ -331,7 +419,7 @@ class ChartCanvas(QWidget):
         for i in range(n):
             for j in range(n):
                 if not np.isnan(grid[i][j]):
-                    v = grid[i][j]
+                    v  = grid[i][j]
                     tc = "black" if 38 < v < 62 else "white"
                     ax.text(j, i, f"{v:.0f}%",
                             ha="center", va="center",

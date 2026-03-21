@@ -20,6 +20,7 @@ class DashboardTab(QWidget):
         super().__init__(parent)
         self._current_archetype = None
         self._load_worker = None
+        self._standings = None    # cached from last load
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -120,6 +121,7 @@ class DashboardTab(QWidget):
     # ------------------------------------------------------------------
 
     def _on_standings(self, standings):
+        self._standings = standings   # cache so chart worker can skip second DB call
         self._table.populate(standings)
         n = len(standings)
         self._status.setText(f"{n} archetype{'s' if n != 1 else ''} loaded")
@@ -149,4 +151,5 @@ class DashboardTab(QWidget):
                     "Click a row in the table to view that archetype's trend."
                 )
         else:
-            self._canvas.plot_meta_share(fmt, top, weeks)
+            # Pass cached standings so the chart worker skips the 6-second DB query
+            self._canvas.plot_meta_share(fmt, top, weeks, standings=self._standings)
