@@ -20,32 +20,87 @@ import gui.theme as theme
 
 def parse_arena_decklist(text: str):
     """
-    Parse an Arena export decklist.
-    Handles:  "4 Lightning Bolt", "4x Lightning Bolt",
-              "(BLB) 123" set/collector suffixes stripped.
+    Parse a decklist in any common tournament/client export format.
+
+    Section headers recognised (case-insensitive, leading // or trailing : ok):
+      Mainboard  : "Deck", "Commander"
+      Sideboard  : "Sideboard", "Sideboard:", "SIDEBOARD:", "SB:",
+                   "// Sideboard", "// SB"
+      Inline SB  : "SB: 2 Negate"  (prefix form used by some tools)
+
+    Blank-line fallback: when NO explicit sideboard marker is present in the
+    text, a blank line between two card groups is treated as the main/side
+    boundary (standard MTGO copy-paste without the 'Sideboard' header).
+
+    Card lines: "4 Lightning Bolt", "4x Lightning Bolt",
+                "4 Lightning Bolt (M11) 149"  — set/collector suffix stripped.
+
     Returns (mainboard, sideboard) as {name: quantity} dicts.
     """
+    _SIDE_KEYWORDS = {"sideboard", "sideboard:", "sb:", "// sideboard", "// sb"}
+    _MAIN_KEYWORDS = {"deck", "commander"}
+
+    lines = text.splitlines()
+
+    # Decide whether a blank line should act as main→side boundary.
+    # Only use blank-line fallback when there is no explicit sideboard marker.
+    has_explicit_side = any(
+        l.strip().lower() in _SIDE_KEYWORDS
+        or l.strip().lower().startswith("// sideboard")
+        or l.strip().lower().startswith("sb:")
+        for l in lines
+    )
+
     main, side = {}, {}
     section = main
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
+    blank_pending = False   # True after blank line (for fallback mode only)
+
+    def _add(dest: dict, raw_name: str, qty: int):
+        name = re.sub(r'\s+\(\w{2,5}\)\s+\d+.*$', '', raw_name).strip()
+        if name:
+            dest[name] = dest.get(name, 0) + qty
+
+    for raw in lines:
+        stripped = raw.strip()
+        low = stripped.lower()
+
+        # ── Blank line ────────────────────────────────────────────────
+        if not stripped:
+            if not has_explicit_side and section is main and main:
+                blank_pending = True
             continue
-        low = line.lower()
-        if low in ("deck", "commander"):
+
+        # ── Mainboard headers ─────────────────────────────────────────
+        if low in _MAIN_KEYWORDS:
             section = main
+            blank_pending = False
             continue
-        if low == "sideboard":
+
+        # ── Sideboard headers (standalone line) ───────────────────────
+        if (low in _SIDE_KEYWORDS
+                or low.startswith("// sideboard")
+                or low.startswith("// sb")):
             section = side
+            blank_pending = False
             continue
-        m = re.match(r'^(\d+)x?\s+(.+)', line)
+
+        # ── Inline "SB: 4 Lightning Bolt" prefix ─────────────────────
+        sb_inline = re.match(r'^(?:sb|sideboard):\s+(\d+)x?\s+(.+)',
+                             stripped, re.IGNORECASE)
+        if sb_inline:
+            _add(side, sb_inline.group(2), int(sb_inline.group(1)))
+            blank_pending = False
+            continue
+
+        # ── Regular card line ─────────────────────────────────────────
+        m = re.match(r'^(\d+)x?\s+(.+)', stripped)
         if m:
-            qty  = int(m.group(1))
-            name = m.group(2).strip()
-            # Strip Arena set/collector suffixes: " (BLB) 123"
-            name = re.sub(r'\s+\(\w+\)\s+\d+.*$', '', name).strip()
-            if name:
-                section[name] = section.get(name, 0) + qty
+            # Blank-line fallback: first card after a blank switches to side
+            if blank_pending and section is main:
+                section = side
+            blank_pending = False
+            _add(section, m.group(2), int(m.group(1)))
+
     return main, side
 
 
