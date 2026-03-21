@@ -100,8 +100,15 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **`get_meta_standings` fix**: was comparing `e.date >= ?` with YYYY-MM-DD format — all MTGTop8 events were excluded. Fixed with `_DATE_KEY` CASE expression + `_dt_to_db_str` returning `%Y%m%d`
   - **Click handler fix**: Recent Top Finishes archetype cell stores raw name in `UserRole`; color-identity prefix no longer breaks deck detail lookup
   - **Player column**: Recent Top Finishes shows Place / Colors / Archetype / Player / Event / Date (6 columns)
-  - **Mana color pips**: `theme.make_pip_widget()` uses `QFrame` + `WA_StyledBackground` + `border-radius: 5px` for proper circles. Official Wizards hex values: W=#F9FAF4, U=#0E68AB, B=#150B00 (displayed as #6a5a50 for visibility), R=#D3202A, G=#00733E
-  - **Izzet Prowess fix**: `refresh()` fetches `top=50` from standings so high-frequency archetypes aren't excluded by performance ranking; `_populate_winrate` and `_populate_popularity` then slice to user's selected top N
+  - **Mana color pips**: `theme.make_pip_widget()` uses `QPainter.drawEllipse()` with antialiasing — guaranteed true circles regardless of Qt stylesheet limitations
+  - **Izzet Prowess fix**: `refresh()` fetches `top=50` from standings so high-frequency archetypes aren't excluded by performance ranking; populate functions slice to user's selected top N
+  - **Trend color-coding**: Win Rate and Popular panel rows tinted dark green (rising) / dark red (falling) vs the prior equivalent period
+  - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
+  - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
+  - **Deck parser**: handles all sideboard formats — `Sideboard`, `SIDEBOARD:`, `SB:`, `// Sideboard`, `SB: 4 Card`, blank-line fallback
+  - **Card images**: Card Lookup tab fetches card art from Scryfall API on first search, cached to `data/card_images/`
+  - **Deck search click-to-detail**: clicking any row in Deck Search opens ArchetypeDetailDialog
+  - **Charts autocomplete**: Archetype field is now an editable dropdown populated from DB, refreshes on format change
   - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
 
 ### Primary Format
@@ -118,11 +125,11 @@ Use `--include-archive` flag (via `get_combined_connection()`) to query across b
 
 Both DB files are gitignored. After cloning: run `fill_database.bat`
 
-### Current data (as of 2026-03-20)
+### Current data (as of 2026-03-20, end of session)
 - Standard: 2,043 events, ~24,289 decks (Nov 2024 – Mar 2026), 99.98% card coverage
-- Pioneer: 10 events (MTGTop8 has almost no Pioneer data — use MTGDecks scraper)
-- Modern: 0 events from MTGTop8; use `python -m scrapers.mtgdecks --format modern --pages 20`
-- Daily 6 AM task now registered — will maintain Standard going forward
+- Pioneer: 109 events, 3,125 decks (MTGDecks 20-page scrape completed 2026-03-20)
+- Modern: scraping in background (MTGDecks 20-page scrape); enrich after with `python -m scrapers.scryfall`
+- Daily 6 AM task registered — maintains Standard + Pioneer + Modern going forward
 
 ### card_data table
 Keyed by card name (TEXT PRIMARY KEY) — not card_id — so it works seamlessly

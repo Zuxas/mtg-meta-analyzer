@@ -21,25 +21,26 @@ All backend modules done. Do not rebuild any of these.
 
 ## Phase 3: PyQt6 GUI — STABLE ✅
 
-### What's built (as of 2026-03-20)
+### What's built (as of 2026-03-20, updated end of session)
 
 ```
 run_gui.py                       ✅ launcher (sets matplotlib QtAgg backend first)
 launch_app.bat                   ✅ double-click to launch from Explorer (no terminal needed)
 create_shortcut.bat              ✅ run once to put desktop shortcut in place
-gui/theme.py                     ✅ personal website design system (#3b3c4d / #65bcd5 / Orbitron)
+gui/theme.py                     ✅ design system + make_pip_widget() with QPainter circles
 gui/fonts/Orbitron.ttf           ✅ bundled heading font
 gui/main_window.py               ✅ theme applied, 6 tabs, 1200x700 default size
 gui/setup_wizard.py              ✅ website theme colors, first-time setup flow
 gui/worker_threads.py            ✅ all worker threads
 gui/widgets/chart_canvas.py      ✅ fetch_chart_data() + draw_from_data() for dashboard
 gui/widgets/meta_table.py        ✅
-gui/widgets/archetype_detail.py  ✅ click-to-open deck detail dialog (avg deck, recent lists, tech)
-gui/tabs/dashboard.py            ✅ Untapped.gg-inspired layout, single-click opens detail
-gui/tabs/deck_analyzer.py        ✅ theme buttons, inline styles removed
-gui/tabs/search.py               ✅ theme.btn_primary() for all search buttons
-gui/tabs/charts.py               ✅ theme buttons, CHART_BG for PNG export
-gui/tabs/predictions.py          ✅ theme.btn_primary/secondary/success()
+gui/widgets/archetype_detail.py  ✅ click-to-open deck detail + Export button in header
+gui/widgets/deck_export.py       ✅ MTGO/MTGA .txt export + decklist.org tournament sheet
+gui/tabs/dashboard.py            ✅ Untapped.gg layout, trend color-coding, dynamic titles
+gui/tabs/deck_analyzer.py        ✅ Load Average Deck row, all sideboard formats parsed, Export
+gui/tabs/search.py               ✅ card images from Scryfall, deck search click-to-detail
+gui/tabs/charts.py               ✅ archetype autocomplete dropdown from DB
+gui/tabs/predictions.py          ✅
 gui/tabs/settings.py             ✅ format checkboxes, data window, auto-update, storage info
 gui/tray_icon.py                 ✅ system tray, status dots, right-click menu
 gui/first_run_setup.py           ✅ one-time UAC wizard, registers all 3 tasks
@@ -133,56 +134,53 @@ Full spec documented in CLAUDE.md under "User Preferences System".
 
 ---
 
-## Next features after basic run is stable
+## Remaining features — pick up here
 
-### A — First-run data quality
-- After setup wizard completes, auto-run `python -m analysis.archetypes --apply`
-  to normalize newly scraped archetype names
-- Add a "Normalize Archetypes" button to main window menu bar
+### A — Dashboard polish
+- **Export CSV** — button on Win Rate / Popular panels to save current standings to `.csv`
+- **"Last updated" chip** — small label showing when data was last scraped (reads `data/scrape_state.json`)
 
-### B — Dashboard improvements
-- Add "Last N weeks" summary chip below chart (e.g. "+2.3% meta share")
-- Color-code table rows: green = rising, red = falling vs prior 2 weeks
-- Export table as CSV button
+### B — Deck Analyzer polish
+- **Chapin explanation text** — `PrincipleScore.explanation` already populated; show as tooltip or below each bar
 
-### C — Charts tab polish
-- Auto-populate archetype autocomplete from DB (`get_meta_standings` result)
-- "Compare archetypes" mode: overlay multiple trend lines on one chart
+### C — Charts tab
+- **Compare archetypes mode** — overlay multiple trend lines on one chart (multi-select archetype combo)
 
-### D — Deck Analyzer improvements
-- "Load Average Deck" button: populate the text box with the average deck for
-  a selected archetype (calls `get_average_deck()`)
-- Show Chapin explanation text per principle (already in `PrincipleScore.explanation`)
+### D — User Preferences System (partially done)
+Full spec in CLAUDE.md. Still TODO:
+1. Format selection page in setup wizard (add page 0 before Scryfall download)
+2. `user_preferences` table in `db/database.py`
+3. Wire `background_fill.bat` / `fill_database.py` to read selected formats from preferences
 
-### E — Packaging (after GUI is stable)
+### E — Packaging
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
+pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" --add-data "gui/fonts;gui/fonts"
 ```
 - `data/` stays external (DB + Scryfall bulk file too large to embed)
-- Include `README_INSTALL.txt` explaining where to place data files
 - Test on a clean machine without Python installed
 
 ---
 
-## Data status (as of 2026-03-20)
+## Data status (as of 2026-03-20, end of session)
 
-| Format | Events | Decks | Date range |
+| Format | Events | Decks | Notes |
 |---|---|---|---|
-| Standard | 2,043 | ~24,289 | Nov 2024 – Mar 2026 |
-| Pioneer | 10 | ~147 | Recent MTGO only (MTGTop8 has little Pioneer data) |
-| Modern | 0 | 0 | MTGTop8 has no Modern data; use MTGDecks scraper |
+| Standard | 2,043 | ~24,289 | Nov 2024 – Mar 2026, daily 6 AM task active |
+| Pioneer | 109 | 3,125 | MTGDecks 20-page scrape completed this session |
+| Modern | scraping | TBD | MTGDecks 20-page scrape running in background |
 
-- Pioneer/Modern depth: run `python -m scrapers.mtgdecks --format pioneer --pages 20`
-- Standard backfill in progress — daily 6 AM task will maintain going forward
-- Card data: 99.98% coverage (24,284/24,289 decks have full card lists)
+- Card data: 99.98% coverage (Standard). After Modern scrape finishes, run:
+  `python -m scrapers.scryfall` to enrich new Modern cards.
 
 ---
 
 ## Known issues / notes
 
-- **Pip circles** — `QFrame` + `WA_StyledBackground` approach is implemented and committed
-  but not yet visually confirmed. Restart GUI to verify circles render correctly.
+- **Pip circles** — now uses `QPainter.drawEllipse()` with antialiasing. Should render as
+  proper circles. Not yet visually confirmed after latest fix — restart GUI to verify.
+- **Screenshots** — always use `python -c "import pyautogui; pyautogui.screenshot().save('data/gui_screenshot.png')"`.
+  Never save to Windows Temp folder.
 - `analysis/charts.py` sets `matplotlib.use("Agg")` at import — never import it
   inside GUI code. Use `gui/widgets/chart_canvas.py` instead.
 - `data/scryfall_oracle.json` is ~162 MB and gitignored. Regenerate:
@@ -190,6 +188,6 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
 - MTGDecks scraper uses `cloudscraper`. If 403s return:
   `pip install --upgrade cloudscraper`
 - Blunder/Chapin on average decks may show <60 cards (inclusion threshold) — expected.
-- VS Code default terminal is now **cmd** (not Git Bash). New terminals open in cmd.
-- After any new backfill/scrape, enrich new cards:
-  `python -m scrapers.scryfall`
+- VS Code default terminal is **cmd** (not Git Bash). New terminals open in cmd.
+- After any new backfill/scrape, enrich new cards: `python -m scrapers.scryfall`
+- `exports/` folder is gitignored — created automatically on first export.
