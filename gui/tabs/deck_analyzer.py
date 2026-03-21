@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QPlainTextEdit, QSplitter, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QComboBox, QFrame, QLineEdit,
+    QGroupBox, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
@@ -146,6 +147,71 @@ _SEV_COLORS = {"Major": "#e6194b", "Moderate": "#f58231", "Minor": "#bfef45"}
 _PRINCIPLES  = ["Threats", "Answers", "Consistency", "Velocity", "Mana", "Clock"]
 
 
+def _card_reason(oracle_text: str | None, type_line: str | None, zone: str) -> str:
+    """
+    Derive a short explanation of why a card sees play in the given zone,
+    using oracle text and type line heuristics.
+    """
+    text  = (oracle_text or "").lower()
+    types = (type_line   or "").lower()
+    parts = []
+
+    # Sideboard-specific roles
+    if zone == "Side":
+        if any(k in text for k in ("exile", "remove")) and "graveyard" in text:
+            parts.append("Graveyard hate — exiles cards from graveyards")
+        if "counter target" in text:
+            parts.append("Permission — counters specific threats")
+        if "destroy target artifact" in text or "artifact" in types and "destroy" in text:
+            parts.append("Artifact removal")
+        if "destroy target enchantment" in text or "enchantment" in types and "destroy" in text:
+            parts.append("Enchantment removal")
+        if "life" in text and "gain" in text:
+            parts.append("Life gain — stabilises against aggro")
+        if "discard" in text:
+            parts.append("Hand disruption — strips key combo/control pieces")
+
+    # General roles
+    if not parts or zone == "Main":
+        if "counter target spell" in text:
+            parts.append("Counterspell — answers non-creature threats")
+        elif "counter target" in text:
+            parts.append("Targeted counter magic")
+        if "exile target" in text or ("exile" in text and "target creature" in text):
+            parts.append("Exile removal — handles indestructible threats")
+        elif "destroy target creature" in text or "destroy target permanent" in text:
+            parts.append("Removal — clears blockers or key threats")
+        elif "deals" in text and "damage" in text and "target" in text:
+            parts.append("Burn — flexible damage to creature or player")
+        if "draw" in text and "card" in text:
+            parts.append("Card advantage")
+        if "discard" in text and zone == "Main":
+            parts.append("Hand disruption")
+        if "lifelink" in text:
+            parts.append("Provides life gain while pressuring")
+        if "flash" in text:
+            parts.append("Flash — can hold up interaction, deploy at end of turn")
+
+    # Fallback by type
+    if not parts:
+        if "planeswalker" in types:
+            parts.append("Planeswalker — generates value each turn")
+        elif "creature" in types:
+            parts.append("Alternate threat — some lists prefer this body")
+        elif "land" in types:
+            parts.append("Utility land — provides mana fixing or enters-play effect")
+        elif "instant" in types or "sorcery" in types:
+            parts.append("Situational spell — useful in specific matchups")
+        elif "enchantment" in types:
+            parts.append("Persistent effect — some lists run this for coverage")
+        elif "artifact" in types:
+            parts.append("Artifact utility — niche but recurs in some builds")
+        else:
+            parts.append("Flex pick — appears in some lists as a one- or two-of")
+
+    return "; ".join(parts[:2])
+
+
 class DeckAnalyzerTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -239,6 +305,32 @@ class DeckAnalyzerTab(QWidget):
         )
         self._deck_input.setFont(QFont("Consolas", 10))
         lv.addWidget(self._deck_input)
+
+        # Recommendations panel — hidden until an avg deck is loaded
+        self._rec_box = QGroupBox("Flex / Tech Recommendations")
+        self._rec_box.setVisible(False)
+        rv2 = QVBoxLayout(self._rec_box)
+        rv2.setContentsMargins(4, 4, 4, 4)
+        rv2.setSpacing(2)
+        self._rec_lbl = QLabel("")
+        self._rec_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        rv2.addWidget(self._rec_lbl)
+        self._rec_table = QTableWidget(0, 3)
+        self._rec_table.setHorizontalHeaderLabels(["Card", "Zone", "Incl %"])
+        self._rec_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._rec_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self._rec_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self._rec_table.setColumnWidth(1, 50)
+        self._rec_table.setColumnWidth(2, 60)
+        self._rec_table.setToolTip("Hover a card row to see why it sees play")
+        self._rec_table.verticalHeader().setVisible(False)
+        self._rec_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._rec_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._rec_table.setMaximumHeight(160)
+        self._rec_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        rv2.addWidget(self._rec_table)
+        lv.addWidget(self._rec_box)
+
         splitter.addWidget(left)
 
         # Right: results
@@ -293,7 +385,7 @@ class DeckAnalyzerTab(QWidget):
             row_layout.addWidget(bar, 1)
             row_layout.addWidget(score_lbl)
             rv.addLayout(row_layout)
-            self._chapin_bars[p] = (bar, score_lbl)
+            self._chapin_bars[p] = (lbl, bar, score_lbl)
 
         self._overall_lbl = QLabel("")
         self._overall_lbl.setWordWrap(True)
@@ -384,27 +476,93 @@ class DeckAnalyzerTab(QWidget):
             self._status.setText("No decklists found for that archetype/timeframe.")
             return
 
-        # Build Arena-format text from average deck
+        # Build Arena-format text from average deck.
+        # Use avg_qty * inclusion_rate to get the expected copies per deck;
+        # skip cards that round to 0 (low-inclusion flex cards).
+        def _expected_qty(card):
+            return round(card["avg_qty"] * card.get("inclusion_rate", 1.0))
+
         lines = ["Deck"]
         for card in data["mainboard"]:
-            qty = max(1, round(card["avg_qty"]))
-            lines.append(f"{qty} {card['name']}")
+            qty = _expected_qty(card)
+            if qty > 0:
+                lines.append(f"{qty} {card['name']}")
         if data["sideboard"]:
             lines.append("")
             lines.append("Sideboard")
             for card in data["sideboard"]:
-                qty = max(1, round(card["avg_qty"]))
-                lines.append(f"{qty} {card['name']}")
+                qty = _expected_qty(card)
+                if qty > 0:
+                    lines.append(f"{qty} {card['name']}")
 
         self._deck_input.setPlainText("\n".join(lines))
         self._arch.setText(data["archetype"])
 
-        total_main = sum(max(1, round(c["avg_qty"])) for c in data["mainboard"])
-        total_side = sum(max(1, round(c["avg_qty"])) for c in data["sideboard"])
+        total_main = sum(_expected_qty(c) for c in data["mainboard"] if _expected_qty(c) > 0)
+        total_side = sum(_expected_qty(c) for c in data["sideboard"] if _expected_qty(c) > 0)
         self._status.setText(
             f"Loaded {data['archetype']} avg ({data['deck_count']} decks — "
             f"{total_main} main / {total_side} side)"
         )
+
+        # Populate recommendations: cards excluded from the deck (rounded to 0)
+        # that still have ≥10% inclusion — sorted by inclusion rate descending.
+        recs_main = [(c, "Main") for c in data["mainboard"] if _expected_qty(c) == 0]
+        recs_side = [(c, "Side") for c in data["sideboard"] if _expected_qty(c) == 0]
+        recs = recs_main + recs_side
+        recs.sort(key=lambda t: -t[0].get("inclusion_rate", 0))
+
+        if recs:
+            # Batch-fetch oracle text + type for all recommended cards
+            from db.database import get_combined_connection
+            names = [c["name"] for c, _ in recs]
+            placeholders = ",".join("?" * len(names))
+            conn = get_combined_connection()
+            try:
+                rows = conn.execute(
+                    f"SELECT name, oracle_text, type_line FROM card_data "
+                    f"WHERE name IN ({placeholders})",
+                    names,
+                ).fetchall()
+            finally:
+                conn.close()
+            card_info = {r["name"]: r for r in rows}
+
+            self._rec_box.setVisible(True)
+            self._rec_lbl.setText(
+                f"{len(recs)} flex/tech cards appear in some {data['archetype']} lists "
+                f"but aren't consistent enough for the average deck:"
+            )
+            self._rec_table.setRowCount(len(recs))
+            for row, (card, zone) in enumerate(recs):
+                inc  = card.get("inclusion_rate", 0)
+                info = card_info.get(card["name"])
+                why  = _card_reason(
+                    (info["oracle_text"] if info else None),
+                    (info["type_line"]   if info else None),
+                    zone,
+                )
+                name_i = QTableWidgetItem(card["name"])
+                zone_i = QTableWidgetItem(zone)
+                zone_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                inc_i  = QTableWidgetItem(f"{inc*100:.0f}%")
+                inc_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                # Tint rows by inclusion strength
+                if inc >= 0.40:
+                    tint = QColor(30, 55, 35)
+                elif inc >= 0.25:
+                    tint = QColor(45, 45, 20)
+                else:
+                    tint = QColor(50, 35, 20)
+                tooltip = f"Recommended: {zone}\n\n{why}"
+                for item in (name_i, zone_i, inc_i):
+                    item.setBackground(tint)
+                    item.setToolTip(tooltip)
+                self._rec_table.setItem(row, 0, name_i)
+                self._rec_table.setItem(row, 1, zone_i)
+                self._rec_table.setItem(row, 2, inc_i)
+        else:
+            self._rec_box.setVisible(False)
 
     # ------------------------------------------------------------------
     # Analysis
@@ -455,9 +613,12 @@ class DeckAnalyzerTab(QWidget):
         self._blunder_table.setRowCount(0)
         self._score_lbl.setText("\u2014")
         self._overall_lbl.setText("")
-        for bar, lbl in self._chapin_bars.values():
+        for lbl, bar, score_lbl in self._chapin_bars.values():
             bar.setValue(0)
-            lbl.setText("\u2014")
+            score_lbl.setText("\u2014")
+            lbl.setToolTip("")
+            bar.setToolTip("")
+            score_lbl.setToolTip("")
 
     def _show_blunder(self, report):
         issues = getattr(report, "issues", [])
@@ -487,12 +648,18 @@ class DeckAnalyzerTab(QWidget):
 
     def _show_chapin(self, report):
         for ps in getattr(report, "scores", []):
-            name  = getattr(ps, "name",  "")
-            score = getattr(ps, "score", 0.0)
+            name        = getattr(ps, "name",        "")
+            score       = getattr(ps, "score",       0.0)
+            explanation = getattr(ps, "explanation", "")
             if name in self._chapin_bars:
-                bar, lbl = self._chapin_bars[name]
+                lbl, bar, score_lbl = self._chapin_bars[name]
                 bar.setValue(int(score * 10))
-                lbl.setText(f"{score:.1f}")
+                score_lbl.setText(f"{score:.1f}")
+                if explanation:
+                    tip = f"{name} ({score:.1f}/10)\n\n{explanation}"
+                    lbl.setToolTip(tip)
+                    bar.setToolTip(tip)
+                    score_lbl.setToolTip(tip)
 
         overall = getattr(report, "overall_score",   0.0)
         rating  = getattr(report, "overall_rating",  "")

@@ -64,6 +64,28 @@ _SCHEMA_SQL = """
         legalities     TEXT,
         enriched_at    TEXT
     );
+    CREATE TABLE IF NOT EXISTS guides (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        date      TEXT,
+        url       TEXT NOT NULL UNIQUE,
+        format    TEXT,
+        archetype TEXT,
+        type      TEXT,
+        author    TEXT,
+        source    TEXT,
+        comment   TEXT,
+        added_at  TEXT
+    );
+    CREATE TABLE IF NOT EXISTS bookmarks (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        added_at  TEXT NOT NULL,
+        url       TEXT NOT NULL UNIQUE,
+        title     TEXT,
+        format    TEXT,
+        archetype TEXT,
+        type      TEXT,
+        note      TEXT
+    );
 """
 
 

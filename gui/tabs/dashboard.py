@@ -307,7 +307,7 @@ class DashboardTab(QWidget):
 
     def _build_recent_panel(self, parent_layout) -> QTableWidget:
         # Columns: Pl | Colors | Archetype | Player | Event | Date
-        frame, tbl, _ = self._panel_frame("RECENT TOP FINISHES",
+        frame, tbl, _, _hdr = self._panel_frame("RECENT TOP FINISHES",
                                        ["Pl", "Colors", "Archetype", "Player", "Event", "Date"])
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -322,7 +322,7 @@ class DashboardTab(QWidget):
         return tbl
 
     def _build_ranked_panel(self, parent_layout, title: str, cols: list):
-        frame, tbl, hdr_lbl = self._panel_frame(title, cols)
+        frame, tbl, hdr_lbl, hdr_row = self._panel_frame(title, cols)
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -330,11 +330,23 @@ class DashboardTab(QWidget):
             hh.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         tbl.itemDoubleClicked.connect(self._on_ranked_dblclick)
         tbl.itemClicked.connect(self._on_ranked_dblclick)
+
+        csv_btn = QPushButton("CSV")
+        csv_btn.setFixedSize(34, 18)
+        csv_btn.setToolTip("Export this panel to CSV")
+        csv_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; color: {theme.TEXT_DIM};"
+            f" border: 1px solid {theme.BORDER}; border-radius: 2px; font-size: 9px; }}"
+            f"QPushButton:hover {{ color: {theme.ACCENT}; border-color: {theme.ACCENT}; }}"
+        )
+        csv_btn.clicked.connect(lambda: self._export_panel_csv(tbl, title))
+        hdr_row.addWidget(csv_btn)
+
         parent_layout.addWidget(frame)
         return tbl, hdr_lbl
 
     def _panel_frame(self, title: str, cols: list):
-        """Return (QFrame, QTableWidget, header_QLabel) for a titled panel."""
+        """Return (QFrame, QTableWidget, title_QLabel, hdr_QHBoxLayout)."""
         frame = QFrame()
         frame.setStyleSheet(
             f"QFrame {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
@@ -344,19 +356,28 @@ class DashboardTab(QWidget):
         fl.setContentsMargins(0, 0, 0, 0)
         fl.setSpacing(0)
 
-        hdr = QLabel(f"  {title}")
-        hdr.setFixedHeight(28)
-        hdr.setStyleSheet(
-            f"background: {theme.PANEL}; color: {theme.ACCENT}; font-size: 10px;"
-            f" font-weight: bold; letter-spacing: 1px;"
-            f" border-bottom: 1px solid {theme.BORDER};"
-            f" font-family: '{theme.HEADING_FONT}', Arial;"
+        # Header row — title label + space for action buttons
+        hdr_frame = QFrame()
+        hdr_frame.setFixedHeight(28)
+        hdr_frame.setStyleSheet(
+            f"background: {theme.PANEL}; border-bottom: 1px solid {theme.BORDER};"
         )
-        fl.addWidget(hdr)
+        hdr_row = QHBoxLayout(hdr_frame)
+        hdr_row.setContentsMargins(0, 0, 4, 0)
+        hdr_row.setSpacing(0)
+
+        hdr = QLabel(f"  {title}")
+        hdr.setStyleSheet(
+            f"color: {theme.ACCENT}; font-size: 10px; font-weight: bold;"
+            f" letter-spacing: 1px; font-family: '{theme.HEADING_FONT}', Arial;"
+            f" background: transparent; border: none;"
+        )
+        hdr_row.addWidget(hdr, 1)
+        fl.addWidget(hdr_frame)
 
         tbl = _make_panel_table(cols)
         fl.addWidget(tbl, 1)
-        return frame, tbl, hdr
+        return frame, tbl, hdr, hdr_row
 
     # ------------------------------------------------------------------
     # Public API
@@ -455,6 +476,48 @@ class DashboardTab(QWidget):
     # ------------------------------------------------------------------
     # Panel population
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # CSV export
+    # ------------------------------------------------------------------
+
+    def _export_panel_csv(self, tbl: QTableWidget, title: str):
+        """Save the panel table to exports/<title>_<fmt>_<stamp>.csv."""
+        import csv, os
+        from PyQt6.QtWidgets import QMessageBox
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        from datetime import datetime
+
+        # Build header row — skip col 0 (pip widget, no text)
+        headers = []
+        for c in range(1, tbl.columnCount()):
+            h = tbl.horizontalHeaderItem(c)
+            headers.append(h.text() if h else "")
+
+        rows = []
+        for r in range(tbl.rowCount()):
+            row = []
+            for c in range(1, tbl.columnCount()):
+                item = tbl.item(r, c)
+                row.append(item.text() if item else "")
+            rows.append(row)
+
+        exports_dir = os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "exports")
+        )
+        os.makedirs(exports_dir, exist_ok=True)
+
+        safe = title.replace(" ", "_").replace("—", "").replace("/", "_").strip("_")
+        fmt  = self._fmt.currentText()
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(exports_dir, f"{safe}_{fmt}_{stamp}.csv")
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerows([headers] + rows)
+
+        QMessageBox.information(self, "Export Complete", f"Saved to:\n{path}")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(exports_dir))
 
     # Subtle row tint colors for rising / falling archetypes
     _ROW_RISING  = QColor(18, 48, 22)   # dark green

@@ -16,12 +16,14 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer
 
-from gui.tabs.dashboard    import DashboardTab
-from gui.tabs.deck_analyzer import DeckAnalyzerTab
-from gui.tabs.search       import SearchTab
-from gui.tabs.charts       import ChartsTab
-from gui.tabs.predictions  import PredictionsTab
-from gui.tabs.settings     import SettingsTab
+from gui.tabs.dashboard       import DashboardTab
+from gui.tabs.deck_analyzer   import DeckAnalyzerTab
+from gui.tabs.search          import SearchTab
+from gui.tabs.charts          import ChartsTab
+from gui.tabs.predictions     import PredictionsTab
+from gui.tabs.settings        import SettingsTab
+from gui.tabs.knowledge_base  import KnowledgeBaseTab
+from gui.tabs.ask_claude      import AskClaudeTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -54,19 +56,30 @@ class MainWindow(QMainWindow):
         self._tabs = QTabWidget()
         self._tabs.setTabPosition(QTabWidget.TabPosition.North)
 
-        self._dash     = DashboardTab()
-        self._deck     = DeckAnalyzerTab()
-        self._search   = SearchTab()
-        self._charts   = ChartsTab()
-        self._preds    = PredictionsTab()
-        self._settings = SettingsTab()
+        self._dash      = DashboardTab()
+        self._deck      = DeckAnalyzerTab()
+        self._search    = SearchTab()
+        self._charts    = ChartsTab()
+        self._preds     = PredictionsTab()
+        self._kb        = KnowledgeBaseTab()
+        self._claude    = AskClaudeTab()
+        self._settings  = SettingsTab()
 
         self._tabs.addTab(self._dash,     "DASHBOARD")
         self._tabs.addTab(self._deck,     "DECK ANALYZER")
         self._tabs.addTab(self._search,   "SEARCH")
         self._tabs.addTab(self._charts,   "CHARTS")
         self._tabs.addTab(self._preds,    "PREDICTIONS")
+        self._tabs.addTab(self._kb,       "KNOWLEDGE BASE")
         self._tabs.addTab(self._settings, "SETTINGS")
+
+        # Ask Claude tab — added/removed dynamically based on API key presence
+        self._claude_tab_index = -1
+        self._settings.api_key_changed.connect(self._on_api_key_changed)
+        # Show on startup if key already saved
+        from gui.tabs.settings import load_preferences
+        if load_preferences().get("anthropic_api_key", "").strip():
+            self._add_claude_tab()
 
         self.setCentralWidget(self._tabs)
 
@@ -81,6 +94,30 @@ class MainWindow(QMainWindow):
             f"color: {theme.ACCENT}; font-size: 11px; padding-right: 12px;"
         )
         sb.addPermanentWidget(self._event_count_lbl)
+
+    # ------------------------------------------------------------------
+    # Ask Claude tab (optional — shown only when API key is configured)
+    # ------------------------------------------------------------------
+
+    def _add_claude_tab(self):
+        if self._claude_tab_index >= 0:
+            return  # already added
+        # Insert before Settings (last tab)
+        settings_idx = self._tabs.indexOf(self._settings)
+        self._tabs.insertTab(settings_idx, self._claude, "ASK CLAUDE")
+        self._claude_tab_index = self._tabs.indexOf(self._claude)
+
+    def _remove_claude_tab(self):
+        if self._claude_tab_index < 0:
+            return
+        self._tabs.removeTab(self._tabs.indexOf(self._claude))
+        self._claude_tab_index = -1
+
+    def _on_api_key_changed(self, key: str):
+        if key:
+            self._add_claude_tab()
+        else:
+            self._remove_claude_tab()
 
     # ------------------------------------------------------------------
     # Startup logic

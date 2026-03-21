@@ -124,6 +124,42 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
             "sideboard": cards["side"],
         })
 
+    # ── Guides for this archetype ─────────────────────────────────────
+    # Match on archetype name (bidirectional partial, case-insensitive).
+    # Format priority: Standard=1, Modern=2, Pioneer=3, Legacy=4, rest=5.
+    # ── Guides + bookmarks for this archetype ────────────────────────
+    _fmt_order = (
+        "CASE lower(format) WHEN 'standard' THEN 1 "
+        "WHEN 'modern' THEN 2 WHEN 'pioneer' THEN 3 "
+        "WHEN 'legacy' THEN 4 ELSE 5 END"
+    )
+    _arch_match = (
+        "lower(archetype) LIKE lower('%' || ? || '%') "
+        "OR lower(?) LIKE lower('%' || archetype || '%')"
+    )
+    resources = []
+    try:
+        conn2 = get_combined_connection()
+        guide_rows = conn2.execute(f"""
+            SELECT date AS date_str, url, format, archetype,
+                   type, author AS title, source, comment, 'guide' AS origin
+            FROM guides
+            WHERE {_arch_match}
+            ORDER BY {_fmt_order}, date DESC
+        """, [archetype, archetype]).fetchall()
+        bm_rows = conn2.execute(f"""
+            SELECT added_at AS date_str, url, format, archetype,
+                   type, title, '' AS source, note AS comment, 'bookmark' AS origin
+            FROM bookmarks
+            WHERE {_arch_match}
+            ORDER BY {_fmt_order}, added_at DESC
+        """, [archetype, archetype]).fetchall()
+        conn2.close()
+        # Bookmarks first (manually curated), then scraped guides
+        resources = [dict(r) for r in bm_rows] + [dict(r) for r in guide_rows]
+    except Exception:
+        resources = []
+
     return {
         "archetype": archetype,
         "format": format_name,
@@ -131,6 +167,7 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
         "mainboard": mainboard,
         "sideboard": sideboard,
         "recent_decks": recent_decks,
+        "resources": resources,
     }
 
 
@@ -299,6 +336,109 @@ def _make_recent_grid(recent_decks: list) -> QTableWidget:
             tbl.setItem(ri, ci + 1, cell)
 
     return tbl
+
+
+def _make_resources_tab(resources: list) -> QWidget:
+    """
+    Clickable table of guides and manual bookmarks for this archetype.
+    Bookmarks (manually saved) shown first, then scraped guides.
+    """
+    from PyQt6.QtCore import QUrl
+    from PyQt6.QtGui import QDesktopServices
+
+    _TYPE_COLOR = {
+        "guide":          QColor(30,  60, 40),
+        "primer":         QColor(25,  40, 65),
+        "sideboard guide":QColor(55,  35, 15),
+        "tweet":          QColor(20,  45, 60),
+        "article":        QColor(40,  35, 55),
+        "video":          QColor(55,  28, 28),
+        "deck tech":      QColor(40,  50, 20),
+    }
+
+    container = QWidget()
+    vl = QVBoxLayout(container)
+    vl.setContentsMargins(8, 8, 8, 8)
+    vl.setSpacing(6)
+
+    if not resources:
+        lbl = QLabel(
+            "No guides or bookmarks found for this archetype.\n\n"
+            "• Run  python -m scrapers.guides  to import the Skill Issue Magic database.\n"
+            "• Use the Knowledge Base tab to bookmark tweets or articles."
+        )
+        lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
+        lbl.setWordWrap(True)
+        vl.addWidget(lbl)
+        return container
+
+    bm_count = sum(1 for r in resources if r.get("origin") == "bookmark")
+    g_count  = len(resources) - bm_count
+    parts = []
+    if bm_count:
+        parts.append(f"{bm_count} bookmark{'s' if bm_count != 1 else ''}")
+    if g_count:
+        parts.append(f"{g_count} guide{'s' if g_count != 1 else ''}")
+    note = QLabel(
+        ", ".join(parts) + " — click any row to open in browser. "
+        "★ = manually bookmarked."
+    )
+    note.setWordWrap(True)
+    note.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+    vl.addWidget(note)
+
+    tbl = QTableWidget(len(resources), 5)
+    tbl.setHorizontalHeaderLabels(["Title / Description", "Format", "Type", "Author / Source", "Date"])
+    tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+    tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+    tbl.verticalHeader().setVisible(False)
+    tbl.setAlternatingRowColors(False)
+    tbl.setCursor(Qt.CursorShape.PointingHandCursor)
+    tbl.setToolTip("Click a row to open in your browser")
+    hh = tbl.horizontalHeader()
+    hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+    hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+    hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+    hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+    hh.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+
+    for row, r in enumerate(resources):
+        origin  = r.get("origin", "guide")
+        is_bm   = origin == "bookmark"
+        title   = r.get("title")   or r.get("comment") or r.get("archetype") or "—"
+        if is_bm:
+            title = f"★ {title}"
+        fmt     = (r.get("format")  or "—").capitalize()
+        rtype   = r.get("type")     or "—"
+        author  = r.get("title")    if not is_bm else ""
+        source  = r.get("source")   or ""
+        credit  = " / ".join(x for x in [author, source] if x) or "—"
+        date    = (r.get("date_str") or "")[:10]
+        url     = r.get("url") or ""
+        comment = r.get("comment") or ""
+        tooltip = f"{title}\n{comment}\n{url}".strip()
+
+        base = _TYPE_COLOR.get(rtype.lower(), QColor(40, 40, 52))
+        if is_bm:
+            tint = QColor(min(base.red()+15,255), min(base.green()+15,255), min(base.blue()+20,255))
+        else:
+            tint = base
+
+        for ci, text in enumerate([title, fmt, rtype, credit, date]):
+            item = QTableWidgetItem(text)
+            item.setBackground(tint)
+            item.setToolTip(tooltip)
+            item.setData(Qt.ItemDataRole.UserRole, url)
+            tbl.setItem(row, ci, item)
+
+    def _open(item):
+        url = item.data(Qt.ItemDataRole.UserRole)
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
+
+    tbl.itemClicked.connect(_open)
+    vl.addWidget(tbl)
+    return container
 
 
 def _make_tech_table(mainboard: list) -> QWidget:
@@ -534,6 +674,12 @@ class ArchetypeDetailDialog(QDialog):
         tech_count = len([c for c in data["mainboard"]
                           if 0.15 <= c["inclusion_rate"] <= 0.80])
         self._tabs.addTab(tech_widget, f"Tech Choices ({tech_count})")
+
+        # Tab 4 — Resources (guides + bookmarks)
+        resources    = data.get("resources", [])
+        res_tab      = _make_resources_tab(resources)
+        res_label    = f"Resources ({len(resources)})" if resources else "Resources"
+        self._tabs.addTab(res_tab, res_label)
 
         self._tabs.blockSignals(False)
         self._tabs.setVisible(True)

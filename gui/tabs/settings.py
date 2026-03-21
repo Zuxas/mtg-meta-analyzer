@@ -8,9 +8,9 @@ import os
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QCheckBox, QComboBox, QGroupBox, QFormLayout, QFrame,
+    QCheckBox, QComboBox, QGroupBox, QFormLayout, QFrame, QLineEdit,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 import gui.theme as theme
 
@@ -50,6 +50,9 @@ def save_preferences(prefs: dict):
 
 
 class SettingsTab(QWidget):
+    # Emitted when the Anthropic API key is saved — main window shows/hides Ask Claude tab
+    api_key_changed = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build_ui()
@@ -117,6 +120,30 @@ class SettingsTab(QWidget):
         sv.addWidget(self._storage_lbl)
         outer.addWidget(store_box)
 
+        # ── AI Assistant ──────────────────────────────────────────────
+        ai_box = QGroupBox("AI Assistant (optional)")
+        av = QVBoxLayout(ai_box)
+        av.setSpacing(8)
+
+        ai_note = QLabel(
+            "Enter your Anthropic API key to unlock the Ask Claude tab — "
+            "an in-app chat that answers questions about your local meta data. "
+            "Leave blank to disable. Key is stored only in preferences.json on your machine."
+        )
+        ai_note.setWordWrap(True)
+        ai_note.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        av.addWidget(ai_note)
+
+        key_row = QHBoxLayout()
+        key_row.addWidget(QLabel("Anthropic API key:"))
+        self._api_key_input = QLineEdit()
+        self._api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self._api_key_input.setPlaceholderText("sk-ant-…  (leave blank to disable AI Assistant)")
+        key_row.addWidget(self._api_key_input, 1)
+        av.addLayout(key_row)
+
+        outer.addWidget(ai_box)
+
         # ── Save button ───────────────────────────────────────────────
         bar = QHBoxLayout()
         bar.addStretch()
@@ -157,6 +184,8 @@ class SettingsTab(QWidget):
     def _load(self):
         prefs = load_preferences()
 
+        self._api_key_input.setText(prefs.get("anthropic_api_key", ""))
+
         for fmt, cb in self._fmt_checks.items():
             cb.setChecked(fmt in prefs.get("formats", ["standard"]))
 
@@ -179,7 +208,9 @@ class SettingsTab(QWidget):
         prefs["auto_update"] = self._UPDATE_MAP_INV.get(
             self._update_combo.currentText(), "daily"
         )
+        prefs["anthropic_api_key"] = self._api_key_input.text().strip()
         save_preferences(prefs)
+        self.api_key_changed.emit(prefs["anthropic_api_key"])
         self._status_lbl.setText("Saved.")
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(2000, lambda: self._status_lbl.setText(""))
