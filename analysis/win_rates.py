@@ -218,7 +218,17 @@ def _parse_date(date_str):
 
 
 def _dt_to_db_str(dt):
-    return dt.strftime('%Y-%m-%d') if dt else None
+    # Normalize to YYYYMMDD for comparison against _DATE_KEY
+    return dt.strftime('%Y%m%d') if dt else None
+
+
+# Normalize stored dates to YYYYMMDD for correct ordering and filtering.
+# MTGTop8 stores DD/MM/YY; MTGDecks stores YYYY-MM-DD.
+_DATE_KEY = (
+    "CASE WHEN instr(e.date,'/')>0 "
+    "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
+    "ELSE replace(e.date,'-','') END"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -257,13 +267,13 @@ def _fetch_appearances(conn, archetype, format_name=None, event_type=None,
         q += " AND e.event_type = ?"
         params.append(event_type)
     if since:
-        q += " AND e.date >= ?"
+        q += f" AND {_DATE_KEY} >= ?"
         params.append(_dt_to_db_str(since))
     if until:
-        q += " AND e.date <= ?"
+        q += f" AND {_DATE_KEY} <= ?"
         params.append(_dt_to_db_str(until))
 
-    q += " ORDER BY e.date DESC, d.placement ASC"
+    q += f" ORDER BY {_DATE_KEY} DESC, d.placement ASC"
     return conn.execute(q, params).fetchall()
 
 
@@ -485,10 +495,10 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
         """
         total_params = [format_name]
         if since:
-            total_q += " AND e.date >= ?"
+            total_q += f" AND {_DATE_KEY} >= ?"
             total_params.append(_dt_to_db_str(since))
         if until:
-            total_q += " AND e.date <= ?"
+            total_q += f" AND {_DATE_KEY} <= ?"
             total_params.append(_dt_to_db_str(until))
         total_q += " GROUP BY e.id"
         total_rows = conn2.execute(total_q, total_params).fetchall()

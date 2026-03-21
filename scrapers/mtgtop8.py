@@ -209,9 +209,11 @@ def run(format_name="standard", pages=1, max_events=10):
     """
     Full pipeline: scrape events -> decks -> cards -> store in DB.
     """
+    from datetime import datetime
     from db.database import upsert_event, upsert_deck, insert_deck_cards
 
-    print(f"\n=== Scraping MTGTop8 | Format: {format_name.upper()} | Pages: {pages} ===\n")
+    print(f"\n=== Scraping MTGTop8 | Format: {format_name.upper()} | Pages: {pages} ===")
+    print(f"    Run date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
 
     events = scrape_format_events(format_name, pages=pages)
     events = events[:max_events]

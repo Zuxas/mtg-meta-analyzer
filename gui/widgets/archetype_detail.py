@@ -44,11 +44,16 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
             WHERE lower(d.archetype) LIKE lower(?)
               AND lower(e.format) = lower(?)
         """
+        _date_key = (
+            "CASE WHEN instr(e.date,'/')>0 "
+            "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
+            "ELSE replace(e.date,'-','') END"
+        )
         params = [f"%{archetype}%", format_name]
         if since_dt:
-            q += " AND e.date >= ?"
-            params.append(since_dt.strftime("%Y-%m-%d"))
-        q += " ORDER BY e.date DESC, d.placement ASC"
+            q += f" AND ({_date_key}) >= ?"
+            params.append(since_dt.strftime("%Y%m%d"))
+        q += f" ORDER BY ({_date_key}) DESC, d.placement ASC"
         deck_rows = conn.execute(q, params).fetchall()
 
         if not deck_rows:
@@ -148,8 +153,10 @@ def _fmt_date(raw: str) -> str:
     try:
         if "/" in raw:
             d, m, y = raw.split("/")
-            return datetime(2000 + int(y), int(m), int(d)).strftime("%b %-d")
-        return datetime.fromisoformat(raw).strftime("%b %-d")
+            dt = datetime(2000 + int(y), int(m), int(d))
+        else:
+            dt = datetime.fromisoformat(raw)
+        return f"{dt.strftime('%b')} {dt.day}"
     except Exception:
         return raw
 

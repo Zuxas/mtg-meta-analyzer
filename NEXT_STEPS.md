@@ -19,58 +19,58 @@ All backend modules done. Do not rebuild any of these.
 
 ---
 
-## Phase 3: PyQt6 GUI — COMPLETE (theme wired, ready to test)
+## Phase 3: PyQt6 GUI — STABLE ✅
 
 ### What's built (as of 2026-03-20)
 
 ```
-run_gui.py                  ✅ launcher (sets matplotlib QtAgg backend first)
-gui/theme.py                ✅ personal website design system (#3b3c4d / #65bcd5 / Orbitron)
-gui/fonts/Orbitron.ttf      ✅ bundled heading font
-gui/main_window.py          ✅ theme applied, 6 tabs, 1200x700 default size
-gui/setup_wizard.py         ✅ website theme colors, first-time setup flow
-gui/worker_threads.py       ✅ all worker threads
-gui/widgets/chart_canvas.py ✅ CHART_PALETTE/BG/PANEL/GRID from theme module
-gui/widgets/meta_table.py   ✅
-gui/tabs/dashboard.py       ✅ auto-loads on startup, weeks filter applies to table+chart
-gui/tabs/deck_analyzer.py   ✅ theme buttons, inline styles removed
-gui/tabs/search.py          ✅ theme.btn_primary() for all search buttons
-gui/tabs/charts.py          ✅ theme buttons, CHART_BG for PNG export
-gui/tabs/predictions.py     ✅ theme.btn_primary/secondary/success()
-gui/tabs/settings.py        ✅ format checkboxes, data window, auto-update, storage info
-gui/tray_icon.py            ✅ system tray, status dots, right-click menu
-gui/first_run_setup.py      ✅ one-time UAC wizard, registers all 3 tasks
+run_gui.py                       ✅ launcher (sets matplotlib QtAgg backend first)
+launch_app.bat                   ✅ double-click to launch from Explorer (no terminal needed)
+create_shortcut.bat              ✅ run once to put desktop shortcut in place
+gui/theme.py                     ✅ personal website design system (#3b3c4d / #65bcd5 / Orbitron)
+gui/fonts/Orbitron.ttf           ✅ bundled heading font
+gui/main_window.py               ✅ theme applied, 6 tabs, 1200x700 default size
+gui/setup_wizard.py              ✅ website theme colors, first-time setup flow
+gui/worker_threads.py            ✅ all worker threads
+gui/widgets/chart_canvas.py      ✅ fetch_chart_data() + draw_from_data() for dashboard
+gui/widgets/meta_table.py        ✅
+gui/widgets/archetype_detail.py  ✅ click-to-open deck detail dialog (avg deck, recent lists, tech)
+gui/tabs/dashboard.py            ✅ Untapped.gg-inspired layout, single-click opens detail
+gui/tabs/deck_analyzer.py        ✅ theme buttons, inline styles removed
+gui/tabs/search.py               ✅ theme.btn_primary() for all search buttons
+gui/tabs/charts.py               ✅ theme buttons, CHART_BG for PNG export
+gui/tabs/predictions.py          ✅ theme.btn_primary/secondary/success()
+gui/tabs/settings.py             ✅ format checkboxes, data window, auto-update, storage info
+gui/tray_icon.py                 ✅ system tray, status dots, right-click menu
+gui/first_run_setup.py           ✅ one-time UAC wizard, registers all 3 tasks
 ```
-
-### Performance fix applied (2026-03-20)
-`get_meta_standings` in `analysis/win_rates.py` was making one SQL query per archetype
-(~918 queries, 9+ seconds). Fixed to use a single bulk query — now 0.07s.
-The dashboard `refresh()` also passes a `since` date from the Weeks control so only
-the relevant time window is loaded.
 
 ### START HERE next session
 
 ```bash
 python run_gui.py
+# or double-click launch_app.bat / desktop shortcut
 ```
 
-Expected on first run: setup wizard (if DB < 50 events).
-Expected on returning run: dashboard auto-loads data within 1 second, background scrape starts.
+Expected on returning run: dashboard auto-loads within 1 second, Recent Top Finishes shows
+current week's events, single-click any archetype row → deck detail dialog.
 
-### Known things to test / likely issues
+### Bugs fixed (2026-03-20 session)
 
-1. **Est Win% / Avg Pts columns show "—"** for archetypes with only 2-3 appearances —
-   this is correct behavior (not enough data for reliable estimates).
+- **Date sort bug** — MTGTop8 stores `DD/MM/YY`, MTGDecks stores `YYYY-MM-DD`. All date
+  comparisons and ORDER BY now use a SQLite CASE expression that normalizes both to `YYYYMMDD`.
+  Affects: `analysis/win_rates.py` (`_DATE_KEY` constant + `_dt_to_db_str`),
+  `gui/tabs/dashboard.py` (Recent Top Finishes query),
+  `gui/widgets/archetype_detail.py` (deck detail query).
+- **"No decklists found" for clicked archetypes** — Recent Top Finishes stored `"UR  Izzet Prowess"`
+  (color identity prefix) in the archetype cell. Fixed: raw name stored in `UserRole` data,
+  click handler reads `UserRole` instead of `text()`.
+- **`%-d` format code** — Linux-only; replaced with `dt.day` in `archetype_detail.py`.
+- **Scraper run-date print** — Both `scrapers/mtgtop8.py` and `scrapers/mtgdecks.py` now
+  print `Run date: YYYY-MM-DD HH:MM` at the start of every scrape run.
 
-2. **Deck Analyzer legality check** — `analyze_deck()` calls `get_cards_data()`
-   which uses the Scryfall local cache. If `data/scryfall_oracle.json` is missing,
-   legality check raises. Run `python -m scrapers.scryfall --download` first.
-
-3. **search_local() return format** — `card.get("legalities")` may be a JSON string
-   (stored as TEXT in SQLite). The search tab already has a `json.loads` fallback.
-
-4. **predictions `accuracy_report()`** — returns `{}` or `None` if no predictions
-   exist yet. The tab handles this gracefully but verify on fresh DB.
+### Performance fix applied (2026-03-20)
+`get_meta_standings` in `analysis/win_rates.py` — single bulk query, ~0.07s (was 9.36s).
 
 ---
 
@@ -155,13 +155,13 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
 
 | Format | Events | Decks | Date range |
 |---|---|---|---|
-| Standard | 1,816 | ~20,010 | Jan 2025 – Mar 2026 |
-| Pioneer | 10 | 147 | Recent only |
-| Modern | 0 | 0 | background_fill.bat will populate going forward |
+| Standard | 2,043 | ~24,289 | Nov 2024 – Mar 2026 |
+| Pioneer | 10 | ~147 | Recent MTGO only (MTGTop8 has little Pioneer data) |
+| Modern | 0 | 0 | MTGTop8 has no Modern data; use MTGDecks scraper |
 
-- No 2023/2024 data — MTGTop8 pagination depth limit reached Jan 2025
-- To get deeper history: run `python -m scrapers.backfill --format standard` manually
-  (may take several hours; will push back further if MTGTop8 has older pages)
+- Pioneer/Modern depth: run `python -m scrapers.mtgdecks --format pioneer --pages 20`
+- Standard backfill in progress — daily 6 AM task will maintain going forward
+- Card data: 99.98% coverage (24,284/24,289 decks have full card lists)
 
 ---
 

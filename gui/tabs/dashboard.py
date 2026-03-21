@@ -81,6 +81,12 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
 
     conn = get_combined_connection()
     try:
+        # Normalize dates to YYYYMMDD for correct ordering (MTGTop8=DD/MM/YY, MTGDecks=ISO)
+        _date_key = (
+            "CASE WHEN instr(e.date,'/')>0 "
+            "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
+            "ELSE replace(e.date,'-','') END"
+        )
         q = """
             SELECT d.archetype, d.player, d.placement,
                    e.name AS event_name, e.date
@@ -89,9 +95,9 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
         """
         params = [format_name]
         if since_dt:
-            q += " AND e.date >= ?"
-            params.append(since_dt.strftime("%Y-%m-%d"))
-        q += " ORDER BY e.date DESC, d.placement ASC LIMIT 15"
+            q += f" AND ({_date_key}) >= ?"
+            params.append(since_dt.strftime("%Y%m%d"))
+        q += f" ORDER BY ({_date_key}) DESC, d.placement ASC LIMIT 15"
         recent = [dict(r) for r in conn.execute(q, params).fetchall()]
     finally:
         conn.close()
@@ -317,6 +323,7 @@ class DashboardTab(QWidget):
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         tbl.itemDoubleClicked.connect(self._on_recent_dblclick)
+        tbl.itemClicked.connect(self._on_recent_dblclick)
         parent_layout.addWidget(frame)
         return tbl
 
@@ -328,6 +335,7 @@ class DashboardTab(QWidget):
         for i in range(2, len(cols)):
             hh.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         tbl.itemDoubleClicked.connect(self._on_ranked_dblclick)
+        tbl.itemClicked.connect(self._on_ranked_dblclick)
         parent_layout.addWidget(frame)
         return tbl
 
@@ -426,9 +434,10 @@ class DashboardTab(QWidget):
                 return
 
     def _on_recent_dblclick(self, item):
-        arch = self._recent_tbl.item(self._recent_tbl.currentRow(), 1)
-        if arch:
-            self._open_detail(arch.text())
+        arch_item = self._recent_tbl.item(self._recent_tbl.currentRow(), 1)
+        if arch_item:
+            raw = arch_item.data(Qt.ItemDataRole.UserRole) or arch_item.text()
+            self._open_detail(raw)
 
     def _open_detail(self, archetype: str):
         from gui.widgets.archetype_detail import ArchetypeDetailDialog
@@ -492,6 +501,8 @@ class DashboardTab(QWidget):
             ident = _color_identity(r["archetype"])
             arch_text = f"{ident}  {r['archetype']}" if ident else r["archetype"]
             _set_cell(tbl, ri, 1, arch_text)
+            # Store raw archetype name for click handler (text includes color prefix)
+            tbl.item(ri, 1).setData(Qt.ItemDataRole.UserRole, r["archetype"])
             event = r.get("event_name", "") or ""
             _set_cell(tbl, ri, 2, event[:28])
             _set_cell(tbl, ri, 3, _fmt_date(r.get("date", "")))

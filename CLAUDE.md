@@ -93,6 +93,11 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
   - **Dashboard performance fix**: `get_meta_standings` uses single bulk SQL query (was 918 queries → 1); load time 9s → 0.07s
   - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
+  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate Today / Popularity Today), Popularity Over Time + Win Rate Over Time toggleable charts, color identity mana pips, archetype checkboxes
+  - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion)
+  - **Date sort fix**: both `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) stored dates are normalized to `YYYYMMDD` via SQLite CASE expression for correct ordering/filtering everywhere
+  - **Click handler fix**: Recent Top Finishes archetype cell stores raw name in `UserRole`; color-identity prefix no longer breaks deck detail lookup
+  - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
 
 ### Primary Format
 Standard is the primary focus. Pioneer and Modern actively scraped. Legacy supported but not scheduled.
@@ -109,10 +114,10 @@ Use `--include-archive` flag (via `get_combined_connection()`) to query across b
 Both DB files are gitignored. After cloning: run `fill_database.bat`
 
 ### Current data (as of 2026-03-20)
-- Standard: 1,816 events, ~20,010 decks (Jan 2025 – Mar 2026)
-- Pioneer: 10 events, 147 decks
-- Modern: 0 events (scheduled via background_fill.bat going forward)
-- No 2023 or 2024 data yet — MTGTop8 pagination only reached back to Jan 2025
+- Standard: 2,043 events, ~24,289 decks (Nov 2024 – Mar 2026), 99.98% card coverage
+- Pioneer: 10 events (MTGTop8 has almost no Pioneer data — use MTGDecks scraper)
+- Modern: 0 events from MTGTop8; use `python -m scrapers.mtgdecks --format modern --pages 20`
+- Daily 6 AM task now registered — will maintain Standard going forward
 
 ### card_data table
 Keyed by card name (TEXT PRIMARY KEY) — not card_id — so it works seamlessly

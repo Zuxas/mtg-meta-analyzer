@@ -534,8 +534,10 @@ def run_scraper(format_name="standard", pages=1, min_players=50, dry_run=False):
     """
     existing_ids = _existing_source_ids()
 
+    from datetime import datetime
     print(f"\n{'='*60}")
     print(f"  MTGDecks.net | {format_name.upper()} | pages={pages} | min_players={min_players}")
+    print(f"  Run date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"  Mode: {'DRY RUN' if dry_run else 'LIVE'}")
     print(f"{'='*60}\n")
 
