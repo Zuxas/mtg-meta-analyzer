@@ -38,6 +38,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1100, 700)
         self.resize(1300, 820)
 
+        self._tray = None   # set later by run_gui.py via set_tray()
+
         theme.apply_theme(QApplication.instance())
         self._build_ui()
         # Slight delay so the window paints before we check/run setup
@@ -118,6 +120,9 @@ class MainWindow(QMainWindow):
 
     def _background_scrape(self):
         """Quietly check for new events since last run."""
+        if self._tray:
+            from gui.tray_icon import STATUS_RUNNING
+            self._tray.set_status(STATUS_RUNNING, "checking for new events")
         self._scrape_worker = QuickScrapeWorker("standard")
         self._scrape_worker.status.connect(self._status_lbl.setText)
         self._scrape_worker.finished.connect(self._on_scrape_done)
@@ -133,7 +138,34 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(500, self._dash.refresh)
         else:
             self._status_lbl.setText("Ready")
+        if self._tray:
+            from gui.tray_icon import STATUS_IDLE, write_scrape_state
+            write_scrape_state(status="ok")
+            self._tray.set_status(STATUS_IDLE)
 
     def _update_event_count(self):
         count = _count_events("standard")
         self._event_count_lbl.setText(f"Standard: {count:,} events")
+
+    # ------------------------------------------------------------------
+    # Tray integration
+    # ------------------------------------------------------------------
+
+    def set_tray(self, tray):
+        """Called by run_gui.py after the tray icon is created."""
+        self._tray = tray
+        tray.set_run_now_callback(self._background_scrape)
+
+    def closeEvent(self, event):
+        """Minimize to tray instead of quitting when window is closed."""
+        if self._tray and self._tray.isSystemTrayAvailable():
+            event.ignore()
+            self.hide()
+            self._tray.showMessage(
+                "MTG Meta Analyzer",
+                "Running in the background. Right-click the tray icon to open or exit.",
+                self._tray.MessageIcon.Information,
+                3000,
+            )
+        else:
+            event.accept()

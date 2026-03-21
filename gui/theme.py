@@ -342,7 +342,7 @@ def apply_theme(app: QApplication):
     return HEADING_FONT
 
 
-def btn_primary(text: str) -> str:
+def btn_primary(text: str = "") -> str:
     """Return a QPushButton stylesheet string for primary action buttons."""
     return (
         f"QPushButton {{ background: {ACCENT}; color: {BTN_FG}; border: none; "
@@ -354,7 +354,7 @@ def btn_primary(text: str) -> str:
     )
 
 
-def btn_secondary(text: str = "") -> str:
+def btn_secondary(text: str = "") -> str:  # noqa: ARG001
     """Return a QPushButton stylesheet for secondary / outline buttons."""
     return (
         f"QPushButton {{ background: transparent; color: {ACCENT2}; "

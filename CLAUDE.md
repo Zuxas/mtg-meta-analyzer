@@ -130,11 +130,12 @@ across both active and archive DBs. Populated by `python -m scrapers.scryfall`.
 
 ```
 main.py                         CLI entry point (default: Standard, 1 page, 10 events)
-run_gui.py                      GUI entry point (sets matplotlib QtAgg backend first)
+run_gui.py                      GUI entry point — also handles --register-tasks mode
 fill_database.py                Standalone full DB builder (first-time use)
 fill_database.bat               Double-click launcher for fill_database.py
-background_fill.bat             Daily background incremental scrape (6 AM task)
+background_fill.bat             6 AM daily background scrape (all formats)
 schedule_background_fill.bat    One-time setup: register 6 AM Task Scheduler task
+register_tasks.py               Elevated task registration (called by first-run wizard)
 schedule_task.bat               One-time setup: register 5 PM daily task
 schedule_scryfall.bat           One-time setup: register weekly Scryfall refresh task
 run_daily.bat                   5 PM daily task (Standard latest events + maintenance)
@@ -256,6 +257,64 @@ This prevents path issues with spaces in `E:\vscode ai project\`.
 
 ### Database location
 `data/mtg_meta.db` — gitignored, never pushed. Each machine builds its own copy.
+
+## Standalone .exe UX Requirements (CORE — do not skip)
+
+These are firm requirements for the PyInstaller packaging phase.
+They are partially implemented already — complete before packaging.
+
+### 1. One-time UAC elevation (IMPLEMENTED)
+- On first launch, `gui/first_run_setup.py` checks `config.ini [setup] tasks_registered`
+- If not set, shows `FirstRunSetupDialog` — explains the three background tasks
+- Single "Set Up Automatic Updates" button → PowerShell `Start-Process -Verb RunAs`
+  launches `register_tasks.py` (or `.exe --register-tasks`) elevated
+- `register_tasks.py` registers all three Task Scheduler tasks and writes the flag
+- Flag is checked at every launch via `is_setup_complete()` — wizard never re-shown
+
+### 2. Three auto-registered tasks
+| Task name | Script | Time |
+|---|---|---|
+| MTG-Meta-Analyzer-Background-6AM | background_fill.bat | 6:00 AM daily |
+| MTG-Meta-Analyzer-Daily | run_daily.bat | 5:00 PM daily |
+| MTG-Meta-Analyzer-Scryfall-Weekly | run_scryfall_weekly.bat | Sunday midnight |
+
+### 3. System tray icon (IMPLEMENTED)
+- `gui/tray_icon.py` — `TrayIcon(QSystemTrayIcon)` created in `run_gui.py`
+- `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
+- `MainWindow.closeEvent` hides window to tray + shows balloon notification
+- Status dot colors:
+  - Green (`#3cb44b`) — data current (STATUS_IDLE)
+  - Orange (`#f58231`) — update running (STATUS_RUNNING)
+  - Red (`#e6194b`) — last run failed (STATUS_ERROR)
+- Icon drawn programmatically: dark rounded square + "M" + colored dot
+- Right-click menu: Last updated | Next run | (separator) | Open App | Run Now | (separator) | Exit
+- Double-click → show/restore window
+- "Last updated" reads `data/scrape_state.json` written by `write_scrape_state()`
+- "Next run" calculates next 6 AM or 5 PM from current time
+- `MainWindow.set_tray(tray)` wires `_background_scrape` to "Run Now"
+- `write_scrape_state()` called in `_on_scrape_done` to persist timestamp
+
+### 4. Key files for tray/UAC system
+```
+register_tasks.py           Elevated task registration (run as Admin)
+gui/first_run_setup.py      First-run dialog + UAC launch helper
+gui/tray_icon.py            System tray icon, status dots, right-click menu
+run_gui.py                  Wires everything: --register-tasks mode, tray, first-run
+gui/main_window.py          set_tray(), closeEvent (hide-to-tray), scrape → tray status
+data/scrape_state.json      Persists last_updated timestamp for tray menu
+```
+
+### 5. PyInstaller packaging notes (when ready)
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
+  --add-data "gui/fonts;gui/fonts"
+```
+- The `--register-tasks` arg re-uses the same .exe elevated — no second binary needed
+- `data/` stays external; include `fill_database.bat` alongside the .exe
+- Test on a clean machine without Python installed
+
+---
 
 ## Long-term Roadmap
 
