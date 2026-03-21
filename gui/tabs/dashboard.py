@@ -359,7 +359,9 @@ class DashboardTab(QWidget):
 
         self._panel_worker = DataLoadWorker(
             _load_panel_data,
-            {"format_name": fmt, "since_dt": since, "top": top},
+            # Fetch top=50 so high-frequency archetypes (e.g. Izzet Prowess) aren't
+            # excluded by performance-based ranking; display is limited to top N below.
+            {"format_name": fmt, "since_dt": since, "top": 50},
         )
         self._panel_worker.result.connect(self._on_panel_data)
         self._panel_worker.error.connect(self._on_error)
@@ -441,10 +443,11 @@ class DashboardTab(QWidget):
 
     def _populate_winrate(self, standings: list):
         tbl = self._winrate_tbl
+        top_n = int(self._top_n.currentText())
         ranked = sorted(
             [s for s in standings if s.get("est_match_winpct") is not None],
             key=lambda s: -s["est_match_winpct"],
-        )
+        )[:top_n]
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
@@ -460,8 +463,9 @@ class DashboardTab(QWidget):
 
     def _populate_popularity(self, standings: list):
         tbl = self._pop_tbl
-        ranked = sorted(standings, key=lambda s: -s["appearances"])
-        total_apps = sum(s["appearances"] for s in ranked) or 1
+        top_n = int(self._top_n.currentText())
+        ranked = sorted(standings, key=lambda s: -s["appearances"])[:top_n]
+        total_apps = sum(s["appearances"] for s in standings) or 1  # use full list for accurate %
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
