@@ -20,6 +20,47 @@ from PyQt6.QtGui import QFont
 from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
 
 
+def fetch_chart_data(format_name, top, weeks, since, until, standings=None):
+    """
+    Load weekly meta_share AND est_winpct for all archetypes in one pass.
+    Designed to run in a DataLoadWorker; returns a dict or None.
+    Result is cache-friendly — pass to ChartCanvas.draw_from_data() to draw.
+    """
+    from analysis.win_rates import get_meta_standings, get_archetype_trend
+    if standings is None:
+        standings = get_meta_standings(
+            format_name=format_name, min_appearances=2,
+            top=top, since=since, until=until,
+        )
+    if not standings:
+        return None
+
+    archetypes = [s["archetype"] for s in standings]
+    all_weeks  = set()
+    meta_data  = {}
+    winpct_data = {}
+
+    for arch in archetypes:
+        weekly = get_archetype_trend(
+            arch, format_name=format_name, weeks=weeks,
+            since=since, until=until,
+        )
+        meta_data[arch]   = {w["week_start"]: w["meta_share"] for w in weekly}
+        winpct_data[arch] = {w["week_start"]: w.get("est_winpct") for w in weekly}
+        all_weeks.update(meta_data[arch].keys())
+
+    if not all_weeks:
+        return None
+
+    return {
+        "archetypes":   archetypes,
+        "meta_data":    meta_data,
+        "winpct_data":  winpct_data,
+        "all_weeks":    all_weeks,
+        "format_name":  format_name,
+    }
+
+
 def _shorten(name, max_len=22):
     return name if len(name) <= max_len else name[:max_len - 1] + "\u2026"
 
@@ -204,6 +245,68 @@ class ChartCanvas(QWidget):
     # ------------------------------------------------------------------
     # Meta share — line chart, top N archetypes over time
     # ------------------------------------------------------------------
+
+    def draw_from_data(self, data, visible_archetypes=None, mode="meta_share"):
+        """
+        Draw the meta-share or win-pct chart from a pre-loaded data dict
+        (returned by fetch_chart_data). No DB query — instant redraw.
+        visible_archetypes: set/list of archetype names to include (None = all).
+        mode: 'meta_share' or 'win_pct'
+        """
+        if data is None:
+            self.show_message("No data to display.")
+            return
+
+        archetypes = data["archetypes"]
+        if visible_archetypes is not None:
+            archetypes = [a for a in archetypes if a in visible_archetypes]
+        if not archetypes:
+            self.show_message("No archetypes selected.")
+            return
+
+        sorted_weeks = sorted(data["all_weeks"])
+        x_labels     = [w[5:] for w in sorted_weeks]
+
+        if mode == "win_pct":
+            series    = data["winpct_data"]
+            y_label   = "Est Win %"
+            title_sfx = "Win Rate Over Time"
+        else:
+            series    = data["meta_data"]
+            y_label   = "Meta Share %"
+            title_sfx = "Popularity Over Time"
+
+        self._fig.clear()
+        self._overlay.setVisible(False)
+        ax = self._fig.add_subplot(111)
+        _style_ax(ax, self._fig)
+
+        for i, arch in enumerate(archetypes):
+            color = _PALETTE[i % len(_PALETTE)]
+            row = series.get(arch, {})
+            y = [
+                (row.get(w) or 0) * 100
+                for w in sorted_weeks
+            ]
+            ax.plot(x_labels, y, marker="o", markersize=4, linewidth=2,
+                    color=color, label=_shorten(arch), alpha=0.9)
+
+        fmt = data.get("format_name", "standard").upper()
+        ax.set_title(f"{title_sfx} \u2014 {fmt}",
+                     color="white", fontsize=13, pad=10)
+        ax.set_xlabel("Week", color="white", fontsize=9)
+        ax.set_ylabel(y_label, color="white", fontsize=9)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
+        for lbl in ax.get_xticklabels():
+            lbl.set_rotation(45)
+            lbl.set_ha("right")
+        ax.yaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
+        )
+        ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
+                  labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        self._fig.tight_layout()
+        self._canvas.draw()
 
     def plot_meta_share(self, format_name="standard", top=10, weeks=12,
                         since=None, until=None, standings=None):
