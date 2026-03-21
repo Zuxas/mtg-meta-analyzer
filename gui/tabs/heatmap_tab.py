@@ -145,7 +145,7 @@ class _PasteDialog(QDialog):
         layout.addWidget(self._edit, 1)
 
         self._error_lbl = QLabel("")
-        self._error_lbl.setStyleSheet(f"color: {theme.ERROR};")
+        self._error_lbl.setStyleSheet(f"color: {theme.ERR};")
         self._error_lbl.setWordWrap(True)
         layout.addWidget(self._error_lbl)
 
@@ -343,6 +343,7 @@ class HeatmapTab(QWidget):
 
     def _fetch_live(self):
         fmt = self._fmt.currentText()
+        self._load_source = "fetch"
         self._status.setText(f"Fetching {fmt} win-rates from MTGDecks\u2026")
         self._status.setVisible(True)
         self._scroll.setVisible(False)
@@ -355,6 +356,7 @@ class HeatmapTab(QWidget):
 
     def _load_cached(self):
         fmt = self._fmt.currentText()
+        self._load_source = "cache"
         self._status.setText(f"Loading cached {fmt} data\u2026")
         self._status.setVisible(True)
         self._scroll.setVisible(False)
@@ -381,28 +383,68 @@ class HeatmapTab(QWidget):
     def _on_data(self, matrix: dict):
         self._set_busy(False)
         if not matrix:
-            self._status.setText(
-                "No data found. Try \u2018Fetch Live Data\u2019 to download from MTGDecks."
-            )
+            if getattr(self, "_load_source", None) == "cache":
+                self._status.setText(
+                    "No cached data yet \u2014 click \u2018Fetch Live Data\u2019 first."
+                )
+            else:
+                self._status.setText(
+                    "No data found. Try \u2018Fetch Live Data\u2019 to download from MTGDecks."
+                )
             return
 
         self._current_matrix = matrix
-        self._draw_grid(matrix)
+        fmt = self._fmt.currentText()
+        filtered, ordered = self._filter_to_meta(matrix, fmt)
+        self._draw_grid(filtered, ordered, total_archetypes=len(matrix))
 
         # Update last-updated label from DB
         try:
             from db.matchup_queries import get_last_updated
-            ts = get_last_updated(self._fmt.currentText())
+            ts = get_last_updated(fmt)
             self._updated_lbl.setText(f"Last updated: {ts[:10] if ts else 'just now'}")
         except Exception:
             pass
 
     # ------------------------------------------------------------------
+    # Meta filtering
+    # ------------------------------------------------------------------
+
+    def _filter_to_meta(self, matrix: dict, format_name: str, top: int = 30):
+        """
+        Return (filtered_matrix, ordered_archetypes) keeping only the top-N
+        archetypes by meta share, sorted descending so the most-played decks
+        are top-left.  Falls back to alpha-sorted full matrix if standings
+        are unavailable or produce no overlap.
+        """
+        try:
+            from analysis.win_rates import get_meta_standings
+            standings = get_meta_standings(format_name, top=top, min_appearances=2)
+        except Exception:
+            standings = []
+
+        meta_archs = [s["archetype"] for s in
+                      sorted(standings, key=lambda x: -x["appearances"])]
+        ordered = [a for a in meta_archs if a in matrix]
+
+        if not ordered:
+            return matrix, sorted(matrix.keys())
+
+        ordered_set = set(ordered)
+        filtered = {
+            a: {b: v for b, v in matrix[a].items() if b in ordered_set}
+            for a in ordered
+        }
+        return filtered, ordered
+
+    # ------------------------------------------------------------------
     # Grid drawing
     # ------------------------------------------------------------------
 
-    def _draw_grid(self, matrix: dict):
-        archetypes = sorted(matrix.keys())
+    def _draw_grid(self, matrix: dict, ordered_archetypes: list = None,
+                   total_archetypes: int = None):
+        archetypes = ordered_archetypes if ordered_archetypes is not None \
+                     else sorted(matrix.keys())
         n = len(archetypes)
 
         tbl = QTableWidget(n, n)
@@ -479,9 +521,14 @@ class HeatmapTab(QWidget):
         vl.setContentsMargins(0, 0, 0, 0)
 
         # Row/col label
+        if total_archetypes and total_archetypes > n:
+            filter_note = (f"showing top {n} by meta share "
+                           f"(filtered from {total_archetypes})  ·  ")
+        else:
+            filter_note = ""
         info = QLabel(
-            f"{n} archetypes  ·  Row = your deck  ·  Column = opponent  ·  "
-            f"Cell = your win %"
+            f"{n} archetypes  ·  {filter_note}"
+            f"Row = your deck  ·  Column = opponent  ·  Cell = your win %"
         )
         info.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px; padding: 4px;")
         vl.addWidget(info)

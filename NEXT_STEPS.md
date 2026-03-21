@@ -86,7 +86,16 @@ python run_gui.py
 
 ## Session 2026-03-21 (session 4) Summary — What was added
 
-1. **Meta tier list badges** (Dashboard win rate panel)
+1. **Matchup Data tab fixes** (`gui/tabs/heatmap_tab.py`)
+   - Fixed "Use Cached" crash: `theme.ERROR` → `theme.ERR` in `_PasteDialog`
+   - Null-check: empty cache now shows friendly "No cached data yet — click Fetch Live Data first"
+     instead of crashing; tracks `_load_source` to give context-specific message
+   - `_filter_to_meta()`: cross-references `get_meta_standings()` top-30 and filters the
+     256-archetype raw matrix down to only relevant meta decks, sorted by meta share descending
+   - Info label shows "showing top N by meta share (filtered from 256)" when filtering is active
+   - Auto-save on fetch was already in place (`_FetchWorker` calls `save_matchup_data`)
+
+2. **Meta tier list badges** (Dashboard win rate panel)
    - New "Tier" column in the WIN RATE panel (4th column)
    - `_tier_badge(winrate, meta_share, is_declining)` static method on DashboardTab
    - S (gold) = win rate >55% AND meta share >8%
