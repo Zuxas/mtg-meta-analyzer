@@ -89,6 +89,8 @@ class DeckAnalyzerTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker = None
+        self._parsed_main = {}
+        self._parsed_side = {}
         self._build_ui()
 
     def _build_ui(self):
@@ -116,6 +118,12 @@ class DeckAnalyzerTab(QWidget):
         self._analyze_btn.setStyleSheet(theme.btn_primary())
         self._analyze_btn.clicked.connect(self._run)
         ctrl.addWidget(self._analyze_btn)
+
+        self._export_btn = QPushButton("Export ▾")
+        self._export_btn.setStyleSheet(theme.btn_secondary())
+        self._export_btn.setEnabled(False)
+        self._export_btn.clicked.connect(self._on_export)
+        ctrl.addWidget(self._export_btn)
 
         self._status = QLabel("")
         ctrl.addWidget(self._status)
@@ -206,6 +214,17 @@ class DeckAnalyzerTab(QWidget):
     # Analysis
     # ------------------------------------------------------------------
 
+    def _on_export(self):
+        from gui.widgets.deck_export import show_export_menu
+        arch = self._arch.text().strip() or "Pasted Deck"
+        show_export_menu(
+            self._export_btn,
+            self._parsed_main,
+            self._parsed_side,
+            arch,
+            self._fmt.currentText(),
+        )
+
     def _run(self):
         text = self._deck_input.toPlainText().strip()
         if not text:
@@ -215,6 +234,10 @@ class DeckAnalyzerTab(QWidget):
         if not main:
             self._status.setText("Could not parse decklist — use Arena export format.")
             return
+
+        self._parsed_main = main
+        self._parsed_side = side
+        self._export_btn.setEnabled(True)
 
         fmt  = self._fmt.currentText()
         arch = self._arch.text().strip() or "Pasted Deck"

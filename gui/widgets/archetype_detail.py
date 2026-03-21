@@ -11,7 +11,7 @@ The heavy DB work runs in DataLoadWorker so the UI stays responsive.
 from datetime import datetime, timedelta
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
     QTabWidget, QWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QFrame, QSplitter, QScrollArea,
 )
@@ -20,6 +20,7 @@ from PyQt6.QtGui import QColor, QFont
 
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
+from gui.widgets.deck_export import show_export_menu
 
 
 # ---------------------------------------------------------------------------
@@ -372,6 +373,7 @@ class ArchetypeDetailDialog(QDialog):
         self._archetype   = archetype
         self._format_name = format_name
         self._worker      = None
+        self._data        = None   # populated by _on_data; used by export
 
         self.setWindowTitle(f"{archetype} — Deck Analysis")
         self.setMinimumSize(900, 620)
@@ -425,6 +427,13 @@ class ArchetypeDetailDialog(QDialog):
             f"color: {theme.TEXT_DIM}; font-size: 11px; margin-left: 16px;"
         )
         hl.addWidget(self._deck_count_lbl)
+
+        self._export_btn = QPushButton("Export ▾")
+        self._export_btn.setStyleSheet(theme.btn_secondary())
+        self._export_btn.setFixedHeight(26)
+        self._export_btn.setEnabled(False)
+        self._export_btn.clicked.connect(self._on_export)
+        hl.addWidget(self._export_btn)
 
         outer.addWidget(header)
 
@@ -483,6 +492,18 @@ class ArchetypeDetailDialog(QDialog):
     # Slots
     # ------------------------------------------------------------------
 
+    def _on_export(self):
+        if not self._data:
+            return
+        show_export_menu(
+            self._export_btn,
+            self._data["mainboard"],
+            self._data["sideboard"],
+            self._archetype,
+            self._format_name,
+            deck_count=self._data["deck_count"],
+        )
+
     def _on_data(self, data):
         if data is None:
             self._status_lbl.setText(
@@ -490,6 +511,8 @@ class ArchetypeDetailDialog(QDialog):
             )
             return
 
+        self._data = data
+        self._export_btn.setEnabled(True)
         self._status_lbl.setVisible(False)
         self._deck_count_lbl.setText(f"{data['deck_count']:,} decks analysed")
 

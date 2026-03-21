@@ -89,26 +89,41 @@ def color_identity(name: str) -> str:
 def make_pip_widget(identity: str):
     """
     Return a QWidget of colored circle pips for a mana identity string.
-    Uses QFrame + WA_StyledBackground so border-radius clips the background
-    into a proper circle (QLabel alone doesn't clip its background in Qt).
-    Import lazily so theme.py stays importable before QApplication exists.
+    Each pip is drawn with QPainter.drawEllipse() — the only reliable way
+    to get true circles in Qt (stylesheet border-radius doesn't clip bg).
+    Imports are lazy so this module is safe to import before QApplication.
     """
-    from PyQt6.QtWidgets import QWidget, QHBoxLayout, QFrame
+    from PyQt6.QtWidgets import QWidget, QHBoxLayout
+    from PyQt6.QtGui import QPainter, QColor, QPen, QBrush
     from PyQt6.QtCore import Qt
+
+    class _Pip(QWidget):
+        def __init__(self, color_hex: str, border: bool = False, parent=None):
+            super().__init__(parent)
+            self._c = QColor(color_hex)
+            self._b = border
+            self.setFixedSize(11, 11)
+            self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+        def paintEvent(self, _e):
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setPen(QPen(QColor(200, 200, 200, 160), 1) if self._b
+                     else Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(self._c))
+            p.drawEllipse(1, 1, 9, 9)
+            p.end()
+
     w = QWidget()
     w.setStyleSheet("background: transparent;")
     hl = QHBoxLayout(w)
     hl.setContentsMargins(4, 0, 4, 0)
     hl.setSpacing(2)
     for ch in identity:
-        # Black (#150B00) is near-invisible on dark bg — use dark charcoal
+        # Pure black (#150B00) is near-invisible on the dark panel bg
         color = "#6a5a50" if ch == "B" else MANA_COLORS.get(ch, "#888888")
-        pip = QFrame()
-        pip.setFixedSize(11, 11)
-        pip.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        border = "border: 1px solid rgba(220,220,220,0.5);" if ch == "W" else ""
-        pip.setStyleSheet(f"background: {color}; border-radius: 5px; {border}")
-        hl.addWidget(pip)
+        hl.addWidget(_Pip(color, border=(ch == "W")))
     hl.addStretch()
     return w
 
