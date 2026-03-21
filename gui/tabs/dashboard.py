@@ -4,6 +4,8 @@ Tab 1 — Dashboard
   Bottom half: embedded interactive matplotlib chart (meta share or trend)
 Controls: Format, Weeks, Top N, Refresh, chart type toggle
 """
+from datetime import datetime, timedelta
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSpinBox, QSplitter,
@@ -95,15 +97,17 @@ class DashboardTab(QWidget):
 
     def refresh(self):
         """Reload meta standings from DB, then redraw the chart."""
-        fmt = self._fmt.currentText()
-        top = self._top_n.value()
+        fmt   = self._fmt.currentText()
+        top   = self._top_n.value()
+        weeks = self._weeks.value()
+        since = datetime.now() - timedelta(weeks=weeks)
         self._status.setText("Loading\u2026")
         self._refresh_btn.setEnabled(False)
 
         from analysis.win_rates import get_meta_standings
         self._load_worker = DataLoadWorker(
             get_meta_standings,
-            {"format_name": fmt, "top": top, "min_appearances": 2},
+            {"format_name": fmt, "top": top, "min_appearances": 2, "since": since},
         )
         self._load_worker.result.connect(self._on_standings)
         self._load_worker.error.connect(self._on_error)

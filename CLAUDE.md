@@ -84,13 +84,15 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - **PyQt6 GUI** — fully wired, personal website theme applied:
   - Entry point: `run_gui.py`
   - Theme: `gui/theme.py` — #3b3c4d bg, #65bcd5 cyan, Orbitron heading font
-  - 5 tabs: Dashboard, Deck Analyzer, Search, Charts, Predictions
+  - **6 tabs**: Dashboard, Deck Analyzer, Search, Charts, Predictions, Settings
   - Setup wizard on first run (Scryfall download + backfill + 50-event unlock)
   - Interactive embedded matplotlib charts (FigureCanvasQTAgg)
   - Background QuickScrapeWorker on startup for returning users
   - **System tray icon** (`gui/tray_icon.py`) — green/orange/red status dot, right-click menu, close-to-tray
   - **One-time UAC first-run wizard** (`gui/first_run_setup.py`) — registers all 3 Task Scheduler tasks once, never asked again
   - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
+  - **Dashboard performance fix**: `get_meta_standings` uses single bulk SQL query (was 918 queries → 1); load time 9s → 0.07s
+  - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
 
 ### Primary Format
 Standard is the primary focus. Pioneer and Modern actively scraped. Legacy supported but not scheduled.
@@ -172,6 +174,7 @@ gui/tabs/deck_analyzer.py       Arena paste → Blunder + Chapin analysis
 gui/tabs/search.py              Card lookup, deck search, head-to-head
 gui/tabs/charts.py              Interactive controls + live chart canvas
 gui/tabs/predictions.py         Generate/validate/view predictions
+gui/tabs/settings.py            Settings tab: format checkboxes, data window, auto-update, storage info
 gui/tray_icon.py                System tray icon, status dots, right-click menu
 gui/first_run_setup.py          First-run UAC dialog + elevated task registration
 

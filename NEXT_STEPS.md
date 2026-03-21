@@ -27,17 +27,26 @@ All backend modules done. Do not rebuild any of these.
 run_gui.py                  ✅ launcher (sets matplotlib QtAgg backend first)
 gui/theme.py                ✅ personal website design system (#3b3c4d / #65bcd5 / Orbitron)
 gui/fonts/Orbitron.ttf      ✅ bundled heading font
-gui/main_window.py          ✅ theme applied, 5 tabs, cmd terminal default
+gui/main_window.py          ✅ theme applied, 6 tabs, 1200x700 default size
 gui/setup_wizard.py         ✅ website theme colors, first-time setup flow
 gui/worker_threads.py       ✅ all worker threads
 gui/widgets/chart_canvas.py ✅ CHART_PALETTE/BG/PANEL/GRID from theme module
 gui/widgets/meta_table.py   ✅
-gui/tabs/dashboard.py       ✅ theme.btn_primary() for Refresh button
+gui/tabs/dashboard.py       ✅ auto-loads on startup, weeks filter applies to table+chart
 gui/tabs/deck_analyzer.py   ✅ theme buttons, inline styles removed
 gui/tabs/search.py          ✅ theme.btn_primary() for all search buttons
 gui/tabs/charts.py          ✅ theme buttons, CHART_BG for PNG export
 gui/tabs/predictions.py     ✅ theme.btn_primary/secondary/success()
+gui/tabs/settings.py        ✅ format checkboxes, data window, auto-update, storage info
+gui/tray_icon.py            ✅ system tray, status dots, right-click menu
+gui/first_run_setup.py      ✅ one-time UAC wizard, registers all 3 tasks
 ```
+
+### Performance fix applied (2026-03-20)
+`get_meta_standings` in `analysis/win_rates.py` was making one SQL query per archetype
+(~918 queries, 9+ seconds). Fixed to use a single bulk query — now 0.07s.
+The dashboard `refresh()` also passes a `since` date from the Weeks control so only
+the relevant time window is loaded.
 
 ### START HERE next session
 
@@ -46,25 +55,21 @@ python run_gui.py
 ```
 
 Expected on first run: setup wizard (if DB < 50 events).
-Expected on returning run: dashboard loads, background scrape starts.
+Expected on returning run: dashboard auto-loads data within 1 second, background scrape starts.
 
 ### Known things to test / likely issues
 
-1. **Orbitron font** — `gui/fonts/Orbitron.ttf` is a variable-weight font registered
-   via `QFontDatabase.addApplicationFont()`. If tab labels don't look right, check
-   that `HEADING_FONT` is set correctly in `theme.py` after `apply_theme()` runs.
+1. **Est Win% / Avg Pts columns show "—"** for archetypes with only 2-3 appearances —
+   this is correct behavior (not enough data for reliable estimates).
 
-2. **Chart canvas sizing** — heatmap figure size recalculates dynamically but may
-   need `self._canvas.updateGeometry()` or a `draw_idle()` call after resize.
-
-3. **Deck Analyzer legality check** — `analyze_deck()` calls `get_cards_data()`
+2. **Deck Analyzer legality check** — `analyze_deck()` calls `get_cards_data()`
    which uses the Scryfall local cache. If `data/scryfall_oracle.json` is missing,
    legality check raises. Run `python -m scrapers.scryfall --download` first.
 
-4. **search_local() return format** — `card.get("legalities")` may be a JSON string
+3. **search_local() return format** — `card.get("legalities")` may be a JSON string
    (stored as TEXT in SQLite). The search tab already has a `json.loads` fallback.
 
-5. **predictions `accuracy_report()`** — returns `{}` or `None` if no predictions
+4. **predictions `accuracy_report()`** — returns `{}` or `None` if no predictions
    exist yet. The tab handles this gracefully but verify on fresh DB.
 
 ---
@@ -97,21 +102,20 @@ This adds a silent daily 6 AM scrape alongside the existing 5 PM task.
 
 ---
 
-## User Preferences System — DESIGNED, NOT YET IMPLEMENTED
+## User Preferences System — PARTIALLY IMPLEMENTED
 
 Full spec documented in CLAUDE.md under "User Preferences System".
 
-### Priority order:
-1. **`data/preferences.json` helpers** — simple load/save, default = standard + 3years
-2. **Format selection in setup wizard** — add page 0 before Scryfall download
+### Done:
+- `gui/tabs/settings.py` — Settings tab with format checkboxes, data window, auto-update, storage info
+- `load_preferences()` / `save_preferences()` helpers in settings.py read/write `data/preferences.json`
+
+### Still TODO:
+1. **Format selection in setup wizard** — add page 0 before Scryfall download
    - Checkboxes: Standard (default on) / Pioneer / Modern / Legacy
    - Saves `preferences.json` immediately on Next
-3. **`gui/tabs/settings.py`** — 6th tab in main_window.py
-   - Format checkboxes, date window dropdown, timezone, auto-update frequency
-   - Storage usage per format (event/deck counts)
-   - Save button → writes preferences.json + user_preferences DB table
-4. **`db/database.py`** — add `user_preferences` table to schema
-5. **Wire scrapers** — `background_fill.bat` and `fill_database.py` skip unselected formats
+2. **`db/database.py`** — add `user_preferences` table to schema
+3. **Wire scrapers** — `background_fill.bat` and `fill_database.py` skip unselected formats
 
 ---
 

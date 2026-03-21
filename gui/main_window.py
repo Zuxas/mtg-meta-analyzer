@@ -21,6 +21,7 @@ from gui.tabs.deck_analyzer import DeckAnalyzerTab
 from gui.tabs.search       import SearchTab
 from gui.tabs.charts       import ChartsTab
 from gui.tabs.predictions  import PredictionsTab
+from gui.tabs.settings     import SettingsTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -35,8 +36,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("MTG Meta Analyzer")
-        self.setMinimumSize(1100, 700)
-        self.resize(1300, 820)
+        self.setMinimumSize(900, 600)
+        self.resize(1200, 700)
 
         self._tray = None   # set later by run_gui.py via set_tray()
 
@@ -53,17 +54,19 @@ class MainWindow(QMainWindow):
         self._tabs = QTabWidget()
         self._tabs.setTabPosition(QTabWidget.TabPosition.North)
 
-        self._dash   = DashboardTab()
-        self._deck   = DeckAnalyzerTab()
-        self._search = SearchTab()
-        self._charts = ChartsTab()
-        self._preds  = PredictionsTab()
+        self._dash     = DashboardTab()
+        self._deck     = DeckAnalyzerTab()
+        self._search   = SearchTab()
+        self._charts   = ChartsTab()
+        self._preds    = PredictionsTab()
+        self._settings = SettingsTab()
 
-        self._tabs.addTab(self._dash,   "DASHBOARD")
-        self._tabs.addTab(self._deck,   "DECK ANALYZER")
-        self._tabs.addTab(self._search, "SEARCH")
-        self._tabs.addTab(self._charts, "CHARTS")
-        self._tabs.addTab(self._preds,  "PREDICTIONS")
+        self._tabs.addTab(self._dash,     "DASHBOARD")
+        self._tabs.addTab(self._deck,     "DECK ANALYZER")
+        self._tabs.addTab(self._search,   "SEARCH")
+        self._tabs.addTab(self._charts,   "CHARTS")
+        self._tabs.addTab(self._preds,    "PREDICTIONS")
+        self._tabs.addTab(self._settings, "SETTINGS")
 
         self.setCentralWidget(self._tabs)
 

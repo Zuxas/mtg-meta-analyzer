@@ -396,12 +396,35 @@ def get_meta_standings(format_name="standard", event_type=None,
     """
     Ranked performance table for all archetypes in a format.
     Returns list of stats dicts sorted by avg_points descending.
+
+    Uses a single bulk query (instead of one query per archetype) to avoid
+    the N+1 performance problem on large databases.
     """
+    from collections import defaultdict
+
     conn = get_combined_connection(include_archive=include_archive)
     try:
+        # Single query: fetch all deck+event rows for the format at once.
+        # max_placement per event is pre-aggregated via a subquery join.
         q = """
-            SELECT DISTINCT d.archetype
-            FROM decks d JOIN events e ON e.id = d.event_id
+            SELECT
+                d.id          AS deck_id,
+                d.archetype,
+                d.player,
+                d.placement,
+                e.id          AS event_id,
+                e.name        AS event_name,
+                e.date,
+                e.format,
+                e.event_type,
+                mp.max_placement
+            FROM decks d
+            JOIN events e ON e.id = d.event_id
+            JOIN (
+                SELECT event_id, MAX(placement) AS max_placement
+                FROM decks
+                GROUP BY event_id
+            ) mp ON mp.event_id = e.id
             WHERE lower(e.format) = lower(?) AND d.archetype != ''
         """
         params = [format_name]
@@ -414,18 +437,23 @@ def get_meta_standings(format_name="standard", event_type=None,
         if until:
             q += " AND e.date <= ?"
             params.append(_dt_to_db_str(until))
-        archetypes = [r["archetype"] for r in conn.execute(q, params).fetchall()]
 
-        results = []
-        for arch in archetypes:
-            rows = _fetch_appearances(conn, arch, format_name, event_type, since, until)
-            if len(rows) < min_appearances:
-                continue
-            stats = _aggregate_appearances(rows)
-            stats["archetype"] = arch
-            results.append(stats)
+        all_rows = conn.execute(q, params).fetchall()
     finally:
         conn.close()
+
+    # Group by archetype in Python, then aggregate each group
+    arch_rows = defaultdict(list)
+    for row in all_rows:
+        arch_rows[row["archetype"]].append(row)
+
+    results = []
+    for arch, rows in arch_rows.items():
+        if len(rows) < min_appearances:
+            continue
+        stats = _aggregate_appearances(rows)
+        stats["archetype"] = arch
+        results.append(stats)
 
     results.sort(key=lambda s: (s["avg_points"], s["top8_rate"]), reverse=True)
     return results[:top]
