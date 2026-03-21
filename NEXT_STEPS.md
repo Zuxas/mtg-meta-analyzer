@@ -2,94 +2,127 @@
 
 Last updated: 2026-03-20
 
-## Immediate priorities (in order)
+---
 
-### 1. Retroactive archetype normalization — DONE
-Applied 13 alias mappings to existing DB records (144 "Red Deck Wins" → "Mono Red Aggro", etc.)
-- `python -m analysis.archetypes` (dry run)
-- `python -m analysis.archetypes --apply` (commit)
-- Run `suggest-aliases` periodically to find new duplicates as data grows.
+## Phase 2: Core Analysis — COMPLETE
 
-### 2. MTGDecks.net second data source — DONE
-`scrapers/mtgdecks.py` complete. Uses `cloudscraper` (Chrome TLS fingerprint) to bypass Cloudflare.
-- Card lists from `<textarea id="arena_deck">` (Arena export — most reliable parser)
-- `python -m scrapers.mtgdecks --pages 3 --dry-run`
-- `python -m scrapers.mtgdecks --pages 3` (live scrape)
+All backend modules done. Do not rebuild any of these.
 
-### 3. Trend charts — DONE
-`analysis/charts.py` complete. Wired into `analysis/query.py` as `chart` subcommand.
-- `python -m analysis.query chart meta --format standard --top 8 --weeks 8`
-- `python -m analysis.query chart trend "Izzet Prowess"`
-- `python -m analysis.query chart heatmap --top 12`
-
-### 4. Self-Validation & Prediction Logging — DONE
-`analysis/predictions.py` complete. Stores predictions in `predictions` SQLite table.
-- `python -m analysis.query predict --format standard` (log predictions)
-- `python -m analysis.query validate-predictions` (validate after target week passes)
-- `python -m analysis.query prediction-report` (accuracy by prediction type)
-- Prediction types: top_meta (rank 1-5), trending_up, trending_down
-- Accuracy tracked per type so signals that work gain credibility over time
-
-### 5. Blunder Detection — DONE
-`analysis/blunders.py` complete. Analyzes average archetype deck for construction issues.
-- `python -m analysis.query blunder "Izzet Prowess" --format standard`
-- Severity tiers: Major (10pt), Moderate (4pt), Minor (1pt)
-- Checks: deck size, land count, mana curve, color consistency, interaction, threats, legality
-- Construction Quality: Excellent (<5pts), Good (<15), Fair (<35), Poor (35+)
-
-### 6. Chapin Principles Evaluation — DONE
-`analysis/chapin.py` complete. Scores decks on 6 principles with weighted average.
-- `python -m analysis.query chapin "Izzet Prowess" --format standard`
-- Principles: Threats (20%), Answers (20%), Consistency (18%), Velocity (15%), Mana (17%), Clock (10%)
-- Each scored 0-10, bar chart display in terminal
+| Module | Command |
+|---|---|
+| Archetype normalization (migration applied) | `python -m analysis.archetypes --apply` |
+| MTGDecks.net scraper (cloudscraper) | `python -m scrapers.mtgdecks --pages 3` |
+| Trend charts (meta share, trend, heatmap) | `python -m analysis.query chart meta` |
+| Prediction logging + validation | `python -m analysis.query predict` |
+| Blunder Detection (Major/Moderate/Minor) | `python -m analysis.query blunder "Deck"` |
+| Chapin Principles (6 scored principles) | `python -m analysis.query chapin "Deck"` |
 
 ---
 
-## Next up: GUI Phase
+## Phase 3: PyQt6 GUI — IN PROGRESS
 
-### PyQt6 GUI
-Build a desktop UI wrapping all analysis functions:
-- Dashboard: meta standings + trend charts side by side
-- Deck Analyzer tab: paste a decklist, run blunder + Chapin analysis
-- Search tab: card lookup, deck search, h2h lookup
-- Charts tab: embedded matplotlib figures (meta share, trend, heatmap)
-- Predictions tab: view logged predictions + accuracy report
+### What's built (as of 2026-03-20)
 
-### PyInstaller packaging
-- `pyinstaller --onefile main.py` with all deps bundled
-- Standalone `.exe` that includes SQLite DB path config
-- Scryfall bulk file downloaded separately (162 MB, gitignored)
+All GUI skeleton files exist and import cleanly. Backend wired up.
+
+```
+run_gui.py                  ✅ launcher (sets matplotlib QtAgg backend first)
+gui/__init__.py             ✅
+gui/main_window.py          ✅ dark palette, 5 tabs, setup wizard check, background scrape
+gui/setup_wizard.py         ✅ first-time setup: Scryfall download + backfill + event counter
+gui/worker_threads.py       ✅ ScryfallDownloadWorker, BackfillWorker, QuickScrapeWorker, DataLoadWorker
+gui/widgets/__init__.py     ✅
+gui/widgets/chart_canvas.py ✅ FigureCanvasQTAgg — plot_meta_share/plot_trend/plot_heatmap
+gui/widgets/meta_table.py   ✅ QTableWidget with archetype_selected signal
+gui/tabs/__init__.py        ✅
+gui/tabs/dashboard.py       ✅ Table + chart, format/weeks/top-N controls, row-click → trend
+gui/tabs/deck_analyzer.py   ✅ Arena paste → Blunder + Chapin analysis
+gui/tabs/search.py          ✅ Card lookup, deck search (SQL), head-to-head
+gui/tabs/charts.py          ✅ Interactive controls + live chart canvas + Save PNG
+gui/tabs/predictions.py     ✅ Generate/validate/view predictions + accuracy summary
+```
+
+### START HERE next session — run the GUI and fix any runtime issues
+
+```bash
+python run_gui.py
+```
+
+Expected on first run: setup wizard (if DB < 50 events).
+Expected on returning run: dashboard loads automatically, background scrape runs.
+
+### Known things to test / likely issues
+
+1. **Setup wizard Scryfall step** — subprocess output parsing may need tuning if
+   the download progress output format changed. If the bar stays at 0%, check
+   `scrapers/scryfall.py --download` stdout output and adjust `ScryfallDownloadWorker`.
+
+2. **Chart canvas sizing** — heatmap figure size recalculates dynamically but may
+   need `self._canvas.updateGeometry()` or a `draw_idle()` call after resize.
+
+3. **Deck Analyzer legality check** — `analyze_deck()` calls `get_cards_data()`
+   which uses the Scryfall local cache. If `data/scryfall_oracle.json` is missing,
+   legality check raises. The `--no-legality` flag in the CLI bypasses this.
+   Add a try/except in `_AnalyzeWorker.run()` around the legality check if needed.
+
+4. **search_local() return format** — `card.get("legalities")` may be a JSON string
+   (stored as TEXT in SQLite). The search tab already has a `json.loads` fallback.
+
+5. **predictions `accuracy_report()`** — returns `{}` or `None` if no predictions
+   exist yet. The tab handles this gracefully but verify on fresh DB.
+
+### Next features after basic run is stable
+
+#### A — First-run data quality
+- After setup wizard completes, auto-run `python -m analysis.archetypes --apply`
+  to normalize any newly scraped archetype names
+- Add a "Normalize Archetypes" button to main window menu bar
+
+#### B — Dashboard improvements
+- Add "Last N weeks" summary chip below chart (e.g. "Izzet Prowess: +2.3% meta share")
+- Color-code table rows: green = rising, red = falling vs prior 2 weeks
+- Export table as CSV button
+
+#### C — Charts tab polish
+- Auto-populate archetype autocomplete from DB (`get_meta_standings` result)
+- "Compare archetypes" mode: overlay multiple trend lines on one chart
+
+#### D — Deck Analyzer improvements
+- "Load Average Deck" button: populate the text box with the average deck for
+  a selected archetype (calls `get_average_deck()`)
+- Show Chapin explanation text per principle (already in `PrincipleScore.explanation`)
+
+#### E — Packaging
+Once GUI is stable and tested:
+```bash
+pip install pyinstaller
+pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
+```
+- `data/` stays external (DB + Scryfall bulk file too large to embed)
+- Include `README_INSTALL.txt` explaining where to place data files
+- Test on a clean machine without Python installed
 
 ---
 
-## Already complete (do not rebuild)
-- MTGTop8 scraper (backfill + daily)
-- MTGDecks.net scraper (cloudscraper, Cloudflare bypass)
-- SQLite DB (active + archive, `predictions` table)
-- Scryfall local card database (162 MB bulk, 3-tier lookup, weekly refresh)
-- Average deck calculator + deck comparison diff
-- Win rates, meta standings, weekly trend, H2H, matchup matrix
-- Field Optimizer (weighted win% against expected field)
-- Natural language date range filtering
-- Natural language card lookup ("what does sheoldred do")
-- Archetype normalization (ALIASES table, DB migration applied)
-- Self-validation / prediction logging system
-- Blunder Detection (weighted severity scoring)
-- Chapin Principles Evaluation (6 principles, 0-10 scored)
-- Trend charts (meta share, archetype trend, matchup heatmap)
-- Daily + weekly Task Scheduler automation
-- .claude/settings.json (read-only queries auto-approved)
-- .vscode/settings.json (terminal cwd set to project root)
+## Data status (as of 2026-03-20)
+
+| Source | Events | Decks |
+|---|---|---|
+| MTGDecks.net (latest scrape) | 29 new | 3,190 |
+| Notable events | RC Turin 2026 (1,025p), TMNT Spotlight (673p), Champions Cup Final (384p), ANZ Super Series (208p) |
+
+Total Standard events in DB: 1,564
+
+---
 
 ## Known issues / notes
-- Claude Code project ID is registered under `C:\Users\jerme\Downloads` from
-  initial session. Always open VS Code from project folder going forward so
-  future sessions register under the correct path.
-- `data/scryfall_oracle.json` is 162 MB and gitignored. Regenerate with:
+
+- `analysis/charts.py` sets `matplotlib.use("Agg")` at import — never import it
+  inside GUI code. Use `gui/widgets/chart_canvas.py` instead.
+- `data/scryfall_oracle.json` is ~162 MB and gitignored. Regenerate:
   `python -m scrapers.scryfall --download`
-- MTGDecks.net scraper depends on `cloudscraper`. If it starts 403ing again,
-  try: `pip install --upgrade cloudscraper`
-- After new backfill/scrape runs, enrich new cards:
+- MTGDecks scraper uses `cloudscraper`. If 403s return:
+  `pip install --upgrade cloudscraper`
+- Blunder/Chapin on average decks may show <60 cards (inclusion threshold) — expected.
+- After any new backfill/scrape, enrich new cards:
   `python -m scrapers.scryfall`
-- Blunder/Chapin scores on average decks show lower card counts (inclusion
-  threshold filters partial copies) — this is expected, not a bug.

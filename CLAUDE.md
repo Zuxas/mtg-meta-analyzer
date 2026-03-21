@@ -221,33 +221,34 @@ Backend is cleanly separated from CLI layer:
 ## What's Next
 
 ### Immediate Priorities (see NEXT_STEPS.md)
-All core analysis features complete. Next phase: PyQt6 GUI + PyInstaller packaging.
+PyQt6 GUI is in progress (Phase 3). CLI backend is complete — do not rebuild it.
 
-### Deck Scoring & Blunder Detection
-Inspired by the mage-bench blunder index concept. Score theoretical decklists
-for construction errors using weighted severity tiers:
-- **Minor**: suboptimal card choices, off-curve slots, marginal sideboard picks
-- **Moderate**: mana base inconsistencies, curve gaps, over-reliance on single threat
-- **Major**: missing win conditions, no interaction, poor matchup coverage
+### GUI Phase (in progress as of 2026-03-20)
+- Entry point: `run_gui.py` — sets `matplotlib.use("QtAgg")` BEFORE any imports
+- Main window: `gui/main_window.py` — dark Fusion palette, 5-tab QTabWidget
+- First-time setup wizard (`gui/setup_wizard.py`): auto-detects missing/empty DB,
+  downloads Scryfall bulk file, runs backfill scraper, shows live event counter,
+  unlocks analysis features at 50 events
+- Dashboard tab: meta standings table (click row → trend chart updates)
+- Deck Analyzer tab: paste Arena export → Blunder Detection + Chapin principles
+- Search tab: card lookup (Scryfall local), deck search (SQL), head-to-head
+- Charts tab: fully interactive live charts (Meta Share / Trend / Heatmap),
+  controls panel on left, FigureCanvasQTAgg on right, Save PNG button
+- Predictions tab: generate/validate/view prediction accuracy
 
-Each issue flagged with severity + description + suggested fix.
-Deck receives Blunder Score (lower = cleaner) + Construction Quality rating.
-Feeds into the **Chapin Principles Evaluation** layer.
-
-### Self-Validation & Prediction Learning System
-- Prediction logger: store every meta prediction with timestamp + signals used
-- Validation runner: check old predictions against subsequent tournament results
-- Confidence scoring: track accuracy per prediction type over time
-- Automatic weight adjustment: signals that predict well gain weight; poor
-  signals lose weight (e.g. if MTGO 5-0 > RC data for near-term calls)
-- Queryable history log: `python -m analysis.query predictions`
-
-### GUI Phase
-- PyQt6 GUI wrapping all analysis/query functions
-- matplotlib/plotly charts for trend lines, meta share, matchup heatmaps
-- PyInstaller standalone .exe packaging
+**IMPORTANT matplotlib note**: `analysis/charts.py` calls `matplotlib.use("Agg")`
+at import time. Never import `analysis.charts` inside GUI code — use
+`gui/widgets/chart_canvas.py` which draws directly to FigureCanvasQTAgg.
 
 ### Long-term Roadmap
+
+#### v2 Feature — Card Image Preview (NOT a current priority)
+Mouseover/hover card image popup inside the GUI.
+Implementation approach when ready:
+- Download card images on demand from Scryfall image API (`/cards/named?exact=NAME&format=image`)
+- Cache to `data/card_images/` directory
+- Show as QLabel tooltip or small floating QDialog on hover in deck analyzer / search tabs
+- No images embedded in .exe — cache stays external like the DB
 
 #### Game Simulation Engine Integration
 Integrate with XMage or a custom MTG rules engine for automated simulation
