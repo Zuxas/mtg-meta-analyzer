@@ -249,10 +249,11 @@ class _DeckDetailDialog(QDialog):
             return
         from gui.widgets.deck_export import show_export_menu
         show_export_menu(
-            parent=self,
-            archetype=self._archetype,
-            mainboard=self._mainboard,
-            sideboard=self._sideboard,
+            self._export_btn,
+            self._mainboard,
+            self._sideboard,
+            self._archetype,
+            self._fmt,
         )
 
 

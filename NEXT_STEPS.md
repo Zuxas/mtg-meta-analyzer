@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-03-21
+Last updated: 2026-03-21 (session 2)
 
 ---
 
@@ -81,6 +81,24 @@ python run_gui.py
    - Options: 1w, 2w, 4w, 8w, 3mo, 6mo, 1yr, 2yr, All Time — centralized in `gui/theme.py`
    - All Time = `None` = no date filter on any query
    - Applied to: Dashboard, Charts, Deck Analyzer (load avg), Archetype Detail, Search H2H, RCQ Optimizer
+
+---
+
+## Session 2026-03-21 (session 2) Summary — What was added
+
+1. **Bug fixes**
+   - `gui/tabs/charts.py`: `QSpinBox` missing from imports — caused silent crash on launch
+   - `gui/tabs/search.py`: `_DeckDetailDialog._export()` passed wrong kwargs to `show_export_menu` (used `parent=self` instead of `btn_widget`, missing `format_name`) — crashed on Export click
+   - `gui/widgets/chart_canvas.py`: `_draw_heatmap()` expected old flat `{arch: {opp: winrate}}` format but `get_matchup_matrix()` returns `{"archetypes": [...], "matrix": {...}, "note": "..."}` — fixed unpacking
+
+2. **Live Matchup Data pipeline** (new feature)
+   - `scrapers/matchup_scraper.py` — scrapes MTGDecks.net `/winrates`, parses `data-winrate` attribute
+   - `db/matchup_queries.py` — `matchup_matrix` table + save/get/get_last_updated
+   - `gui/tabs/heatmap_tab.py` — MATCHUP DATA tab with Fetch Live / Use Cached / Paste Data
+   - Registered as `self._heatmap` in `gui/main_window.py`, tab label "MATCHUP DATA"
+
+3. **Skills installed** (`.claude/skills/`)
+   - `triage-issue`, `improve-codebase-architecture`, `grill-me` from mattpocock/skills
 
 ---
 

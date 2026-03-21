@@ -25,6 +25,7 @@ from gui.tabs.settings          import SettingsTab
 from gui.tabs.knowledge_base    import KnowledgeBaseTab
 from gui.tabs.ask_claude        import AskClaudeTab
 from gui.tabs.tournament_prep   import TournamentPrepTab
+from gui.tabs.heatmap_tab       import HeatmapTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -64,6 +65,7 @@ class MainWindow(QMainWindow):
         self._preds     = PredictionsTab()
         self._kb        = KnowledgeBaseTab()
         self._tourney   = TournamentPrepTab()
+        self._heatmap   = HeatmapTab()
         self._claude    = AskClaudeTab()
         self._settings  = SettingsTab()
 
@@ -74,6 +76,7 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._preds,    "PREDICTIONS")
         self._tabs.addTab(self._kb,       "KNOWLEDGE BASE")
         self._tabs.addTab(self._tourney,  "TOURNAMENT PREP")
+        self._tabs.addTab(self._heatmap,  "MATCHUP DATA")
         self._tabs.addTab(self._settings, "SETTINGS")
 
         # Ask Claude tab — added/removed dynamically based on API key presence

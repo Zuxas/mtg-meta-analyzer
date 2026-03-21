@@ -1,6 +1,6 @@
 # CLAUDE.md - MTG Meta Analyzer Project Context
 
-Last updated: 2026-03-21
+Last updated: 2026-03-21 (session 2)
 
 ## Project Purpose
 Build an automated tool to analyze competitive Magic: The Gathering tournament
@@ -93,6 +93,16 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `flip_analysis(g1_wr, g23_wr, has_guide_data)`: detects FLIPPED matchups,
     significant WR drops, favorable post-board swings
   - `render_guide_html(guide_data, my_arch, opp_arch)`: HTML with IN/OUT for both sides
+- **Live Matchup Data** (`scrapers/matchup_scraper.py` + `db/matchup_queries.py` + `gui/tabs/heatmap_tab.py`):
+  - Scrapes MTGDecks.net `/winrates` page using existing `cloudscraper` setup
+  - Parses `data-winrate` attribute from the NxN HTML table (256 archetypes, ~3,181 cells for Standard)
+  - Stores in new `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
+  - New **MATCHUP DATA** tab: Fetch Live / Use Cached / Paste Data (CSV or JSON)
+  - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
+  - Tooltip per cell: archetype names, win%, verdict (Favored/Even/Unfavored), sample size
+  - Paste dialog accepts CSV (Frank Karsten format) or JSON matchup tables
+  - CLI: `python -m scrapers.matchup_scraper --format standard --save`
+
 - **PyQt6 GUI** — fully wired, personal website theme applied:
   - Entry point: `run_gui.py`
   - Theme: `gui/theme.py` — #3b3c4d bg, #65bcd5 cyan, Orbitron heading font
@@ -208,6 +218,9 @@ scrapers/mtgdecks.py            MTGDecks.net scraper (cloudscraper, Cloudflare b
 scrapers/backfill.py            Historical backfill (year-by-year, stops at cutoff)
 scrapers/scryfall.py            Scryfall local card database + enrichment
 scrapers/guides.py              Imports Skill Issue Magic Google Sheet → guides table
+scrapers/matchup_scraper.py     Scrapes MTGDecks.net /winrates table → win-rate matrix dict
+
+db/matchup_queries.py           matchup_matrix table: save/get/get_last_updated helpers
 db/database.py                  Schema, connections, active + archive DB helpers
 db/maintenance.py               Format-aware archive maintenance + orphan cleanup
 analysis/deck_analysis.py       Average deck + deck comparison functions
@@ -238,6 +251,7 @@ gui/tabs/knowledge_base.py      Add/browse bookmarks + guides table, Sync Guides
 gui/tabs/ask_claude.py          Optional streaming chat (hidden until API key set in Settings)
 gui/tabs/settings.py            Settings tab: formats, data window, auto-update, AI key
 gui/tabs/tournament_prep.py     RCQ Optimizer + Breaker Math sub-tabs (with timeframe)
+gui/tabs/heatmap_tab.py         MATCHUP DATA tab: live scrape / cached / paste, colour-coded grid
 gui/tray_icon.py                System tray icon, status dots, right-click menu
 gui/first_run_setup.py          First-run UAC dialog + elevated task registration
 
@@ -498,6 +512,21 @@ Phase order: meta analysis + deck building features complete first.
 
 ### Charts Compare Mode
 Overlay multiple archetype trend lines on one chart (multi-select archetype combo in Charts tab).
+
+## Installed Skills (mattpocock/skills)
+
+Three skills are installed at `.claude/skills/` and available in every session.
+Invoke them by describing the intent — Claude Code will recognize the trigger.
+
+| Skill | Trigger | What it does |
+|---|---|---|
+| `triage-issue` | User reports a bug, says "triage", wants to file an issue, or wants to investigate and plan a fix | Explores the codebase to find root cause, then creates a GitHub issue with a TDD-based fix plan |
+| `improve-codebase-architecture` | User wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, or make the codebase more AI-navigable | Explores the codebase for architectural improvement opportunities, focusing on deeper/more testable modules |
+| `grill-me` | User wants to stress-test a plan, get grilled on a design decision, or says "grill me" | Interviews the user relentlessly about a plan or design until reaching shared understanding, resolving each branch of the decision tree |
+
+Installed via: `npx skills@latest add mattpocock/skills/<name> -a claude-code -y`
+
+---
 
 ## Always Do at End of Session
 Update this CLAUDE.md to reflect any new features completed or design decisions made.

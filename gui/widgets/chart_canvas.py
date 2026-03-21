@@ -472,7 +472,8 @@ class ChartCanvas(QWidget):
             )
             return
 
-        archetypes = list(matrix_data.keys())
+        archetypes = matrix_data.get("archetypes", [])
+        raw_matrix = matrix_data.get("matrix", {})
         n = len(archetypes)
         if n < 2:
             self.show_message("Need at least 2 archetypes with matchup data.")
@@ -481,9 +482,11 @@ class ChartCanvas(QWidget):
         grid = np.full((n, n), float("nan"))
         for i, arch_a in enumerate(archetypes):
             for j, arch_b in enumerate(archetypes):
-                val = matrix_data[arch_a].get(arch_b)
+                val = raw_matrix.get(arch_a, {}).get(arch_b)
                 if val is not None:
-                    grid[i][j] = val * 100
+                    wr = val.get("win_rate")
+                    if wr is not None:
+                        grid[i][j] = wr * 100
 
         self._fig.clear()
         self._overlay.setVisible(False)
