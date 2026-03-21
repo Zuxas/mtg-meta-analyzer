@@ -45,11 +45,11 @@ class DashboardTab(QWidget):
         self._fmt.setFixedWidth(120)
         ctrl.addWidget(self._fmt)
 
-        ctrl.addWidget(QLabel("Weeks:"))
-        self._weeks = QSpinBox()
-        self._weeks.setRange(1, 52)
-        self._weeks.setValue(8)
-        self._weeks.setFixedWidth(60)
+        ctrl.addWidget(QLabel("Timeframe:"))
+        self._weeks = QComboBox()
+        self._weeks.addItems(["2 weeks", "4 weeks", "8 weeks", "12 weeks", "6 months"])
+        self._weeks.setCurrentText("2 weeks")
+        self._weeks.setFixedWidth(100)
         ctrl.addWidget(self._weeks)
 
         ctrl.addWidget(QLabel("Top N:"))
@@ -92,6 +92,21 @@ class DashboardTab(QWidget):
         layout.addWidget(splitter, 1)
 
     # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    _WEEKS_MAP = {
+        "2 weeks":  2,
+        "4 weeks":  4,
+        "8 weeks":  8,
+        "12 weeks": 12,
+        "6 months": 26,
+    }
+
+    def _selected_weeks(self) -> int:
+        return self._WEEKS_MAP.get(self._weeks.currentText(), 2)
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -99,7 +114,7 @@ class DashboardTab(QWidget):
         """Reload meta standings from DB, then redraw the chart."""
         fmt   = self._fmt.currentText()
         top   = self._top_n.value()
-        weeks = self._weeks.value()
+        weeks = self._selected_weeks()
         since = datetime.now() - timedelta(weeks=weeks)
         self._status.setText("Loading\u2026")
         self._refresh_btn.setEnabled(False)
@@ -139,7 +154,7 @@ class DashboardTab(QWidget):
 
     def _redraw_chart(self):
         fmt   = self._fmt.currentText()
-        weeks = self._weeks.value()
+        weeks = self._selected_weeks()
         top   = self._top_n.value()
         chart = self._chart_type.currentText()
 
