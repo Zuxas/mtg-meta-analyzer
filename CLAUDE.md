@@ -258,6 +258,82 @@ This prevents path issues with spaces in `E:\vscode ai project\`.
 ### Database location
 `data/mtg_meta.db` — gitignored, never pushed. Each machine builds its own copy.
 
+## User Preferences System (CORE — implement before packaging)
+
+### Overview
+Users should only download and maintain data for the formats they actually play.
+A Standard-only player should never wait for Pioneer/Modern data.
+Preferences are stored in `data/preferences.json` (gitignored) and a
+`user_preferences` table in the database.
+
+### preferences.json schema
+```json
+{
+  "formats": ["standard"],
+  "date_window": "1year",
+  "timezone": "America/Los_Angeles",
+  "auto_update": "daily",
+  "updated_at": "2026-03-20T12:00:00"
+}
+```
+- `formats`: list from `["standard", "pioneer", "modern", "legacy"]`
+- `date_window`: `"2weeks"` | `"1month"` | `"3months"` | `"1year"` | `"3years"` (default)
+- `timezone`: IANA timezone string; used for display and scheduled-task timing
+- `auto_update`: `"daily"` | `"twice_daily"` | `"weekly"`
+
+### Database: user_preferences table
+```sql
+CREATE TABLE IF NOT EXISTS user_preferences (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
+Scrapers read preferences before running:
+- `background_fill.bat` and `fill_database.py` check formats list and skip unselected formats
+- `_load_cutoff()` in `backfill.py` respects `date_window` preference
+
+### GUI: Settings Tab (6th tab)
+Add `gui/tabs/settings.py` and register in `main_window.py` as tab 6.
+
+Controls:
+- **Formats to track**: checkboxes for Standard / Pioneer / Modern / Legacy
+  - Changing deselected formats shows warning: "Existing data is kept but no new events will be scraped"
+- **Data window**: dropdown (2 weeks / 1 month / 3 months / 1 year / 3 years)
+- **Timezone**: dropdown or text field (default: auto-detect from Windows)
+- **Auto-update frequency**: radio buttons (Daily / Twice daily / Weekly)
+  - Changing frequency re-registers Task Scheduler tasks automatically (no UAC needed after first setup)
+- **Storage usage**: per-format event/deck counts and estimated DB size
+- **Save button**: writes preferences.json + updates user_preferences table
+
+### Setup Wizard: Format Selection as Step 1
+Add a format-selection page before the Scryfall download step:
+- Page 0: Format selection (checkboxes, default = Standard only)
+- Page 1: Scryfall download (as now)
+- Page 2: Backfill (only selected formats)
+
+Saves preferences.json immediately when user clicks Next from format page.
+
+### Files to create/modify
+```
+data/preferences.json           Local preferences (gitignored)
+gui/tabs/settings.py            Settings tab (new)
+gui/main_window.py              Add Settings tab
+gui/setup_wizard.py             Add format-selection page 0
+scrapers/backfill.py            Read formats + date_window from preferences
+fill_database.py                Read formats from preferences before scraping
+background_fill.bat             Pass format list from preferences (or use fill_database.py)
+db/database.py                  Add user_preferences table to schema
+```
+
+### Implementation priority
+1. `data/preferences.json` load/save helpers (simple JSON, no DB needed)
+2. Format selection in setup wizard (prevents wasted first-run scrape time)
+3. Settings tab in GUI
+4. Wire scrapers to read preferences
+
+---
+
 ## Standalone .exe UX Requirements (CORE — do not skip)
 
 These are firm requirements for the PyInstaller packaging phase.
