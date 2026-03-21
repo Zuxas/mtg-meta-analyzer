@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from gui.worker_threads import DataLoadWorker
+import gui.theme as theme
 
 
 class PredictionsTab(QWidget):
@@ -38,41 +39,22 @@ class PredictionsTab(QWidget):
         self._pending_only = QCheckBox("Pending only")
         ctrl.addWidget(self._pending_only)
 
-        def _styled(text, color="#00bcd4", text_color="#0a0e1a"):
-            b = QPushButton(text)
-            b.setStyleSheet(
-                f"QPushButton {{ background: {color}; color: {text_color}; border: none; "
-                f"padding: 5px 14px; border-radius: 3px; font-weight: bold; }}"
-                f"QPushButton:hover {{ background: #00ddf0; color: #0a0e1a; }}"
-                f"QPushButton:disabled {{ background: #1a2035; color: #3a5a6a; "
-                f"border: 1px solid #1e3a4a; }}"
-            )
-            return b
-
-        self._gen_btn = _styled("Generate Predictions")
+        self._gen_btn = QPushButton("Generate Predictions")
+        self._gen_btn.setStyleSheet(theme.btn_primary())
         self._gen_btn.clicked.connect(self._generate)
         ctrl.addWidget(self._gen_btn)
 
-        self._val_btn = _styled("Validate", "#1a3a2a", "#3cb44b")
-        self._val_btn.setStyleSheet(
-            "QPushButton { background: #1a3a2a; color: #3cb44b; border: 1px solid #2a5a3a; "
-            "padding: 5px 14px; border-radius: 3px; font-weight: bold; }"
-            "QPushButton:hover { background: #2a5a3a; color: #4cca5b; }"
-        )
+        self._val_btn = QPushButton("Validate")
+        self._val_btn.setStyleSheet(theme.btn_success())
         self._val_btn.clicked.connect(self._validate)
         ctrl.addWidget(self._val_btn)
 
-        self._refresh_btn = _styled("Refresh", "#2a3a5e")
-        self._refresh_btn.setStyleSheet(
-            "QPushButton { background: #2a2a4e; color: #ccc; "
-            "border: 1px solid #4a4a6e; padding: 5px 14px; border-radius: 4px; }"
-            "QPushButton:hover { background: #3a3a5e; }"
-        )
+        self._refresh_btn = QPushButton("Refresh")
+        self._refresh_btn.setStyleSheet(theme.btn_secondary())
         self._refresh_btn.clicked.connect(self._load)
         ctrl.addWidget(self._refresh_btn)
 
         self._status = QLabel("")
-        self._status.setStyleSheet("color: #888888;")
         ctrl.addWidget(self._status)
         ctrl.addStretch()
         layout.addLayout(ctrl)
@@ -95,12 +77,12 @@ class PredictionsTab(QWidget):
         summary = QFrame()
         summary.setFixedHeight(60)
         summary.setStyleSheet(
-            "border: 1px solid #2a2a4e; border-radius: 4px; padding: 6px;"
+            "border: 1px solid #4a5a6e; border-radius: 4px; padding: 6px;"
         )
         sv = QHBoxLayout(summary)
         self._accuracy_lbl = QLabel("Accuracy: \u2014 (no validated predictions yet)")
         self._accuracy_lbl.setFont(QFont("Arial", 11))
-        self._accuracy_lbl.setStyleSheet("color: #cccccc; border: none;")
+        self._accuracy_lbl.setStyleSheet("border: none;")
         sv.addWidget(self._accuracy_lbl)
         sv.addStretch()
         layout.addWidget(summary)

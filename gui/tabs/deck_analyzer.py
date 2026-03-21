@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
+import gui.theme as theme
 
 
 # ------------------------------------------------------------------
@@ -112,17 +113,11 @@ class DeckAnalyzerTab(QWidget):
         ctrl.addWidget(self._arch)
 
         self._analyze_btn = QPushButton("Analyze Deck")
-        self._analyze_btn.setStyleSheet(
-            "QPushButton { background: #00bcd4; color: #0a0e1a; border: none; "
-            "padding: 5px 16px; border-radius: 4px; font-weight: bold; }"
-            "QPushButton:hover { background: #00ddf0; }"
-            "QPushButton:disabled { background: #2a2a4e; color: #555; }"
-        )
+        self._analyze_btn.setStyleSheet(theme.btn_primary())
         self._analyze_btn.clicked.connect(self._run)
         ctrl.addWidget(self._analyze_btn)
 
         self._status = QLabel("")
-        self._status.setStyleSheet("color: #888888;")
         ctrl.addWidget(self._status)
         ctrl.addStretch()
         layout.addLayout(ctrl)
@@ -167,13 +162,11 @@ class DeckAnalyzerTab(QWidget):
         rv.addWidget(self._blunder_table)
 
         self._score_lbl = QLabel("\u2014")
-        self._score_lbl.setStyleSheet("color: #aaaaaa; font-size: 12px;")
         rv.addWidget(self._score_lbl)
 
         # Divider
         div = QFrame()
         div.setFrameShape(QFrame.Shape.HLine)
-        div.setStyleSheet("color: #2a2a4e;")
         rv.addWidget(div)
 
         # Chapin section
@@ -190,12 +183,6 @@ class DeckAnalyzerTab(QWidget):
             bar.setRange(0, 100)
             bar.setValue(0)
             bar.setFormat("")          # we'll show score in the separate label
-            bar.setStyleSheet(
-                "QProgressBar { border: 1px solid #1e3a4a; border-radius: 3px; "
-                "background: #101525; height: 18px; }"
-                "QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-                "stop:0 #007a8a, stop:1 #00bcd4); border-radius: 2px; }"
-            )
             score_lbl = QLabel("\u2014")
             score_lbl.setFixedWidth(36)
             score_lbl.setAlignment(Qt.AlignmentFlag.AlignRight |
@@ -207,9 +194,6 @@ class DeckAnalyzerTab(QWidget):
             self._chapin_bars[p] = (bar, score_lbl)
 
         self._overall_lbl = QLabel("")
-        self._overall_lbl.setStyleSheet(
-            "color: #cccccc; font-size: 12px; margin-top: 4px;"
-        )
         self._overall_lbl.setWordWrap(True)
         rv.addWidget(self._overall_lbl)
         rv.addStretch()

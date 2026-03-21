@@ -17,14 +17,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
-_PALETTE = [
-    "#00bcd4", "#e6194b", "#3cb44b", "#f58231", "#911eb4",
-    "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990",
-    "#dcbeff", "#9a6324", "#fffac8", "#e05a2b", "#aaffc3",
-]
-_BG   = "#0a0e1a"   # matches main window background
-_MID  = "#1a2035"   # panel / plot area
-_GRID = "#1a2a3a"   # subtle grid lines
+from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
 
 
 def _shorten(name, max_len=22):
@@ -215,7 +208,7 @@ class ChartCanvas(QWidget):
     def plot_meta_share(self, format_name="standard", top=10, weeks=12,
                         since=None, until=None, standings=None):
         """standings: pass pre-loaded list from get_meta_standings() to skip that DB call."""
-        self.show_message("Loading meta data\u2026", "#4363d8")
+        self.show_message("Loading meta data\u2026", "#65bcd5")
         self._worker = _MetaShareLoader(format_name, top, weeks, since, until, standings)
         self._worker.done.connect(self._draw_meta_share)
         self._worker.error.connect(
@@ -265,7 +258,7 @@ class ChartCanvas(QWidget):
 
     def plot_trend(self, archetype, format_name="standard", weeks=12,
                    since=None, until=None):
-        self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#4363d8")
+        self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#65bcd5")
         self._worker = _TrendLoader(archetype, format_name, weeks, since, until)
         self._worker.done.connect(
             lambda data: self._draw_trend(data, archetype, format_name)
@@ -299,7 +292,7 @@ class ChartCanvas(QWidget):
         _style_ax(ax1, self._fig)
         ax2 = ax1.twinx()
 
-        bar_color = "#00bcd4"
+        bar_color = "#65bcd5"
         ax1.bar(x_labels, appearances, color=bar_color, alpha=0.4,
                 label="Appearances", zorder=2)
         ax1.set_ylabel("Appearances", color=bar_color, fontsize=9)
@@ -358,7 +351,7 @@ class ChartCanvas(QWidget):
 
     def plot_heatmap(self, format_name="standard", top=10, min_appearances=3,
                      since=None, until=None):
-        self.show_message("Loading matchup data\u2026", "#4363d8")
+        self.show_message("Loading matchup data\u2026", "#65bcd5")
         self._worker = _HeatmapLoader(format_name, top, min_appearances, since, until)
         self._worker.done.connect(
             lambda data: self._draw_heatmap(data, format_name)

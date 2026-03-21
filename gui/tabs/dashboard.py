@@ -13,6 +13,7 @@ from PyQt6.QtCore import Qt, QTimer
 from gui.widgets.meta_table import MetaTable
 from gui.widgets.chart_canvas import ChartCanvas
 from gui.worker_threads import DataLoadWorker
+import gui.theme as theme
 
 
 class DashboardTab(QWidget):
@@ -57,11 +58,7 @@ class DashboardTab(QWidget):
         ctrl.addWidget(self._top_n)
 
         self._refresh_btn = QPushButton("Refresh")
-        self._refresh_btn.setStyleSheet(
-            "QPushButton { background: #00bcd4; color: #0a0e1a; border: none; "
-            "padding: 5px 14px; border-radius: 4px; }"
-            "QPushButton:hover { background: #00ddf0; }"
-        )
+        self._refresh_btn.setStyleSheet(theme.btn_primary())
         self._refresh_btn.clicked.connect(self.refresh)
         ctrl.addWidget(self._refresh_btn)
 
@@ -75,7 +72,6 @@ class DashboardTab(QWidget):
         ctrl.addStretch()
 
         self._status = QLabel("")
-        self._status.setStyleSheet("color: #888888;")
         ctrl.addWidget(self._status)
 
         layout.addLayout(ctrl)

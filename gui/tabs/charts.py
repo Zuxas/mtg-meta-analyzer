@@ -18,6 +18,7 @@ from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import QDateEdit
 
 from gui.widgets.chart_canvas import ChartCanvas
+import gui.theme as theme
 
 _project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -98,26 +99,16 @@ class ChartsTab(QWidget):
 
         # Buttons
         self._gen_btn = QPushButton("Generate Chart")
-        self._gen_btn.setStyleSheet(
-            "QPushButton { background: #00bcd4; color: #0a0e1a; border: none; "
-            "padding: 8px; border-radius: 4px; font-weight: bold; }"
-            "QPushButton:hover { background: #00ddf0; }"
-            "QPushButton:disabled { background: #2a2a4e; color: #555; }"
-        )
+        self._gen_btn.setStyleSheet(theme.btn_primary())
         self._gen_btn.clicked.connect(self.generate)
         cv.addWidget(self._gen_btn)
 
         self._save_btn = QPushButton("Save PNG")
-        self._save_btn.setStyleSheet(
-            "QPushButton { background: transparent; color: #3a8a9a; "
-            "border: 1px solid #1e3a4a; padding: 6px; border-radius: 3px; }"
-            "QPushButton:hover { border-color: #00bcd4; color: #00bcd4; }"
-        )
+        self._save_btn.setStyleSheet(theme.btn_secondary())
         self._save_btn.clicked.connect(self._save_png)
         cv.addWidget(self._save_btn)
 
         self._status = QLabel("")
-        self._status.setStyleSheet("color: #888888; font-size: 10px;")
         self._status.setWordWrap(True)
         cv.addWidget(self._status)
 
@@ -185,7 +176,7 @@ class ChartsTab(QWidget):
         path = os.path.join(charts_dir, f"{name}_{fmt}_{ts}.png")
         try:
             self._canvas._fig.savefig(
-                path, dpi=150, bbox_inches="tight", facecolor="#1a1a2e"
+                path, dpi=150, bbox_inches="tight", facecolor=theme.CHART_BG
             )
             self._status.setText(f"Saved: {os.path.basename(path)}")
         except Exception as e:
