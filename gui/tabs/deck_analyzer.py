@@ -2,8 +2,13 @@
 Tab 2 — Deck Analyzer
 Paste any decklist in Arena export format, run Blunder Detection +
 Chapin Principles evaluation, see results side-by-side.
+
+"Load avg deck" row lets you pick any archetype from the DB and populate
+the text box with its average decklist, ready to analyze or export.
 """
 import re
+from datetime import datetime, timedelta
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QPlainTextEdit, QSplitter, QTableWidget, QTableWidgetItem,
@@ -12,6 +17,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 import gui.theme as theme
+from gui.worker_threads import DataLoadWorker
 
 
 # ------------------------------------------------------------------
@@ -143,10 +149,12 @@ _PRINCIPLES  = ["Threats", "Answers", "Consistency", "Velocity", "Mana", "Clock"
 class DeckAnalyzerTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._worker = None
+        self._worker  = None
+        self._workers = []          # keep refs alive
         self._parsed_main = {}
         self._parsed_side = {}
         self._build_ui()
+        self._refresh_archetypes()  # populate combo on first show
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -161,6 +169,7 @@ class DeckAnalyzerTab(QWidget):
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
         self._fmt.setFixedWidth(120)
+        self._fmt.currentIndexChanged.connect(self._refresh_archetypes)
         ctrl.addWidget(self._fmt)
 
         ctrl.addWidget(QLabel("Archetype:"))
@@ -184,6 +193,36 @@ class DeckAnalyzerTab(QWidget):
         ctrl.addWidget(self._status)
         ctrl.addStretch()
         layout.addLayout(ctrl)
+
+        # ── Load avg deck row ─────────────────────────────────────────
+        load_row = QHBoxLayout()
+        load_row.setSpacing(8)
+
+        lbl = QLabel("Load avg deck:")
+        lbl.setStyleSheet(f"color: {theme.TEXT_DIM};")
+        load_row.addWidget(lbl)
+
+        self._arch_combo = QComboBox()
+        self._arch_combo.setEditable(True)
+        self._arch_combo.setMinimumWidth(220)
+        self._arch_combo.setPlaceholderText("Select archetype…")
+        load_row.addWidget(self._arch_combo, 1)
+
+        load_row.addWidget(QLabel("over"))
+        self._load_weeks = QComboBox()
+        self._load_weeks.addItems(["2 weeks", "4 weeks", "8 weeks", "12 weeks", "all time"])
+        self._load_weeks.setCurrentText("4 weeks")
+        self._load_weeks.setFixedWidth(90)
+        load_row.addWidget(self._load_weeks)
+
+        self._load_btn = QPushButton("Load")
+        self._load_btn.setStyleSheet(theme.btn_secondary())
+        self._load_btn.setFixedHeight(26)
+        self._load_btn.clicked.connect(self._load_avg_deck)
+        load_row.addWidget(self._load_btn)
+
+        load_row.addStretch()
+        layout.addLayout(load_row)
 
         # ── Horizontal splitter: input | results ─────────────────────
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -264,6 +303,108 @@ class DeckAnalyzerTab(QWidget):
         splitter.addWidget(right)
         splitter.setSizes([360, 460])
         layout.addWidget(splitter, 1)
+
+    # ------------------------------------------------------------------
+    # Load average deck from DB
+    # ------------------------------------------------------------------
+
+    def _refresh_archetypes(self):
+        """Populate the archetype combo with top archetypes for current format."""
+        fmt = self._fmt.currentText()
+
+        def _do():
+            from db.database import get_combined_connection
+            conn = get_combined_connection()
+            try:
+                rows = conn.execute("""
+                    SELECT d.archetype, COUNT(*) AS cnt
+                    FROM decks d
+                    JOIN events e ON e.id = d.event_id
+                    WHERE lower(e.format) = lower(?)
+                    GROUP BY d.archetype
+                    ORDER BY cnt DESC
+                    LIMIT 120
+                """, [fmt]).fetchall()
+            finally:
+                conn.close()
+            return [r[0] for r in rows]
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_archetypes_loaded)
+        w.start()
+        self._workers.append(w)
+
+    def _on_archetypes_loaded(self, archetypes: list):
+        current = self._arch_combo.currentText()
+        self._arch_combo.blockSignals(True)
+        self._arch_combo.clear()
+        self._arch_combo.addItems(archetypes)
+        # Restore previous selection if still present
+        idx = self._arch_combo.findText(current)
+        if idx >= 0:
+            self._arch_combo.setCurrentIndex(idx)
+        else:
+            self._arch_combo.setCurrentIndex(-1)
+        self._arch_combo.blockSignals(False)
+
+    def _load_avg_deck(self):
+        arch = self._arch_combo.currentText().strip()
+        if not arch:
+            self._status.setText("Select an archetype first.")
+            return
+
+        fmt = self._fmt.currentText()
+        weeks_text = self._load_weeks.currentText()
+        if weeks_text == "all time":
+            since_dt = None
+        else:
+            weeks = int(weeks_text.split()[0])
+            since_dt = datetime.now() - timedelta(weeks=weeks)
+
+        self._load_btn.setEnabled(False)
+        self._status.setText(f"Loading {arch}…")
+
+        from gui.widgets.archetype_detail import _load_archetype_data
+        w = DataLoadWorker(_load_archetype_data, {
+            "archetype": arch,
+            "format_name": fmt,
+            "since_dt": since_dt,
+        })
+        w.result.connect(self._on_avg_deck_loaded)
+        w.error.connect(lambda e: (
+            self._status.setText(f"Error: {e}"),
+            self._load_btn.setEnabled(True),
+        ))
+        w.finished.connect(lambda: self._load_btn.setEnabled(True))
+        w.start()
+        self._workers.append(w)
+
+    def _on_avg_deck_loaded(self, data):
+        if not data:
+            self._status.setText("No decklists found for that archetype/timeframe.")
+            return
+
+        # Build Arena-format text from average deck
+        lines = ["Deck"]
+        for card in data["mainboard"]:
+            qty = max(1, round(card["avg_qty"]))
+            lines.append(f"{qty} {card['name']}")
+        if data["sideboard"]:
+            lines.append("")
+            lines.append("Sideboard")
+            for card in data["sideboard"]:
+                qty = max(1, round(card["avg_qty"]))
+                lines.append(f"{qty} {card['name']}")
+
+        self._deck_input.setPlainText("\n".join(lines))
+        self._arch.setText(data["archetype"])
+
+        total_main = sum(max(1, round(c["avg_qty"])) for c in data["mainboard"])
+        total_side = sum(max(1, round(c["avg_qty"])) for c in data["sideboard"])
+        self._status.setText(
+            f"Loaded {data['archetype']} avg ({data['deck_count']} decks — "
+            f"{total_main} main / {total_side} side)"
+        )
 
     # ------------------------------------------------------------------
     # Analysis
