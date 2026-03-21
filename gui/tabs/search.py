@@ -2,17 +2,63 @@
 Tab 3 — Search
   Sub-tabs: Card Lookup | Deck Search | Head-to-Head
 """
+import os
 import sqlite3
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTabWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QTextBrowser, QComboBox, QFrame,
+    QHeaderView, QTextBrowser, QComboBox, QFrame, QSplitter,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPixmap
 
 from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
+
+
+# ---------------------------------------------------------------------------
+# Card image helpers
+# ---------------------------------------------------------------------------
+
+def _card_image_cache_path(card_name: str) -> str:
+    here = os.path.dirname(__file__)
+    cache_dir = os.path.normpath(os.path.join(here, "..", "..", "data", "card_images"))
+    os.makedirs(cache_dir, exist_ok=True)
+    safe = card_name.replace("/", "_").replace(":", "_").replace("?", "_")
+    return os.path.join(cache_dir, f"{safe}.jpg")
+
+
+def _fetch_card_image(card_name: str) -> str | None:
+    """
+    Return local cache path for card_name image.
+    Downloads from Scryfall API on first request; subsequent calls use cache.
+    Returns None if the image can't be retrieved.
+    """
+    path = _card_image_cache_path(card_name)
+    if os.path.exists(path):
+        return path
+    try:
+        import requests
+        from urllib.parse import quote
+        r = requests.get(
+            f"https://api.scryfall.com/cards/named?exact={quote(card_name)}",
+            timeout=10,
+            headers={"User-Agent": "MTGMetaAnalyzer/1.0"},
+        )
+        if r.status_code != 200:
+            return None
+        uris = r.json().get("image_uris", {})
+        img_url = uris.get("normal") or uris.get("large") or uris.get("small")
+        if not img_url:
+            return None
+        ir = requests.get(img_url, timeout=15)
+        if ir.status_code == 200:
+            with open(path, "wb") as f:
+                f.write(ir.content)
+            return path
+    except Exception:
+        pass
+    return None
 
 
 def _btn(text):
@@ -68,9 +114,25 @@ class SearchTab(QWidget):
         row.addWidget(btn)
         v.addLayout(row)
 
+        # Results: card image on the left, text on the right
+        split = QSplitter(Qt.Orientation.Horizontal)
+
+        self._card_image_lbl = QLabel()
+        self._card_image_lbl.setFixedWidth(230)
+        self._card_image_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        self._card_image_lbl.setStyleSheet(
+            f"background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+            " border-radius: 3px; padding: 4px;"
+        )
+        self._card_image_lbl.setText("Image loads\nafter search")
+        split.addWidget(self._card_image_lbl)
+
         self._card_result = QTextBrowser()
         self._card_result.setFont(QFont("Consolas", 10))
-        v.addWidget(self._card_result, 1)
+        split.addWidget(self._card_result)
+        split.setSizes([230, 600])
+
+        v.addWidget(split, 1)
         return w
 
     def _search_card(self):
@@ -78,18 +140,24 @@ class SearchTab(QWidget):
         if not query:
             return
         self._card_result.setPlainText("Searching\u2026")
+        self._card_image_lbl.setText("Loading image…")
+        self._card_image_lbl.setPixmap(QPixmap())
         fmt_text = self._card_fmt.currentText()
         fmt = None if fmt_text == "(any format)" else fmt_text
 
         def _do():
+            import json
             from scrapers.scryfall import search_local
             results = search_local(query)
             if not results:
-                return "No results found."
+                return {"text": "No results found.", "image_name": None}
             lines = []
+            first_name = None
             for card in results[:8]:
                 lines.append("=" * 52)
                 name = card.get("name", "")
+                if first_name is None:
+                    first_name = name
                 type_line = card.get("type_line", "")
                 lines.append(f"  {name}")
                 if type_line:
@@ -112,20 +180,42 @@ class SearchTab(QWidget):
                 if fmt:
                     legal = card.get("legalities", {})
                     if isinstance(legal, str):
-                        import json
                         try:
                             legal = json.loads(legal)
                         except Exception:
                             legal = {}
                     status = legal.get(fmt, "unknown")
                     lines.append(f"  {fmt.upper()}: {status}")
-            return "\n".join(lines)
+            return {"text": "\n".join(lines), "image_name": first_name}
+
+        def _show(result):
+            self._card_result.setPlainText(result["text"])
+            img_name = result.get("image_name")
+            if img_name:
+                # Fetch image in a second background worker
+                img_worker = DataLoadWorker(_fetch_card_image, {"card_name": img_name})
+                img_worker.result.connect(self._show_card_image)
+                img_worker.error.connect(lambda _: self._card_image_lbl.setText("No image"))
+                img_worker.start()
+                self._workers.append(img_worker)
+            else:
+                self._card_image_lbl.setText("No image")
 
         w = DataLoadWorker(_do)
-        w.result.connect(self._card_result.setPlainText)
+        w.result.connect(_show)
         w.error.connect(lambda e: self._card_result.setPlainText(f"Error: {e}"))
         w.start()
         self._workers.append(w)
+
+    def _show_card_image(self, path):
+        if path and os.path.exists(path):
+            pix = QPixmap(path)
+            pix = pix.scaledToWidth(
+                220, Qt.TransformationMode.SmoothTransformation
+            )
+            self._card_image_lbl.setPixmap(pix)
+        else:
+            self._card_image_lbl.setText("No image available")
 
     # ------------------------------------------------------------------
     # Deck Search
@@ -164,6 +254,11 @@ class SearchTab(QWidget):
         self._deck_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._deck_table.setAlternatingRowColors(True)
         self._deck_table.verticalHeader().setVisible(False)
+        self._deck_table.itemClicked.connect(self._on_deck_row_click)
+
+        hint = QLabel("Click any row to open the archetype deck detail view.")
+        hint.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
+        v.addWidget(hint)
         v.addWidget(self._deck_table, 1)
         return w
 
@@ -194,7 +289,10 @@ class SearchTab(QWidget):
         def _show(rows):
             self._deck_table.setRowCount(len(rows))
             for r, (arch, player, placement, event, date) in enumerate(rows):
-                self._deck_table.setItem(r, 0, QTableWidgetItem(arch  or ""))
+                arch_item = QTableWidgetItem(arch or "")
+                # Store raw archetype name for click handler
+                arch_item.setData(Qt.ItemDataRole.UserRole, arch or "")
+                self._deck_table.setItem(r, 0, arch_item)
                 self._deck_table.setItem(r, 1, QTableWidgetItem(player or ""))
                 self._deck_table.setItem(r, 2, QTableWidgetItem(
                     str(placement) if placement else ""
@@ -207,6 +305,24 @@ class SearchTab(QWidget):
         w.error.connect(lambda e: print(f"Deck search error: {e}"))
         w.start()
         self._workers.append(w)
+
+    def _on_deck_row_click(self, item):
+        row = self._deck_table.currentRow()
+        arch_item = self._deck_table.item(row, 0)
+        if not arch_item:
+            return
+        archetype = arch_item.data(Qt.ItemDataRole.UserRole) or arch_item.text()
+        if not archetype:
+            return
+        from gui.widgets.archetype_detail import ArchetypeDetailDialog
+        fmt = self._deck_fmt.currentText()
+        dlg = ArchetypeDetailDialog(
+            archetype=archetype,
+            format_name=fmt,
+            initial_weeks=4,
+            parent=self,
+        )
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Head-to-Head
