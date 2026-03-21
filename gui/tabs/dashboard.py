@@ -109,6 +109,7 @@ def _make_panel_table(headers: list) -> QTableWidget:
     tbl.setShowGrid(False)
     tbl.horizontalHeader().setHighlightSections(False)
     tbl.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    tbl.setSortingEnabled(True)
     return tbl
 
 
@@ -131,6 +132,32 @@ def _placement_str(p: int) -> str:
     return {1: "1st", 2: "2nd", 3: "3rd", 4: "4th"}.get(p, f"{p}th")
 
 
+def _date_sort_key(raw: str) -> str:
+    """Normalize DD/MM/YY or YYYY-MM-DD to YYYYMMDD for sort key."""
+    raw = raw or ""
+    if "/" in raw:
+        parts = raw.split("/")
+        if len(parts) == 3:
+            return f"20{parts[2]}{parts[1]}{parts[0]}"
+    return raw.replace("-", "")
+
+
+_SORT_ROLE = Qt.ItemDataRole.UserRole + 100
+
+
+class _SortItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts by a numeric/string key stored in _SORT_ROLE."""
+    def __lt__(self, other):
+        a = self.data(_SORT_ROLE)
+        b = other.data(_SORT_ROLE)
+        if a is not None and b is not None:
+            try:
+                return a < b
+            except TypeError:
+                pass
+        return super().__lt__(other)
+
+
 def _fmt_date(raw: str) -> str:
     try:
         if "/" in raw:
@@ -149,13 +176,7 @@ def _fmt_date(raw: str) -> str:
 
 class DashboardTab(QWidget):
 
-    _TIMEFRAME_OPTIONS = [
-        ("2 weeks",  2),
-        ("4 weeks",  4),
-        ("8 weeks",  8),
-        ("12 weeks", 12),
-        ("6 months", 26),
-    ]
+    _TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -190,8 +211,8 @@ class DashboardTab(QWidget):
         self._tf = QComboBox()
         for label, _ in self._TIMEFRAME_OPTIONS:
             self._tf.addItem(label)
-        self._tf.setCurrentText("2 weeks")
-        self._tf.setFixedWidth(100)
+        self._tf.setCurrentText(theme.TIMEFRAME_DEFAULT)
+        self._tf.setFixedWidth(110)
         ctrl.addWidget(self._tf)
 
         ctrl.addWidget(QLabel("Top N:"))
@@ -539,6 +560,7 @@ class DashboardTab(QWidget):
 
     def _populate_winrate(self, standings: list, prior_map: dict = None):
         tbl = self._winrate_tbl
+        tbl.setSortingEnabled(False)
         top_n = int(self._top_n.currentText())
         ranked = sorted(
             [s for s in standings if s.get("est_match_winpct") is not None],
@@ -560,15 +582,21 @@ class DashboardTab(QWidget):
 
             clr = QColor(theme.OK) if pct >= 55 else (
                   QColor(theme.WARN) if pct >= 50 else QColor(theme.ERR))
-            pct_item = _set_cell(tbl, ri, 2, f"{pct:.1f}%",
-                      align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-                      fg=clr)
+            pct_item = _SortItem(f"{pct:.1f}%")
+            pct_item.setData(_SORT_ROLE, pct)
+            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            pct_item.setForeground(clr)
+            pct_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             if bg:
                 pct_item.setBackground(bg)
+            tbl.setItem(ri, 2, pct_item)
         tbl.resizeRowsToContents()
+        tbl.setSortingEnabled(True)
+        tbl.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
     def _populate_popularity(self, standings: list, prior_map: dict = None):
         tbl = self._pop_tbl
+        tbl.setSortingEnabled(False)
         top_n = int(self._top_n.currentText())
         ranked = sorted(standings, key=lambda s: -s["appearances"])[:top_n]
         total_apps      = sum(s["appearances"] for s in standings) or 1
@@ -597,28 +625,44 @@ class DashboardTab(QWidget):
             if bg:
                 arch_item.setBackground(bg)
 
-            apps_item = _set_cell(tbl, ri, 2, str(s["appearances"]),
-                      align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            apps_item = _SortItem(str(s["appearances"]))
+            apps_item.setData(_SORT_ROLE, s["appearances"])
+            apps_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            apps_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             if bg:
                 apps_item.setBackground(bg)
+            tbl.setItem(ri, 2, apps_item)
 
             meta_pct  = cur_share * 100
-            pct_item  = _set_cell(tbl, ri, 3, f"{meta_pct:.1f}%",
-                      align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            pct_item  = _SortItem(f"{meta_pct:.1f}%")
+            pct_item.setData(_SORT_ROLE, meta_pct)
+            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            pct_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             if bg:
                 pct_item.setBackground(bg)
+            tbl.setItem(ri, 3, pct_item)
         tbl.resizeRowsToContents()
+        tbl.setSortingEnabled(True)
+        tbl.sortByColumn(2, Qt.SortOrder.DescendingOrder)
 
     def _populate_recent(self, recent: list):
         # Columns: 0=Pl, 1=Colors(pip), 2=Archetype, 3=Player, 4=Event, 5=Date
         tbl = self._recent_tbl
+        tbl.setSortingEnabled(False)
         tbl.setRowCount(len(recent))
         for ri, r in enumerate(recent):
             pl  = r["placement"]
             clr = (QColor(theme.ACCENT) if pl == 1 else
                    QColor(theme.ACCENT2) if pl == 2 else
                    QColor(theme.TEXT))
-            _set_cell(tbl, ri, 0, _placement_str(pl), fg=clr, bold=(pl == 1))
+            pl_item = _SortItem(_placement_str(pl))
+            pl_item.setData(_SORT_ROLE, pl)
+            pl_item.setForeground(clr)
+            if pl == 1:
+                f = pl_item.font(); f.setBold(True); pl_item.setFont(f)
+            pl_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            tbl.setItem(ri, 0, pl_item)
+
             ident = _color_identity(r["archetype"])
             tbl.setCellWidget(ri, 1, theme.make_pip_widget(ident))
             _set_cell(tbl, ri, 2, r["archetype"])
@@ -627,8 +671,16 @@ class DashboardTab(QWidget):
             _set_cell(tbl, ri, 3, player)
             event = r.get("event_name", "") or ""
             _set_cell(tbl, ri, 4, event[:28])
-            _set_cell(tbl, ri, 5, _fmt_date(r.get("date", "")))
+
+            raw_date = r.get("date", "") or ""
+            date_item = _SortItem(_fmt_date(raw_date))
+            date_item.setData(_SORT_ROLE, _date_sort_key(raw_date))
+            date_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            tbl.setItem(ri, 5, date_item)
+
         tbl.resizeRowsToContents()
+        tbl.setSortingEnabled(True)
+        tbl.sortByColumn(5, Qt.SortOrder.DescendingOrder)
 
     # ------------------------------------------------------------------
     # Chart checkbox sidebar
@@ -703,7 +755,7 @@ class DashboardTab(QWidget):
 
     def _since_dt(self):
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
-        return datetime.now() - timedelta(weeks=weeks)
+        return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
 
 
 def _shorten_arch(name: str, max_len: int = 22) -> str:

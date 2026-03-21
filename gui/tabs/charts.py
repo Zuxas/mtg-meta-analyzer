@@ -11,7 +11,7 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
-    QComboBox, QSpinBox, QGroupBox, QCheckBox,
+    QComboBox, QGroupBox, QCheckBox,
     QSizePolicy, QDateEdit,
 )
 from PyQt6.QtCore import QDate
@@ -68,11 +68,12 @@ class ChartsTab(QWidget):
         self._arch.lineEdit().returnPressed.connect(self.generate)
         cv.addWidget(self._arch)
 
-        # Weeks
-        cv.addWidget(QLabel("Weeks back:"))
-        self._weeks = QSpinBox()
-        self._weeks.setRange(1, 52)
-        self._weeks.setValue(12)
+        # Timeframe
+        cv.addWidget(QLabel("Timeframe:"))
+        self._weeks = QComboBox()
+        for label, _ in theme.TIMEFRAME_OPTIONS:
+            self._weeks.addItem(label)
+        self._weeks.setCurrentText(theme.TIMEFRAME_DEFAULT)
         cv.addWidget(self._weeks)
 
         # Top N (not shown for Trend)
@@ -148,7 +149,7 @@ class ChartsTab(QWidget):
     def generate(self):
         chart_type = self._type.currentText()
         fmt   = self._fmt.currentText()
-        weeks = self._weeks.value()
+        weeks = theme.TIMEFRAME_OPTIONS[self._weeks.currentIndex()][1]
         top   = self._top_n.value()
         since, until = self._get_date_range()
 
@@ -234,4 +235,7 @@ class ChartsTab(QWidget):
         self._type.setCurrentText("Archetype Trend")
         self._arch.setCurrentText(archetype)
         self._fmt.setCurrentText(format_name)
-        self._canvas.plot_trend(archetype, format_name, self._weeks.value())
+        self._canvas.plot_trend(
+            archetype, format_name,
+            theme.TIMEFRAME_OPTIONS[self._weeks.currentIndex()][1],
+        )

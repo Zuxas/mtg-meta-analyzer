@@ -50,6 +50,21 @@ CHART_BG    = "#3b3c4d"
 CHART_PANEL = "#39465c"
 CHART_GRID  = "#4a5a6e"
 
+# ── Shared timeframe selector options ──────────────────────────────────────
+# (label, weeks_or_None)   None = All Time (no date filter)
+TIMEFRAME_OPTIONS: list[tuple[str, int | None]] = [
+    ("1 week",   1),
+    ("2 weeks",  2),
+    ("4 weeks",  4),
+    ("8 weeks",  8),
+    ("3 months", 13),
+    ("6 months", 26),
+    ("1 year",   52),
+    ("2 years",  104),
+    ("All Time", None),
+]
+TIMEFRAME_DEFAULT = "2 weeks"
+
 # ── MTG mana color pips — official Wizards hex values ──────────────────────
 MANA_COLORS = {
     "W": "#F9FAF4",   # white/cream

@@ -249,6 +249,16 @@ class DeckAnalyzerTab(QWidget):
         self._analyze_btn.clicked.connect(self._run)
         ctrl.addWidget(self._analyze_btn)
 
+        self._legality_btn = QPushButton("Check Legality")
+        self._legality_btn.setStyleSheet(theme.btn_secondary())
+        self._legality_btn.setToolTip(
+            "Verify decklist legality for this format.\n"
+            "Checks: 60 main / 15 side, banned cards, card legality.\n"
+            "Required at all RCQ events (Competitive REL)."
+        )
+        self._legality_btn.clicked.connect(self._run_legality_check)
+        ctrl.addWidget(self._legality_btn)
+
         self._export_btn = QPushButton("Export ▾")
         self._export_btn.setStyleSheet(theme.btn_secondary())
         self._export_btn.setEnabled(False)
@@ -276,9 +286,10 @@ class DeckAnalyzerTab(QWidget):
 
         load_row.addWidget(QLabel("over"))
         self._load_weeks = QComboBox()
-        self._load_weeks.addItems(["2 weeks", "4 weeks", "8 weeks", "12 weeks", "all time"])
-        self._load_weeks.setCurrentText("4 weeks")
-        self._load_weeks.setFixedWidth(90)
+        for label, _ in theme.TIMEFRAME_OPTIONS:
+            self._load_weeks.addItem(label)
+        self._load_weeks.setCurrentText(theme.TIMEFRAME_DEFAULT)
+        self._load_weeks.setFixedWidth(100)
         load_row.addWidget(self._load_weeks)
 
         self._load_btn = QPushButton("Load")
@@ -390,6 +401,52 @@ class DeckAnalyzerTab(QWidget):
         self._overall_lbl = QLabel("")
         self._overall_lbl.setWordWrap(True)
         rv.addWidget(self._overall_lbl)
+
+        # Divider
+        div2 = QFrame()
+        div2.setFrameShape(QFrame.Shape.HLine)
+        rv.addWidget(div2)
+
+        # Legality checker section
+        legality_hdr_row = QHBoxLayout()
+        legality_hdr = QLabel("Decklist Legality")
+        legality_hdr.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        legality_hdr_row.addWidget(legality_hdr)
+        legality_hdr_row.addStretch()
+        rel_lbl = QLabel("Competitive REL — decklists required at RCQs")
+        rel_lbl.setStyleSheet(
+            f"color: #f58231; font-size: 10px; "
+            f"border: 1px solid #f58231; border-radius: 3px; padding: 1px 5px;"
+        )
+        rel_lbl.setToolTip(
+            "All RCQ events run at Competitive Rules Enforcement Level.\n"
+            "Decklists are mandatory. Errors result in a Game Loss.\n"
+            "Use 'Check Legality' before submitting your decklist."
+        )
+        legality_hdr_row.addWidget(rel_lbl)
+        rv.addLayout(legality_hdr_row)
+
+        self._legality_summary = QLabel("Click 'Check Legality' to verify your decklist.")
+        self._legality_summary.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        self._legality_summary.setWordWrap(True)
+        rv.addWidget(self._legality_summary)
+
+        self._legality_table = QTableWidget(0, 4)
+        self._legality_table.setHorizontalHeaderLabels(["Card", "Zone", "Qty", "Issue"])
+        self._legality_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        for i in (1, 2, 3):
+            self._legality_table.horizontalHeader().setSectionResizeMode(
+                i, QHeaderView.ResizeMode.ResizeToContents
+            )
+        self._legality_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._legality_table.setAlternatingRowColors(True)
+        self._legality_table.verticalHeader().setVisible(False)
+        self._legality_table.setVisible(False)
+        self._legality_table.setMaximumHeight(150)
+        rv.addWidget(self._legality_table)
+
         rv.addStretch()
 
         splitter.addWidget(right)
@@ -445,13 +502,9 @@ class DeckAnalyzerTab(QWidget):
             self._status.setText("Select an archetype first.")
             return
 
-        fmt = self._fmt.currentText()
-        weeks_text = self._load_weeks.currentText()
-        if weeks_text == "all time":
-            since_dt = None
-        else:
-            weeks = int(weeks_text.split()[0])
-            since_dt = datetime.now() - timedelta(weeks=weeks)
+        fmt   = self._fmt.currentText()
+        weeks = theme.TIMEFRAME_OPTIONS[self._load_weeks.currentIndex()][1]
+        since_dt = (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
 
         self._load_btn.setEnabled(False)
         self._status.setText(f"Loading {arch}…")
@@ -672,3 +725,174 @@ class DeckAnalyzerTab(QWidget):
     def _on_error(self, msg):
         self._status.setText(f"Error: {msg}")
         self._analyze_btn.setEnabled(True)
+
+    # ------------------------------------------------------------------
+    # Legality checker
+    # ------------------------------------------------------------------
+
+    def _run_legality_check(self):
+        text = self._deck_input.toPlainText().strip()
+        if not text:
+            self._legality_summary.setStyleSheet(
+                f"color: {theme.TEXT_DIM}; font-size: 11px;"
+            )
+            self._legality_summary.setText("Paste a decklist first.")
+            return
+
+        main, side = parse_arena_decklist(text)
+        if not main:
+            self._legality_summary.setStyleSheet(
+                f"color: {theme.TEXT_DIM}; font-size: 11px;"
+            )
+            self._legality_summary.setText(
+                "Could not parse decklist — use Arena export format."
+            )
+            return
+
+        fmt = self._fmt.currentText()
+        self._legality_btn.setEnabled(False)
+        self._legality_summary.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px;"
+        )
+        self._legality_summary.setText("Checking legality…")
+        self._legality_table.setVisible(False)
+
+        def _do(main, side, fmt):
+            import json
+            from db.database import get_combined_connection
+
+            all_cards = [(name, qty, "Main") for name, qty in main.items()]
+            all_cards += [(name, qty, "Side") for name, qty in side.items()]
+
+            names = [c[0] for c in all_cards]
+            placeholders = ",".join("?" * len(names))
+
+            conn = get_combined_connection()
+            try:
+                rows = conn.execute(
+                    f"SELECT name, legalities FROM card_data "
+                    f"WHERE name IN ({placeholders})",
+                    names,
+                ).fetchall()
+            finally:
+                conn.close()
+
+            legality_map = {}
+            for row in rows:
+                try:
+                    legality_map[row["name"]] = json.loads(row["legalities"] or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    legality_map[row["name"]] = {}
+
+            # For cards not in DB, fall back to Scryfall
+            missing = [n for n in names if n not in legality_map]
+            for name in missing:
+                try:
+                    from scrapers.scryfall import get_card_data
+                    card = get_card_data(name)
+                    legality_map[name] = card.get("legalities", {}) if card else {}
+                except Exception:
+                    legality_map[name] = {}
+
+            issues = []
+
+            # Size checks
+            main_count = sum(main.values())
+            side_count = sum(side.values())
+            if main_count != 60:
+                issues.append({
+                    "card": f"Mainboard total",
+                    "zone": "Main",
+                    "qty": main_count,
+                    "issue": f"Must be exactly 60 cards (have {main_count})",
+                })
+            if side and side_count != 15:
+                issues.append({
+                    "card": "Sideboard total",
+                    "zone": "Side",
+                    "qty": side_count,
+                    "issue": f"Must be exactly 15 cards (have {side_count})",
+                })
+
+            # Legality checks
+            _BAD = {"banned", "not_legal", "restricted"}
+            for name, qty, zone in all_cards:
+                status = legality_map.get(name, {}).get(fmt, "unknown").lower()
+                if status in _BAD:
+                    label = status.replace("_", " ").title()
+                    issues.append({
+                        "card": name,
+                        "zone": zone,
+                        "qty": qty,
+                        "issue": f"{label} in {fmt}",
+                    })
+
+            return {
+                "issues": issues,
+                "main_count": main_count,
+                "side_count": side_count,
+                "fmt": fmt,
+            }
+
+        w = DataLoadWorker(_do, {"main": main, "side": side, "fmt": fmt})
+        w.result.connect(self._show_legality)
+        w.error.connect(lambda e: (
+            self._legality_summary.setText(f"Error: {e}"),
+            self._legality_btn.setEnabled(True),
+        ))
+        w.finished.connect(lambda: self._legality_btn.setEnabled(True))
+        w.start()
+        self._workers.append(w)
+
+    def _show_legality(self, result):
+        issues     = result["issues"]
+        main_count = result["main_count"]
+        side_count = result["side_count"]
+        fmt        = result["fmt"]
+
+        if not issues:
+            self._legality_summary.setStyleSheet(
+                "color: #3cb44b; font-size: 11px; font-weight: bold;"
+            )
+            self._legality_summary.setText(
+                f"\u2713 Legal \u2014 {main_count} main / {side_count} side, "
+                f"no issues found for {fmt}."
+            )
+            self._legality_table.setVisible(False)
+            return
+
+        n = len(issues)
+        self._legality_summary.setStyleSheet(
+            "color: #e6194b; font-size: 11px; font-weight: bold;"
+        )
+        self._legality_summary.setText(
+            f"\u2717 {n} issue{'s' if n != 1 else ''} found \u2014 "
+            f"review before submitting your decklist."
+        )
+
+        self._legality_table.setRowCount(n)
+        for row, issue in enumerate(issues):
+            card_i = QTableWidgetItem(issue["card"])
+            zone_i = QTableWidgetItem(issue["zone"])
+            zone_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            qty_i  = QTableWidgetItem(str(issue["qty"]))
+            qty_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+            issue_text = issue["issue"]
+            issue_i = QTableWidgetItem(issue_text)
+            lower = issue_text.lower()
+            if "banned" in lower:
+                issue_i.setForeground(QColor("#e6194b"))
+            elif "restricted" in lower:
+                issue_i.setForeground(QColor("#f58231"))
+            elif "not legal" in lower:
+                issue_i.setForeground(QColor("#f58231"))
+            else:
+                issue_i.setForeground(QColor("#bfef45"))
+
+            self._legality_table.setItem(row, 0, card_i)
+            self._legality_table.setItem(row, 1, zone_i)
+            self._legality_table.setItem(row, 2, qty_i)
+            self._legality_table.setItem(row, 3, issue_i)
+
+        self._legality_table.setVisible(True)

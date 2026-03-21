@@ -175,6 +175,15 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
 # Helpers
 # ---------------------------------------------------------------------------
 
+class _NumItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts numerically (handles plain numbers and % strings)."""
+    def __lt__(self, other):
+        try:
+            return float(self.text().rstrip('%')) < float(other.text().rstrip('%'))
+        except (ValueError, TypeError):
+            return super().__lt__(other)
+
+
 def _inc_color(rate: float) -> QColor:
     """Background tint for an inclusion-rate cell."""
     if rate >= 0.80:
@@ -308,6 +317,7 @@ def _make_recent_grid(recent_decks: list) -> QTableWidget:
     tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     tbl.verticalHeader().setVisible(False)
+    tbl.setSortingEnabled(True)
     hh = tbl.horizontalHeader()
     hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     for ci in range(1, n_decks + 1):
@@ -395,6 +405,7 @@ def _make_resources_tab(resources: list) -> QWidget:
     tbl.setAlternatingRowColors(False)
     tbl.setCursor(Qt.CursorShape.PointingHandCursor)
     tbl.setToolTip("Click a row to open in your browser")
+    tbl.setSortingEnabled(True)
     hh = tbl.horizontalHeader()
     hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -437,6 +448,7 @@ def _make_resources_tab(resources: list) -> QWidget:
             QDesktopServices.openUrl(QUrl(url))
 
     tbl.itemClicked.connect(_open)
+    tbl.sortByColumn(4, Qt.SortOrder.DescendingOrder)
     vl.addWidget(tbl)
     return container
 
@@ -469,21 +481,25 @@ def _make_tech_table(mainboard: list) -> QWidget:
     tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     tbl.setAlternatingRowColors(True)
     tbl.verticalHeader().setVisible(False)
+    tbl.setSortingEnabled(True)
     hh = tbl.horizontalHeader()
     hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
     hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
     hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
 
+    tbl.setSortingEnabled(False)
     for ri, c in enumerate(tech):
         name_i = QTableWidgetItem(c["name"])
-        pct_i  = QTableWidgetItem(f"{c['inclusion_rate']*100:.0f}%")
+        pct_i  = _NumItem(f"{c['inclusion_rate']*100:.0f}%")
         pct_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        qty_i  = QTableWidgetItem(f"{c['avg_qty']:.2f}")
+        qty_i  = _NumItem(f"{c['avg_qty']:.2f}")
         qty_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         tbl.setItem(ri, 0, name_i)
         tbl.setItem(ri, 1, pct_i)
         tbl.setItem(ri, 2, qty_i)
 
+    tbl.setSortingEnabled(True)
+    tbl.sortByColumn(1, Qt.SortOrder.DescendingOrder)
     vl.addWidget(tbl, 1)
     return container
 
@@ -498,17 +514,10 @@ class ArchetypeDetailDialog(QDialog):
     Pass archetype name, format, and current timeframe in weeks.
     """
 
-    _TIMEFRAME_OPTIONS = [
-        ("2 weeks",  2),
-        ("4 weeks",  4),
-        ("8 weeks",  8),
-        ("3 months", 13),
-        ("6 months", 26),
-        ("All time", None),
-    ]
+    _TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
 
     def __init__(self, archetype: str, format_name: str,
-                 initial_weeks: int = 8, parent=None):
+                 initial_weeks: int | None = 2, parent=None):
         super().__init__(parent)
         self._archetype   = archetype
         self._format_name = format_name
@@ -594,17 +603,24 @@ class ArchetypeDetailDialog(QDialog):
     # Loading
     # ------------------------------------------------------------------
 
-    def _set_timeframe_by_weeks(self, weeks: int):
-        """Pre-select the combo item closest to the given week count."""
-        best_idx, best_diff = 0, 9999
-        for i, (_, w) in enumerate(self._TIMEFRAME_OPTIONS):
-            if w is None:
-                continue
-            diff = abs(w - weeks)
-            if diff < best_diff:
-                best_diff, best_idx = diff, i
+    def _set_timeframe_by_weeks(self, weeks: int | None):
+        """Pre-select the combo item closest to the given week count (None = All Time)."""
         self._tf_combo.blockSignals(True)
-        self._tf_combo.setCurrentIndex(best_idx)
+        if weeks is None:
+            idx = next(
+                (i for i, (_, w) in enumerate(self._TIMEFRAME_OPTIONS) if w is None),
+                len(self._TIMEFRAME_OPTIONS) - 1,
+            )
+            self._tf_combo.setCurrentIndex(idx)
+        else:
+            best_idx, best_diff = 0, 9999
+            for i, (_, w) in enumerate(self._TIMEFRAME_OPTIONS):
+                if w is None:
+                    continue
+                diff = abs(w - weeks)
+                if diff < best_diff:
+                    best_diff, best_idx = diff, i
+            self._tf_combo.setCurrentIndex(best_idx)
         self._tf_combo.blockSignals(False)
 
     def _since_dt(self):

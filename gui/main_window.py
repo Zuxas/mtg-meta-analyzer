@@ -16,14 +16,15 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer
 
-from gui.tabs.dashboard       import DashboardTab
-from gui.tabs.deck_analyzer   import DeckAnalyzerTab
-from gui.tabs.search          import SearchTab
-from gui.tabs.charts          import ChartsTab
-from gui.tabs.predictions     import PredictionsTab
-from gui.tabs.settings        import SettingsTab
-from gui.tabs.knowledge_base  import KnowledgeBaseTab
-from gui.tabs.ask_claude      import AskClaudeTab
+from gui.tabs.dashboard         import DashboardTab
+from gui.tabs.deck_analyzer     import DeckAnalyzerTab
+from gui.tabs.search            import SearchTab
+from gui.tabs.charts            import ChartsTab
+from gui.tabs.predictions       import PredictionsTab
+from gui.tabs.settings          import SettingsTab
+from gui.tabs.knowledge_base    import KnowledgeBaseTab
+from gui.tabs.ask_claude        import AskClaudeTab
+from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -62,6 +63,7 @@ class MainWindow(QMainWindow):
         self._charts    = ChartsTab()
         self._preds     = PredictionsTab()
         self._kb        = KnowledgeBaseTab()
+        self._tourney   = TournamentPrepTab()
         self._claude    = AskClaudeTab()
         self._settings  = SettingsTab()
 
@@ -71,6 +73,7 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._charts,   "CHARTS")
         self._tabs.addTab(self._preds,    "PREDICTIONS")
         self._tabs.addTab(self._kb,       "KNOWLEDGE BASE")
+        self._tabs.addTab(self._tourney,  "TOURNAMENT PREP")
         self._tabs.addTab(self._settings, "SETTINGS")
 
         # Ask Claude tab — added/removed dynamically based on API key presence

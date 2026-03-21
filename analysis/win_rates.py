@@ -506,9 +506,9 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
         conn2.close()
 
     window_end   = until or datetime.now()
-    window_start = since or (window_end - timedelta(weeks=weeks))
+    window_start = since or (window_end - timedelta(weeks=weeks or 520))
     span_weeks   = max(1, int((window_end - window_start).days / 7) + 1)
-    num_buckets  = min(span_weeks, weeks)
+    num_buckets  = min(span_weeks, weeks if weeks is not None else span_weeks)
 
     weekly = []
     for w in range(num_buckets):
