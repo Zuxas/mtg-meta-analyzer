@@ -88,6 +88,9 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - Setup wizard on first run (Scryfall download + backfill + 50-event unlock)
   - Interactive embedded matplotlib charts (FigureCanvasQTAgg)
   - Background QuickScrapeWorker on startup for returning users
+  - **System tray icon** (`gui/tray_icon.py`) — green/orange/red status dot, right-click menu, close-to-tray
+  - **One-time UAC first-run wizard** (`gui/first_run_setup.py`) — registers all 3 Task Scheduler tasks once, never asked again
+  - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
 
 ### Primary Format
 Standard is the primary focus. Pioneer and Modern actively scraped. Legacy supported but not scheduled.
@@ -140,6 +143,7 @@ schedule_task.bat               One-time setup: register 5 PM daily task
 schedule_scryfall.bat           One-time setup: register weekly Scryfall refresh task
 run_daily.bat                   5 PM daily task (Standard latest events + maintenance)
 run_scryfall_weekly.bat         Weekly Scryfall refresh (Sunday midnight)
+update_claude_code.bat          Self-elevating helper: npm i -g @anthropic-ai/claude-code
 
 scrapers/mtgtop8.py             Core MTGTop8 scraper
 scrapers/challenges.py          MTGO Challenge-specific scraper
@@ -168,6 +172,8 @@ gui/tabs/deck_analyzer.py       Arena paste → Blunder + Chapin analysis
 gui/tabs/search.py              Card lookup, deck search, head-to-head
 gui/tabs/charts.py              Interactive controls + live chart canvas
 gui/tabs/predictions.py         Generate/validate/view predictions
+gui/tray_icon.py                System tray icon, status dots, right-click menu
+gui/first_run_setup.py          First-run UAC dialog + elevated task registration
 
 config.example.ini              Committed config template
 config.ini                      Local config (gitignored)

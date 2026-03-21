@@ -69,6 +69,19 @@ Expected on returning run: dashboard loads, background scrape starts.
 
 ---
 
+## Tray icon + UAC first-run wizard — COMPLETE
+
+| File | Status |
+|---|---|
+| `gui/tray_icon.py` | ✅ programmatic icon, green/orange/red dot, right-click menu, 60s refresh timer |
+| `gui/first_run_setup.py` | ✅ one-time UAC dialog, registers all 3 tasks, never shown again |
+| `register_tasks.py` | ✅ elevated task registration, writes config.ini flag on success |
+| `run_gui.py` | ✅ wires tray + first-run wizard, `setQuitOnLastWindowClosed(False)` |
+| `gui/main_window.py` | ✅ `set_tray()`, `closeEvent` hide-to-tray, scrape writes tray status |
+| `update_claude_code.bat` | ✅ self-elevating npm update helper |
+
+---
+
 ## Database build scripts — COMPLETE
 
 | Script | Purpose |
@@ -81,6 +94,24 @@ Expected on returning run: dashboard loads, background scrape starts.
 ### Register 6 AM task (if not done yet)
 Right-click `schedule_background_fill.bat` → **Run as Administrator** (once).
 This adds a silent daily 6 AM scrape alongside the existing 5 PM task.
+
+---
+
+## User Preferences System — DESIGNED, NOT YET IMPLEMENTED
+
+Full spec documented in CLAUDE.md under "User Preferences System".
+
+### Priority order:
+1. **`data/preferences.json` helpers** — simple load/save, default = standard + 3years
+2. **Format selection in setup wizard** — add page 0 before Scryfall download
+   - Checkboxes: Standard (default on) / Pioneer / Modern / Legacy
+   - Saves `preferences.json` immediately on Next
+3. **`gui/tabs/settings.py`** — 6th tab in main_window.py
+   - Format checkboxes, date window dropdown, timezone, auto-update frequency
+   - Storage usage per format (event/deck counts)
+   - Save button → writes preferences.json + user_preferences DB table
+4. **`db/database.py`** — add `user_preferences` table to schema
+5. **Wire scrapers** — `background_fill.bat` and `fill_database.py` skip unselected formats
 
 ---
 
