@@ -29,41 +29,18 @@ import gui.theme as theme
 
 
 # ---------------------------------------------------------------------------
-# Color identity inference
+# Color identity inference — delegated to theme module
 # ---------------------------------------------------------------------------
 
-_GUILD_COLORS = {
-    "azorius": "WU",  "dimir": "UB",   "rakdos": "BR",  "gruul": "RG",
-    "selesnya": "WG", "orzhov": "WB",  "izzet": "UR",   "golgari": "BG",
-    "boros": "WR",    "simic": "UG",
-    "esper": "WUB",   "jeskai": "WUR", "mardu": "WBR",  "naya": "WRG",
-    "bant": "WUG",    "grixis": "UBR", "sultai": "UBG", "temur": "URG",
-    "jund": "BRG",    "abzan": "WBG",
-    "domain": "WUBRG",
-    "mono-white": "W", "mono-blue": "U", "mono-black": "B",
-    "mono-red":   "R", "mono-green":  "G",
-    "monowhite":  "W", "monoblue":    "U", "monoblack":   "B",
-    "monored":    "R", "monogreen":   "G",
-    "white": "W", "blue": "U", "black": "B", "red": "R", "green": "G",
-}
-
-_PIP_HEX = {
-    "W": "#e8e0c0", "U": "#4a90d9", "B": "#9a9a9a", "R": "#e04040", "G": "#3aaa3a",
-}
-
-
 def _color_identity(name: str) -> str:
-    nl = name.lower()
-    for kw, ci in sorted(_GUILD_COLORS.items(), key=lambda x: -len(x[0])):
-        if kw in nl:
-            return ci
-    return ""
+    return theme.color_identity(name)
 
 
 def _pip_color(identity: str) -> QColor:
+    """Legacy helper used by chart checkbox dots."""
     if not identity:
         return QColor(theme.TEXT_DIM)
-    return QColor(_PIP_HEX.get(identity[0], "#888888"))
+    return QColor(theme.MANA_COLORS.get(identity[0], "#888888"))
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +211,7 @@ class DashboardTab(QWidget):
         self._recent_tbl  = self._build_recent_panel(top_layout)
         self._winrate_tbl = self._build_ranked_panel(top_layout, "WIN RATE TODAY",
                                                      ["", "Archetype", "Win%"])
-        self._pop_tbl     = self._build_ranked_panel(top_layout, "POPULARITY TODAY",
+        self._pop_tbl     = self._build_ranked_panel(top_layout, "POPULAR THIS WEEK",
                                                      ["", "Archetype", "Apps", "Meta%"])
         self._vsplit.addWidget(top_widget)
 
@@ -315,13 +292,16 @@ class DashboardTab(QWidget):
         root.addWidget(self._vsplit, 1)
 
     def _build_recent_panel(self, parent_layout) -> QTableWidget:
+        # Columns: Pl | Colors | Archetype | Player | Event | Date
         frame, tbl = self._panel_frame("RECENT TOP FINISHES",
-                                       ["Pl", "Archetype", "Event", "Date"])
+                                       ["Pl", "Colors", "Archetype", "Player", "Event", "Date"])
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         tbl.itemDoubleClicked.connect(self._on_recent_dblclick)
         tbl.itemClicked.connect(self._on_recent_dblclick)
         parent_layout.addWidget(frame)
@@ -434,7 +414,7 @@ class DashboardTab(QWidget):
                 return
 
     def _on_recent_dblclick(self, item):
-        arch_item = self._recent_tbl.item(self._recent_tbl.currentRow(), 1)
+        arch_item = self._recent_tbl.item(self._recent_tbl.currentRow(), 2)
         if arch_item:
             raw = arch_item.data(Qt.ItemDataRole.UserRole) or arch_item.text()
             self._open_detail(raw)
@@ -463,7 +443,7 @@ class DashboardTab(QWidget):
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
-            _set_cell(tbl, ri, 0, ident, fg=_pip_color(ident))
+            tbl.setCellWidget(ri, 0, theme.make_pip_widget(ident))
             _set_cell(tbl, ri, 1, s["archetype"])
             pct = s["est_match_winpct"] * 100
             clr = QColor(theme.OK) if pct >= 55 else (
@@ -480,7 +460,7 @@ class DashboardTab(QWidget):
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
-            _set_cell(tbl, ri, 0, ident, fg=_pip_color(ident))
+            tbl.setCellWidget(ri, 0, theme.make_pip_widget(ident))
             _set_cell(tbl, ri, 1, s["archetype"])
             _set_cell(tbl, ri, 2, str(s["appearances"]),
                       align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
@@ -490,6 +470,7 @@ class DashboardTab(QWidget):
         tbl.resizeRowsToContents()
 
     def _populate_recent(self, recent: list):
+        # Columns: 0=Pl, 1=Colors(pip), 2=Archetype, 3=Player, 4=Event, 5=Date
         tbl = self._recent_tbl
         tbl.setRowCount(len(recent))
         for ri, r in enumerate(recent):
@@ -499,13 +480,14 @@ class DashboardTab(QWidget):
                    QColor(theme.TEXT))
             _set_cell(tbl, ri, 0, _placement_str(pl), fg=clr, bold=(pl == 1))
             ident = _color_identity(r["archetype"])
-            arch_text = f"{ident}  {r['archetype']}" if ident else r["archetype"]
-            _set_cell(tbl, ri, 1, arch_text)
-            # Store raw archetype name for click handler (text includes color prefix)
-            tbl.item(ri, 1).setData(Qt.ItemDataRole.UserRole, r["archetype"])
+            tbl.setCellWidget(ri, 1, theme.make_pip_widget(ident))
+            _set_cell(tbl, ri, 2, r["archetype"])
+            tbl.item(ri, 2).setData(Qt.ItemDataRole.UserRole, r["archetype"])
+            player = r.get("player", "") or ""
+            _set_cell(tbl, ri, 3, player)
             event = r.get("event_name", "") or ""
-            _set_cell(tbl, ri, 2, event[:28])
-            _set_cell(tbl, ri, 3, _fmt_date(r.get("date", "")))
+            _set_cell(tbl, ri, 4, event[:28])
+            _set_cell(tbl, ri, 5, _fmt_date(r.get("date", "")))
         tbl.resizeRowsToContents()
 
     # ------------------------------------------------------------------

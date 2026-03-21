@@ -50,6 +50,65 @@ CHART_BG    = "#3b3c4d"
 CHART_PANEL = "#39465c"
 CHART_GRID  = "#4a5a6e"
 
+# ── MTG mana color pips — official Wizards hex values ──────────────────────
+MANA_COLORS = {
+    "W": "#F9FAF4",   # white/cream
+    "U": "#0E68AB",   # blue
+    "B": "#150B00",   # black
+    "R": "#D3202A",   # red
+    "G": "#00733E",   # green
+}
+
+_GUILD_COLORS = {
+    "azorius": "WU",  "dimir": "UB",   "rakdos": "BR",  "gruul": "RG",
+    "selesnya": "WG", "orzhov": "WB",  "izzet": "UR",   "golgari": "BG",
+    "boros": "WR",    "simic": "UG",
+    "esper": "WUB",   "jeskai": "WUR", "mardu": "WBR",  "naya": "WRG",
+    "bant": "WUG",    "grixis": "UBR", "sultai": "UBG", "temur": "URG",
+    "jund": "BRG",    "abzan": "WBG",
+    "domain": "WUBRG",
+    "4c": "WUBR",     "5c": "WUBRG",
+    "mono-white": "W", "mono-blue": "U", "mono-black": "B",
+    "mono-red":   "R", "mono-green":  "G",
+    "monowhite":  "W", "monoblue":    "U", "monoblack":   "B",
+    "monored":    "R", "monogreen":   "G",
+    "weenie white": "W", "white": "W", "blue": "U", "black": "B",
+    "red": "R", "green": "G",
+}
+
+
+def color_identity(name: str) -> str:
+    """Infer MTG color identity from an archetype name. Returns e.g. 'UR', 'WG'."""
+    nl = name.lower()
+    for kw, ci in sorted(_GUILD_COLORS.items(), key=lambda x: -len(x[0])):
+        if kw in nl:
+            return ci
+    return ""
+
+
+def make_pip_widget(identity: str):
+    """
+    Return a QWidget of small colored circles for a mana color identity string.
+    Import lazily to keep theme.py importable before QApplication is created.
+    """
+    from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
+    w = QWidget()
+    w.setStyleSheet("background: transparent;")
+    hl = QHBoxLayout(w)
+    hl.setContentsMargins(4, 0, 4, 0)
+    hl.setSpacing(2)
+    for ch in identity:
+        color = MANA_COLORS.get(ch, "#888888")
+        lbl = QLabel()
+        lbl.setFixedSize(10, 10)
+        border = "1px solid rgba(200,200,200,0.35);" if ch == "W" else ""
+        lbl.setStyleSheet(
+            f"background: {color}; border-radius: 5px; {border}"
+        )
+        hl.addWidget(lbl)
+    hl.addStretch()
+    return w
+
 # ── Font setup ─────────────────────────────────────────────────────────────
 _FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 

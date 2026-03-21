@@ -401,6 +401,9 @@ class ArchetypeDetailDialog(QDialog):
         hl = QHBoxLayout(header)
         hl.setContentsMargins(20, 0, 20, 0)
 
+        pip_w = theme.make_pip_widget(theme.color_identity(self._archetype))
+        hl.addWidget(pip_w)
+
         title = QLabel(self._archetype)
         title.setStyleSheet(
             f"color: {theme.ACCENT}; font-size: 15px; font-weight: bold;"
