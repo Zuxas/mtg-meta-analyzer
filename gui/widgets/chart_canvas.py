@@ -18,13 +18,13 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
 _PALETTE = [
-    "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
+    "#00bcd4", "#e6194b", "#3cb44b", "#f58231", "#911eb4",
     "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990",
-    "#dcbeff", "#9a6324", "#fffac8", "#800000", "#aaffc3",
+    "#dcbeff", "#9a6324", "#fffac8", "#e05a2b", "#aaffc3",
 ]
-_BG   = "#1a1a2e"
-_MID  = "#16213e"
-_GRID = "#2a2a4e"
+_BG   = "#0a0e1a"   # matches main window background
+_MID  = "#1a2035"   # panel / plot area
+_GRID = "#1a2a3a"   # subtle grid lines
 
 
 def _shorten(name, max_len=22):
@@ -161,12 +161,8 @@ class ChartCanvas(QWidget):
         self._fig    = Figure(figsize=(10, 5), facecolor=_BG, tight_layout=True)
         self._canvas = FigureCanvasQTAgg(self._fig)
         self._toolbar = NavigationToolbar2QT(self._canvas, self)
-        self._toolbar.setStyleSheet(
-            "QToolBar { background: #0d0d1e; border: none; spacing: 4px; }"
-            "QToolButton { background: #2a2a4e; color: white; border-radius: 3px;"
-            "              padding: 3px; }"
-            "QToolButton:hover { background: #4363d8; }"
-        )
+        # Toolbar inherits the global QToolBar stylesheet from main_window.py
+        self._toolbar.setStyleSheet("")
 
         # Overlay label shown while loading or when no data available
         self._overlay = QLabel("Select a chart type and click Generate", self._canvas)
@@ -303,7 +299,7 @@ class ChartCanvas(QWidget):
         _style_ax(ax1, self._fig)
         ax2 = ax1.twinx()
 
-        bar_color = "#4363d8"
+        bar_color = "#00bcd4"
         ax1.bar(x_labels, appearances, color=bar_color, alpha=0.4,
                 label="Appearances", zorder=2)
         ax1.set_ylabel("Appearances", color=bar_color, fontsize=9)

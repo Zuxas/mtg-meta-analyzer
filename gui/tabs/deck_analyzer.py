@@ -113,9 +113,9 @@ class DeckAnalyzerTab(QWidget):
 
         self._analyze_btn = QPushButton("Analyze Deck")
         self._analyze_btn.setStyleSheet(
-            "QPushButton { background: #4363d8; color: white; border: none; "
+            "QPushButton { background: #00bcd4; color: #0a0e1a; border: none; "
             "padding: 5px 16px; border-radius: 4px; font-weight: bold; }"
-            "QPushButton:hover { background: #5373e8; }"
+            "QPushButton:hover { background: #00ddf0; }"
             "QPushButton:disabled { background: #2a2a4e; color: #555; }"
         )
         self._analyze_btn.clicked.connect(self._run)
@@ -191,9 +191,10 @@ class DeckAnalyzerTab(QWidget):
             bar.setValue(0)
             bar.setFormat("")          # we'll show score in the separate label
             bar.setStyleSheet(
-                "QProgressBar { border: 1px solid #2a2a4e; border-radius: 3px; "
-                "background: #16213e; height: 18px; }"
-                "QProgressBar::chunk { background: #4363d8; border-radius: 2px; }"
+                "QProgressBar { border: 1px solid #1e3a4a; border-radius: 3px; "
+                "background: #101525; height: 18px; }"
+                "QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+                "stop:0 #007a8a, stop:1 #00bcd4); border-radius: 2px; }"
             )
             score_lbl = QLabel("\u2014")
             score_lbl.setFixedWidth(36)

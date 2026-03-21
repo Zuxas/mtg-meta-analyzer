@@ -14,10 +14,10 @@ from PyQt6.QtGui import QFont
 from gui.worker_threads import DataLoadWorker
 
 
-def _btn(text, color="#4363d8"):
+def _btn(text, color="#00bcd4"):
     w = QPushButton(text)
     w.setStyleSheet(
-        f"QPushButton {{ background: {color}; color: white; border: none; "
+        f"QPushButton {{ background: {color}; color: #0a0e1a; border: none; "
         f"padding: 5px 14px; border-radius: 4px; }}"
         f"QPushButton:hover {{ filter: brightness(1.15); }}"
     )

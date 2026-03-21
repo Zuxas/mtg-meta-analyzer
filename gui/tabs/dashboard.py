@@ -58,9 +58,9 @@ class DashboardTab(QWidget):
 
         self._refresh_btn = QPushButton("Refresh")
         self._refresh_btn.setStyleSheet(
-            "QPushButton { background: #4363d8; color: white; border: none; "
+            "QPushButton { background: #00bcd4; color: #0a0e1a; border: none; "
             "padding: 5px 14px; border-radius: 4px; }"
-            "QPushButton:hover { background: #5373e8; }"
+            "QPushButton:hover { background: #00ddf0; }"
         )
         self._refresh_btn.clicked.connect(self.refresh)
         ctrl.addWidget(self._refresh_btn)

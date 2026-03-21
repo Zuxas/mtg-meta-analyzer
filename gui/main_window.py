@@ -7,8 +7,7 @@ Startup flow:
   3. Otherwise: load dashboard directly and run QuickScrapeWorker in background
      to pull any new events since last run.
 
-Dark Fusion palette matches the chart colour scheme (#1a1a2e background,
-#4363d8 accent).
+Theme: dark navy (#0a0e1a) with cyan (#00bcd4) accents — techy/competitive feel.
 """
 import os
 
@@ -33,23 +32,25 @@ MIN_EVENTS = 50
 # ---------------------------------------------------------------------------
 
 def apply_dark_palette(app: QApplication):
+    """Apply the dark-navy + cyan theme."""
     app.setStyle("Fusion")
     pal = QPalette()
 
-    BG   = QColor("#1a1a2e")
-    MID  = QColor("#16213e")
-    HIGH = QColor("#1e2040")
-    TEXT = QColor("#e0e0e0")
-    DIM  = QColor("#888888")
-    ACC  = QColor("#4363d8")
-    BTN  = QColor("#2a2a4e")
-    WHT  = QColor("#ffffff")
+    BG    = QColor("#0a0e1a")   # deepest background
+    PANEL = QColor("#1a2035")   # content panels
+    INPUT = QColor("#101525")   # input fields, table cells
+    ALT   = QColor("#141c30")   # alternating table rows
+    TEXT  = QColor("#e0e0e0")   # primary text
+    DIM   = QColor("#5a6a8a")   # placeholder / secondary text
+    ACC   = QColor("#00bcd4")   # cyan accent
+    BTN   = QColor("#1a2a3a")   # button background
+    WHT   = QColor("#ffffff")
 
     pal.setColor(QPalette.ColorRole.Window,          BG)
     pal.setColor(QPalette.ColorRole.WindowText,      TEXT)
-    pal.setColor(QPalette.ColorRole.Base,            MID)
-    pal.setColor(QPalette.ColorRole.AlternateBase,   HIGH)
-    pal.setColor(QPalette.ColorRole.ToolTipBase,     MID)
+    pal.setColor(QPalette.ColorRole.Base,            INPUT)
+    pal.setColor(QPalette.ColorRole.AlternateBase,   ALT)
+    pal.setColor(QPalette.ColorRole.ToolTipBase,     PANEL)
     pal.setColor(QPalette.ColorRole.ToolTipText,     TEXT)
     pal.setColor(QPalette.ColorRole.Text,            TEXT)
     pal.setColor(QPalette.ColorRole.PlaceholderText, DIM)
@@ -58,60 +59,215 @@ def apply_dark_palette(app: QApplication):
     pal.setColor(QPalette.ColorRole.BrightText,      WHT)
     pal.setColor(QPalette.ColorRole.Link,            ACC)
     pal.setColor(QPalette.ColorRole.Highlight,       ACC)
-    pal.setColor(QPalette.ColorRole.HighlightedText, WHT)
-    # Disabled state
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#0a0e1a"))
     pal.setColor(QPalette.ColorGroup.Disabled,
-                 QPalette.ColorRole.Text, QColor("#555555"))
+                 QPalette.ColorRole.Text,       QColor("#3a4a5a"))
     pal.setColor(QPalette.ColorGroup.Disabled,
-                 QPalette.ColorRole.ButtonText, QColor("#555555"))
+                 QPalette.ColorRole.ButtonText, QColor("#3a4a5a"))
 
     app.setPalette(pal)
 
-    # Extra stylesheet for controls that Qt palette doesn't fully reach
     app.setStyleSheet("""
-        QTabWidget::pane { border: 1px solid #2a2a4e; }
+        /* ── Global ─────────────────────────────────────────── */
+        * { font-family: "Segoe UI", "Inter", sans-serif; font-size: 12px; }
+        QWidget { background: #0a0e1a; color: #e0e0e0; }
+
+        /* ── Tab bar — navbar style ──────────────────────────── */
+        QTabWidget::pane {
+            border: none;
+            border-top: 1px solid #1e3a4a;
+        }
+        QTabBar {
+            background: #070b14;
+            border-bottom: 1px solid #1e3a4a;
+        }
         QTabBar::tab {
-            background: #1e2040; color: #aaaaaa;
-            padding: 6px 16px; border-radius: 3px 3px 0 0;
+            background: transparent;
+            color: #5a6a8a;
+            padding: 10px 22px;
+            border: none;
+            border-bottom: 2px solid transparent;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 12px;
+            letter-spacing: 0.5px;
             margin-right: 2px;
         }
-        QTabBar::tab:selected { background: #2a2a4e; color: white; }
-        QTabBar::tab:hover    { background: #252550; color: white; }
+        QTabBar::tab:selected {
+            color: #00bcd4;
+            border-bottom: 2px solid #00bcd4;
+        }
+        QTabBar::tab:hover:!selected {
+            color: #a0c8d4;
+            border-bottom: 2px solid #1e4a5a;
+        }
+
+        /* ── Panels / GroupBox ───────────────────────────────── */
         QGroupBox {
-            border: 1px solid #2a2a4e; border-radius: 4px;
-            margin-top: 8px; padding-top: 8px;
-            color: #aaaaaa;
+            background: #1a2035;
+            border: 1px solid #1e3a4a;
+            border-radius: 4px;
+            margin-top: 10px;
+            padding-top: 10px;
+            color: #5a6a8a;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 11px;
+            letter-spacing: 0.5px;
         }
-        QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }
-        QComboBox, QSpinBox, QLineEdit, QPlainTextEdit, QTextBrowser, QDateEdit {
-            background: #16213e; color: #e0e0e0;
-            border: 1px solid #2a2a4e; border-radius: 3px; padding: 3px 6px;
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 6px;
+            color: #00bcd4;
         }
-        QComboBox::drop-down { border: none; }
-        QComboBox QAbstractItemView { background: #16213e; color: #e0e0e0;
-                                      selection-background-color: #4363d8; }
-        QScrollBar:vertical   { background: #16213e; width:  10px; }
-        QScrollBar:horizontal { background: #16213e; height: 10px; }
-        QScrollBar::handle    { background: #2a2a4e; border-radius: 4px; }
-        QScrollBar::handle:hover { background: #4363d8; }
+
+        /* ── Frames / separators ─────────────────────────────── */
+        QFrame[frameShape="4"],  /* HLine */
+        QFrame[frameShape="5"]  /* VLine */
+        { color: #1e3a4a; }
+
+        /* ── Inputs ──────────────────────────────────────────── */
+        QComboBox, QSpinBox, QLineEdit, QPlainTextEdit,
+        QTextBrowser, QDateEdit {
+            background: #101525;
+            color: #e0e0e0;
+            border: 1px solid #1e3a4a;
+            border-radius: 3px;
+            padding: 3px 7px;
+            selection-background-color: #00bcd4;
+            selection-color: #0a0e1a;
+        }
+        QComboBox:focus, QSpinBox:focus, QLineEdit:focus,
+        QPlainTextEdit:focus, QDateEdit:focus {
+            border-color: #00bcd4;
+        }
+        QComboBox::drop-down { border: none; width: 18px; }
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid #00bcd4;
+            width: 0; height: 0;
+        }
+        QComboBox QAbstractItemView {
+            background: #1a2035;
+            color: #e0e0e0;
+            border: 1px solid #1e3a4a;
+            selection-background-color: #00bcd4;
+            selection-color: #0a0e1a;
+        }
+        QSpinBox::up-button, QSpinBox::down-button { width: 0; border: none; }
+
+        /* ── Scrollbars ──────────────────────────────────────── */
+        QScrollBar:vertical   { background: #0a0e1a; width:  8px; border: none; }
+        QScrollBar:horizontal { background: #0a0e1a; height: 8px; border: none; }
+        QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+            background: #1e3a4a; border-radius: 4px; min-length: 20px;
+        }
+        QScrollBar::handle:vertical:hover,
+        QScrollBar::handle:horizontal:hover { background: #00bcd4; }
         QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+        QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+
+        /* ── Table ───────────────────────────────────────────── */
+        QTableWidget {
+            background: #101525;
+            gridline-color: #1a2a3a;
+            border: 1px solid #1e3a4a;
+            alternate-background-color: #141c30;
+        }
+        QTableWidget::item:selected {
+            background: #003a47;
+            color: #00bcd4;
+        }
         QHeaderView::section {
-            background: #1e2040; color: #aaaaaa;
-            border: none; border-right: 1px solid #2a2a4e;
-            padding: 4px 6px;
+            background: #0d1020;
+            color: #00bcd4;
+            border: none;
+            border-right: 1px solid #1e3a4a;
+            border-bottom: 1px solid #1e3a4a;
+            padding: 5px 8px;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 11px;
+            letter-spacing: 0.5px;
         }
-        QTableWidget { gridline-color: #2a2a4e; }
+        QHeaderView::section:hover { background: #141c30; }
+
+        /* ── Progress bars ───────────────────────────────────── */
         QProgressBar {
-            border: 1px solid #2a2a4e; border-radius: 3px;
-            background: #16213e; color: white; text-align: center;
+            border: 1px solid #1e3a4a;
+            border-radius: 3px;
+            background: #101525;
+            color: #00bcd4;
+            text-align: center;
+            height: 20px;
         }
-        QProgressBar::chunk { background: #4363d8; border-radius: 2px; }
-        QCheckBox { color: #aaaaaa; }
-        QCheckBox::indicator { border: 1px solid #4a4a6e;
-                               background: #16213e; width: 13px; height: 13px; }
-        QCheckBox::indicator:checked { background: #4363d8; }
-        QStatusBar { background: #0d0d1e; color: #888888; }
-        QSplitter::handle { background: #2a2a4e; }
+        QProgressBar::chunk {
+            background: qlineargradient(
+                x1:0, y1:0, x2:1, y2:0,
+                stop:0 #007a8a, stop:1 #00bcd4
+            );
+            border-radius: 2px;
+        }
+
+        /* ── Checkboxes ──────────────────────────────────────── */
+        QCheckBox { color: #8a9aaa; spacing: 6px; }
+        QCheckBox::indicator {
+            width: 14px; height: 14px;
+            border: 1px solid #1e4a5a;
+            border-radius: 2px;
+            background: #101525;
+        }
+        QCheckBox::indicator:checked {
+            background: #00bcd4;
+            border-color: #00bcd4;
+        }
+
+        /* ── Splitters ───────────────────────────────────────── */
+        QSplitter::handle:horizontal { background: #1e3a4a; width: 1px; }
+        QSplitter::handle:vertical   { background: #1e3a4a; height: 1px; }
+
+        /* ── Status bar ──────────────────────────────────────── */
+        QStatusBar {
+            background: #070b14;
+            color: #3a5a6a;
+            border-top: 1px solid #1e3a4a;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 11px;
+        }
+        QStatusBar QLabel { color: #3a5a6a; }
+
+        /* ── Tool tips ───────────────────────────────────────── */
+        QToolTip {
+            background: #1a2035;
+            color: #e0e0e0;
+            border: 1px solid #00bcd4;
+            padding: 4px 8px;
+        }
+
+        /* ── Labels ──────────────────────────────────────────── */
+        QLabel { color: #8a9aaa; }
+
+        /* ── Toolbar (matplotlib nav) ────────────────────────── */
+        QToolBar {
+            background: #070b14;
+            border: none;
+            border-top: 1px solid #1e3a4a;
+            spacing: 2px;
+            padding: 2px;
+        }
+        QToolBar QToolButton {
+            background: transparent;
+            color: #5a6a8a;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            padding: 3px 5px;
+        }
+        QToolBar QToolButton:hover {
+            background: #1a2035;
+            border-color: #00bcd4;
+            color: #00bcd4;
+        }
+        QToolBar QToolButton:pressed { background: #003a47; }
     """)
 
 
@@ -145,11 +301,11 @@ class MainWindow(QMainWindow):
         self._charts = ChartsTab()
         self._preds  = PredictionsTab()
 
-        self._tabs.addTab(self._dash,   "  Dashboard  ")
-        self._tabs.addTab(self._deck,   "  Deck Analyzer  ")
-        self._tabs.addTab(self._search, "  Search  ")
-        self._tabs.addTab(self._charts, "  Charts  ")
-        self._tabs.addTab(self._preds,  "  Predictions  ")
+        self._tabs.addTab(self._dash,   "  \u29c6  DASHBOARD  ")
+        self._tabs.addTab(self._deck,   "  \u25c8  DECK ANALYZER  ")
+        self._tabs.addTab(self._search, "  \u2295  SEARCH  ")
+        self._tabs.addTab(self._charts, "  \u2248  CHARTS  ")
+        self._tabs.addTab(self._preds,  "  \u25c7  PREDICTIONS  ")
 
         self.setCentralWidget(self._tabs)
 
@@ -157,11 +313,16 @@ class MainWindow(QMainWindow):
         sb = QStatusBar()
         self.setStatusBar(sb)
         self._status_lbl = QLabel("Ready")
-        self._status_lbl.setStyleSheet("color: #888888;")
+        self._status_lbl.setStyleSheet(
+            "color: #3a6a7a; font-family: 'Consolas','Courier New',monospace; font-size: 11px;"
+        )
         sb.addWidget(self._status_lbl)
 
         self._event_count_lbl = QLabel("")
-        self._event_count_lbl.setStyleSheet("color: #555555; padding-right: 8px;")
+        self._event_count_lbl.setStyleSheet(
+            "color: #00bcd4; font-family: 'Consolas','Courier New',monospace; "
+            "font-size: 11px; padding-right: 12px;"
+        )
         sb.addPermanentWidget(self._event_count_lbl)
 
     # ------------------------------------------------------------------

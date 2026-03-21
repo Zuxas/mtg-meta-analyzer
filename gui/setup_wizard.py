@@ -21,12 +21,14 @@ from gui.worker_threads import ScryfallDownloadWorker, BackfillWorker, _count_ev
 MIN_EVENTS = 50
 
 
-def _btn_style(color="#4363d8", hover="#5373e8"):
+def _btn_style(color="#00bcd4", hover="#00ddf0"):
+    text = "#0a0e1a" if color == "#00bcd4" or color.startswith("#00") else "white"
     return (
-        f"QPushButton {{ background: {color}; color: white; border: none; "
-        f"padding: 6px 20px; border-radius: 4px; font-weight: bold; }}"
+        f"QPushButton {{ background: {color}; color: {text}; border: none; "
+        f"padding: 6px 20px; border-radius: 3px; font-weight: bold; "
+        f"font-family: 'Consolas','Courier New',monospace; letter-spacing: 0.5px; }}"
         f"QPushButton:hover {{ background: {hover}; }}"
-        f"QPushButton:disabled {{ background: #2a2a4e; color: #555; }}"
+        f"QPushButton:disabled {{ background: #1a2035; color: #3a5a6a; border: 1px solid #1e3a4a; }}"
     )
 
 
@@ -62,15 +64,18 @@ class SetupWizard(QDialog):
         header = QFrame()
         header.setFixedHeight(64)
         header.setStyleSheet(
-            "background-color: #0d0d1e; border-bottom: 2px solid #4363d8;"
+            "background-color: #070b14; border-bottom: 1px solid #00bcd4;"
         )
         hl = QHBoxLayout(header)
         hl.setContentsMargins(24, 0, 24, 0)
-        title = QLabel("MTG Meta Analyzer")
-        title.setFont(QFont("Arial", 17, QFont.Weight.Bold))
-        title.setStyleSheet("color: #4363d8;")
-        sub = QLabel("First-Time Setup")
-        sub.setStyleSheet("color: #888888; font-size: 12px;")
+        title = QLabel("MTG META ANALYZER")
+        title.setFont(QFont("Consolas", 16, QFont.Weight.Bold))
+        title.setStyleSheet("color: #00bcd4; letter-spacing: 2px;")
+        sub = QLabel("// FIRST-TIME SETUP")
+        sub.setStyleSheet(
+            "color: #3a6a7a; font-family: 'Consolas','Courier New',monospace; "
+            "font-size: 11px; letter-spacing: 1px;"
+        )
         hl.addWidget(title)
         hl.addSpacing(12)
         hl.addWidget(sub)
@@ -94,9 +99,10 @@ class SetupWizard(QDialog):
 
         self._btn_skip = QPushButton("Skip Setup")
         self._btn_skip.setStyleSheet(
-            "QPushButton { background: transparent; color: #666; "
-            "border: 1px solid #444; padding: 6px 16px; border-radius: 4px; }"
-            "QPushButton:hover { color: #aaa; border-color: #888; }"
+            "QPushButton { background: transparent; color: #3a6a7a; "
+            "border: 1px solid #1e3a4a; padding: 6px 16px; border-radius: 3px; "
+            "font-family: 'Consolas','Courier New',monospace; }"
+            "QPushButton:hover { color: #00bcd4; border-color: #00bcd4; }"
         )
         self._btn_skip.clicked.connect(self._skip)
 
@@ -162,9 +168,10 @@ class SetupWizard(QDialog):
         self._scryfall_bar = QProgressBar()
         self._scryfall_bar.setRange(0, 100)
         self._scryfall_bar.setStyleSheet(
-            "QProgressBar { border: 1px solid #2a2a4e; border-radius: 4px; "
-            "background: #16213e; color: white; text-align: center; height: 26px; }"
-            "QProgressBar::chunk { background: #4363d8; border-radius: 3px; }"
+            "QProgressBar { border: 1px solid #1e3a4a; border-radius: 3px; "
+            "background: #101525; color: #00bcd4; text-align: center; height: 22px; }"
+            "QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            "stop:0 #007a8a, stop:1 #00bcd4); border-radius: 2px; }"
         )
         v.addWidget(self._scryfall_bar)
 
@@ -215,9 +222,10 @@ class SetupWizard(QDialog):
         self._backfill_bar = QProgressBar()
         self._backfill_bar.setRange(0, MIN_EVENTS)
         self._backfill_bar.setStyleSheet(
-            "QProgressBar { border: 1px solid #2a2a4e; border-radius: 4px; "
-            "background: #16213e; color: white; text-align: center; height: 24px; }"
-            "QProgressBar::chunk { background: #3cb44b; border-radius: 3px; }"
+            "QProgressBar { border: 1px solid #1e3a4a; border-radius: 3px; "
+            "background: #101525; color: #00bcd4; text-align: center; height: 22px; }"
+            "QProgressBar::chunk { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            "stop:0 #007a8a, stop:1 #00bcd4); border-radius: 2px; }"
         )
         v.addWidget(self._backfill_bar)
 

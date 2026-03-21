@@ -38,21 +38,27 @@ class PredictionsTab(QWidget):
         self._pending_only = QCheckBox("Pending only")
         ctrl.addWidget(self._pending_only)
 
-        def _styled(text, color="#4363d8"):
+        def _styled(text, color="#00bcd4", text_color="#0a0e1a"):
             b = QPushButton(text)
             b.setStyleSheet(
-                f"QPushButton {{ background: {color}; color: white; border: none; "
-                f"padding: 5px 14px; border-radius: 4px; }}"
-                f"QPushButton:hover {{ filter: brightness(1.15); }}"
-                f"QPushButton:disabled {{ background: #2a2a4e; color: #555; }}"
+                f"QPushButton {{ background: {color}; color: {text_color}; border: none; "
+                f"padding: 5px 14px; border-radius: 3px; font-weight: bold; }}"
+                f"QPushButton:hover {{ background: #00ddf0; color: #0a0e1a; }}"
+                f"QPushButton:disabled {{ background: #1a2035; color: #3a5a6a; "
+                f"border: 1px solid #1e3a4a; }}"
             )
             return b
 
-        self._gen_btn = _styled("Generate Predictions", "#4363d8")
+        self._gen_btn = _styled("Generate Predictions")
         self._gen_btn.clicked.connect(self._generate)
         ctrl.addWidget(self._gen_btn)
 
-        self._val_btn = _styled("Validate", "#3cb44b")
+        self._val_btn = _styled("Validate", "#1a3a2a", "#3cb44b")
+        self._val_btn.setStyleSheet(
+            "QPushButton { background: #1a3a2a; color: #3cb44b; border: 1px solid #2a5a3a; "
+            "padding: 5px 14px; border-radius: 3px; font-weight: bold; }"
+            "QPushButton:hover { background: #2a5a3a; color: #4cca5b; }"
+        )
         self._val_btn.clicked.connect(self._validate)
         ctrl.addWidget(self._val_btn)
 

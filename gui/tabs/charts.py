@@ -99,9 +99,9 @@ class ChartsTab(QWidget):
         # Buttons
         self._gen_btn = QPushButton("Generate Chart")
         self._gen_btn.setStyleSheet(
-            "QPushButton { background: #4363d8; color: white; border: none; "
+            "QPushButton { background: #00bcd4; color: #0a0e1a; border: none; "
             "padding: 8px; border-radius: 4px; font-weight: bold; }"
-            "QPushButton:hover { background: #5373e8; }"
+            "QPushButton:hover { background: #00ddf0; }"
             "QPushButton:disabled { background: #2a2a4e; color: #555; }"
         )
         self._gen_btn.clicked.connect(self.generate)
@@ -109,9 +109,9 @@ class ChartsTab(QWidget):
 
         self._save_btn = QPushButton("Save PNG")
         self._save_btn.setStyleSheet(
-            "QPushButton { background: #2a2a4e; color: #ccc; "
-            "border: 1px solid #4a4a6e; padding: 6px; border-radius: 4px; }"
-            "QPushButton:hover { background: #3a3a5e; }"
+            "QPushButton { background: transparent; color: #3a8a9a; "
+            "border: 1px solid #1e3a4a; padding: 6px; border-radius: 3px; }"
+            "QPushButton:hover { border-color: #00bcd4; color: #00bcd4; }"
         )
         self._save_btn.clicked.connect(self._save_png)
         cv.addWidget(self._save_btn)
