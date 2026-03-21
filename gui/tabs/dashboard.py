@@ -83,6 +83,7 @@ class DashboardTab(QWidget):
 
         self._table = MetaTable()
         self._table.archetype_selected.connect(self._on_arch_selected)
+        self._table.itemDoubleClicked.connect(self._on_arch_double_clicked)
         splitter.addWidget(self._table)
 
         self._canvas = ChartCanvas()
@@ -151,6 +152,20 @@ class DashboardTab(QWidget):
         self._chart_type.setCurrentText("Archetype Trend")
         # currentTextChanged fires _redraw_chart, but guard in case it was already Trend
         self._redraw_chart()
+
+    def _on_arch_double_clicked(self, item):
+        arch_item = self._table.item(self._table.currentRow(), 0)
+        if not arch_item:
+            return
+        archetype = arch_item.text()
+        from gui.widgets.archetype_detail import ArchetypeDetailDialog
+        dlg = ArchetypeDetailDialog(
+            archetype=archetype,
+            format_name=self._fmt.currentText(),
+            initial_weeks=self._selected_weeks(),
+            parent=self,
+        )
+        dlg.exec()
 
     def _redraw_chart(self):
         fmt   = self._fmt.currentText()
