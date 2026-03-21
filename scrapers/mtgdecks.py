@@ -474,6 +474,56 @@ def _process_event(ev, format_name):
 
 
 # ---------------------------------------------------------------------------
+# Backfill missing card data for existing decks
+# ---------------------------------------------------------------------------
+
+def backfill_missing_cards(format_name=None, limit=None):
+    """
+    Find decks (optionally filtered by format) that have no card data stored
+    and fetch their card lists from their individual deck URLs.
+    Skips any deck whose URL is missing.
+    """
+    with get_connection() as conn:
+        q = """
+            SELECT d.id AS deck_id, d.url, d.archetype, e.format
+            FROM decks d
+            JOIN events e ON e.id = d.event_id
+            WHERE e.source = 'mtgdecks'
+              AND d.url IS NOT NULL
+              AND d.id NOT IN (SELECT DISTINCT deck_id FROM deck_cards)
+        """
+        params = []
+        if format_name:
+            q += " AND lower(e.format) = lower(?)"
+            params.append(format_name)
+        if limit:
+            q += f" LIMIT {int(limit)}"
+        rows = [dict(r) for r in conn.execute(q, params).fetchall()]
+
+    total = len(rows)
+    if total == 0:
+        print("  No decks with missing card data found.")
+        return 0
+
+    print(f"  Found {total} deck(s) missing card data. Fetching...\n")
+    fixed = 0
+    for i, row in enumerate(rows, 1):
+        print(f"  [{i}/{total}] {row['archetype'][:40]} — {row['url'][-50:]}", end="")
+        main_list, side_list = scrape_deck_cards(row["url"])
+        main_dict = {c["name"]: c["quantity"] for c in main_list}
+        side_dict = {c["name"]: c["quantity"] for c in side_list}
+        if main_dict:
+            insert_deck_cards(row["deck_id"], main_dict, side_dict)
+            fixed += 1
+            print(f"  — {len(main_dict)} main / {len(side_dict)} side")
+        else:
+            print("  — no cards found (page may have changed)")
+
+    print(f"\n  Done: fixed {fixed}/{total} decks.")
+    return fixed
+
+
+# ---------------------------------------------------------------------------
 # Main run
 # ---------------------------------------------------------------------------
 
@@ -536,8 +586,17 @@ if __name__ == "__main__":
                         help="Min player count to scrape (default 50; MTGO Challenges always included)")
     parser.add_argument("--dry-run", action="store_true",
                         help="List events only, don't store anything")
+    parser.add_argument("--backfill-cards", action="store_true",
+                        help="Fetch card lists for existing decks that are missing them")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Max decks to fix when using --backfill-cards")
     args = parser.parse_args()
 
     init_db()
-    run_scraper(format_name=args.format, pages=args.pages,
-                min_players=args.min_players, dry_run=args.dry_run)
+
+    if args.backfill_cards:
+        fmt = args.format if args.format != "standard" else None  # None = all formats
+        backfill_missing_cards(format_name=fmt, limit=args.limit)
+    else:
+        run_scraper(format_name=args.format, pages=args.pages,
+                    min_players=args.min_players, dry_run=args.dry_run)
