@@ -11,13 +11,13 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
-    QComboBox, QSpinBox, QGroupBox, QLineEdit, QCheckBox,
-    QSizePolicy,
+    QComboBox, QSpinBox, QGroupBox, QCheckBox,
+    QSizePolicy, QDateEdit,
 )
 from PyQt6.QtCore import QDate
-from PyQt6.QtWidgets import QDateEdit
 
 from gui.widgets.chart_canvas import ChartCanvas
+from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
 
 _project_root = os.path.dirname(
@@ -28,7 +28,9 @@ _project_root = os.path.dirname(
 class ChartsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._workers = []
         self._build_ui()
+        self._refresh_archetypes()
 
     def _build_ui(self):
         outer = QHBoxLayout(self)
@@ -53,13 +55,17 @@ class ChartsTab(QWidget):
         cv.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
+        self._fmt.currentIndexChanged.connect(self._refresh_archetypes)
         cv.addWidget(self._fmt)
 
-        # Archetype (Trend only)
+        # Archetype (Trend only) — editable combo populated from DB
         self._arch_label = QLabel("Archetype:")
         cv.addWidget(self._arch_label)
-        self._arch = QLineEdit()
-        self._arch.setPlaceholderText("e.g. Izzet Prowess")
+        self._arch = QComboBox()
+        self._arch.setEditable(True)
+        self._arch.setMinimumWidth(160)
+        self._arch.lineEdit().setPlaceholderText("e.g. Izzet Prowess")
+        self._arch.lineEdit().returnPressed.connect(self.generate)
         cv.addWidget(self._arch)
 
         # Weeks
@@ -153,7 +159,7 @@ class ChartsTab(QWidget):
             if chart_type == "Meta Share":
                 self._canvas.plot_meta_share(fmt, top, weeks, since, until)
             elif chart_type == "Archetype Trend":
-                arch = self._arch.text().strip()
+                arch = self._arch.currentText().strip()
                 if not arch:
                     self._status.setText("Enter an archetype name.")
                     return
@@ -186,9 +192,46 @@ class ChartsTab(QWidget):
     # External API — called from other tabs (e.g. clicking a row in Dashboard)
     # ------------------------------------------------------------------
 
+    def _refresh_archetypes(self):
+        """Populate the archetype combo with top archetypes for the current format."""
+        fmt = self._fmt.currentText()
+
+        def _do():
+            from db.database import get_combined_connection
+            conn = get_combined_connection()
+            try:
+                rows = conn.execute("""
+                    SELECT d.archetype, COUNT(*) AS cnt
+                    FROM decks d
+                    JOIN events e ON e.id = d.event_id
+                    WHERE lower(e.format) = lower(?)
+                    GROUP BY d.archetype
+                    ORDER BY cnt DESC
+                    LIMIT 100
+                """, [fmt]).fetchall()
+            finally:
+                conn.close()
+            return [r[0] for r in rows]
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_archetypes_loaded)
+        w.start()
+        self._workers.append(w)
+
+    def _on_archetypes_loaded(self, archetypes: list):
+        current = self._arch.currentText()
+        self._arch.blockSignals(True)
+        self._arch.clear()
+        self._arch.addItems(archetypes)
+        idx = self._arch.findText(current)
+        self._arch.setCurrentIndex(idx if idx >= 0 else -1)
+        if idx < 0:
+            self._arch.lineEdit().setText(current)
+        self._arch.blockSignals(False)
+
     def show_archetype_trend(self, archetype, format_name="standard"):
         """Programmatically load this tab and render a trend chart."""
         self._type.setCurrentText("Archetype Trend")
-        self._arch.setText(archetype)
+        self._arch.setCurrentText(archetype)
         self._fmt.setCurrentText(format_name)
         self._canvas.plot_trend(archetype, format_name, self._weeks.value())

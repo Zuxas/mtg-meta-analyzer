@@ -49,12 +49,25 @@ def _pip_color(identity: str) -> QColor:
 
 def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
     """Load standings + recent top finishes for the three top panels."""
+    from datetime import datetime
     from analysis.win_rates import get_meta_standings
     from db.database import get_combined_connection
 
     standings = get_meta_standings(
         format_name=format_name, top=top, min_appearances=2, since=since_dt,
     )
+
+    # Also fetch the *prior* period (same duration, shifted back) for trend arrows.
+    prior_standings = []
+    if since_dt:
+        now = datetime.now()
+        duration = now - since_dt
+        prior_until = since_dt
+        prior_since = since_dt - duration
+        prior_standings = get_meta_standings(
+            format_name=format_name, top=top, min_appearances=2,
+            since=prior_since, until=prior_until,
+        )
 
     conn = get_combined_connection()
     try:
@@ -79,7 +92,7 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
     finally:
         conn.close()
 
-    return {"standings": standings, "recent": recent}
+    return {"standings": standings, "prior_standings": prior_standings, "recent": recent}
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +124,7 @@ def _set_cell(tbl, row, col, text, align=Qt.AlignmentFlag.AlignVCenter,
         item.setFont(f)
     item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
     tbl.setItem(row, col, item)
+    return item
 
 
 def _placement_str(p: int) -> str:
@@ -397,8 +411,9 @@ class DashboardTab(QWidget):
         self._winrate_hdr.setText(f"  WIN RATE — {tf_label.upper()}")
         self._pop_hdr.setText(f"  POPULAR — {tf_label.upper()}")
 
-        self._populate_winrate(self._standings)
-        self._populate_popularity(self._standings)
+        prior_map = {s["archetype"]: s for s in data.get("prior_standings", [])}
+        self._populate_winrate(self._standings, prior_map)
+        self._populate_popularity(self._standings, prior_map)
         self._populate_recent(data["recent"])
 
     def _on_chart_data(self, data):
@@ -441,7 +456,25 @@ class DashboardTab(QWidget):
     # Panel population
     # ------------------------------------------------------------------
 
-    def _populate_winrate(self, standings: list):
+    # Subtle row tint colors for rising / falling archetypes
+    _ROW_RISING  = QColor(18, 48, 22)   # dark green
+    _ROW_FALLING = QColor(52, 18, 18)   # dark red
+
+    def _trend_bg(self, archetype: str, prior_map: dict,
+                  current_val: float, prior_key: str,
+                  threshold: float = 0.02) -> QColor | None:
+        """Return a tint color if the archetype is clearly rising or falling."""
+        if not prior_map or archetype not in prior_map:
+            return None
+        prior_val = prior_map[archetype].get(prior_key) or 0
+        delta = current_val - prior_val
+        if delta > threshold:
+            return self._ROW_RISING
+        if delta < -threshold:
+            return self._ROW_FALLING
+        return None
+
+    def _populate_winrate(self, standings: list, prior_map: dict = None):
         tbl = self._winrate_tbl
         top_n = int(self._top_n.currentText())
         ranked = sorted(
@@ -452,30 +485,65 @@ class DashboardTab(QWidget):
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
             tbl.setCellWidget(ri, 0, theme.make_pip_widget(ident))
-            _set_cell(tbl, ri, 1, s["archetype"])
+
             pct = s["est_match_winpct"] * 100
+            bg  = self._trend_bg(s["archetype"], prior_map,
+                                  s["est_match_winpct"], "est_match_winpct",
+                                  threshold=0.02)
+
+            arch_item = _set_cell(tbl, ri, 1, s["archetype"])
+            if bg:
+                arch_item.setBackground(bg)
+
             clr = QColor(theme.OK) if pct >= 55 else (
                   QColor(theme.WARN) if pct >= 50 else QColor(theme.ERR))
-            _set_cell(tbl, ri, 2, f"{pct:.1f}%",
+            pct_item = _set_cell(tbl, ri, 2, f"{pct:.1f}%",
                       align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
                       fg=clr)
+            if bg:
+                pct_item.setBackground(bg)
         tbl.resizeRowsToContents()
 
-    def _populate_popularity(self, standings: list):
+    def _populate_popularity(self, standings: list, prior_map: dict = None):
         tbl = self._pop_tbl
         top_n = int(self._top_n.currentText())
         ranked = sorted(standings, key=lambda s: -s["appearances"])[:top_n]
-        total_apps = sum(s["appearances"] for s in standings) or 1  # use full list for accurate %
+        total_apps      = sum(s["appearances"] for s in standings) or 1
+        prior_total     = sum(p.get("appearances", 0) for p in prior_map.values()) or 1 \
+                          if prior_map else 1
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
             tbl.setCellWidget(ri, 0, theme.make_pip_widget(ident))
-            _set_cell(tbl, ri, 1, s["archetype"])
-            _set_cell(tbl, ri, 2, str(s["appearances"]),
+
+            cur_share  = s["appearances"] / total_apps
+            prior_share = (prior_map[s["archetype"]]["appearances"] / prior_total
+                           if prior_map and s["archetype"] in prior_map else 0)
+            bg = self._trend_bg(s["archetype"], prior_map,
+                                cur_share, "__share__",  # sentinel — computed above
+                                threshold=0.005)
+            # Re-derive bg from share delta directly since prior_key trick won't work
+            if prior_map and s["archetype"] in prior_map:
+                delta = cur_share - prior_share
+                bg = self._ROW_RISING if delta > 0.005 else (
+                     self._ROW_FALLING if delta < -0.005 else None)
+            else:
+                bg = None
+
+            arch_item = _set_cell(tbl, ri, 1, s["archetype"])
+            if bg:
+                arch_item.setBackground(bg)
+
+            apps_item = _set_cell(tbl, ri, 2, str(s["appearances"]),
                       align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-            meta_pct = s["appearances"] / total_apps * 100
-            _set_cell(tbl, ri, 3, f"{meta_pct:.1f}%",
+            if bg:
+                apps_item.setBackground(bg)
+
+            meta_pct  = cur_share * 100
+            pct_item  = _set_cell(tbl, ri, 3, f"{meta_pct:.1f}%",
                       align=Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            if bg:
+                pct_item.setBackground(bg)
         tbl.resizeRowsToContents()
 
     def _populate_recent(self, recent: list):
