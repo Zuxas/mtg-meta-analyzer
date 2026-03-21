@@ -93,10 +93,15 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
   - **Dashboard performance fix**: `get_meta_standings` uses single bulk SQL query (was 918 queries → 1); load time 9s → 0.07s
   - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
-  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate Today / Popularity Today), Popularity Over Time + Win Rate Over Time toggleable charts, color identity mana pips, archetype checkboxes
+  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts, archetype checkboxes
+  - Panel titles are **dynamic**: "WIN RATE — 2 WEEKS", "POPULAR — 4 WEEKS" etc. update with timeframe selector
   - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion)
-  - **Date sort fix**: both `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) stored dates are normalized to `YYYYMMDD` via SQLite CASE expression for correct ordering/filtering everywhere
+  - **Date filter fix**: all panels use SQLite CASE expression (`_DATE_KEY`) to normalize `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) to `YYYYMMDD` for correct filtering/ordering everywhere. Applied in `win_rates.py`, `dashboard.py`, `archetype_detail.py`
+  - **`get_meta_standings` fix**: was comparing `e.date >= ?` with YYYY-MM-DD format — all MTGTop8 events were excluded. Fixed with `_DATE_KEY` CASE expression + `_dt_to_db_str` returning `%Y%m%d`
   - **Click handler fix**: Recent Top Finishes archetype cell stores raw name in `UserRole`; color-identity prefix no longer breaks deck detail lookup
+  - **Player column**: Recent Top Finishes shows Place / Colors / Archetype / Player / Event / Date (6 columns)
+  - **Mana color pips**: `theme.make_pip_widget()` uses `QFrame` + `WA_StyledBackground` + `border-radius: 5px` for proper circles. Official Wizards hex values: W=#F9FAF4, U=#0E68AB, B=#150B00 (displayed as #6a5a50 for visibility), R=#D3202A, G=#00733E
+  - **Izzet Prowess fix**: `refresh()` fetches `top=50` from standings so high-frequency archetypes aren't excluded by performance ranking; `_populate_winrate` and `_populate_popularity` then slice to user's selected top N
   - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
 
 ### Primary Format

@@ -57,11 +57,25 @@ current week's events, single-click any archetype row → deck detail dialog.
 
 ### Bugs fixed (2026-03-20 session)
 
-- **Date sort bug** — MTGTop8 stores `DD/MM/YY`, MTGDecks stores `YYYY-MM-DD`. All date
-  comparisons and ORDER BY now use a SQLite CASE expression that normalizes both to `YYYYMMDD`.
-  Affects: `analysis/win_rates.py` (`_DATE_KEY` constant + `_dt_to_db_str`),
-  `gui/tabs/dashboard.py` (Recent Top Finishes query),
-  `gui/widgets/archetype_detail.py` (deck detail query).
+- **Date filter fix** — MTGTop8 stores `DD/MM/YY`, MTGDecks stores `YYYY-MM-DD`. Filtering
+  was comparing incompatible string formats (e.g. `'14/03/26' >= '20260306'` = False in ASCII),
+  silently excluding all MTGTop8 events. Fixed with `_DATE_KEY` CASE expression (normalizes both
+  to `YYYYMMDD`) + `_dt_to_db_str` returning `%Y%m%d`. Applied in `win_rates.py`,
+  `dashboard.py`, `archetype_detail.py`.
+- **`get_meta_standings` day-of-month bug** — A prior edit used `replace_all=True` but missed
+  the function due to different indentation. The filter was doing `e.date >= '20260306'` string
+  compare against `DD/MM/YY` dates — only events on days 20-31 passed. Fixed manually.
+- **Izzet Prowess missing from Win Rate/Popular panels** — `get_meta_standings(top=12)` sorted by
+  `(avg_points, top8_rate)`, excluding Izzet Prowess (#1 by appearances, 601 events) as it ranked
+  outside top 12 on performance. Fixed: `refresh()` now fetches `top=50`; populate functions slice
+  to user's selected top N after sorting independently.
+- **Mana color pips showing as squares** — `QLabel` backgrounds don't clip to `border-radius` in
+  Qt. Fixed: `theme.make_pip_widget()` now uses `QFrame` + `WA_StyledBackground` attribute which
+  forces Qt to clip the background, producing actual circles.
+- **Dynamic panel titles** — "WIN RATE THIS WEEK" is now "WIN RATE — 2 WEEKS" (or whatever
+  timeframe is selected). Titles update on every refresh via `_winrate_hdr` and `_pop_hdr` refs.
+- **Player column added** — Recent Top Finishes now shows 6 columns: Place / Colors / Archetype /
+  Player / Event / Date.
 - **"No decklists found" for clicked archetypes** — Recent Top Finishes stored `"UR  Izzet Prowess"`
   (color identity prefix) in the archetype cell. Fixed: raw name stored in `UserRole` data,
   click handler reads `UserRole` instead of `text()`.
@@ -167,6 +181,8 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer"
 
 ## Known issues / notes
 
+- **Pip circles** — `QFrame` + `WA_StyledBackground` approach is implemented and committed
+  but not yet visually confirmed. Restart GUI to verify circles render correctly.
 - `analysis/charts.py` sets `matplotlib.use("Agg")` at import — never import it
   inside GUI code. Use `gui/widgets/chart_canvas.py` instead.
 - `data/scryfall_oracle.json` is ~162 MB and gitignored. Regenerate:
