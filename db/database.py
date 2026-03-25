@@ -124,10 +124,23 @@ def get_combined_connection(include_archive=False):
 
 def _apply_schema(conn):
     conn.executescript(_SCHEMA_SQL)
-    try:
-        conn.execute("ALTER TABLE events ADD COLUMN event_type TEXT")
-    except sqlite3.OperationalError:
-        pass  # column already exists
+    # Additive migrations — safe to re-run; OperationalError = column exists
+    for stmt in [
+        "ALTER TABLE events ADD COLUMN event_type TEXT",
+        "ALTER TABLE events ADD COLUMN event_fingerprint TEXT",
+        "ALTER TABLE decks  ADD COLUMN deck_fingerprint  TEXT",
+    ]:
+        try:
+            conn.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+    # Indexes for fast fingerprint duplicate lookups
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_fp ON events(event_fingerprint)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_decks_fp ON decks(deck_fingerprint)"
+    )
 
 
 def init_db():
@@ -143,14 +156,32 @@ def init_db():
 
 
 def upsert_event(source, source_id, name, date, fmt, url, event_type=None):
+    from core.data_engine.dedup import generate_event_fingerprint
+    fp = generate_event_fingerprint(name, date, fmt)
+
     with get_connection() as conn:
+        # Detect cross-source duplicates before upserting (non-blocking — log only)
+        dup = conn.execute(
+            "SELECT id, source, source_id, name FROM events "
+            "WHERE event_fingerprint = ? AND NOT (source = ? AND source_id = ?)",
+            (fp, source, source_id),
+        ).fetchone()
+        if dup:
+            print(
+                f"  [DEDUP:event] '{name}' ({source}/{source_id})"
+                f" matches '{dup['name']}' ({dup['source']}/{dup['source_id']})"
+                f" fp={fp}"
+            )
+
         conn.execute("""
-            INSERT INTO events (source, source_id, name, date, format, event_type, url)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO events
+                (source, source_id, name, date, format, event_type, url, event_fingerprint)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO UPDATE SET
                 name=excluded.name, date=excluded.date,
-                format=excluded.format, event_type=excluded.event_type, url=excluded.url
-        """, (source, source_id, name, date, fmt, event_type, url))
+                format=excluded.format, event_type=excluded.event_type,
+                url=excluded.url, event_fingerprint=excluded.event_fingerprint
+        """, (source, source_id, name, date, fmt, event_type, url, fp))
         return conn.execute(
             "SELECT id FROM events WHERE source=? AND source_id=?", (source, source_id)
         ).fetchone()["id"]
@@ -172,11 +203,35 @@ def upsert_deck(event_id, source_id, player, archetype, placement, url):
 
 def insert_deck_cards(deck_id, mainboard, sideboard):
     """Insert all cards for a deck in a single connection to avoid locking."""
+    from core.data_engine.dedup import generate_deck_fingerprint
+    fp = generate_deck_fingerprint(mainboard, sideboard)
+
     def _get_or_create_card(conn, name):
         conn.execute("INSERT OR IGNORE INTO cards (name) VALUES (?)", (name,))
         return conn.execute("SELECT id FROM cards WHERE name=?", (name,)).fetchone()["id"]
 
     with get_connection() as conn:
+        # Detect cross-event deck duplicates (non-blocking — log only)
+        dup = conn.execute(
+            "SELECT d.id, d.player, e.name AS event_name, e.source AS event_source "
+            "FROM decks d JOIN events e ON e.id = d.event_id "
+            "WHERE d.deck_fingerprint = ? AND d.id != ?",
+            (fp, deck_id),
+        ).fetchone()
+        if dup:
+            print(
+                f"  [DEDUP:deck] deck {deck_id}"
+                f" matches deck {dup['id']}"
+                f" (player: {dup['player'] or 'unknown'},"
+                f" event: {(dup['event_name'] or '?')[:40]} [{dup['event_source']}])"
+                f" fp={fp}"
+            )
+
+        # Store fingerprint on the deck row
+        conn.execute(
+            "UPDATE decks SET deck_fingerprint = ? WHERE id = ?", (fp, deck_id)
+        )
+
         conn.execute("DELETE FROM deck_cards WHERE deck_id=?", (deck_id,))
         for card_name, qty in mainboard.items():
             card_id = _get_or_create_card(conn, card_name)
