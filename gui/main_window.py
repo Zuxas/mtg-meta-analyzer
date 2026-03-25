@@ -50,6 +50,11 @@ class MainWindow(QMainWindow):
         # Slight delay so the window paints before we check/run setup
         QTimer.singleShot(150, self._startup_check)
 
+        # Periodic memory + thread logging — requires psutil; silent if missing
+        self._mem_timer = QTimer(self)
+        self._mem_timer.timeout.connect(self._log_memory)
+        self._mem_timer.start(5 * 60 * 1000)  # every 5 minutes
+
     # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
@@ -166,12 +171,17 @@ class MainWindow(QMainWindow):
 
     def _background_scrape(self):
         """Quietly check for new events since last run."""
+        # Guard: never start a second scrape while one is already running
+        if getattr(self, '_scrape_worker', None) is not None and self._scrape_worker.isRunning():
+            return
         if self._tray:
             from gui.tray_icon import STATUS_RUNNING
             self._tray.set_status(STATUS_RUNNING, "checking for new events")
         self._scrape_worker = QuickScrapeWorker("standard")
         self._scrape_worker.status.connect(self._status_lbl.setText)
         self._scrape_worker.finished.connect(self._on_scrape_done)
+        # Clean up the C++ QThread object after the worker finishes
+        self._scrape_worker.finished.connect(lambda _n: self._scrape_worker.deleteLater())
         self._scrape_worker.start()
 
     def _on_scrape_done(self, new_events):
@@ -188,6 +198,26 @@ class MainWindow(QMainWindow):
             from gui.tray_icon import STATUS_IDLE, write_scrape_state
             write_scrape_state(status="ok")
             self._tray.set_status(STATUS_IDLE)
+
+    def _log_memory(self):
+        """Log RSS memory and active thread count every 5 minutes."""
+        try:
+            import psutil
+            import threading
+            rss_mb = psutil.Process().memory_info().rss / 1_048_576
+            thread_count = threading.active_count()
+            log_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs"
+            )
+            os.makedirs(log_dir, exist_ok=True)
+            from datetime import datetime
+            now = datetime.now()
+            entry = f"{now.strftime('%Y-%m-%d %H:%M:%S')}  RSS={rss_mb:.1f}MB  threads={thread_count}\n"
+            log_path = os.path.join(log_dir, f"memory_{now.strftime('%Y-%m-%d')}.log")
+            with open(log_path, "a") as f:
+                f.write(entry)
+        except Exception:
+            pass  # psutil not installed or write failed — skip silently
 
     def _update_event_count(self):
         count = _count_events("standard")

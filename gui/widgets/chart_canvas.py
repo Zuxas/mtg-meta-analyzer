@@ -214,6 +214,14 @@ class ChartCanvas(QWidget):
         # Keep worker references alive until they finish
         self._worker = None
 
+    def _start_worker(self, worker):
+        """Block signals on any running worker, then start the new one."""
+        if self._worker is not None:
+            self._worker.blockSignals(True)
+        self._worker = worker
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -312,12 +320,10 @@ class ChartCanvas(QWidget):
                         since=None, until=None, standings=None):
         """standings: pass pre-loaded list from get_meta_standings() to skip that DB call."""
         self.show_message("Loading meta data\u2026", "#65bcd5")
-        self._worker = _MetaShareLoader(format_name, top, weeks, since, until, standings)
-        self._worker.done.connect(self._draw_meta_share)
-        self._worker.error.connect(
-            lambda e: self.show_message(f"Error: {e}", "#e6194b")
-        )
-        self._worker.start()
+        w = _MetaShareLoader(format_name, top, weeks, since, until, standings)
+        w.done.connect(self._draw_meta_share)
+        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        self._start_worker(w)
 
     def _draw_meta_share(self, data):
         if data is None:
@@ -362,14 +368,10 @@ class ChartCanvas(QWidget):
     def plot_trend(self, archetype, format_name="standard", weeks=12,
                    since=None, until=None):
         self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#65bcd5")
-        self._worker = _TrendLoader(archetype, format_name, weeks, since, until)
-        self._worker.done.connect(
-            lambda data: self._draw_trend(data, archetype, format_name)
-        )
-        self._worker.error.connect(
-            lambda e: self.show_message(f"Error: {e}", "#e6194b")
-        )
-        self._worker.start()
+        w = _TrendLoader(archetype, format_name, weeks, since, until)
+        w.done.connect(lambda data: self._draw_trend(data, archetype, format_name))
+        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        self._start_worker(w)
 
     def _draw_trend(self, weekly, archetype, format_name):
         if not weekly:
@@ -455,14 +457,10 @@ class ChartCanvas(QWidget):
     def plot_heatmap(self, format_name="standard", top=10, min_appearances=3,
                      since=None, until=None):
         self.show_message("Loading matchup data\u2026", "#65bcd5")
-        self._worker = _HeatmapLoader(format_name, top, min_appearances, since, until)
-        self._worker.done.connect(
-            lambda data: self._draw_heatmap(data, format_name)
-        )
-        self._worker.error.connect(
-            lambda e: self.show_message(f"Error: {e}", "#e6194b")
-        )
-        self._worker.start()
+        w = _HeatmapLoader(format_name, top, min_appearances, since, until)
+        w.done.connect(lambda data: self._draw_heatmap(data, format_name))
+        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        self._start_worker(w)
 
     def _draw_heatmap(self, matrix_data, format_name):
         if not matrix_data:

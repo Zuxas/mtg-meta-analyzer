@@ -416,10 +416,20 @@ class DashboardTab(QWidget):
     # Public API
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _cancel_worker(w):
+        """Block signals on a running worker so stale results are silently dropped."""
+        if w is not None:
+            w.blockSignals(True)
+
     def refresh(self):
         self._status_lbl.setText("Loading…")
         self._refresh_btn.setEnabled(False)
         self._canvas.show_message("Loading chart data…", theme.ACCENT)
+
+        # Discard results from any still-running workers before replacing them
+        self._cancel_worker(self._panel_worker)
+        self._cancel_worker(self._chart_worker)
 
         fmt   = self._fmt.currentText()
         top   = int(self._top_n.currentText())
@@ -436,6 +446,7 @@ class DashboardTab(QWidget):
         self._panel_worker.finished.connect(
             lambda: self._refresh_btn.setEnabled(True)
         )
+        self._panel_worker.finished.connect(self._panel_worker.deleteLater)
         self._panel_worker.start()
 
         # Load chart data separately (slower — one trend query per archetype)
@@ -449,6 +460,7 @@ class DashboardTab(QWidget):
         self._chart_worker.error.connect(
             lambda e: self._canvas.show_message(f"Chart error: {e}", theme.ERR)
         )
+        self._chart_worker.finished.connect(self._chart_worker.deleteLater)
         self._chart_worker.start()
 
     # ------------------------------------------------------------------
