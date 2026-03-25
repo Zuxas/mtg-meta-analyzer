@@ -36,3 +36,6 @@ Desktop.ini
 # Scratch / debug files
 debug_response.html
 mtgdecks.net homepage.txt
+
+# Local roadmap (personal planning doc, not for repo)
+ROADMAP.md

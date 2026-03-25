@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-03-21 (session 2)
+Last updated: 2026-03-25
 
 ---
 
@@ -154,9 +154,38 @@ python run_gui.py
 
 ---
 
-## TOP PRIORITIES — Mar 25 Session 1
+## TOP PRIORITIES — Mar 25
 
-### 1. My Decks GUI tab + RCQ Optimizer upgrade
+### 1. Memory leak audit (CRITICAL — app crashed overnight)
+- Audit all long-running threads, worker objects, and signal connections for leaks
+- Check QuickScrapeWorker, FigureCanvasQTAgg, and DB connections for improper teardown
+- Add resource tracking / explicit cleanup on close
+
+### 2. Melee.gg scraper fix
+- Run `python -m scrapers.mtgmelee_scraper --test --verbose` in terminal first
+- 200 OK confirmed from user — parse the response shape and fix endpoint/field mapping
+- Then test a real scrape: `python -m scrapers.mtgmelee_scraper --format standard --pages 2`
+
+### 3. My Decks library + SB plan editor
+- `db/saved_decks.py` already exists — go straight to GUI
+- `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
+- Click deck → shows 75 + all saved SB plans
+- "Open in RCQ Optimizer" passes deck to tournament_prep.py
+
+### 4. Fix remaining smoke test bugs
+- "Use Cached" crash in Matchup Data tab (theme.ERROR → theme.ERR — may be fixed, verify)
+- Auto-legality check triggers on Analyze (should only run on explicit button click)
+- Predictions tab "how this works" info box — verify it renders correctly
+
+### 5. Legend/key for dashboard colors and star badges
+- Add a small key or tooltip explaining tier badge colors (S/A/B/C) in the WIN RATE panel
+- Explain the ★ star suffix (real match W/L data vs estimated placement)
+
+---
+
+## PREVIOUS TOP PRIORITIES (Mar 25 Session 1)
+
+### My Decks GUI tab + RCQ Optimizer upgrade
 - `db/saved_decks.py` already exists (built session 3) — go straight to GUI
 - `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
 - Click deck → shows 75 + all saved SB plans
