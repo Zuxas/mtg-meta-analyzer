@@ -1,12 +1,15 @@
 """
-Tab — Live Matchup Heatmap
+Tab — Matchup Data Heatmap
 
-Displays win-rate data scraped from MTGDecks.net as a colour-coded grid.
+Displays win-rate data as a colour-coded grid. Three data sources merged:
 
-Data sources:
-  • "Fetch Live Data"  — scrapes MTGDecks right now and saves to DB
-  • "Use Cached"       — loads the last saved DB snapshot
-  • "Paste Data"       — manual CSV / JSON paste dialog (Frank Karsten, etc.)
+  1. **Real Match Data (DB)** — 221k+ actual match results from MTGMelee.
+     Uses get_real_matchup_winrates() with min_matches=20.  Highest priority.
+  2. **MTGDecks Live** — scraped from MTGDecks.net /winrates.  Fills gaps.
+  3. **Paste Data** — manual CSV / JSON paste (Frank Karsten, etc.)
+
+Combined view:  real data (★) takes priority;  scraped data fills gaps.
+Only archetypes in get_meta_standings(top=30) are shown; sorted by meta share.
 
 Color scale:
   ≥ 60 %   deep green
@@ -92,6 +95,62 @@ class _LoadWorker(QThread):
         try:
             from db.matchup_queries import get_matchup_matrix
             self.done.emit(get_matchup_matrix(self.format_name))
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+
+class _CombinedWorker(QThread):
+    """Load real match data + cached scraped data and merge them."""
+    done  = pyqtSignal(dict, dict)  # (combined_matrix, source_map)
+    error = pyqtSignal(str)
+
+    def __init__(self, format_name: str):
+        super().__init__()
+        self.format_name = format_name
+
+    def run(self):
+        try:
+            # 1) Real match data from matches table
+            from analysis.win_rates import get_real_matchup_winrates
+            real_raw = get_real_matchup_winrates(self.format_name, min_matches=20)
+
+            # Convert canonical (a<b) to full bidirectional matrix
+            real_matrix = {}
+            for a, opponents in real_raw.items():
+                for b, stats in opponents.items():
+                    wr_a = stats["win_rate"]
+                    n    = stats["total"]
+                    real_matrix.setdefault(a, {})[b] = {
+                        "winrate": wr_a, "matches": n,
+                    }
+                    real_matrix.setdefault(b, {})[a] = {
+                        "winrate": round(1.0 - wr_a, 4), "matches": n,
+                    }
+
+            # 2) Cached scraped data
+            from db.matchup_queries import get_matchup_matrix
+            scraped = get_matchup_matrix(self.format_name)
+
+            # 3) Merge: real takes priority, scraped fills gaps
+            combined = {}
+            source   = {}   # {(a,b): "real"|"scraped"}
+            all_archs = set(real_matrix) | set(scraped)
+
+            for a in all_archs:
+                combined[a] = {}
+                real_opps    = real_matrix.get(a, {})
+                scraped_opps = scraped.get(a, {})
+                for b in all_archs:
+                    if a == b:
+                        continue
+                    if b in real_opps:
+                        combined[a][b] = real_opps[b]
+                        source[(a, b)] = "real"
+                    elif b in scraped_opps:
+                        combined[a][b] = scraped_opps[b]
+                        source[(a, b)] = "scraped"
+
+            self.done.emit(combined, source)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -227,6 +286,7 @@ class HeatmapTab(QWidget):
         super().__init__(parent)
         self._worker = None
         self._current_matrix: dict = {}
+        self._source_map: dict = {}  # {(a,b): "real"|"scraped"}
         self._build_ui()
 
     def _build_ui(self):
@@ -249,15 +309,24 @@ class HeatmapTab(QWidget):
         self._fmt.setFixedWidth(100)
         tl.addWidget(self._fmt)
 
-        self._fetch_btn = QPushButton("Fetch Live Data")
-        self._fetch_btn.setStyleSheet(theme.btn_primary())
+        self._combined_btn = QPushButton("Real Match Data (DB)")
+        self._combined_btn.setStyleSheet(theme.btn_primary())
+        self._combined_btn.setToolTip(
+            "Build heatmap from 221k+ real match results.\n"
+            "Scraped MTGDecks data fills gaps where real data is thin."
+        )
+        self._combined_btn.clicked.connect(self._load_combined)
+        tl.addWidget(self._combined_btn)
+
+        self._fetch_btn = QPushButton("MTGDecks Live")
+        self._fetch_btn.setStyleSheet(theme.btn_secondary())
         self._fetch_btn.setToolTip("Scrape current win-rates from MTGDecks.net and save to DB")
         self._fetch_btn.clicked.connect(self._fetch_live)
         tl.addWidget(self._fetch_btn)
 
         self._cache_btn = QPushButton("Use Cached")
         self._cache_btn.setStyleSheet(theme.btn_secondary())
-        self._cache_btn.setToolTip("Load the last saved snapshot from the local DB")
+        self._cache_btn.setToolTip("Load the last saved MTGDecks snapshot from the local DB")
         self._cache_btn.clicked.connect(self._load_cached)
         tl.addWidget(self._cache_btn)
 
@@ -282,7 +351,8 @@ class HeatmapTab(QWidget):
 
         # ── Status label ──────────────────────────────────────────────
         self._status = QLabel(
-            "Select a format and click \u2018Fetch Live Data\u2019 or \u2018Use Cached\u2019."
+            "Click \u2018Real Match Data (DB)\u2019 for heatmap from actual match results, "
+            "or \u2018MTGDecks Live\u2019 to scrape."
         )
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status.setStyleSheet(
@@ -313,11 +383,11 @@ class HeatmapTab(QWidget):
         hl.setSpacing(12)
         hl.addWidget(QLabel("Legend:"))
         for label, color in [
-            ("≥60% (Strong Fav)", QColor(20, 80, 35)),
-            ("55–59% (Favored)",  QColor(30, 65, 30)),
-            ("45–54% (Even)",     QColor(55, 55, 65)),
-            ("40–44% (Unfav)",    QColor(80, 35, 30)),
-            ("≤39% (Bad)",        QColor(100, 20, 20)),
+            ("\u226560% (Strong Fav)", QColor(20, 80, 35)),
+            ("55\u201359% (Favored)",  QColor(30, 65, 30)),
+            ("45\u201354% (Even)",     QColor(55, 55, 65)),
+            ("40\u201344% (Unfav)",    QColor(80, 35, 30)),
+            ("\u226439% (Bad)",        QColor(100, 20, 20)),
         ]:
             swatch = QLabel()
             swatch.setFixedSize(14, 14)
@@ -329,6 +399,12 @@ class HeatmapTab(QWidget):
             lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
             hl.addWidget(swatch)
             hl.addWidget(lbl)
+
+        # Source legend
+        star_lbl = QLabel("\u2605 = real match data   (no star) = scraped")
+        star_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 10px;")
+        hl.addWidget(star_lbl)
+
         hl.addStretch()
         return row
 
@@ -337,6 +413,7 @@ class HeatmapTab(QWidget):
     # ------------------------------------------------------------------
 
     def _set_busy(self, busy: bool):
+        self._combined_btn.setEnabled(not busy)
         self._fetch_btn.setEnabled(not busy)
         self._cache_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
@@ -353,9 +430,31 @@ class HeatmapTab(QWidget):
                 pass
             self._worker = None
 
+    def _load_combined(self):
+        """Default action: real match data + scraped fills gaps."""
+        fmt = self._fmt.currentText()
+        self._load_source = "combined"
+        self._status.setText(f"Loading real match data + cached scrapes for {fmt}\u2026")
+        self._status.setVisible(True)
+        self._scroll.setVisible(False)
+        self._set_busy(True)
+
+        self._cancel_worker()
+        self._worker = _CombinedWorker(fmt)
+        self._worker.done.connect(self._on_combined_data)
+        self._worker.error.connect(self._on_error)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
+        self._worker.start()
+
+    def _on_combined_data(self, matrix: dict, source_map: dict):
+        self._source_map = source_map
+        self._on_data(matrix)
+
     def _fetch_live(self):
         fmt = self._fmt.currentText()
         self._load_source = "fetch"
+        self._source_map = {}
         self._status.setText(f"Fetching {fmt} win-rates from MTGDecks\u2026")
         self._status.setVisible(True)
         self._scroll.setVisible(False)
@@ -372,6 +471,7 @@ class HeatmapTab(QWidget):
     def _load_cached(self):
         fmt = self._fmt.currentText()
         self._load_source = "cache"
+        self._source_map = {}
         self._status.setText(f"Loading cached {fmt} data\u2026")
         self._status.setVisible(True)
         self._scroll.setVisible(False)
@@ -388,6 +488,7 @@ class HeatmapTab(QWidget):
     def _open_paste_dialog(self):
         dlg = _PasteDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.result_matrix:
+            self._source_map = {}
             self._on_data(dlg.result_matrix)
 
     # ------------------------------------------------------------------
@@ -399,23 +500,25 @@ class HeatmapTab(QWidget):
         self._scroll.setVisible(False)
         self._status.setVisible(True)
         self._status.setText(f"Error: {msg}")
-        self.setVisible(True)
 
     def _on_data(self, matrix: dict):
         self._set_busy(False)
         if not matrix:
-            # Ensure the tab stays visible with a clear message
             self._scroll.setVisible(False)
             self._status.setVisible(True)
             if getattr(self, "_load_source", None) == "cache":
                 self._status.setText(
-                    "No cached data yet \u2014 click \u2018Fetch Live Data\u2019 first."
+                    "No cached data yet \u2014 click \u2018Real Match Data (DB)\u2019 "
+                    "or \u2018MTGDecks Live\u2019 first."
+                )
+            elif getattr(self, "_load_source", None) == "combined":
+                self._status.setText(
+                    "No match data found. Run the MTGMelee scraper or fetch from MTGDecks."
                 )
             else:
                 self._status.setText(
-                    "No data found. Try \u2018Fetch Live Data\u2019 to download from MTGDecks."
+                    "No data found. Try \u2018Real Match Data (DB)\u2019 or \u2018MTGDecks Live\u2019."
                 )
-            self.setVisible(True)  # guard: ensure this widget stays shown
             return
 
         self._current_matrix = matrix
@@ -423,13 +526,21 @@ class HeatmapTab(QWidget):
         filtered, ordered = self._filter_to_meta(matrix, fmt)
         self._draw_grid(filtered, ordered, total_archetypes=len(matrix))
 
-        # Update last-updated label from DB
-        try:
-            from db.matchup_queries import get_last_updated
-            ts = get_last_updated(fmt)
-            self._updated_lbl.setText(f"Last updated: {ts[:10] if ts else 'just now'}")
-        except Exception:
-            pass
+        # Update last-updated label
+        source = getattr(self, "_load_source", "")
+        if source == "combined":
+            real_ct = sum(1 for v in self._source_map.values() if v == "real")
+            scr_ct  = sum(1 for v in self._source_map.values() if v == "scraped")
+            self._updated_lbl.setText(
+                f"\u2605 {real_ct} real cells  |  {scr_ct} scraped cells"
+            )
+        else:
+            try:
+                from db.matchup_queries import get_last_updated
+                ts = get_last_updated(fmt)
+                self._updated_lbl.setText(f"Last updated: {ts[:10] if ts else 'just now'}")
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Meta filtering
@@ -438,9 +549,9 @@ class HeatmapTab(QWidget):
     def _filter_to_meta(self, matrix: dict, format_name: str, top: int = 30):
         """
         Return (filtered_matrix, ordered_archetypes) keeping only the top-N
-        archetypes by meta share, sorted descending so the most-played decks
-        are top-left.  Falls back to alpha-sorted full matrix if standings
-        are unavailable or produce no overlap.
+        archetypes by meta share, sorted descending.
+        Uses case-insensitive matching to bridge naming differences between
+        data sources.
         """
         try:
             from analysis.win_rates import get_meta_standings
@@ -448,17 +559,36 @@ class HeatmapTab(QWidget):
         except Exception:
             standings = []
 
-        meta_archs = [s["archetype"] for s in
-                      sorted(standings, key=lambda x: -x["appearances"])]
-        ordered = [a for a in meta_archs if a in matrix]
+        if not standings:
+            return matrix, sorted(matrix.keys())
+
+        # Build a case-insensitive lookup from matrix keys
+        matrix_lower = {k.lower(): k for k in matrix}
+
+        # Match meta archetype names to matrix keys (case-insensitive + substring)
+        ordered = []
+        for s in standings:
+            arch = s["archetype"]
+            low  = arch.lower()
+            # Exact match (case-insensitive)
+            if low in matrix_lower:
+                ordered.append(matrix_lower[low])
+            else:
+                # Substring match: check if the meta name is a substring of any matrix key or vice versa
+                for mk_low, mk_orig in matrix_lower.items():
+                    if mk_orig not in ordered and (low in mk_low or mk_low in low):
+                        ordered.append(mk_orig)
+                        break
 
         if not ordered:
-            return matrix, sorted(matrix.keys())
+            # No overlap found — fall back to sorting by number of matchup cells
+            by_cells = sorted(matrix.keys(), key=lambda a: -len(matrix.get(a, {})))
+            return matrix, by_cells[:top]
 
         ordered_set = set(ordered)
         filtered = {
             a: {b: v for b, v in matrix[a].items() if b in ordered_set}
-            for a in ordered
+            for a in ordered if a in matrix
         }
         return filtered, ordered
 
@@ -471,6 +601,7 @@ class HeatmapTab(QWidget):
         archetypes = ordered_archetypes if ordered_archetypes is not None \
                      else sorted(matrix.keys())
         n = len(archetypes)
+        source_map = self._source_map
 
         tbl = QTableWidget(n, n)
         tbl.setHorizontalHeaderLabels(archetypes)
@@ -492,7 +623,7 @@ class HeatmapTab(QWidget):
         for ri, arch_a in enumerate(archetypes):
             for ci, arch_b in enumerate(archetypes):
                 if arch_a == arch_b:
-                    item = QTableWidgetItem("—")
+                    item = QTableWidgetItem("\u2014")
                     item.setBackground(QColor(40, 40, 50))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     item.setForeground(QColor(theme.TEXT_DIM))
@@ -503,20 +634,22 @@ class HeatmapTab(QWidget):
                         item.setBackground(QColor(35, 35, 45))
                     else:
                         wr = matchup["winrate"]
-                        matches = matchup["matches"]
+                        matches = matchup.get("matches", 0)
                         pct = round(wr * 100)
-                        item = QTableWidgetItem(f"{pct}%")
+                        is_real = source_map.get((arch_a, arch_b)) == "real"
+                        star = "\u2605" if is_real else ""
+                        item = QTableWidgetItem(f"{pct}%{star}")
                         item.setBackground(_wr_color(wr))
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         verdict = _wr_label(wr)
+                        src_tag = "Real match data" if is_real else "Scraped (MTGDecks)"
                         tooltip = (
                             f"{arch_a}  vs  {arch_b}\n"
                             f"Win rate: {pct}%  ({verdict})\n"
-                            f"Sample: {matches:,} matches"
-                            if matches else
-                            f"{arch_a}  vs  {arch_b}\n"
-                            f"Win rate: {pct}%  ({verdict})"
+                            f"Source: {src_tag}"
                         )
+                        if matches:
+                            tooltip += f"\nSample: n={matches:,}"
                         item.setToolTip(tooltip)
                         if pct < 43 or pct > 57:
                             f = QFont()
@@ -545,15 +678,15 @@ class HeatmapTab(QWidget):
         vl = QVBoxLayout(self._grid_widget)
         vl.setContentsMargins(0, 0, 0, 0)
 
-        # Row/col label
+        # Info label
         if total_archetypes and total_archetypes > n:
             filter_note = (f"showing top {n} by meta share "
-                           f"(filtered from {total_archetypes})  ·  ")
+                           f"(filtered from {total_archetypes})  \u00b7  ")
         else:
             filter_note = ""
         info = QLabel(
-            f"{n} archetypes  ·  {filter_note}"
-            f"Row = your deck  ·  Column = opponent  ·  Cell = your win %"
+            f"{n} archetypes  \u00b7  {filter_note}"
+            f"Row = your deck  \u00b7  Column = opponent  \u00b7  Cell = your win %"
         )
         info.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px; padding: 4px;")
         vl.addWidget(info)

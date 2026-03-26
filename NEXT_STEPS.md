@@ -184,6 +184,17 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 3) — Heatmap rewrite + bug fixes
+
+1. **Heatmap rewrite** — combined view merges real match data (★) + scraped MTGDecks data
+   - `_CombinedWorker` builds bidirectional matrix from canonical real data + cached scrapes
+   - "Real Match Data (DB)" is now the primary button; MTGDecks Live is secondary
+   - `_filter_to_meta()` fixed: uses case-insensitive + substring matching
+   - Source shown per cell (★ for real, tooltip says source + sample n=X)
+   - Legend updated with ★ = real / no star = scraped
+
+---
+
 ### Session 2026-03-26 (Session 2) — Bug fixes
 
 1. **Heatmap "Use Cached" fix** — `_on_data` and `_on_error` now explicitly restore `_scroll`/`_status` visibility and call `self.setVisible(True)` guard

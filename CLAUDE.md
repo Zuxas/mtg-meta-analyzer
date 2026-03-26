@@ -165,14 +165,18 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `ON CONFLICT ... DO UPDATE` for upsert on (deck_id, opponent_archetype)
   - Functions: `save_deck`, `get_deck`, `get_decks`, `delete_deck`, `save_sb_plan`, `get_sb_plan`, `get_sb_plans`, `delete_sb_plan`
 
-- **Live Matchup Data** (`scrapers/matchup_scraper.py` + `db/matchup_queries.py` + `gui/tabs/heatmap_tab.py`):
-  - Scrapes MTGDecks.net `/winrates` page using existing `cloudscraper` setup
-  - Parses `data-winrate` attribute from the NxN HTML table (256 archetypes, ~3,181 cells for Standard)
-  - Stores in new `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
-  - New **MATCHUP DATA** tab: Fetch Live / Use Cached / Paste Data (CSV or JSON)
+- **Matchup Data** (`scrapers/matchup_scraper.py` + `db/matchup_queries.py` + `gui/tabs/heatmap_tab.py`):
+  - **Three data sources merged** in combined view (★ = real data, no star = scraped):
+    1. Real Match Data (DB) — `get_real_matchup_winrates()` from 221k+ actual matches (min_matches=20), highest priority
+    2. MTGDecks Live — scrapes MTGDecks.net `/winrates` page, fills gaps where real data is thin
+    3. Paste Data — manual CSV / JSON (Frank Karsten format)
+  - `_CombinedWorker` builds bidirectional matrix from canonical (a<b) real data + cached scrapes
+  - `_filter_to_meta()` uses case-insensitive + substring matching to bridge naming differences between sources
+  - Only archetypes in `get_meta_standings(top=30)` are shown, sorted by meta share descending
+  - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
   - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
-  - Tooltip per cell: archetype names, win%, verdict (Favored/Even/Unfavored), sample size
-  - Paste dialog accepts CSV (Frank Karsten format) or JSON matchup tables
+  - Tooltip per cell: archetype names, win%, verdict, source (Real/Scraped), sample size n=X
+  - Legend shows ★ real / no-star scraped + color key
   - CLI: `python -m scrapers.matchup_scraper --format standard --save`
 
 - **PyQt6 GUI** — fully wired, personal website theme applied:
