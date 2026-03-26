@@ -45,7 +45,7 @@ gui/tabs/predictions.py
 gui/tabs/knowledge_base.py       add/browse bookmarks + guides table, Sync Guides button
 gui/tabs/ask_claude.py           optional streaming chat (hidden until API key set in Settings)
 gui/tabs/settings.py             formats, data window, auto-update, AI Assistant key section
-gui/tabs/tournament_prep.py      RCQ Optimizer (G1/G2G3 analysis, flip detection) + Breaker Math
+gui/tabs/tournament_prep.py      Event Optimizer (G1/G2G3 analysis, flip detection) + Breaker Math
 gui/tray_icon.py                 system tray, status dots, right-click menu
 gui/first_run_setup.py           one-time UAC wizard, registers all 3 tasks
 analysis/tournament.py           rcq_equity() with guide-aware post-board WR
@@ -69,7 +69,7 @@ python run_gui.py
    - Color-coded results table: banned=red, restricted/not_legal=orange, size issues=yellow
    - Shows ✓/✗ summary with issue count
 
-2. **Sideboard Guide Integration in RCQ Optimizer**
+2. **Sideboard Guide Integration in Event Optimizer**
    - `analysis/sideboard_guides.py` — new module
    - Parses free-text guide comments for IN/OUT sideboard plans
    - G2/G3 WR model: opponent's SB cards hurt you (-1.3%/card, cap 13%), your SB helps (+1.0%/card, cap 13%)
@@ -80,7 +80,7 @@ python run_gui.py
 3. **Expanded timeframe selector (all tabs)**
    - Options: 1w, 2w, 4w, 8w, 3mo, 6mo, 1yr, 2yr, All Time — centralized in `gui/theme.py`
    - All Time = `None` = no date filter on any query
-   - Applied to: Dashboard, Charts, Deck Analyzer (load avg), Archetype Detail, Search H2H, RCQ Optimizer
+   - Applied to: Dashboard, Charts, Deck Analyzer (load avg), Archetype Detail, Search H2H, Event Optimizer
 
 ---
 
@@ -184,6 +184,18 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 4) — Tournament Prep → Event Optimizer upgrade
+
+1. **Event type selector** — RCQ/RC/PTQ/Custom presets auto-set player range + rounds
+2. **New math** — `x_loss_cutoff()`, `day2_conversion_probability()`, `EVENT_PRESETS` in analysis/tournament.py
+3. **Renamed** — `_RCQWidget` → `_EventWidget`, "RCQ OPTIMIZER" → "EVENT OPTIMIZER" throughout all files
+4. **"Use Meta Distribution" button** — dedicated button always visible, fills field from top 12 meta archetypes scaled to player count
+5. **Player count max → 5000** — supports Pro Tour-scale events
+6. **Results show** — X-loss cutoff ("Need 8-2 or better"), day-2 conversion % for 2-day events (≥200 players, ≥9 rounds)
+7. **`cut_threshold` fix** — now uses `rounds*3 - 6` for 9+ rounds (X-2 heuristic) instead of `(rounds-1)*3`
+
+---
+
 ### Session 2026-03-26 (Session 3) — Heatmap rewrite + bug fixes
 
 1. **Heatmap rewrite** — combined view merges real match data (★) + scraped MTGDecks data
@@ -221,7 +233,7 @@ python run_gui.py
 - Left: deck list with format filter, Add/Edit/Delete buttons
 - Right: deck detail with Decklist and Sideboard Plans sub-tabs
 - Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
-- Export (MTGO/MTGA/decklist.org) and "Open in RCQ Optimizer" buttons
+- Export (MTGO/MTGA/decklist.org) and "Open in Event Optimizer" buttons
 - Wired in main_window.py as "MY DECKS" tab (3rd position, after Deck Analyzer)
 - `open_in_rcq` signal → MainWindow switches to Tournament Prep tab
 
@@ -238,11 +250,11 @@ python run_gui.py
 
 ## PREVIOUS TOP PRIORITIES (Mar 25 Session 1)
 
-### ~~My Decks GUI tab + RCQ Optimizer upgrade~~ — **DONE** (2026-03-26)
+### ~~My Decks GUI tab + Event Optimizer upgrade~~ — **DONE** (2026-03-26)
 - `gui/tabs/my_decks.py` — full CRUD tab with split-panel layout, Export Guide
-- RCQ Optimizer: saved deck dropdown at top, populated from saved_decks by format
+- Event Optimizer: saved deck dropdown at top, populated from saved_decks by format
 - Selecting a deck sets archetype and format automatically
-- `load_deck()` method on TournamentPrepTab wired from My Decks → Open in RCQ Optimizer
+- `load_deck()` method on TournamentPrepTab wired from My Decks → Open in Event Optimizer
 
 ### 2. ~~Printable tournament guide export~~ — **DONE** (2026-03-26)
 - "Export Guide" button on My Decks tab → generates clean HTML in exports/

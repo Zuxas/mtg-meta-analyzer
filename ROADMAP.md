@@ -35,7 +35,8 @@
 - [ ] Meta clustering by playstyle
 - [ ] Meta-based deck recommendation engine
 - [ ] "Why this card?" slot analysis
-- [ ] Hypergeometric encounter probability in RCQ Optimizer
+- [ ] Hypergeometric encounter probability in Event Optimizer
+- [x] Event type presets (RCQ/RC/PTQ/Custom), x-loss cutoff, day-2 conversion math (2026-03-26)
 
 ---
 

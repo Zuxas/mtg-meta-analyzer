@@ -206,7 +206,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     - Right panel: deck detail with Decklist and Sideboard Plans sub-tabs
     - Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
     - Sideboard Plans: `+ Add Plan` dialog (opponent, difficulty, play/draw IN/OUT) + `Delete Plan`
-    - Export, "Export Guide" (printable HTML), and "Open in RCQ Optimizer" buttons on deck detail
+    - Export, "Export Guide" (printable HTML), and "Open in Event Optimizer" buttons on deck detail
     - Guide export: deck name, full 75, per-matchup difficulty + ON PLAY/DRAW IN/OUT + notes; print-friendly CSS
     - `open_in_rcq` signal wired to MainWindow → switches to Tournament Prep tab
   - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
@@ -226,7 +226,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
   - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
   - **Tournament Prep tab** (2 sub-tabs):
-    - **RCQ Optimizer**: enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown at top loads archetype + format from saved_decks; blank field auto-populates from top 12 meta archetypes by share %
+    - **Event Optimizer**: event type selector (RCQ/RC/PTQ/Custom) auto-sets player range + rounds; enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown; "Use Meta Distribution" button; shows X-loss cutoff + day-2 conversion probability for 2-day events; player max 5000
     - **Breaker Math**: real-time W/L/D tracker, ID calculator, draw equity, pair-down warning, seeding impact, breaker education
 
 ### Centralized Timeframe Selector (all tabs)
@@ -240,7 +240,7 @@ TIMEFRAME_OPTIONS = [
 TIMEFRAME_DEFAULT = "2 weeks"
 ```
 `None` = All Time = no date filter. All tabs that use a timeframe selector
-(Dashboard, Charts, Deck Analyzer load-avg, Deck Detail, Search H2H, RCQ Optimizer)
+(Dashboard, Charts, Deck Analyzer load-avg, Deck Detail, Search H2H, Event Optimizer)
 read from this list and pass `since=None` when All Time is selected.
 All SQL query functions already handle `since=None` via `if since:` guards.
 
@@ -321,7 +321,7 @@ analysis/archetypes.py          Archetype name normalization + alias table + DB 
 analysis/predictions.py         Self-validation & prediction logging system
 analysis/blunders.py            Deck scoring & blunder detection (weighted severity)
 analysis/chapin.py              Chapin Principles Evaluation (6 principles, 0-10 scored)
-analysis/tournament.py          RCQ equity, standing analysis, ID recommendation
+analysis/tournament.py          Event equity, standing analysis, ID recommendation, EVENT_PRESETS, x_loss_cutoff, day2_conversion_probability
 analysis/sideboard_guides.py    Guide parsing, post-board WR model, flip detection
 analysis/query.py               CLI query interface (all subcommands)
 
@@ -342,8 +342,8 @@ gui/tabs/predictions.py         Generate/validate/view predictions
 gui/tabs/knowledge_base.py      Add/browse bookmarks + guides table, Sync Guides button
 gui/tabs/ask_claude.py          Optional streaming chat (hidden until API key set in Settings)
 gui/tabs/settings.py            Settings tab: formats, data window, auto-update, AI key
-gui/tabs/tournament_prep.py     RCQ Optimizer + Breaker Math sub-tabs (with timeframe)
-gui/tabs/my_decks.py            MY DECKS tab: saved decks CRUD, export, open in RCQ Optimizer
+gui/tabs/tournament_prep.py     Event Optimizer + Breaker Math sub-tabs (with timeframe)
+gui/tabs/my_decks.py            MY DECKS tab: saved decks CRUD, export, open in Event Optimizer
 gui/tabs/heatmap_tab.py         MATCHUP DATA tab: live scrape / cached / paste, colour-coded grid
 gui/tray_icon.py                System tray icon, status dots, right-click menu
 gui/first_run_setup.py          First-run UAC dialog + elevated task registration

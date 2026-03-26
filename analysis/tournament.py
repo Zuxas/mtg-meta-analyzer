@@ -35,13 +35,14 @@ RCQ_DECKLISTS   = True   # Decklists required at all RCQ events
 # ---------------------------------------------------------------------------
 
 def swiss_rounds(players: int) -> int:
-    """Round count per MTR Appendix E."""
+    """Round count per MTR Appendix E.  For >256 players, ceil(log2(n))."""
     if players <= 8:   return 3
     if players <= 16:  return 4
     if players <= 32:  return 5
     if players <= 64:  return 6
     if players <= 128: return 7
-    return 8
+    if players <= 226: return 8
+    return max(8, math.ceil(math.log2(players)))
 
 
 def top_cut_size(players: int) -> int:
@@ -56,8 +57,16 @@ def top_cut_size(players: int) -> int:
 
 
 def cut_threshold(rounds: int) -> int:
-    """Minimum points that reliably make top cut (well-known DCI benchmarks)."""
-    return {3: 6, 4: 9, 5: 12, 6: 15, 7: 18, 8: 21}.get(rounds, (rounds - 1) * 3)
+    """Minimum points that reliably make top cut (well-known DCI benchmarks).
+
+    For ≤8 rounds: official WPN guidelines.
+    For 9+: standard heuristic is rounds*3 - 6 (i.e. X-2 record or better).
+    """
+    known = {3: 6, 4: 9, 5: 12, 6: 15, 7: 18, 8: 21}
+    if rounds in known:
+        return known[rounds]
+    # Large events: X-2 or X-3 typically makes top 8
+    return max(known.get(8, 21), rounds * 3 - 6)
 
 
 def tournament_structure(players: int) -> dict:
@@ -72,6 +81,69 @@ def tournament_structure(players: int) -> dict:
         "single_elim": single_elim,
         "rcq_legal":   players >= RCQ_MIN_PLAYERS,
     }
+
+
+# ---------------------------------------------------------------------------
+# Event presets  (RCQ / RC / PTQ / Custom)
+# ---------------------------------------------------------------------------
+
+EVENT_PRESETS = {
+    "RCQ": {
+        "players_range": (32, 128),
+        "default_players": 48,
+        "top_cut": 8,
+        "rounds": None,      # auto from swiss_rounds()
+    },
+    "Regional Championship": {
+        "players_range": (200, 800),
+        "default_players": 400,
+        "top_cut": 8,
+        "rounds": None,      # auto, typically 9-10
+    },
+    "Pro Tour Qualifier / Open": {
+        "players_range": (500, 2000),
+        "default_players": 800,
+        "top_cut": 8,
+        "rounds": None,      # auto, typically 13-15
+    },
+    "Custom": {
+        "players_range": (4, 5000),
+        "default_players": 64,
+        "top_cut": 8,
+        "rounds": None,
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# 2-day event math
+# ---------------------------------------------------------------------------
+
+def x_loss_cutoff(players: int, rounds: int, top_cut: int = 8) -> int:
+    """Minimum match wins needed to make top cut (max losses you can take).
+
+    Returns the number of losses.  e.g. x_loss_cutoff(800, 15, 8) → 3
+    means you need a 12-3 record or better.
+    """
+    # Well-known DCI heuristic: top_cut / players ≈ fraction that make it
+    # In Swiss, X-Y record where X = rounds - Y.  Need points >= threshold.
+    thr = cut_threshold(rounds)
+    # Minimum wins = ceil(threshold / 3) assuming no draws
+    min_wins = math.ceil(thr / 3)
+    return max(0, rounds - min_wins)
+
+
+def day2_conversion_probability(
+    win_rate: float, day1_rounds: int, min_record_wins: int,
+) -> float:
+    """Probability of achieving at least min_record_wins in day1_rounds.
+
+    Uses binomial distribution.  Assumes no draws for simplicity.
+    """
+    p = 0.0
+    for k in range(min_record_wins, day1_rounds + 1):
+        p += math.comb(day1_rounds, k) * win_rate**k * (1 - win_rate)**(day1_rounds - k)
+    return round(max(0.0, min(1.0, p)), 4)
 
 
 # ---------------------------------------------------------------------------

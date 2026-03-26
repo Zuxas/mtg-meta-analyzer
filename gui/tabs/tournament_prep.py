@@ -2,7 +2,7 @@
 Tab — Tournament Prep
 
 Two sub-tabs:
-  1. RCQ OPTIMIZER — equity analysis for a given expected field
+  1. EVENT OPTIMIZER — equity analysis for a given expected field
   2. BREAKER MATH  — real-time ID / draw calculator + breaker education
 """
 import re
@@ -571,10 +571,10 @@ class _BreakerWidget(QWidget):
 
 
 # ---------------------------------------------------------------------------
-# RCQ Optimizer sub-tab
+# Event Optimizer sub-tab
 # ---------------------------------------------------------------------------
 
-class _RCQWidget(QWidget):
+class _EventWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers = []
@@ -601,6 +601,14 @@ class _RCQWidget(QWidget):
         lv.setContentsMargins(12, 12, 12, 12)
         lv.setSpacing(8)
 
+        lv.addWidget(QLabel("Event type:"))
+        self._event_type = QComboBox()
+        self._event_type.addItems([
+            "RCQ", "Regional Championship", "Pro Tour Qualifier / Open", "Custom"
+        ])
+        self._event_type.currentTextChanged.connect(self._on_event_type_changed)
+        lv.addWidget(self._event_type)
+
         lv.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
@@ -609,8 +617,8 @@ class _RCQWidget(QWidget):
 
         lv.addWidget(QLabel("Player count:"))
         self._players = QSpinBox()
-        self._players.setRange(4, 512)
-        self._players.setValue(32)
+        self._players.setRange(4, 5000)
+        self._players.setValue(48)
         self._players.setSuffix(" players")
         lv.addWidget(self._players)
 
@@ -618,7 +626,7 @@ class _RCQWidget(QWidget):
         self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
         lv.addWidget(self._struct_lbl)
         self._players.valueChanged.connect(self._update_struct_lbl)
-        self._update_struct_lbl(32)
+        self._update_struct_lbl(48)
 
         lv.addWidget(QLabel("Timeframe:"))
         self._tf = QComboBox()
@@ -655,6 +663,12 @@ class _RCQWidget(QWidget):
         self._field_input.setMinimumHeight(130)
         self._field_input.setMaximumHeight(220)
         lv.addWidget(self._field_input)
+
+        meta_btn = QPushButton("Use Meta Distribution")
+        meta_btn.setStyleSheet(theme.btn_secondary())
+        meta_btn.setToolTip("Auto-fill field from current top meta archetypes by share %")
+        meta_btn.clicked.connect(self._auto_populate_field)
+        lv.addWidget(meta_btn)
 
         self._analyze_btn = QPushButton("Analyze Field")
         self._analyze_btn.setStyleSheet(theme.btn_primary())
@@ -747,23 +761,30 @@ class _RCQWidget(QWidget):
     def _update_struct_lbl(self, n=None):
         if n is None:
             n = self._players.value()
-        from analysis.tournament import tournament_structure, RCQ_MIN_PLAYERS
+        from analysis.tournament import tournament_structure, RCQ_MIN_PLAYERS, x_loss_cutoff
         s = tournament_structure(n)
         if n < RCQ_MIN_PLAYERS:
             self._struct_lbl.setText(
-                f"⚠  {n} players — below minimum ({RCQ_MIN_PLAYERS} required to run an RCQ)"
-            )
+                f"\u26a0  {n} players \u2014 below minimum ({RCQ_MIN_PLAYERS} required)")
             self._struct_lbl.setStyleSheet(f"color: #e6194b; font-size: 11px;")
         elif s["single_elim"]:
             self._struct_lbl.setText(
-                f"3 rounds, single elimination bracket  •  All {n} players in the bracket"
-            )
+                f"3 rounds, single elimination  \u2022  All {n} in bracket")
             self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
         else:
+            max_l = x_loss_cutoff(n, s["rounds"], s["top_cut"])
+            min_w = s["rounds"] - max_l
             self._struct_lbl.setText(
-                f"{s['rounds']} rounds  •  Top {s['top_cut']}  •  Threshold: {s['threshold']} pts"
-            )
+                f"{s['rounds']} rounds  \u2022  Top {s['top_cut']}  \u2022  "
+                f"{s['threshold']} pts  \u2022  Need {min_w}-{max_l} or better")
             self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
+
+    def _on_event_type_changed(self, event_type: str):
+        from analysis.tournament import EVENT_PRESETS
+        preset = EVENT_PRESETS.get(event_type, EVENT_PRESETS["Custom"])
+        lo, hi = preset["players_range"]
+        self._players.setRange(lo, hi)
+        self._players.setValue(preset["default_players"])
 
     def _on_fmt_changed(self, fmt):
         self._populate_arch_combo(fmt)
@@ -866,6 +887,40 @@ class _RCQWidget(QWidget):
             field[line] = 1
         return field if field else None
 
+    def _auto_populate_field(self):
+        """Fill the field textarea from current meta standings."""
+        fmt   = self._fmt.currentText()
+        since = self._since_dt()
+        player_ct = self._players.value()
+        self._analyze_btn.setEnabled(False)
+        self._status.setText("Loading meta distribution\u2026")
+
+        def _auto():
+            from analysis.win_rates import get_meta_standings
+            standings = get_meta_standings(fmt, top=12, since=since)
+            total_app = max(1, sum(x.get("appearances", 1) for x in standings))
+            lines = []
+            for s in standings:
+                a = s["archetype"]
+                n = max(1, round(s.get("appearances", 1) / total_app * player_ct))
+                lines.append(f"{a} x{n}")
+            return "\n".join(lines)
+
+        def _done(text):
+            self._field_input.setPlainText(text)
+            self._status.setText("Field loaded from meta standings.")
+            self._analyze_btn.setEnabled(True)
+
+        w = DataLoadWorker(_auto)
+        w.result.connect(_done)
+        w.error.connect(lambda e: (
+            self._status.setText(f"Could not load meta: {e}"),
+            self._analyze_btn.setEnabled(True),
+        ))
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
     def _run(self):
         archetype = self._my_arch.currentText().strip()
         field = self._parse_field()
@@ -873,37 +928,7 @@ class _RCQWidget(QWidget):
             self._status.setText("Enter your archetype.")
             return
         if not field:
-            # Auto-populate from current meta standings
-            fmt   = self._fmt.currentText()
-            since = self._since_dt()
-            self._analyze_btn.setEnabled(False)
-            self._status.setText("No field entered — loading from meta standings\u2026")
-
-            def _auto():
-                from analysis.win_rates import get_meta_standings
-                standings = get_meta_standings(fmt, top=12, since=since)
-                lines = []
-                for s in standings:
-                    a = s["archetype"]
-                    n = max(1, round(s.get("appearances", 1) / max(1, sum(
-                        x.get("appearances", 1) for x in standings)) * 32))
-                    lines.append(f"{a} x{n}")
-                return "\n".join(lines)
-
-            def _done(text):
-                self._field_input.setPlainText(text)
-                self._status.setText("Field assumed from meta standings. Click Analyze again.")
-                self._analyze_btn.setEnabled(True)
-
-            w = DataLoadWorker(_auto)
-            w.result.connect(_done)
-            w.error.connect(lambda e: (
-                self._status.setText(f"Could not load meta: {e}"),
-                self._analyze_btn.setEnabled(True),
-            ))
-            w.finished.connect(w.deleteLater)
-            w.start()
-            self._workers.append(w)
+            self._auto_populate_field()
             return
 
         fmt   = self._fmt.currentText()
@@ -953,10 +978,25 @@ class _RCQWidget(QWidget):
             f"Weighted win rate vs field: {wwr*100:.1f}%   "
             f"(deck strength: {r['my_wr']*100:.1f}% est. MWP)"
         )
-        self._top8_lbl.setText(
+        from analysis.tournament import x_loss_cutoff, day2_conversion_probability
+        rounds = struct["rounds"]
+        top8_text = (
             f"Estimated top-{struct['top_cut']} probability: {top*100:.1f}%   "
-            f"({struct['rounds']}-round Swiss, {r['players']} players)"
+            f"({rounds}-round Swiss, {r['players']} players)"
         )
+        max_losses = x_loss_cutoff(r["players"], rounds, struct["top_cut"])
+        min_wins   = rounds - max_losses
+        top8_text += f"\nMinimum record: {min_wins}-{max_losses}"
+        # For large events (likely 2-day), show day-2 conversion info
+        if rounds >= 9 and r["players"] >= 200:
+            day1_rds   = min(8, rounds)
+            day2_cut   = day1_rds - 2  # typically 6-2 or better for day 2
+            d2_prob    = day2_conversion_probability(wwr, day1_rds, day2_cut)
+            top8_text += (
+                f"  |  Day-2 conversion ({day2_cut}-{day1_rds - day2_cut} or better "
+                f"after {day1_rds} rounds): {d2_prob*100:.1f}%"
+            )
+        self._top8_lbl.setText(top8_text)
 
         def _item(txt, color=None, align=Qt.AlignmentFlag.AlignCenter):
             it = QTableWidgetItem(str(txt))
@@ -1235,11 +1275,11 @@ class TournamentPrepTab(QWidget):
 
         inner = QTabWidget()
         inner.setTabPosition(QTabWidget.TabPosition.North)
-        self._rcq = _RCQWidget()
-        inner.addTab(self._rcq,         "RCQ OPTIMIZER")
+        self._rcq = _EventWidget()
+        inner.addTab(self._rcq,         "EVENT OPTIMIZER")
         inner.addTab(_BreakerWidget(), "BREAKER MATH")
         layout.addWidget(inner)
 
     def load_deck(self, deck: dict):
-        """Called by MainWindow when user clicks 'Open in RCQ Optimizer' from My Decks."""
+        """Called by MainWindow when user clicks 'Open in Event Optimizer' from My Decks."""
         self._rcq.load_deck(deck)

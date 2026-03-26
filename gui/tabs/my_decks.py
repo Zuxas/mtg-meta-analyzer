@@ -8,7 +8,7 @@ Actions:
   - Add deck (paste Arena/MTGO list)
   - Edit / Delete deck
   - Export (MTGO / MTGA / decklist.org)
-  - Open in RCQ Optimizer (switches to Tournament Prep tab)
+  - Open in Event Optimizer (switches to Tournament Prep tab)
 """
 import json
 
@@ -252,7 +252,7 @@ class _SBPlanDialog(QDialog):
 # ---------------------------------------------------------------------------
 
 class MyDecksTab(QWidget):
-    # Emitted when user clicks "Open in RCQ Optimizer" — main_window wires this
+    # Emitted when user clicks "Open in Event Optimizer" — main_window wires this
     open_in_rcq = pyqtSignal(dict)
 
     def __init__(self, parent=None):
@@ -391,7 +391,7 @@ class MyDecksTab(QWidget):
         self._guide_btn.clicked.connect(self._export_guide)
         exp_row.addWidget(self._guide_btn)
 
-        self._rcq_btn = QPushButton("Open in RCQ Optimizer")
+        self._rcq_btn = QPushButton("Open in Event Optimizer")
         self._rcq_btn.setEnabled(False)
         self._rcq_btn.setStyleSheet(
             f"background: {theme.ACCENT}; color: {theme.BTN_FG}; "
@@ -884,7 +884,7 @@ def _generate_guide_html(deck: dict, plans: list[dict]) -> str:
             parts.append("</div>\n")
     else:
         parts.append('<h2>Sideboard Guide</h2>\n<p class="notes">No sideboard plans saved yet. '
-                     'Create them in the RCQ Optimizer tab.</p>\n')
+                     'Create them in the Event Optimizer tab.</p>\n')
 
     parts.append("</body></html>")
     return "".join(parts)

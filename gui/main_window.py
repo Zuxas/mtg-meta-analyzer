@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._heatmap,  "MATCHUP DATA")
         self._tabs.addTab(self._settings, "SETTINGS")
 
-        # Wire "Open in RCQ Optimizer" from My Decks → Tournament Prep
+        # Wire "Open in Event Optimizer" from My Decks → Tournament Prep
         self._my_decks.open_in_rcq.connect(self._on_open_in_rcq)
 
         # Ask Claude tab — added/removed dynamically based on API key presence
@@ -137,11 +137,11 @@ class MainWindow(QMainWindow):
             self._remove_claude_tab()
 
     def _on_open_in_rcq(self, deck: dict):
-        """Switch to Tournament Prep tab when user clicks 'Open in RCQ Optimizer'."""
+        """Switch to Tournament Prep tab when user clicks 'Open in Event Optimizer'."""
         idx = self._tabs.indexOf(self._tourney)
         if idx >= 0:
             self._tabs.setCurrentIndex(idx)
-        # Pre-fill RCQ Optimizer with the deck's archetype and format
+        # Pre-fill Event Optimizer with the deck's archetype and format
         if hasattr(self._tourney, "load_deck"):
             self._tourney.load_deck(deck)
 
