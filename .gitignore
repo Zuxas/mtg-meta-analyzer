@@ -10,6 +10,15 @@ data/*.db-wal
 data/*.json
 data/*.csv
 
+# Generated data files (large, regenerable)
+data/card_images/
+data/charts/
+data/*.png
+data/*.jpg
+data/*.jpeg
+data/*.log
+data/scryfall_oracle.json
+
 # Local config (DB path may differ per machine)
 config.ini
 
@@ -40,4 +49,4 @@ mtgdecks.net homepage.txt
 # Exports and scratch files
 exports/
 flexslotpage.html
-"To Claude from ChatGPT.txt"
+To Claude from ChatGPT.txt
