@@ -114,9 +114,10 @@ class _CombinedWorker(QThread):
             from analysis.archetypes import normalize as norm_arch
 
             # 1) Real match data from matches table
-            # Lower threshold for Pioneer/Modern (less data available)
+            # Lower threshold for formats with less data
             from analysis.win_rates import get_real_matchup_winrates
-            min_m = 10 if self.format_name in ("pioneer", "modern") else 20
+            _MIN_MATCHES = {"pioneer": 10, "modern": 5}
+            min_m = _MIN_MATCHES.get(self.format_name, 20)
             real_raw = get_real_matchup_winrates(self.format_name, min_matches=min_m)
 
             # Convert canonical (a<b) to full bidirectional matrix

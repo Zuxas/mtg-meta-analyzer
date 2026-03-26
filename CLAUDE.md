@@ -178,7 +178,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `_prepare_load()` cancels old worker + clears state before each new load
   - `_CombinedWorker` normalizes all archetype keys via `archetypes.normalize()` before merging
   - `_filter_to_meta()` tries normalized name matching; if <40% overlap, falls back to data-density sort (top 30 by matchup cell count). Handles melee.gg vs MTGTop8 naming gap.
-  - Pioneer/Modern use min_matches=10 (less data); Standard uses min_matches=20
+  - Per-format min_matches: Standard=20, Pioneer=10, Modern=5 (786 unique archetypes in 92k matches)
   - Low-coverage warning for <8 archetypes on non-Standard formats
   - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
   - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored

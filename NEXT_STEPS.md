@@ -184,6 +184,14 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 12) — Modern heatmap coverage
+
+1. **Modern min_matches lowered to 5** (was 10) — Modern meta is more diverse (786 unique archetypes in 92k matches), so pairings are spread thinner. At min_matches=5, 294 archetypes qualify.
+2. **Verified data pipeline**: Modern produces 30-archetype grid via data-density sort. Top deck: Boros Energy (254 matchup cells at threshold 5). Archetype distribution confirmed healthy.
+3. **Per-format thresholds**: Standard=20, Pioneer=10, Modern=5.
+
+---
+
 ### Session 2026-03-26 (Session 11) — Heatmap archetype name matching fix
 
 1. **Root cause**: melee.gg deck names (real match data) are completely different from MTGTop8/MTGDecks names used in meta standings — only 1/30 overlap even after normalize(). Fuzzy matching produced wrong matches ("Mono Red Control" -> "Mono White Control").
