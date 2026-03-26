@@ -154,9 +154,18 @@ python run_gui.py
 
 ---
 
-## TOP PRIORITIES — Mar 25 (Session 2)
+## TOP PRIORITIES — Mar 25 (Session 3)
 
-### Session 2026-03-25 Summary — What was completed
+### Session 2026-03-25 (Session 3) Summary — What was completed
+
+1. **Pioneer/Modern MTGMelee support verified** — `_FORMAT_MAP` already had correct format strings; both confirmed working: Pioneer (225 tournaments), Modern (778 tournaments)
+2. **`background_fill.bat` updated** — added `[5/7] MTGMelee` section after MTGDecks; all 3 formats (standard/pioneer/modern) with `--pages 3`; step count updated from 6 to 7
+3. **Heatmap "Use Cached" crash fixed** (`gui/tabs/heatmap_tab.py`) — added `_cancel_worker()` helper with RuntimeError guard; both `_fetch_live` and `_load_cached` now set `self._worker = None` on finish via `finished.connect(lambda: ...)`
+4. **Predictions "how this works" info box** (`gui/tabs/predictions.py`) — static QFrame explaining top_meta/trending_up/trending_down prediction types and Validate flow
+5. **Dashboard tier badge legend** (`gui/tabs/dashboard.py`) — tooltip on "Tier" column header explaining S/A/B/C colors and ★ real-data suffix
+6. **Tray balloon first-time only** (`gui/main_window.py`) — close-to-tray balloon now shows once; `balloon_shown: true` saved to `scrape_state.json` after first display
+
+### Session 2026-03-25 (Session 2) Summary — What was completed
 
 1. **Dashboard Meta Impact bar** — shows dedup filter effect (rows removed, most affected archetypes)
 2. **Dashboard worker lifecycle fix** — Refresh crash resolved (RuntimeError guard + `_panel_worker = None` on finish)
@@ -178,19 +187,19 @@ python run_gui.py
 - Add resource tracking / explicit cleanup on close
 
 ### 2. My Decks GUI tab
-- `db/saved_decks.py` **now exists** (created this session)
+- `db/saved_decks.py` **now exists** (created 2026-03-25)
 - `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
 - Click deck → shows 75 + all saved SB plans
 - "Open in RCQ Optimizer" passes deck to tournament_prep.py
 
 ### 3. Fix remaining smoke test bugs
-- "Use Cached" crash in Matchup Data tab (theme.ERROR → theme.ERR — may be fixed, verify)
+- ~~"Use Cached" crash in Matchup Data tab~~ — **FIXED** (2026-03-25 session 3): `_cancel_worker()` + `self._worker = None` on finish
 - Auto-legality check triggers on Analyze (should only run on explicit button click)
-- Predictions tab "how this works" info box — verify it renders correctly
+- ~~Predictions tab "how this works" info box~~ — **DONE** (2026-03-25 session 3)
 
 ### 4. Legend/key for dashboard colors and star badges
-- Add a small key or tooltip explaining tier badge colors (S/A/B/C) in the WIN RATE panel
-- Explain the ★ star suffix (real match W/L data vs estimated placement)
+- ~~Add tier badge legend~~ — **DONE** (2026-03-25 session 3): tooltip on "Tier" column header
+- ~~Tray balloon first-time only~~ — **DONE** (2026-03-25 session 3): `balloon_shown` flag in scrape_state.json
 
 ---
 

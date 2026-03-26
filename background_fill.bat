@@ -37,32 +37,39 @@ echo ============================================================ >> "%LOG_FILE%
 
 REM ── MTGTop8: recent events (last 2 pages per format) ──────────────────────
 echo. >> "%LOG_FILE%"
-echo [1/6] MTGTop8 - Standard >> "%LOG_FILE%"
+echo [1/7] MTGTop8 - Standard >> "%LOG_FILE%"
 %PYTHON% main.py --format standard --pages 2 --max-events 50 >> "%LOG_FILE%" 2>&1
 
 echo. >> "%LOG_FILE%"
-echo [2/6] MTGTop8 - Pioneer >> "%LOG_FILE%"
+echo [2/7] MTGTop8 - Pioneer >> "%LOG_FILE%"
 %PYTHON% main.py --format pioneer --pages 2 --max-events 50 >> "%LOG_FILE%" 2>&1
 
 echo. >> "%LOG_FILE%"
-echo [3/6] MTGTop8 - Modern >> "%LOG_FILE%"
+echo [3/7] MTGTop8 - Modern >> "%LOG_FILE%"
 %PYTHON% main.py --format modern --pages 2 --max-events 50 >> "%LOG_FILE%" 2>&1
 
 REM ── MTGDecks: recent tournament pages ─────────────────────────────────────
 echo. >> "%LOG_FILE%"
-echo [4/6] MTGDecks - Standard, Pioneer, Modern >> "%LOG_FILE%"
+echo [4/7] MTGDecks - Standard, Pioneer, Modern >> "%LOG_FILE%"
 %PYTHON% -m scrapers.mtgdecks --format standard --pages 3 >> "%LOG_FILE%" 2>&1
 %PYTHON% -m scrapers.mtgdecks --format pioneer  --pages 3 >> "%LOG_FILE%" 2>&1
 %PYTHON% -m scrapers.mtgdecks --format modern   --pages 3 >> "%LOG_FILE%" 2>&1
 
+REM ── MTGMelee: real match W/L data ─────────────────────────────────────────
+echo. >> "%LOG_FILE%"
+echo [5/7] MTGMelee - Standard, Pioneer, Modern >> "%LOG_FILE%"
+%PYTHON% -m scrapers.mtgmelee_scraper --format standard --pages 3 >> "%LOG_FILE%" 2>&1
+%PYTHON% -m scrapers.mtgmelee_scraper --format pioneer  --pages 3 >> "%LOG_FILE%" 2>&1
+%PYTHON% -m scrapers.mtgmelee_scraper --format modern   --pages 3 >> "%LOG_FILE%" 2>&1
+
 REM ── Scryfall enrichment ───────────────────────────────────────────────────
 echo. >> "%LOG_FILE%"
-echo [5/6] Scryfall enrichment (new cards only) >> "%LOG_FILE%"
+echo [6/7] Scryfall enrichment (new cards only) >> "%LOG_FILE%"
 %PYTHON% -m scrapers.scryfall >> "%LOG_FILE%" 2>&1
 
 REM ── Archetype normalization ───────────────────────────────────────────────
 echo. >> "%LOG_FILE%"
-echo [6/6] Archetype normalization >> "%LOG_FILE%"
+echo [7/7] Archetype normalization >> "%LOG_FILE%"
 %PYTHON% -m analysis.archetypes --apply >> "%LOG_FILE%" 2>&1
 
 REM ── Archive maintenance ───────────────────────────────────────────────────

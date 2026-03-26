@@ -311,6 +311,16 @@ class DashboardTab(QWidget):
         self._recent_tbl  = self._build_recent_panel(top_layout)
         self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
             top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Tier"])
+        self._winrate_tbl.horizontalHeaderItem(3).setToolTip(
+            "Tier badge key\n"
+            "──────────────\n"
+            "S  (gold)   Win% >55% AND meta share >8%\n"
+            "A  (green)  Win% >52% OR meta share >5%\n"
+            "B  (cyan)   All other top-N archetypes\n"
+            "C  (red)    Declining trend (share dropped >0.5%)\n\n"
+            "★  Real match W/L data from MTGMelee (n≥20)\n"
+            "   (no star = estimated from placement tier)"
+        )
         self._pop_tbl, self._pop_hdr = self._build_ranked_panel(
             top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%"])
         self._vsplit.addWidget(top_widget)

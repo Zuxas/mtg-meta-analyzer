@@ -66,7 +66,7 @@
 - [x] Dashboard Meta Impact bar — shows dedup filter rows removed + most affected archetypes (2026-03-25)
 - [x] Dashboard worker lifecycle fix — Refresh button crash resolved (2026-03-25)
 - [ ] My Decks GUI tab — list/add/edit/delete saved decks + SB plans (`gui/tabs/my_decks.py`)
-- [ ] Legend/key for dashboard tier badge colors (S/A/B/C) and ★ star suffix
+- [x] Legend/key for dashboard tier badge colors (S/A/B/C) and ★ star suffix — tooltip on Tier header (2026-03-25)
 - [ ] Layout consistency (global filters top, nav left, data center, detail right)
 - [ ] Sticky headers + sortable columns everywhere
 - [ ] Sparklines + trend arrows on meta table

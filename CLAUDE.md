@@ -388,7 +388,7 @@ python -m db.maintenance
 ```
 
 ## Automated Tasks
-- **6 AM daily**: `background_fill.bat` — Standard + Pioneer + Modern from MTGTop8 + MTGDecks, Scryfall enrich, normalize
+- **6 AM daily**: `background_fill.bat` — Standard + Pioneer + Modern from MTGTop8 + MTGDecks + MTGMelee (3 pages each), Scryfall enrich, normalize (7 steps total)
   - Register: double-click `schedule_background_fill.bat` (self-elevates to Admin)
   - Log: `logs/background_fill.log`
 - **5 PM daily**: `run_daily.bat` — Standard latest events + archive maintenance
@@ -530,7 +530,7 @@ They are partially implemented already — complete before packaging.
 ### 3. System tray icon (IMPLEMENTED)
 - `gui/tray_icon.py` — `TrayIcon(QSystemTrayIcon)` created in `run_gui.py`
 - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
-- `MainWindow.closeEvent` hides window to tray + shows balloon notification
+- `MainWindow.closeEvent` hides window to tray + shows balloon notification (first time only — `balloon_shown` flag in `scrape_state.json`)
 - Status dot colors:
   - Green (`#3cb44b`) — data current (STATUS_IDLE)
   - Orange (`#f58231`) — update running (STATUS_RUNNING)

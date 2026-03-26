@@ -341,6 +341,14 @@ class HeatmapTab(QWidget):
         self._cache_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
 
+    def _cancel_worker(self):
+        if self._worker is not None:
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._worker = None
+
     def _fetch_live(self):
         fmt = self._fmt.currentText()
         self._load_source = "fetch"
@@ -349,12 +357,12 @@ class HeatmapTab(QWidget):
         self._scroll.setVisible(False)
         self._set_busy(True)
 
-        if self._worker is not None:
-            self._worker.blockSignals(True)
+        self._cancel_worker()
         self._worker = _FetchWorker(fmt)
         self._worker.done.connect(self._on_data)
         self._worker.error.connect(self._on_error)
         self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
         self._worker.start()
 
     def _load_cached(self):
@@ -365,12 +373,12 @@ class HeatmapTab(QWidget):
         self._scroll.setVisible(False)
         self._set_busy(True)
 
-        if self._worker is not None:
-            self._worker.blockSignals(True)
+        self._cancel_worker()
         self._worker = _LoadWorker(fmt)
         self._worker.done.connect(self._on_data)
         self._worker.error.connect(self._on_error)
         self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
         self._worker.start()
 
     def _open_paste_dialog(self):

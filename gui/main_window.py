@@ -237,11 +237,23 @@ class MainWindow(QMainWindow):
         if self._tray and self._tray.isSystemTrayAvailable():
             event.ignore()
             self.hide()
-            self._tray.showMessage(
-                "MTG Meta Analyzer",
-                "Running in the background. Right-click the tray icon to open or exit.",
-                self._tray.MessageIcon.Information,
-                3000,
-            )
+            # Show balloon only on first close-to-tray so it doesn't nag every time
+            from gui.tray_icon import read_scrape_state, _STATE_FILE
+            import json, os
+            state = read_scrape_state()
+            if not state.get("balloon_shown"):
+                self._tray.showMessage(
+                    "MTG Meta Analyzer",
+                    "Running in the background. Right-click the tray icon to open or exit.",
+                    self._tray.MessageIcon.Information,
+                    3000,
+                )
+                try:
+                    state["balloon_shown"] = True
+                    os.makedirs(os.path.dirname(_STATE_FILE), exist_ok=True)
+                    with open(_STATE_FILE, "w") as _f:
+                        json.dump(state, _f, indent=2)
+                except Exception:
+                    pass
         else:
             event.accept()

@@ -59,6 +59,28 @@ class PredictionsTab(QWidget):
         ctrl.addStretch()
         layout.addLayout(ctrl)
 
+        # ── How this works ────────────────────────────────────────────
+        info = QFrame()
+        info.setStyleSheet(
+            f"background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+            " border-radius: 4px; padding: 4px;"
+        )
+        info_lbl = QLabel(
+            "<b>How predictions work:</b> Each week the system auto-generates forecasts "
+            "from recent meta trends. <b>top_meta</b> = expected to rank in the top archetypes; "
+            "<b>trending_up</b> = expected to gain meta share; "
+            "<b>trending_down</b> = expected to decline. "
+            "After the target week passes, click <i>Validate</i> to score them against "
+            "actual results. Accuracy is tracked per prediction type so you can see "
+            "which signals are most reliable."
+        )
+        info_lbl.setWordWrap(True)
+        info_lbl.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px; border: none; background: transparent;"
+        )
+        QVBoxLayout(info).addWidget(info_lbl)
+        layout.addWidget(info)
+
         # ── Prediction table ──────────────────────────────────────────
         self._table = QTableWidget(0, 6)
         self._table.setHorizontalHeaderLabels(
