@@ -11,10 +11,10 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
-    QComboBox, QGroupBox, QCheckBox,
+    QComboBox, QGroupBox, QCheckBox, QListWidget, QListWidgetItem,
     QSizePolicy, QDateEdit, QSpinBox,
 )
-from PyQt6.QtCore import QDate
+from PyQt6.QtCore import QDate, Qt
 
 from gui.widgets.chart_canvas import ChartCanvas
 from gui.worker_threads import DataLoadWorker
@@ -63,7 +63,7 @@ class ChartsTab(QWidget):
         # Chart type
         cv.addWidget(QLabel("Chart Type:"))
         self._type = QComboBox()
-        self._type.addItems(["Meta Share", "Archetype Trend", "Matchup Heatmap"])
+        self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Matchup Heatmap"])
         self._type.currentTextChanged.connect(self._on_type_changed)
         cv.addWidget(self._type)
 
@@ -83,6 +83,30 @@ class ChartsTab(QWidget):
         self._arch.lineEdit().setPlaceholderText("e.g. Izzet Prowess")
         self._arch.lineEdit().returnPressed.connect(self.generate)
         cv.addWidget(self._arch)
+
+        # Compare list (shown for Compare Trends mode)
+        self._compare_label = QLabel("Selected archetypes:")
+        cv.addWidget(self._compare_label)
+        self._compare_list = QListWidget()
+        self._compare_list.setMaximumHeight(120)
+        self._compare_list.setStyleSheet(
+            f"background: {theme.INPUT}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; font-size: 10px;"
+        )
+        cv.addWidget(self._compare_list)
+
+        cmp_row = QHBoxLayout()
+        self._add_arch_btn = QPushButton("+ Add")
+        self._add_arch_btn.setStyleSheet(theme.btn_secondary())
+        self._add_arch_btn.clicked.connect(self._add_compare_arch)
+        cmp_row.addWidget(self._add_arch_btn)
+        self._rm_arch_btn = QPushButton("Remove")
+        self._rm_arch_btn.setStyleSheet(theme.btn_secondary())
+        self._rm_arch_btn.clicked.connect(self._remove_compare_arch)
+        cmp_row.addWidget(self._rm_arch_btn)
+        self._compare_btn_row = QWidget()
+        self._compare_btn_row.setLayout(cmp_row)
+        cv.addWidget(self._compare_btn_row)
 
         # Timeframe
         cv.addWidget(QLabel("Timeframe:"))
@@ -141,15 +165,20 @@ class ChartsTab(QWidget):
         self._canvas = ChartCanvas()
         outer.addWidget(self._canvas, 1)
 
-        # Initial visibility
+        # Initial visibility — must run after all controls are created
         self._on_type_changed("Meta Share")
 
     def _on_type_changed(self, chart_type):
-        is_trend = chart_type == "Archetype Trend"
-        self._arch_label.setVisible(is_trend)
-        self._arch.setVisible(is_trend)
-        self._top_label.setVisible(not is_trend)
-        self._top_n.setVisible(not is_trend)
+        is_trend   = chart_type == "Archetype Trend"
+        is_compare = chart_type == "Compare Trends"
+        need_arch  = is_trend or is_compare
+        self._arch_label.setVisible(need_arch)
+        self._arch.setVisible(need_arch)
+        self._compare_label.setVisible(is_compare)
+        self._compare_list.setVisible(is_compare)
+        self._compare_btn_row.setVisible(is_compare)
+        self._top_label.setVisible(not need_arch)
+        self._top_n.setVisible(not need_arch)
 
     def _get_date_range(self):
         if not self._use_dates.isChecked():
@@ -181,6 +210,15 @@ class ChartsTab(QWidget):
                     self._status.setText("Enter an archetype name.")
                     return
                 self._canvas.plot_trend(arch, fmt, weeks, since, until)
+            elif chart_type == "Compare Trends":
+                archetypes = [
+                    self._compare_list.item(i).text()
+                    for i in range(self._compare_list.count())
+                ]
+                if len(archetypes) < 2:
+                    self._status.setText("Add at least 2 archetypes to compare.")
+                    return
+                self._canvas.plot_compare(archetypes, fmt, weeks, since, until)
             elif chart_type == "Matchup Heatmap":
                 self._canvas.plot_heatmap(fmt, top, 3, since, until)
             self._status.setText("Done.")
@@ -188,6 +226,23 @@ class ChartsTab(QWidget):
             self._status.setText(f"Error: {e}")
         finally:
             self._gen_btn.setEnabled(True)
+
+    def _add_compare_arch(self):
+        arch = self._arch.currentText().strip()
+        if not arch:
+            return
+        # Don't add duplicates
+        existing = [
+            self._compare_list.item(i).text()
+            for i in range(self._compare_list.count())
+        ]
+        if arch not in existing:
+            self._compare_list.addItem(arch)
+        self._arch.lineEdit().clear()
+
+    def _remove_compare_arch(self):
+        for item in self._compare_list.selectedItems():
+            self._compare_list.takeItem(self._compare_list.row(item))
 
     def _save_png(self):
         """Save the currently displayed chart figure to data/charts/."""

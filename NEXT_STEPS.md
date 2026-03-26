@@ -234,10 +234,11 @@ python run_gui.py
 
 ## MEDIUM PRIORITY — Easy wins still TODO (do in order, commit after each)
 
-### 3. Charts Compare Mode (~30 min)
-- Change archetype field in Charts tab to multi-select QListWidget or editable combo
-- Overlay multiple archetypes as lines on one trend chart
-- No new files — only `gui/tabs/charts.py` + `gui/widgets/chart_canvas.py`
+### 3. ~~Charts Compare Mode~~ — **DONE** (2026-03-26)
+- Added "Compare Trends" chart type to Charts tab
+- QListWidget for selected archetypes with Add/Remove buttons
+- `_CompareLoader` worker fetches trend data for multiple archetypes in parallel
+- Overlaid meta share lines on one chart, reusing chart palette and dark theme
 
 ### 4. DB layer for My Decks — DONE (2026-03-25)
 - `db/saved_decks.py` created and tested

@@ -157,6 +157,44 @@ class _TrendLoader(QThread):
             self.error.emit(str(e))
 
 
+class _CompareLoader(QThread):
+    """Load trend data for multiple archetypes to overlay on one chart."""
+    done  = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, archetypes, format_name, weeks, since, until):
+        super().__init__()
+        self.archetypes  = archetypes
+        self.format_name = format_name
+        self.weeks       = weeks
+        self.since       = since
+        self.until       = until
+
+    def run(self):
+        try:
+            from analysis.win_rates import get_archetype_trend
+            all_weeks = set()
+            arch_data = {}
+            for arch in self.archetypes:
+                weekly = get_archetype_trend(
+                    arch, format_name=self.format_name, weeks=self.weeks,
+                    since=self.since, until=self.until,
+                )
+                arch_data[arch] = {w["week_start"]: w["meta_share"] for w in weekly}
+                all_weeks.update(arch_data[arch].keys())
+            if not all_weeks:
+                self.done.emit(None)
+                return
+            self.done.emit({
+                "archetypes":  self.archetypes,
+                "arch_data":   arch_data,
+                "all_weeks":   all_weeks,
+                "format_name": self.format_name,
+            })
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class _HeatmapLoader(QThread):
     done  = pyqtSignal(object)
     error = pyqtSignal(str)
@@ -456,6 +494,59 @@ class ChartCanvas(QWidget):
             loc="upper left", fontsize=7, framealpha=0.3,
             labelcolor="white", facecolor=_BG, edgecolor=_GRID,
         )
+        self._fig.tight_layout()
+        self._canvas.draw()
+
+    # ------------------------------------------------------------------
+    # Compare trends — overlay multiple archetypes
+    # ------------------------------------------------------------------
+
+    def plot_compare(self, archetypes, format_name="standard", weeks=12,
+                     since=None, until=None):
+        names = ", ".join(_shorten(a) for a in archetypes[:3])
+        if len(archetypes) > 3:
+            names += f" +{len(archetypes) - 3}"
+        self.show_message(f"Loading {names}\u2026", "#65bcd5")
+        w = _CompareLoader(archetypes, format_name, weeks, since, until)
+        w.done.connect(self._draw_compare)
+        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        self._start_worker(w)
+
+    def _draw_compare(self, data):
+        if data is None:
+            self.show_message("No trend data available for these archetypes.")
+            return
+
+        archetypes   = data["archetypes"]
+        arch_data    = data["arch_data"]
+        sorted_weeks = sorted(data["all_weeks"])
+        x_labels     = [w[5:] for w in sorted_weeks]
+
+        self._fig.clear()
+        self._overlay.setVisible(False)
+        ax = self._fig.add_subplot(111)
+        _style_ax(ax, self._fig)
+
+        for i, arch in enumerate(archetypes):
+            color = _PALETTE[i % len(_PALETTE)]
+            y = [arch_data.get(arch, {}).get(w, 0) * 100 for w in sorted_weeks]
+            ax.plot(x_labels, y, marker="o", markersize=4, linewidth=2,
+                    color=color, label=_shorten(arch), alpha=0.9)
+
+        fmt = data.get("format_name", "standard").upper()
+        ax.set_title(f"Compare Trends \u2014 {fmt}",
+                     color="white", fontsize=13, pad=10)
+        ax.set_xlabel("Week", color="white", fontsize=9)
+        ax.set_ylabel("Meta Share %", color="white", fontsize=9)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
+        for lbl in ax.get_xticklabels():
+            lbl.set_rotation(45)
+            lbl.set_ha("right")
+        ax.yaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
+        )
+        ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
+                  labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
         self._fig.tight_layout()
         self._canvas.draw()
 

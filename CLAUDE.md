@@ -213,6 +213,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Card images**: Card Lookup tab fetches card art from Scryfall API on first search, cached to `data/card_images/`
   - **Deck search click-to-detail**: clicking any row in Deck Search opens ArchetypeDetailDialog
   - **Charts autocomplete**: Archetype field is now an editable dropdown populated from DB, refreshes on format change
+  - **Charts Compare Mode**: "Compare Trends" chart type — select multiple archetypes, overlay meta share lines on one chart; `_CompareLoader` worker in chart_canvas.py
   - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
   - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
   - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
