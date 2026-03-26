@@ -68,6 +68,7 @@ _FORMAT_MAP = {
     "pioneer":  "Pioneer",
     "modern":   "Modern",
     "legacy":   "Legacy",
+    "pauper":   "Pauper",
 }
 
 

@@ -253,7 +253,7 @@ read from this list and pass `since=None` when All Time is selected.
 All SQL query functions already handle `since=None` via `if since:` guards.
 
 ### Primary Format
-Standard is the primary focus. Pioneer and Modern actively scraped. Legacy supported but not scheduled.
+Standard is the primary focus. Pioneer, Modern, Legacy, and Pauper actively scraped.
 
 ## Database
 

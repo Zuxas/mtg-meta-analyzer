@@ -324,7 +324,7 @@ class HeatmapTab(QWidget):
 
         tl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
-        self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
+        self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "pauper"])
         self._fmt.setFixedWidth(100)
         tl.addWidget(self._fmt)
 

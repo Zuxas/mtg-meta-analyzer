@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 16) — Legacy + Pauper support, full historical scrapes
+
+1. **Pauper added** to `_FORMAT_MAP` in mtgmelee_scraper.py and heatmap format dropdown
+2. **background_fill.bat** updated: Legacy + Pauper added to MTGMelee daily scrape (--pages 3 each)
+3. **melee.gg tournament counts** (ceiling): Standard 882, Legacy 800, Modern 778, Pauper 576, Pioneer 225
+4. **Full scrapes kicked off**: Modern 30 pages, Pioneer 15 pages, Legacy 10 pages, Pauper 10 pages
+
+---
+
 ### Session 2026-03-26 (Session 15) — Major archetype consolidation + min-appearance filter
 
 1. **35 new ALIASES**: Amulet Titan (10 splash variants → canonical), Eldrazi Tron (5 variants), Goryo's Vengeance (5 variants), Murktide (2→Dimir), Merfolk (2→canonical), Burn (2→canonical), 8-Rack (3→canonical), Birthing Ritual (2→Simic), Grinding Breach (3→canonical), Standard: Domain Overlords→Four-Color, Sultai Beanstalk→Four-Color, Azorius Midrange→Azorius Control

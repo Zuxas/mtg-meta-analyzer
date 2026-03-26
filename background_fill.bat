@@ -57,10 +57,12 @@ echo [4/7] MTGDecks - Standard, Pioneer, Modern >> "%LOG_FILE%"
 
 REM ── MTGMelee: real match W/L data ─────────────────────────────────────────
 echo. >> "%LOG_FILE%"
-echo [5/7] MTGMelee - Standard, Pioneer, Modern >> "%LOG_FILE%"
+echo [5/7] MTGMelee - Standard, Pioneer, Modern, Legacy, Pauper >> "%LOG_FILE%"
 %PYTHON% -m scrapers.mtgmelee_scraper --format standard --pages 3 >> "%LOG_FILE%" 2>&1
 %PYTHON% -m scrapers.mtgmelee_scraper --format pioneer  --pages 3 >> "%LOG_FILE%" 2>&1
 %PYTHON% -m scrapers.mtgmelee_scraper --format modern   --pages 3 >> "%LOG_FILE%" 2>&1
+%PYTHON% -m scrapers.mtgmelee_scraper --format legacy   --pages 3 >> "%LOG_FILE%" 2>&1
+%PYTHON% -m scrapers.mtgmelee_scraper --format pauper   --pages 3 >> "%LOG_FILE%" 2>&1
 
 REM ── Scryfall enrichment ───────────────────────────────────────────────────
 echo. >> "%LOG_FILE%"
