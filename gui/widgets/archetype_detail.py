@@ -517,12 +517,14 @@ class ArchetypeDetailDialog(QDialog):
     _TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
 
     def __init__(self, archetype: str, format_name: str,
-                 initial_weeks: int | None = 2, parent=None):
+                 initial_weeks: int | None = 2, parent=None,
+                 deck_id: int = None):
         super().__init__(parent)
         self._archetype   = archetype
         self._format_name = format_name
         self._worker      = None
         self._data        = None   # populated by _on_data; used by export
+        self._deck_id     = deck_id  # specific deck to show in "This List" tab
 
         self.setWindowTitle(f"{archetype} — Deck Analysis")
         self.setMinimumSize(900, 620)
@@ -677,6 +679,12 @@ class ArchetypeDetailDialog(QDialog):
         while self._tabs.count():
             self._tabs.removeTab(0)
 
+        # Tab 0 — This List (specific deck from Recent Top Finishes click)
+        if self._deck_id is not None:
+            this_tab = self._make_this_list_tab(self._deck_id)
+            if this_tab is not None:
+                self._tabs.addTab(this_tab, "This List")
+
         # Tab 1 — Average Deck
         avg_tbl = _make_avg_table(data["mainboard"], data["sideboard"])
         self._tabs.addTab(avg_tbl, "Average Deck")
@@ -699,6 +707,58 @@ class ArchetypeDetailDialog(QDialog):
 
         self._tabs.blockSignals(False)
         self._tabs.setVisible(True)
+
+    def _make_this_list_tab(self, deck_id: int):
+        """Build a tab showing the exact 75 for a specific deck ID."""
+        try:
+            from db.database import get_combined_connection
+            conn = get_combined_connection()
+            try:
+                rows = conn.execute("""
+                    SELECT c.name, dc.quantity, dc.is_sideboard
+                    FROM deck_cards dc
+                    JOIN cards c ON c.id = dc.card_id
+                    WHERE dc.deck_id = ?
+                    ORDER BY dc.is_sideboard ASC, dc.quantity DESC, c.name ASC
+                """, (deck_id,)).fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            return None
+
+        if not rows:
+            return None
+
+        from PyQt6.QtWidgets import QTextEdit
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setStyleSheet(
+            f"background: {theme.BG}; color: #f0f0f0; "
+            f"font-family: Consolas, monospace; font-size: 12px; "
+            f"border: none; padding: 12px;"
+        )
+
+        lines = []
+        main_total = side_total = 0
+        in_side = False
+        for r in rows:
+            if r["is_sideboard"] and not in_side:
+                in_side = True
+                lines.append("")
+                lines.append("Sideboard")
+            qty = r["quantity"]
+            if r["is_sideboard"]:
+                side_total += qty
+            else:
+                main_total += qty
+            lines.append(f"{qty} {r['name']}")
+
+        header = f"// Exact list ({main_total} main"
+        if side_total:
+            header += f" / {side_total} side"
+        header += ")\n"
+        text.setPlainText(header + "\n".join(lines))
+        return text
 
     def _on_error(self, msg: str):
         self._status_lbl.setText(f"Error loading data: {msg}")

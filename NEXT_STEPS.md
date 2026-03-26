@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-03-25
+Last updated: 2026-03-26
 
 ---
 
@@ -181,6 +181,16 @@ python run_gui.py
    - Standard: 108,648 matches (250 tournaments)
    - Pioneer:   20,095 matches  (58 tournaments — all available)
    - Modern:    92,420 matches (347 tournaments — all available)
+
+---
+
+### Session 2026-03-26 (Session 2) — Bug fixes
+
+1. **Heatmap "Use Cached" fix** — `_on_data` and `_on_error` now explicitly restore `_scroll`/`_status` visibility and call `self.setVisible(True)` guard
+2. **My Decks SB plan CRUD** — Added `_SBPlanDialog` with opponent, difficulty, play/draw IN/OUT fields; `+ Add Plan` and `Delete Plan` buttons on Sideboard Plans sub-tab
+3. **Charts Compare Trends polish** — styled compare label, added selection mode to list, Enter key in archetype field adds to compare list when in Compare mode
+4. **RCQ auto-populate field** — when field is blank, loads top 12 meta archetypes by share % and populates field input; shows "Field assumed from meta standings"
+5. **Recent Top Finishes "This List" tab** — `deck_id` added to recent query, stored in UserRole, passed to ArchetypeDetailDialog which adds "This List" tab showing the exact 75 for that finish
 
 ---
 

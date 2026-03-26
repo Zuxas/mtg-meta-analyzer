@@ -160,6 +160,94 @@ class _DeckDialog(QDialog):
 
 
 # ---------------------------------------------------------------------------
+# Add / Edit sideboard plan dialog
+# ---------------------------------------------------------------------------
+
+class _SBPlanDialog(QDialog):
+    """Dialog to add or edit a sideboard plan for a specific matchup."""
+
+    def __init__(self, parent=None, plan=None):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Sideboard Plan" if plan else "Add Sideboard Plan")
+        self.setMinimumSize(500, 480)
+        self.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+
+        layout = QVBoxLayout(self)
+
+        form = QFormLayout()
+        self._opp = QLineEdit()
+        self._opp.setPlaceholderText("e.g. Boros Energy")
+        form.addRow("Opponent Archetype:", self._opp)
+
+        self._diff = QComboBox()
+        self._diff.addItems(["Easy", "Medium", "Hard"])
+        self._diff.setCurrentText("Medium")
+        form.addRow("Difficulty:", self._diff)
+
+        self._notes = QLineEdit()
+        self._notes.setPlaceholderText("Optional notes")
+        form.addRow("Notes:", self._notes)
+        layout.addLayout(form)
+
+        _style = (f"background: {theme.INPUT}; color: {theme.TEXT}; "
+                  f"border: 1px solid {theme.BORDER}; font-family: Consolas, monospace; font-size: 11px;")
+
+        layout.addWidget(QLabel("On the Play — IN (one per line: Card Name):"))
+        self._play_in = QTextEdit()
+        self._play_in.setMaximumHeight(60)
+        self._play_in.setStyleSheet(_style)
+        layout.addWidget(self._play_in)
+
+        layout.addWidget(QLabel("On the Play — OUT:"))
+        self._play_out = QTextEdit()
+        self._play_out.setMaximumHeight(60)
+        self._play_out.setStyleSheet(_style)
+        layout.addWidget(self._play_out)
+
+        layout.addWidget(QLabel("On the Draw — IN:"))
+        self._draw_in = QTextEdit()
+        self._draw_in.setMaximumHeight(60)
+        self._draw_in.setStyleSheet(_style)
+        layout.addWidget(self._draw_in)
+
+        layout.addWidget(QLabel("On the Draw — OUT:"))
+        self._draw_out = QTextEdit()
+        self._draw_out.setMaximumHeight(60)
+        self._draw_out.setStyleSheet(_style)
+        layout.addWidget(self._draw_out)
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+
+        # Pre-fill if editing
+        if plan:
+            self._opp.setText(plan.get("opponent_archetype", ""))
+            self._diff.setCurrentText(plan.get("difficulty", "Medium"))
+            self._notes.setText(plan.get("notes", ""))
+            self._play_in.setPlainText("\n".join(plan.get("play_in", [])))
+            self._play_out.setPlainText("\n".join(plan.get("play_out", [])))
+            self._draw_in.setPlainText("\n".join(plan.get("draw_in", [])))
+            self._draw_out.setPlainText("\n".join(plan.get("draw_out", [])))
+
+    def get_data(self) -> dict:
+        def _lines(te):
+            return [l.strip() for l in te.toPlainText().splitlines() if l.strip()]
+        return {
+            "opponent_archetype": self._opp.text().strip(),
+            "difficulty":         self._diff.currentText(),
+            "notes":              self._notes.text().strip(),
+            "play_in":            _lines(self._play_in),
+            "play_out":           _lines(self._play_out),
+            "draw_in":            _lines(self._draw_in),
+            "draw_out":           _lines(self._draw_out),
+        }
+
+
+# ---------------------------------------------------------------------------
 # My Decks Tab
 # ---------------------------------------------------------------------------
 
@@ -337,9 +425,23 @@ class MyDecksTab(QWidget):
         self._sb_table.setAlternatingRowColors(True)
         sb_layout.addWidget(self._sb_table, 1)
 
-        sb_info = QLabel("Sideboard plans are created in the RCQ Optimizer tab.")
-        sb_info.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
-        sb_layout.addWidget(sb_info)
+        sb_btn_row = QHBoxLayout()
+        self._add_plan_btn = QPushButton("+ Add Plan")
+        self._add_plan_btn.setStyleSheet(
+            f"background: {theme.ACCENT}; color: {theme.BTN_FG}; "
+            f"font-weight: bold; padding: 6px 14px; border-radius: 4px;"
+        )
+        self._add_plan_btn.setEnabled(False)
+        self._add_plan_btn.clicked.connect(self._add_sb_plan)
+        sb_btn_row.addWidget(self._add_plan_btn)
+
+        self._del_plan_btn = QPushButton("Delete Plan")
+        self._del_plan_btn.setEnabled(False)
+        self._del_plan_btn.setStyleSheet(f"color: {theme.ERR};")
+        self._del_plan_btn.clicked.connect(self._delete_sb_plan)
+        sb_btn_row.addWidget(self._del_plan_btn)
+        sb_btn_row.addStretch()
+        sb_layout.addLayout(sb_btn_row)
 
         self._detail_tabs.addTab(sb_widget, "Sideboard Plans")
 
@@ -411,6 +513,8 @@ class MyDecksTab(QWidget):
         self._export_btn.setEnabled(True)
         self._guide_btn.setEnabled(True)
         self._rcq_btn.setEnabled(True)
+        self._add_plan_btn.setEnabled(True)
+        self._del_plan_btn.setEnabled(True)
 
     def _show_deck(self, deck):
         name = deck.get("name", "Unnamed")
@@ -501,6 +605,8 @@ class MyDecksTab(QWidget):
         self._export_btn.setEnabled(False)
         self._guide_btn.setEnabled(False)
         self._rcq_btn.setEnabled(False)
+        self._add_plan_btn.setEnabled(False)
+        self._del_plan_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
     # CRUD actions
@@ -575,6 +681,54 @@ class MyDecksTab(QWidget):
         delete_deck(self._current_deck["id"])
         self._clear_detail()
         self._load_decks()
+
+    # ------------------------------------------------------------------
+    # Sideboard plan CRUD
+    # ------------------------------------------------------------------
+
+    def _add_sb_plan(self):
+        if not self._current_deck:
+            return
+        dlg = _SBPlanDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        data = dlg.get_data()
+        if not data["opponent_archetype"]:
+            QMessageBox.warning(self, "Missing Opponent", "Enter an opponent archetype.")
+            return
+        from db.saved_decks import save_sb_plan
+        save_sb_plan(
+            deck_id=self._current_deck["id"],
+            opponent_archetype=data["opponent_archetype"],
+            play_in=data["play_in"],
+            play_out=data["play_out"],
+            draw_in=data["draw_in"],
+            draw_out=data["draw_out"],
+            notes=data["notes"],
+            difficulty=data["difficulty"],
+        )
+        self._load_sb_plans(self._current_deck["id"])
+
+    def _delete_sb_plan(self):
+        if not self._current_deck:
+            return
+        row = self._sb_table.currentRow()
+        if row < 0:
+            return
+        opp_item = self._sb_table.item(row, 0)
+        if not opp_item:
+            return
+        opp = opp_item.text()
+        reply = QMessageBox.question(
+            self, "Delete Plan",
+            f"Delete sideboard plan for vs {opp}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from db.saved_decks import delete_sb_plan
+        delete_sb_plan(self._current_deck["id"], opp)
+        self._load_sb_plans(self._current_deck["id"])
 
     # ------------------------------------------------------------------
     # Export & RCQ

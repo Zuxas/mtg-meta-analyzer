@@ -110,7 +110,7 @@ def _load_panel_data(format_name: str, since_dt, top: int,
             "ELSE replace(e.date,'-','') END"
         )
         q = """
-            SELECT d.archetype, d.player, d.placement,
+            SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
                    e.name AS event_name, e.date
             FROM decks d JOIN events e ON e.id = d.event_id
             WHERE lower(e.format) = lower(?) AND d.placement <= 4
@@ -636,10 +636,13 @@ class DashboardTab(QWidget):
     def _on_recent_dblclick(self, item):
         arch_item = self._recent_tbl.item(self._recent_tbl.currentRow(), 2)
         if arch_item:
-            raw = arch_item.data(Qt.ItemDataRole.UserRole) or arch_item.text()
-            self._open_detail(raw)
+            raw = arch_item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(raw, dict):
+                self._open_detail(raw["archetype"], deck_id=raw.get("deck_id"))
+            else:
+                self._open_detail(raw or arch_item.text())
 
-    def _open_detail(self, archetype: str):
+    def _open_detail(self, archetype: str, deck_id: int = None):
         from gui.widgets.archetype_detail import ArchetypeDetailDialog
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
         dlg = ArchetypeDetailDialog(
@@ -647,6 +650,7 @@ class DashboardTab(QWidget):
             format_name=self._fmt.currentText(),
             initial_weeks=weeks,
             parent=self,
+            deck_id=deck_id,
         )
         dlg.exec()
 
@@ -881,7 +885,10 @@ class DashboardTab(QWidget):
             ident = _color_identity(r["archetype"])
             tbl.setCellWidget(ri, 1, theme.make_pip_widget(ident))
             _set_cell(tbl, ri, 2, r["archetype"])
-            tbl.item(ri, 2).setData(Qt.ItemDataRole.UserRole, r["archetype"])
+            tbl.item(ri, 2).setData(Qt.ItemDataRole.UserRole, {
+                "archetype": r["archetype"],
+                "deck_id":   r.get("deck_id"),
+            })
             player = r.get("player", "") or ""
             _set_cell(tbl, ri, 3, player)
             event = r.get("event_name", "") or ""

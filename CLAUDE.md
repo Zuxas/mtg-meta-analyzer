@@ -189,7 +189,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
   - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts, archetype checkboxes
   - Panel titles are **dynamic**: "WIN RATE — 2 WEEKS", "POPULAR — 4 WEEKS" etc. update with timeframe selector
-  - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion)
+  - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion); "This List" tab shows exact 75 when opened from Recent Top Finishes click
   - **Date filter fix**: all panels use SQLite CASE expression (`_DATE_KEY`) to normalize `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) to `YYYYMMDD` for correct filtering/ordering everywhere
   - **Click handler fix**: Recent Top Finishes archetype cell stores raw name in `UserRole`; color-identity prefix no longer breaks deck detail lookup
   - **Player column**: Recent Top Finishes shows Place / Colors / Archetype / Player / Event / Date (6 columns)
@@ -201,6 +201,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     - Left panel: format-filtered deck list with Add/Edit/Delete buttons
     - Right panel: deck detail with Decklist and Sideboard Plans sub-tabs
     - Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
+    - Sideboard Plans: `+ Add Plan` dialog (opponent, difficulty, play/draw IN/OUT) + `Delete Plan`
     - Export, "Export Guide" (printable HTML), and "Open in RCQ Optimizer" buttons on deck detail
     - Guide export: deck name, full 75, per-matchup difficulty + ON PLAY/DRAW IN/OUT + notes; print-friendly CSS
     - `open_in_rcq` signal wired to MainWindow → switches to Tournament Prep tab
@@ -221,7 +222,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
   - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
   - **Tournament Prep tab** (2 sub-tabs):
-    - **RCQ Optimizer**: enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown at top loads archetype + format from saved_decks
+    - **RCQ Optimizer**: enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown at top loads archetype + format from saved_decks; blank field auto-populates from top 12 meta archetypes by share %
     - **Breaker Math**: real-time W/L/D tracker, ID calculator, draw equity, pair-down warning, seeding impact, breaker education
 
 ### Centralized Timeframe Selector (all tabs)

@@ -873,7 +873,37 @@ class _RCQWidget(QWidget):
             self._status.setText("Enter your archetype.")
             return
         if not field:
-            self._status.setText("Enter the expected field (e.g. 'Boros Energy x8').")
+            # Auto-populate from current meta standings
+            fmt   = self._fmt.currentText()
+            since = self._since_dt()
+            self._analyze_btn.setEnabled(False)
+            self._status.setText("No field entered — loading from meta standings\u2026")
+
+            def _auto():
+                from analysis.win_rates import get_meta_standings
+                standings = get_meta_standings(fmt, top=12, since=since)
+                lines = []
+                for s in standings:
+                    a = s["archetype"]
+                    n = max(1, round(s.get("appearances", 1) / max(1, sum(
+                        x.get("appearances", 1) for x in standings)) * 32))
+                    lines.append(f"{a} x{n}")
+                return "\n".join(lines)
+
+            def _done(text):
+                self._field_input.setPlainText(text)
+                self._status.setText("Field assumed from meta standings. Click Analyze again.")
+                self._analyze_btn.setEnabled(True)
+
+            w = DataLoadWorker(_auto)
+            w.result.connect(_done)
+            w.error.connect(lambda e: (
+                self._status.setText(f"Could not load meta: {e}"),
+                self._analyze_btn.setEnabled(True),
+            ))
+            w.finished.connect(w.deleteLater)
+            w.start()
+            self._workers.append(w)
             return
 
         fmt   = self._fmt.currentText()

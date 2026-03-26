@@ -396,11 +396,17 @@ class HeatmapTab(QWidget):
 
     def _on_error(self, msg: str):
         self._set_busy(False)
+        self._scroll.setVisible(False)
+        self._status.setVisible(True)
         self._status.setText(f"Error: {msg}")
+        self.setVisible(True)
 
     def _on_data(self, matrix: dict):
         self._set_busy(False)
         if not matrix:
+            # Ensure the tab stays visible with a clear message
+            self._scroll.setVisible(False)
+            self._status.setVisible(True)
             if getattr(self, "_load_source", None) == "cache":
                 self._status.setText(
                     "No cached data yet \u2014 click \u2018Fetch Live Data\u2019 first."
@@ -409,6 +415,7 @@ class HeatmapTab(QWidget):
                 self._status.setText(
                     "No data found. Try \u2018Fetch Live Data\u2019 to download from MTGDecks."
                 )
+            self.setVisible(True)  # guard: ensure this widget stays shown
             return
 
         self._current_matrix = matrix

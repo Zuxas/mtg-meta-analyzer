@@ -81,14 +81,16 @@ class ChartsTab(QWidget):
         self._arch.setEditable(True)
         self._arch.setMinimumWidth(160)
         self._arch.lineEdit().setPlaceholderText("e.g. Izzet Prowess")
-        self._arch.lineEdit().returnPressed.connect(self.generate)
+        self._arch.lineEdit().returnPressed.connect(self._on_arch_enter)
         cv.addWidget(self._arch)
 
         # Compare list (shown for Compare Trends mode)
         self._compare_label = QLabel("Selected archetypes:")
+        self._compare_label.setStyleSheet(f"color: {theme.ACCENT}; font-weight: bold;")
         cv.addWidget(self._compare_label)
         self._compare_list = QListWidget()
         self._compare_list.setMaximumHeight(120)
+        self._compare_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self._compare_list.setStyleSheet(
             f"background: {theme.INPUT}; color: {theme.TEXT}; "
             f"border: 1px solid {theme.BORDER}; font-size: 10px;"
@@ -226,6 +228,13 @@ class ChartsTab(QWidget):
             self._status.setText(f"Error: {e}")
         finally:
             self._gen_btn.setEnabled(True)
+
+    def _on_arch_enter(self):
+        """Enter key in archetype field: add to compare list in Compare mode, generate otherwise."""
+        if self._type.currentText() == "Compare Trends":
+            self._add_compare_arch()
+        else:
+            self.generate()
 
     def _add_compare_arch(self):
         arch = self._arch.currentText().strip()
