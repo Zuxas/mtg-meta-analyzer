@@ -111,26 +111,40 @@ class _CombinedWorker(QThread):
 
     def run(self):
         try:
+            from analysis.archetypes import normalize as norm_arch
+
             # 1) Real match data from matches table
+            # Lower threshold for Pioneer/Modern (less data available)
             from analysis.win_rates import get_real_matchup_winrates
-            real_raw = get_real_matchup_winrates(self.format_name, min_matches=20)
+            min_m = 10 if self.format_name in ("pioneer", "modern") else 20
+            real_raw = get_real_matchup_winrates(self.format_name, min_matches=min_m)
 
             # Convert canonical (a<b) to full bidirectional matrix
+            # Normalize archetype names so they match meta standings
             real_matrix = {}
             for a, opponents in real_raw.items():
+                na = norm_arch(a)
                 for b, stats in opponents.items():
+                    nb = norm_arch(b)
                     wr_a = stats["win_rate"]
                     n    = stats["total"]
-                    real_matrix.setdefault(a, {})[b] = {
+                    real_matrix.setdefault(na, {})[nb] = {
                         "winrate": wr_a, "matches": n,
                     }
-                    real_matrix.setdefault(b, {})[a] = {
+                    real_matrix.setdefault(nb, {})[na] = {
                         "winrate": round(1.0 - wr_a, 4), "matches": n,
                     }
 
             # 2) Cached scraped data for this specific format
             from db.matchup_queries import get_matchup_matrix
-            scraped = get_matchup_matrix(self.format_name)
+            scraped_raw = get_matchup_matrix(self.format_name)
+            # Normalize scraped keys too
+            scraped = {}
+            for a, opps in scraped_raw.items():
+                na = norm_arch(a)
+                scraped[na] = {}
+                for b, v in opps.items():
+                    scraped[na][norm_arch(b)] = v
 
             # 3) Merge: real takes priority, scraped fills gaps
             combined = {}
@@ -591,10 +605,19 @@ class HeatmapTab(QWidget):
     def _filter_to_meta(self, matrix: dict, format_name: str, top: int = 30):
         """
         Return (filtered_matrix, ordered_archetypes) keeping only the top-N
-        archetypes by meta share, sorted descending.
-        Uses case-insensitive matching to bridge naming differences between
-        data sources.
+        archetypes, sorted by relevance.
+
+        Strategy:
+          1. Try matching meta standings names to matrix keys (normalized).
+          2. If overlap is good (≥40% of meta names found), use meta order.
+          3. Otherwise fall back to sorting by data density (most matchup
+             cells first) — this handles real match data where melee.gg
+             names don't match the local archetype naming.
         """
+        # -- Sort by data density (always available) --
+        by_density = sorted(matrix.keys(),
+                            key=lambda a: -len(matrix.get(a, {})))[:top]
+
         try:
             from analysis.win_rates import get_meta_standings
             standings = get_meta_standings(format_name, top=top, min_appearances=2)
@@ -602,36 +625,57 @@ class HeatmapTab(QWidget):
             standings = []
 
         if not standings:
-            return matrix, sorted(matrix.keys())
+            return self._build_filtered(matrix, by_density)
 
-        # Build a case-insensitive lookup from matrix keys
-        matrix_lower = {k.lower(): k for k in matrix}
+        # -- Try name matching --
+        from analysis.archetypes import normalize as norm_arch
 
-        # Match meta archetype names to matrix keys (case-insensitive + substring)
+        # Normalize matrix keys: norm_lower → original_key
+        norm_to_orig = {}
+        for k in matrix:
+            nk = norm_arch(k).lower()
+            norm_to_orig.setdefault(nk, k)
+
         ordered = []
+        used    = set()
+
         for s in standings:
-            arch = s["archetype"]
-            low  = arch.lower()
-            # Exact match (case-insensitive)
-            if low in matrix_lower:
-                ordered.append(matrix_lower[low])
-            else:
-                # Substring match
-                for mk_low, mk_orig in matrix_lower.items():
-                    if mk_orig not in ordered and (low in mk_low or mk_low in low):
-                        ordered.append(mk_orig)
-                        break
+            meta_low = norm_arch(s["archetype"]).lower()
 
-        if not ordered:
-            by_cells = sorted(matrix.keys(), key=lambda a: -len(matrix.get(a, {})))
-            return matrix, by_cells[:top]
+            # Exact normalized match
+            if meta_low in norm_to_orig and meta_low not in used:
+                used.add(meta_low)
+                ordered.append(norm_to_orig[meta_low])
+                continue
 
+            # Substring match
+            for nk, orig in norm_to_orig.items():
+                if nk not in used and (meta_low in nk or nk in meta_low):
+                    used.add(nk)
+                    ordered.append(orig)
+                    break
+
+        overlap_pct = len(ordered) / len(standings) if standings else 0
+        print(f"[HEATMAP] _filter_to_meta: {len(ordered)}/{len(standings)} "
+              f"meta matched ({overlap_pct:.0%}), {len(matrix)} matrix archetypes")
+
+        if overlap_pct >= 0.4:
+            # Good overlap — use meta-share ordering
+            return self._build_filtered(matrix, ordered)
+        else:
+            # Poor overlap (real match data vs different naming) — use data density
+            print(f"[HEATMAP] Poor name overlap — falling back to data-density sort")
+            return self._build_filtered(matrix, by_density)
+
+    @staticmethod
+    def _build_filtered(matrix: dict, ordered: list):
+        """Build a filtered matrix containing only the ordered archetypes."""
         ordered_set = set(ordered)
         filtered = {
-            a: {b: v for b, v in matrix[a].items() if b in ordered_set}
+            a: {b: v for b, v in matrix.get(a, {}).items() if b in ordered_set}
             for a in ordered if a in matrix
         }
-        return filtered, ordered
+        return filtered, [a for a in ordered if a in matrix]
 
     # ------------------------------------------------------------------
     # Grid drawing

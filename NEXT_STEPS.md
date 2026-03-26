@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 11) — Heatmap archetype name matching fix
+
+1. **Root cause**: melee.gg deck names (real match data) are completely different from MTGTop8/MTGDecks names used in meta standings — only 1/30 overlap even after normalize(). Fuzzy matching produced wrong matches ("Mono Red Control" -> "Mono White Control").
+2. **Fix**: `_filter_to_meta` now tries normalized name matching first; if overlap < 40%, falls back to **data-density sort** (archetypes with the most matchup cells). This shows the 30 most data-rich archetypes regardless of naming, giving a full 30x30 grid.
+3. **CombinedWorker**: normalizes all archetype keys in real + scraped matrices via `archetypes.normalize()`. Lower min_matches to 10 for Pioneer/Modern.
+4. **Verified**: Standard now shows 30 archetypes (was 6), Pioneer/Modern get more coverage with threshold 10.
+
+---
+
 ### Session 2026-03-26 (Session 10) — Window hiding to tray during loads + CSS warnings
 
 1. **Window hiding to tray during loads**: `closeEvent` hid to tray on ALL close events, including programmatic ones from widget deletion cascades during heatmap grid replacement. Fixed by checking `event.spontaneous()` — only hide-to-tray for user-initiated close (X button, Alt+F4), ignore programmatic close events.

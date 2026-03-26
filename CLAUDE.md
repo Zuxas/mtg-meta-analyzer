@@ -176,8 +176,10 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `_cancel_worker()` blocks signals only (no `wait()` — workers have no event loop so `quit()` is a no-op)
   - `_on_worker_finished()` only re-enables UI if gen matches current; handles `deleteLater` safely
   - `_prepare_load()` cancels old worker + clears state before each new load
-  - `_filter_to_meta()` uses case-insensitive + substring matching to bridge naming differences
-  - Only archetypes in `get_meta_standings(top=30)` shown; low-coverage warning for <8 archetypes
+  - `_CombinedWorker` normalizes all archetype keys via `archetypes.normalize()` before merging
+  - `_filter_to_meta()` tries normalized name matching; if <40% overlap, falls back to data-density sort (top 30 by matchup cell count). Handles melee.gg vs MTGTop8 naming gap.
+  - Pioneer/Modern use min_matches=10 (less data); Standard uses min_matches=20
+  - Low-coverage warning for <8 archetypes on non-Standard formats
   - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
   - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
   - Tooltip per cell: archetype names, win%, verdict, source (Real/Scraped), sample size n=X
