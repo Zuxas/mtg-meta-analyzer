@@ -64,7 +64,7 @@ def _wr_label(winrate: float) -> str:
 # ---------------------------------------------------------------------------
 
 class _FetchWorker(QThread):
-    done  = pyqtSignal(dict)
+    done  = pyqtSignal(str, dict)  # (format_name, matrix)
     error = pyqtSignal(str)
 
     def __init__(self, format_name: str):
@@ -78,13 +78,13 @@ class _FetchWorker(QThread):
             data = scrape_winrates(self.format_name)
             if data:
                 save_matchup_data(self.format_name, data)
-            self.done.emit(data)
+            self.done.emit(self.format_name, data or {})
         except Exception as exc:
             self.error.emit(str(exc))
 
 
 class _LoadWorker(QThread):
-    done  = pyqtSignal(dict)
+    done  = pyqtSignal(str, dict)  # (format_name, matrix)
     error = pyqtSignal(str)
 
     def __init__(self, format_name: str):
@@ -94,14 +94,15 @@ class _LoadWorker(QThread):
     def run(self):
         try:
             from db.matchup_queries import get_matchup_matrix
-            self.done.emit(get_matchup_matrix(self.format_name))
+            self.done.emit(self.format_name,
+                           get_matchup_matrix(self.format_name))
         except Exception as exc:
             self.error.emit(str(exc))
 
 
 class _CombinedWorker(QThread):
     """Load real match data + cached scraped data and merge them."""
-    done  = pyqtSignal(dict, dict)  # (combined_matrix, source_map)
+    done  = pyqtSignal(str, dict, dict)  # (format_name, combined_matrix, source_map)
     error = pyqtSignal(str)
 
     def __init__(self, format_name: str):
@@ -127,7 +128,7 @@ class _CombinedWorker(QThread):
                         "winrate": round(1.0 - wr_a, 4), "matches": n,
                     }
 
-            # 2) Cached scraped data
+            # 2) Cached scraped data for this specific format
             from db.matchup_queries import get_matchup_matrix
             scraped = get_matchup_matrix(self.format_name)
 
@@ -150,7 +151,7 @@ class _CombinedWorker(QThread):
                         combined[a][b] = scraped_opps[b]
                         source[(a, b)] = "scraped"
 
-            self.done.emit(combined, source)
+            self.done.emit(self.format_name, combined, source)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -286,7 +287,9 @@ class HeatmapTab(QWidget):
         super().__init__(parent)
         self._worker = None
         self._current_matrix: dict = {}
-        self._source_map: dict = {}  # {(a,b): "real"|"scraped"}
+        self._source_map: dict = {}      # {(a,b): "real"|"scraped"}
+        self._loaded_format: str = ""    # format that _current_matrix belongs to
+        self._load_source: str = ""      # "combined"|"fetch"|"cache"|"paste"
         self._build_ui()
 
     def _build_ui(self):
@@ -358,6 +361,7 @@ class HeatmapTab(QWidget):
         self._status.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 12px; padding: 8px;"
         )
+        self._status.setWordWrap(True)
         outer.addWidget(self._status)
 
         # ── Grid (inside a scroll area) ───────────────────────────────
@@ -409,7 +413,7 @@ class HeatmapTab(QWidget):
         return row
 
     # ------------------------------------------------------------------
-    # Workers
+    # Worker lifecycle — safe start / cancel
     # ------------------------------------------------------------------
 
     def _set_busy(self, busy: bool):
@@ -417,79 +421,95 @@ class HeatmapTab(QWidget):
         self._fetch_btn.setEnabled(not busy)
         self._cache_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
+        self._fmt.setEnabled(not busy)
 
     def cleanup(self):
         """Stop running worker. Called by MainWindow on app exit."""
         self._cancel_worker()
 
     def _cancel_worker(self):
-        if self._worker is not None:
+        """Safely cancel any running worker without crashing."""
+        w = self._worker
+        if w is not None:
             try:
-                self._worker.blockSignals(True)
+                w.blockSignals(True)
             except RuntimeError:
                 pass
             self._worker = None
 
+    def _prepare_load(self, source: str):
+        """Common pre-load steps: cancel old worker, reset state, show loading UI."""
+        self._cancel_worker()
+        self._load_source = source
+        self._current_matrix = {}
+        self._source_map = {}
+        self._status.setVisible(True)
+        self._scroll.setVisible(False)
+        self._updated_lbl.setText("")
+        self._set_busy(True)
+
+    def _wire_worker(self, worker):
+        """Store worker reference and wire finished → deleteLater safely.
+
+        Key fix: capture the worker in a local variable for the lambda so that
+        deleteLater always targets the correct QThread object, even if
+        self._worker has been replaced by a newer load before this one finishes.
+        """
+        self._worker = worker
+        w_ref = worker  # captured by lambdas below — won't change
+        worker.error.connect(self._on_error)
+        worker.finished.connect(w_ref.deleteLater)
+        worker.finished.connect(lambda: self._clear_worker_ref(w_ref))
+        worker.start()
+
+    def _clear_worker_ref(self, w):
+        """Only clear self._worker if it still points to *this* worker."""
+        if self._worker is w:
+            self._worker = None
+
+    # ------------------------------------------------------------------
+    # Load actions
+    # ------------------------------------------------------------------
+
     def _load_combined(self):
         """Default action: real match data + scraped fills gaps."""
         fmt = self._fmt.currentText()
-        self._load_source = "combined"
+        self._prepare_load("combined")
         self._status.setText(f"Loading real match data + cached scrapes for {fmt}\u2026")
-        self._status.setVisible(True)
-        self._scroll.setVisible(False)
-        self._set_busy(True)
 
-        self._cancel_worker()
-        self._worker = _CombinedWorker(fmt)
-        self._worker.done.connect(self._on_combined_data)
-        self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
-        self._worker.start()
+        worker = _CombinedWorker(fmt)
+        worker.done.connect(self._on_combined_data)
+        self._wire_worker(worker)
 
-    def _on_combined_data(self, matrix: dict, source_map: dict):
+    def _on_combined_data(self, fmt: str, matrix: dict, source_map: dict):
         self._source_map = source_map
-        self._on_data(matrix)
+        self._on_data(fmt, matrix)
 
     def _fetch_live(self):
         fmt = self._fmt.currentText()
-        self._load_source = "fetch"
-        self._source_map = {}
+        self._prepare_load("fetch")
         self._status.setText(f"Fetching {fmt} win-rates from MTGDecks\u2026")
-        self._status.setVisible(True)
-        self._scroll.setVisible(False)
-        self._set_busy(True)
 
-        self._cancel_worker()
-        self._worker = _FetchWorker(fmt)
-        self._worker.done.connect(self._on_data)
-        self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
-        self._worker.start()
+        worker = _FetchWorker(fmt)
+        worker.done.connect(self._on_data)
+        self._wire_worker(worker)
 
     def _load_cached(self):
         fmt = self._fmt.currentText()
-        self._load_source = "cache"
-        self._source_map = {}
+        self._prepare_load("cache")
         self._status.setText(f"Loading cached {fmt} data\u2026")
-        self._status.setVisible(True)
-        self._scroll.setVisible(False)
-        self._set_busy(True)
 
-        self._cancel_worker()
-        self._worker = _LoadWorker(fmt)
-        self._worker.done.connect(self._on_data)
-        self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
-        self._worker.start()
+        worker = _LoadWorker(fmt)
+        worker.done.connect(self._on_data)
+        self._wire_worker(worker)
 
     def _open_paste_dialog(self):
         dlg = _PasteDialog(self)
         if dlg.exec() == QDialog.DialogCode.Accepted and dlg.result_matrix:
+            fmt = self._fmt.currentText()
+            self._load_source = "paste"
             self._source_map = {}
-            self._on_data(dlg.result_matrix)
+            self._on_data(fmt, dlg.result_matrix)
 
     # ------------------------------------------------------------------
     # Data callbacks
@@ -501,46 +521,53 @@ class HeatmapTab(QWidget):
         self._status.setVisible(True)
         self._status.setText(f"Error: {msg}")
 
-    def _on_data(self, matrix: dict):
+    def _on_data(self, fmt: str, matrix: dict):
         self._set_busy(False)
+        self._loaded_format = fmt
+
         if not matrix:
             self._scroll.setVisible(False)
             self._status.setVisible(True)
-            if getattr(self, "_load_source", None) == "cache":
+            if self._load_source == "cache":
                 self._status.setText(
-                    "No cached data yet \u2014 click \u2018Real Match Data (DB)\u2019 "
-                    "or \u2018MTGDecks Live\u2019 first."
+                    f"No cached data for {fmt} \u2014 click \u2018Real Match Data (DB)\u2019 "
+                    f"or \u2018MTGDecks Live\u2019 first."
                 )
-            elif getattr(self, "_load_source", None) == "combined":
+            elif self._load_source == "combined":
                 self._status.setText(
-                    "No match data found. Run the MTGMelee scraper or fetch from MTGDecks."
+                    f"No match data found for {fmt}. "
+                    f"Run the MTGMelee scraper or fetch from MTGDecks."
                 )
             else:
                 self._status.setText(
-                    "No data found. Try \u2018Real Match Data (DB)\u2019 or \u2018MTGDecks Live\u2019."
+                    f"No data found for {fmt}. "
+                    f"Try \u2018Real Match Data (DB)\u2019 or \u2018MTGDecks Live\u2019."
                 )
             return
 
         self._current_matrix = matrix
-        fmt = self._fmt.currentText()
+        # Use the format the data was loaded for, NOT the current combo value
         filtered, ordered = self._filter_to_meta(matrix, fmt)
-        self._draw_grid(filtered, ordered, total_archetypes=len(matrix))
+        self._draw_grid(filtered, ordered, total_archetypes=len(matrix), fmt=fmt)
 
         # Update last-updated label
-        source = getattr(self, "_load_source", "")
-        if source == "combined":
+        if self._load_source == "combined":
             real_ct = sum(1 for v in self._source_map.values() if v == "real")
             scr_ct  = sum(1 for v in self._source_map.values() if v == "scraped")
             self._updated_lbl.setText(
+                f"{fmt.upper()}  \u2022  "
                 f"\u2605 {real_ct} real cells  |  {scr_ct} scraped cells"
             )
         else:
             try:
                 from db.matchup_queries import get_last_updated
                 ts = get_last_updated(fmt)
-                self._updated_lbl.setText(f"Last updated: {ts[:10] if ts else 'just now'}")
+                self._updated_lbl.setText(
+                    f"{fmt.upper()}  \u2022  "
+                    f"Last updated: {ts[:10] if ts else 'just now'}"
+                )
             except Exception:
-                pass
+                self._updated_lbl.setText(f"{fmt.upper()}")
 
     # ------------------------------------------------------------------
     # Meta filtering
@@ -574,14 +601,13 @@ class HeatmapTab(QWidget):
             if low in matrix_lower:
                 ordered.append(matrix_lower[low])
             else:
-                # Substring match: check if the meta name is a substring of any matrix key or vice versa
+                # Substring match
                 for mk_low, mk_orig in matrix_lower.items():
                     if mk_orig not in ordered and (low in mk_low or mk_low in low):
                         ordered.append(mk_orig)
                         break
 
         if not ordered:
-            # No overlap found — fall back to sorting by number of matchup cells
             by_cells = sorted(matrix.keys(), key=lambda a: -len(matrix.get(a, {})))
             return matrix, by_cells[:top]
 
@@ -597,7 +623,7 @@ class HeatmapTab(QWidget):
     # ------------------------------------------------------------------
 
     def _draw_grid(self, matrix: dict, ordered_archetypes: list = None,
-                   total_archetypes: int = None):
+                   total_archetypes: int = None, fmt: str = ""):
         archetypes = ordered_archetypes if ordered_archetypes is not None \
                      else sorted(matrix.keys())
         n = len(archetypes)
@@ -658,7 +684,6 @@ class HeatmapTab(QWidget):
 
                 tbl.setItem(ri, ci, item)
 
-        # Rotate column headers
         tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         tbl.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
 
@@ -666,9 +691,9 @@ class HeatmapTab(QWidget):
         old_layout = self._grid_widget.layout()
         if old_layout:
             while old_layout.count():
-                item = old_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
+                child = old_layout.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
             import sip
             try:
                 sip.delete(old_layout)
@@ -690,6 +715,21 @@ class HeatmapTab(QWidget):
         )
         info.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px; padding: 4px;")
         vl.addWidget(info)
+
+        # Low-coverage warning for sparse formats
+        if n < 8 and fmt and fmt.lower() != "standard":
+            warn = QLabel(
+                f"Limited data \u2014 only {n} archetypes with 20+ matches for "
+                f"{fmt.capitalize()}. Run more {fmt.capitalize()} scrapes "
+                f"(MTGMelee or MTGDecks) to improve coverage."
+            )
+            warn.setWordWrap(True)
+            warn.setStyleSheet(
+                f"color: {theme.WARN}; font-size: 10px; padding: 4px; "
+                f"background: #2a1a0a; border-radius: 3px;"
+            )
+            vl.addWidget(warn)
+
         vl.addWidget(tbl, 1)
 
         self._status.setVisible(False)

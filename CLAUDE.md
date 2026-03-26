@@ -171,8 +171,11 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     2. MTGDecks Live — scrapes MTGDecks.net `/winrates` page, fills gaps where real data is thin
     3. Paste Data — manual CSV / JSON (Frank Karsten format)
   - `_CombinedWorker` builds bidirectional matrix from canonical (a<b) real data + cached scrapes
-  - `_filter_to_meta()` uses case-insensitive + substring matching to bridge naming differences between sources
-  - Only archetypes in `get_meta_standings(top=30)` are shown, sorted by meta share descending
+  - Workers emit `(format_name, matrix)` tuples; `_on_data` uses loaded format, not current combo
+  - `_wire_worker()` captures worker ref locally for safe `deleteLater`; prevents crash on source switching
+  - `_prepare_load()` cancels old worker + clears state before each new load
+  - `_filter_to_meta()` uses case-insensitive + substring matching to bridge naming differences
+  - Only archetypes in `get_meta_standings(top=30)` shown; low-coverage warning for <8 archetypes
   - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
   - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
   - Tooltip per cell: archetype names, win%, verdict, source (Real/Scraped), sample size n=X

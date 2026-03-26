@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 5) — Heatmap stability fixes
+
+1. **Worker lifecycle crash fix** — `_wire_worker()` captures worker in a local variable for `deleteLater` lambda; `_clear_worker_ref()` only clears `self._worker` if it still points to the same worker; prevents deleting a newer worker when an old one finishes
+2. **Format-aware data flow** — all workers now emit `(format_name, matrix)` tuples; `_on_data` uses the loaded format for filtering (not the current combo value); `_loaded_format` tracks which format the current grid belongs to
+3. **Clean source switching** — `_prepare_load()` cancels old worker, clears `_current_matrix`/`_source_map`/`_updated_lbl`, disables format combo during load; all three buttons work at any time without crashing
+4. **Low-coverage warning** — shows orange note when <8 archetypes with 20+ matches for non-Standard formats
+
+---
+
 ### Session 2026-03-26 (Session 4) — Tournament Prep → Event Optimizer upgrade
 
 1. **Event type selector** — RCQ/RC/PTQ/Custom presets auto-set player range + rounds
