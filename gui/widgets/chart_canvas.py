@@ -77,7 +77,7 @@ def _draw_event_markers(ax, x_labels: list[str], sorted_keys: list[str],
         ax.annotate(ev.get("short", ""),
                     xy=(best_idx, 1.0),
                     xycoords=("data", "axes fraction"),
-                    rotation=45, fontsize=6, color=color,
+                    rotation=45, fontsize=8, fontweight="bold", color=color,
                     ha="left", va="bottom", clip_on=False, alpha=0.85)
 
 
@@ -413,10 +413,15 @@ class ChartCanvas(QWidget):
             if mode == "win_pct":
                 # For win rate: suppress weeks with <3 appearances, apply 3-point rolling avg
                 raw = []
+                total_raw = 0
                 for w in sorted_weeks:
                     val = row.get(w)
                     n   = arch_samples.get(w, 0)
-                    raw.append((val or 0) * 100 if val is not None and n >= 3 else None)
+                    if val is not None and n >= 3:
+                        raw.append(val * 100)
+                        total_raw += 1
+                    else:
+                        raw.append(None)
                 # 3-point rolling average (skip Nones)
                 y = []
                 for j in range(len(raw)):
@@ -426,6 +431,9 @@ class ChartCanvas(QWidget):
                 # Plot only non-None segments
                 xs = [x_labels[j] for j in range(len(y)) if y[j] is not None]
                 ys = [y[j] for j in range(len(y)) if y[j] is not None]
+                print(f"[CHART WR] {arch[:25]:25s}: {total_raw}/{len(sorted_weeks)} weeks pass filter, "
+                      f"smoothed range {min(ys):.0f}-{max(ys):.0f}%" if ys else
+                      f"[CHART WR] {arch[:25]:25s}: 0 points after filter")
                 if ys:
                     ax.plot(xs, ys, marker="o", markersize=3, linewidth=2,
                             color=color, label=_shorten(arch), alpha=0.9)

@@ -667,9 +667,10 @@ class DashboardTab(QWidget):
 
     def _on_chart_data(self, data):
         self._chart_data = data
-        self._rebuild_checkboxes(data["archetypes"] if data else [])
+        self._rebuild_checkboxes(data if data else None)
         show_ev = self._show_events_cb.isChecked()
-        self._canvas.draw_from_data(data, mode=self._chart_mode, show_events=show_ev)
+        visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
+        self._canvas.draw_from_data(data, visible, mode=self._chart_mode, show_events=show_ev)
 
     def _on_error(self, msg: str):
         self._status_lbl.setText(f"Error: {msg}")
@@ -966,14 +967,25 @@ class DashboardTab(QWidget):
     # Chart checkbox sidebar
     # ------------------------------------------------------------------
 
-    def _rebuild_checkboxes(self, archetypes: list):
-        """Rebuild the checkbox list when archetypes change."""
+    def _rebuild_checkboxes(self, data):
+        """Rebuild the checkbox list. Top 8 by total appearances are checked."""
         # Remove old checkboxes
         self._chart_checks.clear()
         while self._check_layout.count() > 1:  # keep the trailing stretch
             item = self._check_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+
+        if not data:
+            return
+        archetypes = data.get("archetypes", [])
+        if not archetypes:
+            return
+
+        # Determine top 8 by total appearances across all weeks
+        sample = data.get("sample_data", {})
+        total_apps = {arch: sum(sample.get(arch, {}).values()) for arch in archetypes}
+        top8 = set(sorted(archetypes, key=lambda a: -total_apps.get(a, 0))[:8])
 
         palette = __import__("gui.theme", fromlist=["CHART_PALETTE"]).CHART_PALETTE
         for i, arch in enumerate(archetypes):
@@ -984,13 +996,13 @@ class DashboardTab(QWidget):
             row_hl.setContentsMargins(2, 0, 2, 0)
             row_hl.setSpacing(4)
 
-            dot = QLabel("●")
+            dot = QLabel("\u25cf")
             dot.setStyleSheet(f"color: {color_hex}; font-size: 10px; background: transparent;")
             dot.setFixedWidth(14)
             row_hl.addWidget(dot)
 
             cb = QCheckBox(_shorten_arch(arch))
-            cb.setChecked(i < 8)  # default: top 8 by meta share
+            cb.setChecked(arch in top8)
             cb.setStyleSheet(f"color: {theme.TEXT}; font-size: 11px; background: transparent;")
             cb.stateChanged.connect(self._on_checkbox_changed)
             row_hl.addWidget(cb, 1)

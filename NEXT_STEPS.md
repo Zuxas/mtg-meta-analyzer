@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 20) — Fix default top 8, WR debug, event labels
+
+1. **Top 8 by appearances**: `_rebuild_checkboxes()` now computes total appearances from `sample_data` and checks the 8 archetypes with the most data — no more Momo-White/Vivi appearing by default
+2. **WR debug logging**: win_pct chart prints `[CHART WR] archetype: N/M weeks pass filter, smoothed range X-Y%` for each plotted archetype — helps verify the smoothing and minimum threshold
+3. **Event marker labels**: fontsize 6→8, added `fontweight="bold"` for visibility
+4. **Initial chart draw**: `_on_chart_data` now passes the top-8 visible set to `draw_from_data` on first load (was drawing all before checkboxes took effect)
+
+---
+
 ### Session 2026-03-26 (Session 19) — Chart polish: event labels, WR smoothing, default top 8
 
 1. **Event marker labels**: replaced `ax.text` with `ax.annotate(xycoords=("data","axes fraction"))` + `clip_on=False` so labels render above the chart area
