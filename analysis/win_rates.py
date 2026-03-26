@@ -23,6 +23,13 @@ from datetime import datetime, timedelta
 from db.database import get_connection, get_combined_connection
 from core.query_engine.dedup_filters import apply_deck_filters
 
+# Archetype names to exclude from real-match win rate calculations.
+# These are melee.gg placeholder labels for decks with no name or unrecognized type.
+EXCLUDE_ARCHETYPES = frozenset({
+    "Decklist",
+    "All Other Decklists",
+})
+
 
 # ---------------------------------------------------------------------------
 # Natural language date range parsing
@@ -857,9 +864,11 @@ def get_real_matchup_winrates(format_name: str = "standard",
         WHERE lower(format) = lower(?)
           AND player1_arch != ''
           AND player2_arch != ''
+          AND player1_arch NOT IN ({excl_ph})
+          AND player2_arch NOT IN ({excl_ph})
           AND result IS NOT NULL
-    """
-    params = [format_name]
+    """.format(excl_ph=",".join("?" * len(EXCLUDE_ARCHETYPES)))
+    params = [format_name] + list(EXCLUDE_ARCHETYPES) + list(EXCLUDE_ARCHETYPES)
     if since:
         q += " AND event_date >= ?"
         params.append(since.strftime("%Y-%m-%d") if hasattr(since, "strftime") else str(since))
@@ -907,6 +916,9 @@ def get_real_archetype_winrates(format_name: str = "standard",
         return {}
 
     from db.database import get_connection
+    excl = ",".join("?" * len(EXCLUDE_ARCHETYPES))
+    excl_list = list(EXCLUDE_ARCHETYPES)
+
     since_clause = ""
     params_base  = [format_name]
     if since:
@@ -928,7 +940,8 @@ def get_real_archetype_winrates(format_name: str = "standard",
                    COUNT(*)                                           AS matches
             FROM matches
             WHERE lower(format)=lower(?){since_clause}
-              AND player1_arch != '' AND result IS NOT NULL
+              AND player1_arch != '' AND player1_arch NOT IN ({excl})
+              AND result IS NOT NULL
             GROUP BY player1_arch
             UNION ALL
             SELECT player2_arch,
@@ -938,15 +951,16 @@ def get_real_archetype_winrates(format_name: str = "standard",
                    COUNT(*)
             FROM matches
             WHERE lower(format)=lower(?){since_clause}
-              AND player2_arch != '' AND result IS NOT NULL
+              AND player2_arch != '' AND player2_arch NOT IN ({excl})
+              AND result IS NOT NULL
             GROUP BY player2_arch
         )
         GROUP BY archetype
         HAVING total_matches >= ?
         ORDER BY (CAST(total_wins AS REAL) / NULLIF(total_wins+total_losses, 0)) DESC
     """
-    # params: two copies of [format, (since?)] for the two subqueries + min_matches
-    params = params_base + params_base + [min_matches]
+    # params: two copies of [format, (since?), excl...] for the two subqueries + min_matches
+    params = (params_base + excl_list) + (params_base + excl_list) + [min_matches]
 
     result = {}
     try:

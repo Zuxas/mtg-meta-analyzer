@@ -184,6 +184,16 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 14) — Archetype normalization + junk exclusion
+
+1. **EXCLUDE_ARCHETYPES** in win_rates.py: "Decklist" and "All Other Decklists" filtered from all real-match WR calculations via SQL NOT IN clause (1,106 matches excluded from analysis, not deleted from DB)
+2. **47 new ALIASES** in archetypes.py: WUBRG codes (W-U-B-G → Four-Color), Five-Color → 5C, apostrophe fix (Goryo'S → Goryo's), UR/UW expansions, 4/5C → Four-Color, Red Deck Wins → Mono Red Aggro
+3. **pre_normalize apostrophe fix**: regex fixes title() casing `'S` → `'s` for all names
+4. **Backfill applied**: 247 archetype renames across matches table (player1_arch, player2_arch, winner_arch)
+5. **After cleanup**: Standard 1,157 archetypes (was 1,235), Modern 782 (was 786), Pioneer 304 (unchanged)
+
+---
+
 ### Session 2026-03-26 (Session 13) — Heatmap Overall WR column + Dashboard daily charts
 
 1. **Heatmap Overall WR column**: fixed "Overall" column at index 0 in matchup grid — shows weighted average WR across all matchups for each archetype, color-coded. Tooltip shows "Overall WR: 54% (weighted by sample size), Total matches: n=1,247".

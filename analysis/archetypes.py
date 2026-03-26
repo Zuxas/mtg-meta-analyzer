@@ -105,6 +105,8 @@ def pre_normalize(name: str) -> str:
         return name
     # Title-case
     result = name.strip().title()
+    # Fix apostrophe casing: title() turns "Goryo's" into "Goryo'S"
+    result = re.sub(r"'([A-Z])", lambda m: "'" + m.group(1).lower(), result)
     # Fix Mono prefix ("Mono-Green" -> "Mono Green", "Monogreen" -> "Mono Green")
     result = _fix_mono_prefix(result)
     # Expand color abbreviations in leading position
@@ -125,9 +127,7 @@ ALIASES = {
     "ur prowess":              "Izzet Prowess",
     "blue red prowess":        "Izzet Prowess",
     "blue-red prowess":        "Izzet Prowess",
-    "izzet aggro":             "Izzet Prowess",
     "izzet spells":            "Izzet Prowess",
-    "ur aggro":                "Izzet Prowess",
 
     # --- Mono Red Aggro ---
     "red deck wins":           "Mono Red Aggro",
@@ -174,7 +174,7 @@ ALIASES = {
     "red green aggro":         "Gruul Aggro",
     "gruul monsters":          "Gruul Aggro",
 
-    # --- Pioneer / Modern additions can go here ---
+    # --- Pioneer / Modern additions ---
     "rakdos midrange":         "Rakdos Midrange",
     "br midrange":             "Rakdos Midrange",
     "black red midrange":      "Rakdos Midrange",
@@ -185,6 +185,7 @@ ALIASES = {
     "humans":                  "5C Humans",
     "5c humans":               "5C Humans",
     "five color humans":       "5C Humans",
+    "five-color humans":       "5C Humans",
 
     "living end":              "Living End",
     "cascade living end":      "Living End",
@@ -192,10 +193,50 @@ ALIASES = {
     "rhinos":                  "Temur Rhinos",
     "temur rhinos":            "Temur Rhinos",
     "crashing footfalls":      "Temur Rhinos",
+
+    # --- WUBRG color-code patterns (melee.gg) ---
+    "w-u-b-g goryo's vengeance": "Four-Color Goryo's Vengeance",
+    "w-u-b-g goryo'S vengeance": "Four-Color Goryo's Vengeance",
+    "w-u-b-g overlords":       "Four-Color Overlords",
+    "w-u-b-g beanstalk":       "Four-Color Beanstalk",
+    "w-u-b-g":                 "Four-Color",
+    "w-u-r-g domain":          "Four-Color Domain",
+    "w-u-r-g aggro":           "Four-Color Aggro",
+    "w-u-r-g":                 "Four-Color",
+    "w-u-b-r control":         "Four-Color Control",
+    "w-u-b-r":                 "Four-Color",
+    "w-r-b-g":                 "Four-Color",
+
+    # --- Five-Color standardization ---
+    "five-color bring to light": "5C Bring To Light",
+    "five-color landfall":     "5C Landfall",
+    "five-color niv-mizzet":   "5C Niv-Mizzet",
+    "five-color ramp":         "5C Ramp",
+    "five-color combo":        "5C Combo",
+    "five-color control":      "5C Control",
+
+    # --- Apostrophe fixes ---
+    "goryo's":                 "Goryo's Vengeance",
+    "esper goryo's":           "Esper Goryo's Vengeance",
+
+    # --- Additional Standard aliases ---
+    "4/5c control":            "Four-Color Control",
+    "izzet soul cauldron":     "Izzet Cauldron",
+    "ur soul cauldron":        "Izzet Cauldron",
+    "izzet aggro":             "Izzet Aggro",
+    "ur aggro":                "Izzet Aggro",
+    "izzet control":           "Izzet Control",
+    "ur control":              "Izzet Control",
+    "azorius aggro":           "Azorius Aggro",
+    "uw aggro":                "Azorius Aggro",
+
+    # --- Junk entries (map to empty so they're recognized as bad) ---
+    "decklist":                "",
+    "all other decklists":     "",
 }
 
 # Reverse lookup: canonical -> canonical (so we don't change already-canonical names)
-_CANONICAL_NAMES = set(ALIASES.values())
+_CANONICAL_NAMES = {v for v in ALIASES.values() if v}
 
 
 def register_alias(raw_name, canonical_name):
@@ -232,7 +273,8 @@ def normalize(raw_name, fuzzy=False, fuzzy_threshold=85):
     # Exact alias match (case-insensitive)
     key = stripped.lower()
     if key in ALIASES:
-        return ALIASES[key]
+        mapped = ALIASES[key]
+        return mapped if mapped else stripped  # empty alias = keep original (junk label)
 
     # Fuzzy match (opt-in)
     if fuzzy and _CANONICAL_NAMES:

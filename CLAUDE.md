@@ -69,7 +69,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - Layer 1: `pre_normalize()` — fixes spacing/hyphens/color abbreviations before alias lookup
     ("Mono-Green Landfall", "MonoGreen Landfall", "monogreen landfall" → "Mono Green Landfall";
     "UR Prowess" → "Izzet Prowess"; "UWR Control" → "Jeskai Control" — automatic, no alias needed)
-  - Layer 2: ALIASES table — hard-coded exact mappings (fast, deterministic)
+  - Layer 2: ALIASES table — hard-coded exact mappings (fast, deterministic); includes WUBRG codes, Five-Color→5C, apostrophe fixes, UR/UW expansions
   - Layer 3: optional fuzzy match via thefuzz
   - `suggest_aliases()` scans DB for likely duplicate names
   - `find_card_based_duplicates(format, name_threshold, card_overlap)` — finds pairs sharing
