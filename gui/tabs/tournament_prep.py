@@ -578,7 +578,12 @@ class _RCQWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers = []
+        self._saved_decks = []
+        self._loaded_deck = None
         self._build_ui()
+        # Load saved decks for the initial format after UI is built
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(300, self._refresh_deck_combo)
 
     def _build_ui(self):
         outer = QHBoxLayout(self)
@@ -624,6 +629,14 @@ class _RCQWidget(QWidget):
             lambda _: self._populate_arch_combo(self._fmt.currentText())
         )
         lv.addWidget(self._tf)
+
+        # Saved deck selector
+        lv.addWidget(QLabel("Load saved deck:"))
+        self._deck_combo = QComboBox()
+        self._deck_combo.addItem("— none —")
+        self._deck_combo.currentIndexChanged.connect(self._on_deck_selected)
+        lv.addWidget(self._deck_combo)
+        self._loaded_deck = None  # currently loaded deck dict
 
         lv.addWidget(QLabel("My archetype:"))
         self._my_arch = QComboBox()
@@ -754,6 +767,60 @@ class _RCQWidget(QWidget):
 
     def _on_fmt_changed(self, fmt):
         self._populate_arch_combo(fmt)
+        self._refresh_deck_combo()
+
+    def _refresh_deck_combo(self):
+        """Populate the saved deck dropdown for the current format."""
+        fmt = self._fmt.currentText()
+
+        def _do():
+            from db.saved_decks import get_decks
+            return get_decks(fmt)
+
+        def _done(decks):
+            self._deck_combo.blockSignals(True)
+            self._deck_combo.clear()
+            self._deck_combo.addItem("— none —")
+            self._saved_decks = decks
+            for d in decks:
+                label = f"{d['name']} ({sum(d.get('mainboard', {}).values())} cards)"
+                self._deck_combo.addItem(label)
+            self._deck_combo.blockSignals(False)
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
+    def _on_deck_selected(self, idx):
+        if idx <= 0:
+            self._loaded_deck = None
+            return
+        decks = getattr(self, "_saved_decks", [])
+        if idx - 1 >= len(decks):
+            return
+        deck = decks[idx - 1]
+        self._loaded_deck = deck
+        # Set archetype and format from the saved deck
+        arch = deck.get("archetype", "")
+        if arch:
+            self._my_arch.setCurrentText(arch)
+        fmt = deck.get("format", "")
+        if fmt:
+            self._fmt.setCurrentText(fmt)
+
+    def load_deck(self, deck: dict):
+        """Called externally (from My Decks tab) to load a specific deck."""
+        fmt = deck.get("format", "")
+        if fmt:
+            self._fmt.setCurrentText(fmt)
+        arch = deck.get("archetype", "")
+        if arch:
+            self._my_arch.setCurrentText(arch)
+        self._loaded_deck = deck
+        # Refresh the combo and try to select this deck
+        self._refresh_deck_combo()
 
     def _since_dt(self):
         from datetime import datetime, timedelta
@@ -1138,6 +1205,11 @@ class TournamentPrepTab(QWidget):
 
         inner = QTabWidget()
         inner.setTabPosition(QTabWidget.TabPosition.North)
-        inner.addTab(_RCQWidget(),    "RCQ OPTIMIZER")
+        self._rcq = _RCQWidget()
+        inner.addTab(self._rcq,         "RCQ OPTIMIZER")
         inner.addTab(_BreakerWidget(), "BREAKER MATH")
         layout.addWidget(inner)
+
+    def load_deck(self, deck: dict):
+        """Called by MainWindow when user clicks 'Open in RCQ Optimizer' from My Decks."""
+        self._rcq.load_deck(deck)

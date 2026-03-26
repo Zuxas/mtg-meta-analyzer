@@ -217,15 +217,11 @@ python run_gui.py
 
 ## PREVIOUS TOP PRIORITIES (Mar 25 Session 1)
 
-### My Decks GUI tab + RCQ Optimizer upgrade
-- `db/saved_decks.py` exists (created 2026-03-25) — go straight to GUI
-- `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
-- Click deck → shows 75 + all saved SB plans
-- "Open in RCQ Optimizer" passes deck to tournament_prep.py
-- RCQ Optimizer: add saved deck selector dropdown at top
-- Each matchup row: show saved SB plan if exists, fall back to guides table
-- "Edit Plan" button per row → inline play/draw IN/OUT editor with difficulty badge
-- Plans auto-save to saved_sb_plans table
+### ~~My Decks GUI tab + RCQ Optimizer upgrade~~ — **DONE** (2026-03-26)
+- `gui/tabs/my_decks.py` — full CRUD tab with split-panel layout, Export Guide
+- RCQ Optimizer: saved deck dropdown at top, populated from saved_decks by format
+- Selecting a deck sets archetype and format automatically
+- `load_deck()` method on TournamentPrepTab wired from My Decks → Open in RCQ Optimizer
 
 ### 2. ~~Printable tournament guide export~~ — **DONE** (2026-03-26)
 - "Export Guide" button on My Decks tab → generates clean HTML in exports/

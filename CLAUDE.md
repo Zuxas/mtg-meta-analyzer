@@ -221,7 +221,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
   - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
   - **Tournament Prep tab** (2 sub-tabs):
-    - **RCQ Optimizer**: enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations
+    - **RCQ Optimizer**: enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown at top loads archetype + format from saved_decks
     - **Breaker Math**: real-time W/L/D tracker, ID calculator, draw equity, pair-down warning, seeding impact, breaker education
 
 ### Centralized Timeframe Selector (all tabs)
