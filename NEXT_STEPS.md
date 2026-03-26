@@ -184,6 +184,13 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 10) — Window hiding to tray during loads + CSS warnings
+
+1. **Window hiding to tray during loads**: `closeEvent` hid to tray on ALL close events, including programmatic ones from widget deletion cascades during heatmap grid replacement. Fixed by checking `event.spontaneous()` — only hide-to-tray for user-initiated close (X button, Alt+F4), ignore programmatic close events.
+2. **CSS `min-length` warning**: `min-length` is not a valid Qt stylesheet property; replaced with `min-height` + `min-width` in theme.py scrollbar handle style.
+
+---
+
 ### Session 2026-03-26 (Session 9) — Heatmap double-delete crash fix
 
 1. **Root cause**: `_scroll.setWidget(new_grid)` destroys the old widget (Qt6: "will be destroyed when a new widget is set"), then `old_grid.deleteLater()` tried to delete the already-destroyed C++ object → segfault on every grid redraw

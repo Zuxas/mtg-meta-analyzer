@@ -281,7 +281,19 @@ class MainWindow(QMainWindow):
         tray.set_run_now_callback(self._background_scrape)
 
     def closeEvent(self, event):
-        """Minimize to tray instead of quitting when window is closed."""
+        """Minimize to tray instead of quitting — but only for user-initiated close.
+
+        event.spontaneous() is True when the close came from the window system
+        (user clicking X, Alt+F4, etc.) and False when generated programmatically
+        (e.g. widget deletion cascade, deleteLater on child widgets).
+        Only hide-to-tray on spontaneous events to prevent the window from
+        disappearing during background operations like heatmap loads.
+        """
+        if not event.spontaneous():
+            # Programmatic close event — accept it normally, do NOT hide to tray
+            event.ignore()
+            return
+
         if self._tray and self._tray.isSystemTrayAvailable():
             event.ignore()
             self.hide()

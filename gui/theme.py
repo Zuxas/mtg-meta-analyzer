@@ -276,7 +276,8 @@ def _build_stylesheet(heading: str) -> str:
     QScrollBar::handle:horizontal {{
         background: {BORDER};
         border-radius: 4px;
-        min-length: 20px;
+        min-height: 20px;
+        min-width: 20px;
     }}
     QScrollBar::handle:vertical:hover,
     QScrollBar::handle:horizontal:hover {{ background: {ACCENT2}; }}
