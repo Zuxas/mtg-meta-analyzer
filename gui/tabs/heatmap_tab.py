@@ -286,6 +286,7 @@ class HeatmapTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker = None
+        self._load_gen: int = 0          # monotonic counter — stale callbacks ignored
         self._current_matrix: dict = {}
         self._source_map: dict = {}      # {(a,b): "real"|"scraped"}
         self._loaded_format: str = ""    # format that _current_matrix belongs to
@@ -427,34 +428,23 @@ class HeatmapTab(QWidget):
         """Stop running worker. Called by MainWindow on app exit."""
         self._cancel_worker()
 
-    def _is_busy(self) -> bool:
-        """True if a worker is currently running."""
-        w = self._worker
-        if w is None:
-            return False
-        try:
-            return w.isRunning()
-        except RuntimeError:
-            self._worker = None
-            return False
-
     def _cancel_worker(self):
-        """Safely cancel any running worker without crashing."""
+        """Block signals on any running worker so its callbacks are ignored."""
         w = self._worker
         self._worker = None
-        if w is None:
-            return
-        try:
-            w.blockSignals(True)
-            if w.isRunning():
-                w.quit()
-                w.wait(3000)  # wait up to 3 s for thread to finish
-        except RuntimeError:
-            pass  # C++ object already deleted — nothing to do
+        if w is not None:
+            try:
+                w.blockSignals(True)
+            except RuntimeError:
+                pass
+            # Do NOT wait() — run() has no event loop, so quit() is a no-op
+            # and wait() would block the GUI.  Signal-blocking + gen counter
+            # is sufficient to discard stale results.
 
     def _prepare_load(self, source: str):
         """Common pre-load steps: cancel old worker, reset state, show loading UI."""
         self._cancel_worker()
+        self._load_gen += 1          # new generation — stale callbacks will be ignored
         self._load_source = source
         self._current_matrix = {}
         self._source_map = {}
@@ -466,17 +456,18 @@ class HeatmapTab(QWidget):
     def _wire_worker(self, worker):
         """Store worker reference and wire finished → deleteLater safely."""
         self._worker = worker
-        w_ref = worker  # captured by lambdas — won't change if self._worker is reassigned
-        worker.error.connect(self._on_error)
-        worker.finished.connect(lambda: self._on_worker_finished(w_ref))
+        gen = self._load_gen  # snapshot — callbacks check this to detect staleness
+        worker.error.connect(lambda msg: self._on_error(msg, gen))
+        worker.finished.connect(lambda: self._on_worker_finished(worker, gen))
         worker.start()
 
-    def _on_worker_finished(self, w):
-        """Clean up after a worker finishes. Safely handles deleted C++ objects."""
-        # Only re-enable UI if no newer worker has taken over
+    def _on_worker_finished(self, w, gen: int):
+        """Clean up after a worker finishes. Re-enable UI only if still current."""
         if self._worker is w:
             self._worker = None
-        # Schedule C++ deletion; guard against already-deleted wrapper
+            # Only re-enable buttons if this is still the active generation
+            if gen == self._load_gen:
+                self._set_busy(False)
         try:
             w.deleteLater()
         except RuntimeError:
@@ -488,40 +479,41 @@ class HeatmapTab(QWidget):
 
     def _load_combined(self):
         """Default action: real match data + scraped fills gaps."""
-        if self._is_busy():
-            return
         fmt = self._fmt.currentText()
         self._prepare_load("combined")
+        gen = self._load_gen
         self._status.setText(f"Loading real match data + cached scrapes for {fmt}\u2026")
 
         worker = _CombinedWorker(fmt)
-        worker.done.connect(self._on_combined_data)
+        worker.done.connect(
+            lambda f, m, s: self._on_combined_data(f, m, s, gen))
         self._wire_worker(worker)
 
-    def _on_combined_data(self, fmt: str, matrix: dict, source_map: dict):
+    def _on_combined_data(self, fmt: str, matrix: dict, source_map: dict,
+                          gen: int):
+        if gen != self._load_gen:
+            return  # stale result from a cancelled load
         self._source_map = source_map
-        self._on_data(fmt, matrix)
+        self._on_data(fmt, matrix, gen)
 
     def _fetch_live(self):
-        if self._is_busy():
-            return
         fmt = self._fmt.currentText()
         self._prepare_load("fetch")
+        gen = self._load_gen
         self._status.setText(f"Fetching {fmt} win-rates from MTGDecks\u2026")
 
         worker = _FetchWorker(fmt)
-        worker.done.connect(self._on_data)
+        worker.done.connect(lambda f, m: self._on_data(f, m, gen))
         self._wire_worker(worker)
 
     def _load_cached(self):
-        if self._is_busy():
-            return
         fmt = self._fmt.currentText()
         self._prepare_load("cache")
+        gen = self._load_gen
         self._status.setText(f"Loading cached {fmt} data\u2026")
 
         worker = _LoadWorker(fmt)
-        worker.done.connect(self._on_data)
+        worker.done.connect(lambda f, m: self._on_data(f, m, gen))
         self._wire_worker(worker)
 
     def _open_paste_dialog(self):
@@ -530,22 +522,22 @@ class HeatmapTab(QWidget):
             fmt = self._fmt.currentText()
             self._load_source = "paste"
             self._source_map = {}
-            self._on_data(fmt, dlg.result_matrix)
+            self._on_data(fmt, dlg.result_matrix, self._load_gen)
 
     # ------------------------------------------------------------------
     # Data callbacks
     # ------------------------------------------------------------------
 
-    def _on_error(self, msg: str):
-        if not self._is_busy():
-            self._set_busy(False)
+    def _on_error(self, msg: str, gen: int = -1):
+        if gen != -1 and gen != self._load_gen:
+            return  # stale error from a cancelled load
         self._scroll.setVisible(False)
         self._status.setVisible(True)
         self._status.setText(f"Error: {msg}")
 
-    def _on_data(self, fmt: str, matrix: dict):
-        if not self._is_busy():
-            self._set_busy(False)
+    def _on_data(self, fmt: str, matrix: dict, gen: int = -1):
+        if gen != -1 and gen != self._load_gen:
+            return  # stale result from a cancelled load
         self._loaded_format = fmt
 
         if not matrix:

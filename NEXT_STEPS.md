@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 7) — Heatmap gen-counter fix + background scrape time gate
+
+1. **Heatmap gen-counter**: replaced `_is_busy()` debounce with `_load_gen` monotonic counter — all callbacks (`_on_data`, `_on_error`, `_on_combined_data`, `_on_worker_finished`) check `gen == self._load_gen` and silently discard stale results from cancelled loads
+2. **Removed `wait(3000)`**: workers use `run()` (no event loop) so `quit()` was a no-op and `wait()` froze the GUI; signal-blocking + gen-counter is sufficient
+3. **`_on_worker_finished`**: only calls `_set_busy(False)` if gen matches, preventing premature button re-enable
+4. **Background scrape 4-hour time gate**: `_background_scrape()` reads `scrape_state.json` last_updated and skips if <4 hours old
+
+---
+
 ### Session 2026-03-26 (Session 6) — Heatmap crash on format+source switch
 
 1. **Crash root cause**: `finished → deleteLater` destroyed the C++ QThread before `_clear_worker_ref` lambda ran, causing `RuntimeError: wrapped C/C++ object has been deleted`

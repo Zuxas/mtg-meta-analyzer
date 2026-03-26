@@ -189,6 +189,19 @@ class MainWindow(QMainWindow):
         # Guard: never start a second scrape while one is already running
         if getattr(self, '_scrape_worker', None) is not None and self._scrape_worker.isRunning():
             return
+        # Time gate: skip if last successful scrape was <4 hours ago
+        from gui.tray_icon import read_scrape_state
+        from datetime import datetime
+        state = read_scrape_state()
+        ts = state.get("last_updated")
+        if ts:
+            try:
+                last = datetime.fromisoformat(ts)
+                if (datetime.now() - last).total_seconds() < 4 * 3600:
+                    self._status_lbl.setText("Ready (data current)")
+                    return
+            except Exception:
+                pass
         if self._tray:
             from gui.tray_icon import STATUS_RUNNING
             self._tray.set_status(STATUS_RUNNING, "checking for new events")
