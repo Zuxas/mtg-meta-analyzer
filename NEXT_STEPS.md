@@ -184,6 +184,13 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 9) — Heatmap double-delete crash fix
+
+1. **Root cause**: `_scroll.setWidget(new_grid)` destroys the old widget (Qt6: "will be destroyed when a new widget is set"), then `old_grid.deleteLater()` tried to delete the already-destroyed C++ object → segfault on every grid redraw
+2. **Fix**: use `takeWidget()` to detach the old widget from the scroll area BEFORE setting the new one, then `deleteLater()` on the safely-detached reference
+
+---
+
 ### Session 2026-03-26 (Session 8) — Heatmap grid replacement crash fix
 
 1. **Root cause found**: `import sip` fails on this system (`sip` is only available as `PyQt6.sip`); the `try/except` silently swallowed the ImportError, so `sip.delete(old_layout)` never ran. On the second grid draw, `QVBoxLayout(self._grid_widget)` tried to set a new layout on a widget that already had one — Qt rejected it, widgets piled up, and eventually something crashed.

@@ -702,14 +702,17 @@ class HeatmapTab(QWidget):
         tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
         tbl.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
 
-        # Replace grid widget entirely — avoids sip.delete layout issues
+        # Replace grid widget entirely — avoids sip.delete layout issues.
+        # takeWidget() detaches the old widget (prevents setWidget from destroying it
+        # while we still hold a Python reference), then we delete it safely ourselves.
         new_grid = QWidget()
         vl = QVBoxLayout(new_grid)
         vl.setContentsMargins(0, 0, 0, 0)
-        old_grid = self._grid_widget
-        self._scroll.setWidget(new_grid)  # takes ownership; old_grid will be deleted
+        old_grid = self._scroll.takeWidget()  # detach old widget from scroll area
+        self._scroll.setWidget(new_grid)      # install new widget
         self._grid_widget = new_grid
-        old_grid.deleteLater()
+        if old_grid is not None:
+            old_grid.deleteLater()
 
         # Info label
         if total_archetypes and total_archetypes > n:
