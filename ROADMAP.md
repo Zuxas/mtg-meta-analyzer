@@ -45,7 +45,7 @@
 - [ ] Card swap rationale tracker (why you changed cards)
 - [ ] Matchup hypothesis tracker (record + validate theories)
 - [x] Sideboard planning system DB backend — `db/saved_decks.py` created 2026-03-25 (`saved_sb_plans` table with play/draw IN/OUT, difficulty, upsert)
-- [ ] Sideboard planning GUI — `gui/tabs/my_decks.py` (next up)
+- [x] My Decks GUI tab — `gui/tabs/my_decks.py` (2026-03-26)
 - [ ] Gauntlet builder (auto top decks to test against)
 - [ ] Test recommendation engine
 - [ ] Testing insights from logged matches
@@ -65,7 +65,7 @@
 
 - [x] Dashboard Meta Impact bar — shows dedup filter rows removed + most affected archetypes (2026-03-25)
 - [x] Dashboard worker lifecycle fix — Refresh button crash resolved (2026-03-25)
-- [ ] My Decks GUI tab — list/add/edit/delete saved decks + SB plans (`gui/tabs/my_decks.py`)
+- [x] My Decks GUI tab — list/add/edit/delete saved decks + SB plans (2026-03-26)
 - [x] Legend/key for dashboard tier badge colors (S/A/B/C) and ★ star suffix — tooltip on Tier header (2026-03-25)
 - [ ] Layout consistency (global filters top, nav left, data center, detail right)
 - [ ] Sticky headers + sortable columns everywhere

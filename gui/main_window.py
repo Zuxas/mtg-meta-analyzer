@@ -26,6 +26,7 @@ from gui.tabs.knowledge_base    import KnowledgeBaseTab
 from gui.tabs.ask_claude        import AskClaudeTab
 from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.tabs.heatmap_tab       import HeatmapTab
+from gui.tabs.my_decks          import MyDecksTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -71,11 +72,13 @@ class MainWindow(QMainWindow):
         self._kb        = KnowledgeBaseTab()
         self._tourney   = TournamentPrepTab()
         self._heatmap   = HeatmapTab()
+        self._my_decks  = MyDecksTab()
         self._claude    = AskClaudeTab()
         self._settings  = SettingsTab()
 
         self._tabs.addTab(self._dash,     "DASHBOARD")
         self._tabs.addTab(self._deck,     "DECK ANALYZER")
+        self._tabs.addTab(self._my_decks, "MY DECKS")
         self._tabs.addTab(self._search,   "SEARCH")
         self._tabs.addTab(self._charts,   "CHARTS")
         self._tabs.addTab(self._preds,    "PREDICTIONS")
@@ -83,6 +86,9 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._tourney,  "TOURNAMENT PREP")
         self._tabs.addTab(self._heatmap,  "MATCHUP DATA")
         self._tabs.addTab(self._settings, "SETTINGS")
+
+        # Wire "Open in RCQ Optimizer" from My Decks → Tournament Prep
+        self._my_decks.open_in_rcq.connect(self._on_open_in_rcq)
 
         # Ask Claude tab — added/removed dynamically based on API key presence
         self._claude_tab_index = -1
@@ -129,6 +135,15 @@ class MainWindow(QMainWindow):
             self._add_claude_tab()
         else:
             self._remove_claude_tab()
+
+    def _on_open_in_rcq(self, deck: dict):
+        """Switch to Tournament Prep tab when user clicks 'Open in RCQ Optimizer'."""
+        idx = self._tabs.indexOf(self._tourney)
+        if idx >= 0:
+            self._tabs.setCurrentIndex(idx)
+        # Pre-fill RCQ Optimizer with the deck's archetype and format
+        if hasattr(self._tourney, "load_deck"):
+            self._tourney.load_deck(deck)
 
     # ------------------------------------------------------------------
     # Startup logic
@@ -240,7 +255,7 @@ class MainWindow(QMainWindow):
                 pass
             self._scrape_worker = None
         # Delegate cleanup to tabs that hold their own workers
-        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude):
+        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._my_decks):
             if hasattr(tab, "cleanup"):
                 try:
                     tab.cleanup()

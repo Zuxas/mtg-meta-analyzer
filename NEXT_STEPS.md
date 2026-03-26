@@ -195,11 +195,14 @@ python run_gui.py
 - Added: `MainWindow.cleanup()` orchestrator — stops all workers, called via `app.aboutToQuit`
 - Added: `run_gui.py` wires `app.aboutToQuit.connect(window.cleanup)`
 
-### 2. My Decks GUI tab
-- `db/saved_decks.py` **now exists** (created 2026-03-25)
-- `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
-- Click deck → shows 75 + all saved SB plans
-- "Open in RCQ Optimizer" passes deck to tournament_prep.py
+### 2. ~~My Decks GUI tab~~ — **DONE** (2026-03-26)
+- `gui/tabs/my_decks.py` created — full CRUD tab with split-panel layout
+- Left: deck list with format filter, Add/Edit/Delete buttons
+- Right: deck detail with Decklist and Sideboard Plans sub-tabs
+- Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
+- Export (MTGO/MTGA/decklist.org) and "Open in RCQ Optimizer" buttons
+- Wired in main_window.py as "MY DECKS" tab (3rd position, after Deck Analyzer)
+- `open_in_rcq` signal → MainWindow switches to Tournament Prep tab
 
 ### 3. Fix remaining smoke test bugs
 - ~~"Use Cached" crash in Matchup Data tab~~ — **FIXED** (2026-03-25 session 3): `_cancel_worker()` + `self._worker = None` on finish

@@ -176,7 +176,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - **PyQt6 GUI** — fully wired, personal website theme applied:
   - Entry point: `run_gui.py`
   - Theme: `gui/theme.py` — #3b3c4d bg, #65bcd5 cyan, Orbitron heading font
-  - **8 tabs**: Dashboard, Deck Analyzer, Search, Charts, Tournament Prep, Knowledge Base, Ask Claude (optional), Settings
+  - **9 tabs**: Dashboard, Deck Analyzer, My Decks, Search, Charts, Tournament Prep, Knowledge Base, Matchup Data, Ask Claude (optional), Settings
   - Setup wizard on first run (Scryfall download + backfill + 50-event unlock)
   - Interactive embedded matplotlib charts (FigureCanvasQTAgg)
   - Background QuickScrapeWorker on startup for returning users
@@ -194,7 +194,13 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Mana color pips**: `theme.make_pip_widget()` uses `QPainter.drawEllipse()` with antialiasing — guaranteed true circles regardless of Qt stylesheet limitations
   - **Trend color-coding**: Win Rate and Popular panel rows tinted dark green (rising) / dark red (falling) vs the prior equivalent period
   - **Meta tier badges**: Win Rate panel has a "Tier" column — S (gold, >55% WR + >8% share), A (green, >52% WR or >5% share), B (cyan, top N rest), C (red, declining trend)
-  - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
+  - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer + My Decks → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
+  - **My Decks tab** (`gui/tabs/my_decks.py`): split-panel CRUD for saved decks
+    - Left panel: format-filtered deck list with Add/Edit/Delete buttons
+    - Right panel: deck detail with Decklist and Sideboard Plans sub-tabs
+    - Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
+    - Export and "Open in RCQ Optimizer" buttons on deck detail
+    - `open_in_rcq` signal wired to MainWindow → switches to Tournament Prep tab
   - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
   - **Deck parser**: handles all sideboard formats — `Sideboard`, `SIDEBOARD:`, `SB:`, `// Sideboard`, `SB: 4 Card`, blank-line fallback
   - **Decklist Legality Checker**: Deck Analyzer tab has a "Check Legality" button that:
@@ -328,6 +334,7 @@ gui/tabs/knowledge_base.py      Add/browse bookmarks + guides table, Sync Guides
 gui/tabs/ask_claude.py          Optional streaming chat (hidden until API key set in Settings)
 gui/tabs/settings.py            Settings tab: formats, data window, auto-update, AI key
 gui/tabs/tournament_prep.py     RCQ Optimizer + Breaker Math sub-tabs (with timeframe)
+gui/tabs/my_decks.py            MY DECKS tab: saved decks CRUD, export, open in RCQ Optimizer
 gui/tabs/heatmap_tab.py         MATCHUP DATA tab: live scrape / cached / paste, colour-coded grid
 gui/tray_icon.py                System tray icon, status dots, right-click menu
 gui/first_run_setup.py          First-run UAC dialog + elevated task registration
