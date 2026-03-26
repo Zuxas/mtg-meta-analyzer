@@ -74,9 +74,10 @@ def _draw_event_markers(ax, x_labels: list[str], sorted_keys: list[str],
         color = _EVENT_COLORS.get(ev.get("type"), "#888888")
         ax.axvline(x=best_idx, color=color, linestyle="--",
                    linewidth=1, alpha=0.6, zorder=1)
-        ax.text(best_idx, ax.get_ylim()[1] * 0.97, ev.get("short", ""),
+        ax.text(best_idx, 0.97, ev.get("short", ""),
                 color=color, fontsize=6, rotation=45,
-                ha="left", va="top", alpha=0.8)
+                ha="left", va="top", alpha=0.8,
+                transform=ax.get_xaxis_transform())
 
 
 def fetch_chart_data(format_name, top, weeks, since, until, standings=None,

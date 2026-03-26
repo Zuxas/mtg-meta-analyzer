@@ -810,11 +810,17 @@ class DashboardTab(QWidget):
 
             # Use real match W/L where available (MTGMelee / bracket inference)
             real = (real_wrs or {}).get(s["archetype"])
-            if real:
+            if s["appearances"] < 5:
+                # Too few data points for meaningful win rate
+                pct        = s["est_match_winpct"] * 100
+                pct_text   = "\u2014"
+                pct_tip    = f"Only {s['appearances']} appearances — too few for reliable win rate"
+                is_real_wr = False
+            elif real:
                 pct        = real["win_rate"] * 100
                 pct_text   = f"{pct:.1f}%\u2605"   # ★ = real data
                 pct_tip    = (f"Match W/L (n={real['total']:,})\n"
-                              f"{real['wins']}W – {real['losses']}L – {real['draws']}D")
+                              f"{real['wins']}W \u2013 {real['losses']}L \u2013 {real['draws']}D")
                 is_real_wr = True
             else:
                 pct        = s["est_match_winpct"] * 100
