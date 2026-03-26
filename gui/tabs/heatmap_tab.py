@@ -341,6 +341,10 @@ class HeatmapTab(QWidget):
         self._cache_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
 
+    def cleanup(self):
+        """Stop running worker. Called by MainWindow on app exit."""
+        self._cancel_worker()
+
     def _cancel_worker(self):
         if self._worker is not None:
             try:

@@ -1,6 +1,6 @@
 # CLAUDE.md - MTG Meta Analyzer Project Context
 
-Last updated: 2026-03-25
+Last updated: 2026-03-26
 
 ---
 
@@ -146,10 +146,13 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `_compute_impact(standings, raw_standings)` compares raw vs deduplicated appearance counts
   - Displays: rows removed, % removed, top-3 most-affected archetypes (with delta), most stable archetype
   - Hidden when dedup filters are off or remove zero rows
-- **Dashboard worker lifecycle** (`gui/tabs/dashboard.py`):
-  - `_cancel_worker` has `try/except RuntimeError: pass` guard for deleted C++ QThread objects
-  - Both panel and chart workers connect `finished → lambda: setattr(self, "_panel_worker/chart_worker", None)`
-  - Prevents Refresh button crash when startup auto-refresh completes before user clicks
+- **Worker lifecycle & cleanup** (audited 2026-03-26):
+  - All worker threads now connect `finished → deleteLater()` and `finished → setattr(None)`
+  - All tabs with workers expose `cleanup()` — stops workers, blocks signals, clears refs
+  - `MainWindow.cleanup()` calls each tab's `cleanup()` + stops `_scrape_worker`
+  - `run_gui.py` wires `app.aboutToQuit.connect(window.cleanup)` for clean exit
+  - `_cancel_worker()` pattern: `blockSignals(True)` with `RuntimeError` guard for dead C++ objects
+  - DB connections in `analysis/predictions.py` and `scrapers/guides.py` wrapped in try/finally
 - **Trend denominator fix** (`analysis/win_rates.py`):
   - `get_archetype_trend()` denominator uses `COUNT(DISTINCT COALESCE(d.deck_fingerprint || '|' || e.event_fingerprint_cs, CAST(d.id AS TEXT)))` when `dedup_cross_source=True`
   - Mirrors Python dedup filter logic; NULL fingerprints fall back to `d.id`

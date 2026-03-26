@@ -65,6 +65,9 @@ def main():
     tray = TrayIcon(window)
     window.set_tray(tray)
 
+    # Stop all workers cleanly before the process exits
+    app.aboutToQuit.connect(window.cleanup)
+
     sys.exit(app.exec())
 
 

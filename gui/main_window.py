@@ -227,6 +227,26 @@ class MainWindow(QMainWindow):
     # Tray integration
     # ------------------------------------------------------------------
 
+    def cleanup(self):
+        """Stop all running workers. Called by app.aboutToQuit before process exits."""
+        self._mem_timer.stop()
+        # Stop background scrape worker
+        if getattr(self, "_scrape_worker", None) is not None:
+            try:
+                self._scrape_worker.blockSignals(True)
+                self._scrape_worker.quit()
+                self._scrape_worker.wait(2000)
+            except RuntimeError:
+                pass
+            self._scrape_worker = None
+        # Delegate cleanup to tabs that hold their own workers
+        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude):
+            if hasattr(tab, "cleanup"):
+                try:
+                    tab.cleanup()
+                except Exception:
+                    pass
+
     def set_tray(self, tray):
         """Called by run_gui.py after the tray icon is created."""
         self._tray = tray

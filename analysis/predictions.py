@@ -50,9 +50,11 @@ CREATE TABLE IF NOT EXISTS predictions (
 
 def _ensure_predictions_table():
     conn = sqlite3.connect(DB_PATH)
-    conn.execute(_PREDICTIONS_DDL)
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute(_PREDICTIONS_DDL)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -199,20 +201,22 @@ def generate_predictions(format_name="standard", weeks_back=4, commit=True):
 
     if commit:
         conn = sqlite3.connect(DB_PATH)
-        conn.execute(_PREDICTIONS_DDL)
-        for p in predictions:
-            conn.execute("""
-                INSERT INTO predictions
-                (created_at, format, archetype, prediction_type, predicted_rank,
-                 predicted_share, predicted_dir, signals, target_week)
-                VALUES (?,?,?,?,?,?,?,?,?)
-            """, (
-                p["created_at"], p["format"], p["archetype"],
-                p["prediction_type"], p["predicted_rank"], p["predicted_share"],
-                p["predicted_dir"], json.dumps(p["signals"]), p["target_week"],
-            ))
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(_PREDICTIONS_DDL)
+            for p in predictions:
+                conn.execute("""
+                    INSERT INTO predictions
+                    (created_at, format, archetype, prediction_type, predicted_rank,
+                     predicted_share, predicted_dir, signals, target_week)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                """, (
+                    p["created_at"], p["format"], p["archetype"],
+                    p["prediction_type"], p["predicted_rank"], p["predicted_share"],
+                    p["predicted_dir"], json.dumps(p["signals"]), p["target_week"],
+                ))
+            conn.commit()
+        finally:
+            conn.close()
         print(f"  Logged {len(predictions)} predictions for week of {target}.")
 
     return predictions
@@ -241,83 +245,84 @@ def validate_predictions(format_name=None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
-    where = "WHERE correct IS NULL AND target_week <= ?"
-    params = [today]
-    if format_name:
-        where += " AND format = ?"
-        params.append(format_name)
+    try:
+        where = "WHERE correct IS NULL AND target_week <= ?"
+        params = [today]
+        if format_name:
+            where += " AND format = ?"
+            params.append(format_name)
 
-    pending = conn.execute(
-        f"SELECT * FROM predictions {where}", params
-    ).fetchall()
+        pending = conn.execute(
+            f"SELECT * FROM predictions {where}", params
+        ).fetchall()
 
-    if not pending:
+        if not pending:
+            return {"validated": 0, "correct": 0, "wrong": 0}
+
+        validated = correct = wrong = 0
+
+        # Group by (format, target_week) to fetch standings once per group
+        groups = {}
+        for p in pending:
+            key = (p["format"], p["target_week"])
+            groups.setdefault(key, []).append(p)
+
+        from analysis.win_rates import get_meta_standings, get_archetype_trend
+        from datetime import datetime as dt
+
+        for (fmt, target_week), preds in groups.items():
+            # Fetch actual standings for the target week
+            week_start = dt.strptime(target_week, "%Y-%m-%d")
+            week_end   = week_start + timedelta(days=7)
+            standings  = get_meta_standings(
+                format_name=fmt, min_appearances=1, top=30,
+                since=week_start, until=week_end,
+            )
+            rank_map  = {s["archetype"]: i+1 for i, s in enumerate(standings)}
+            share_map = {s["archetype"]: s.get("meta_share", 0) for s in standings}
+
+            for p in preds:
+                arch         = p["archetype"]
+                ptype        = p["prediction_type"]
+                actual_rank  = rank_map.get(arch)
+                actual_share = share_map.get(arch, 0)
+
+                is_correct = None
+                if ptype == "top_meta":
+                    if actual_rank is not None:
+                        is_correct = int(actual_rank <= (p["predicted_rank"] or 5) + 2)
+                    else:
+                        is_correct = 0  # didn't appear in top 30 = wrong
+
+                elif ptype == "trending_up":
+                    signals = json.loads(p["signals"] or "{}")
+                    prior = signals.get("recent_share", 0)
+                    is_correct = int(actual_share > prior * 1.05)
+
+                elif ptype == "trending_down":
+                    signals = json.loads(p["signals"] or "{}")
+                    prior = signals.get("recent_share", 0)
+                    is_correct = int(actual_share < prior * 0.95)
+
+                elif ptype == "rising":
+                    is_correct = int(actual_rank is not None and actual_rank <= 15)
+
+                conn.execute("""
+                    UPDATE predictions
+                    SET actual_rank=?, actual_share=?, correct=?, validated_at=?
+                    WHERE id=?
+                """, (actual_rank, actual_share, is_correct, today, p["id"]))
+
+                validated += 1
+                if is_correct == 1:
+                    correct += 1
+                elif is_correct == 0:
+                    wrong += 1
+
+        conn.commit()
+        return {"validated": validated, "correct": correct, "wrong": wrong}
+    finally:
         conn.close()
-        return {"validated": 0, "correct": 0, "wrong": 0}
-
-    validated = correct = wrong = 0
-
-    # Group by (format, target_week) to fetch standings once per group
-    groups = {}
-    for p in pending:
-        key = (p["format"], p["target_week"])
-        groups.setdefault(key, []).append(p)
-
-    from analysis.win_rates import get_meta_standings, get_archetype_trend
-    from datetime import datetime as dt
-
-    for (fmt, target_week), preds in groups.items():
-        # Fetch actual standings for the target week
-        week_start = dt.strptime(target_week, "%Y-%m-%d")
-        week_end   = week_start + timedelta(days=7)
-        standings  = get_meta_standings(
-            format_name=fmt, min_appearances=1, top=30,
-            since=week_start, until=week_end,
-        )
-        rank_map  = {s["archetype"]: i+1 for i, s in enumerate(standings)}
-        share_map = {s["archetype"]: s.get("meta_share", 0) for s in standings}
-
-        for p in preds:
-            arch       = p["archetype"]
-            ptype      = p["prediction_type"]
-            actual_rank  = rank_map.get(arch)
-            actual_share = share_map.get(arch, 0)
-
-            is_correct = None
-            if ptype == "top_meta":
-                if actual_rank is not None:
-                    is_correct = int(actual_rank <= (p["predicted_rank"] or 5) + 2)
-                else:
-                    is_correct = 0  # didn't appear in top 30 = wrong
-
-            elif ptype == "trending_up":
-                signals = json.loads(p["signals"] or "{}")
-                prior = signals.get("recent_share", 0)
-                is_correct = int(actual_share > prior * 1.05)
-
-            elif ptype == "trending_down":
-                signals = json.loads(p["signals"] or "{}")
-                prior = signals.get("recent_share", 0)
-                is_correct = int(actual_share < prior * 0.95)
-
-            elif ptype == "rising":
-                is_correct = int(actual_rank is not None and actual_rank <= 15)
-
-            conn.execute("""
-                UPDATE predictions
-                SET actual_rank=?, actual_share=?, correct=?, validated_at=?
-                WHERE id=?
-            """, (actual_rank, actual_share, is_correct, today, p["id"]))
-
-            validated += 1
-            if is_correct == 1:
-                correct += 1
-            elif is_correct == 0:
-                wrong += 1
-
-    conn.commit()
-    conn.close()
-    return {"validated": validated, "correct": correct, "wrong": wrong}
 
 
 # ---------------------------------------------------------------------------
@@ -336,19 +341,21 @@ def accuracy_report(format_name=None, limit=90):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
-    where = "WHERE correct IS NOT NULL AND created_at >= ?"
-    params = [cutoff]
-    if format_name:
-        where += " AND format = ?"
-        params.append(format_name)
+    try:
+        where = "WHERE correct IS NOT NULL AND created_at >= ?"
+        params = [cutoff]
+        if format_name:
+            where += " AND format = ?"
+            params.append(format_name)
 
-    rows = conn.execute(
-        f"SELECT prediction_type, correct, COUNT(*) as cnt "
-        f"FROM predictions {where} "
-        f"GROUP BY prediction_type, correct",
-        params
-    ).fetchall()
-    conn.close()
+        rows = conn.execute(
+            f"SELECT prediction_type, correct, COUNT(*) as cnt "
+            f"FROM predictions {where} "
+            f"GROUP BY prediction_type, correct",
+            params
+        ).fetchall()
+    finally:
+        conn.close()
 
     # Aggregate
     stats = {}
@@ -389,23 +396,25 @@ def recent_predictions(format_name=None, limit=20, pending_only=False):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
-    where_parts = []
-    params = []
-    if format_name:
-        where_parts.append("format = ?")
-        params.append(format_name)
-    if pending_only:
-        where_parts.append("correct IS NULL")
+    try:
+        where_parts = []
+        params = []
+        if format_name:
+            where_parts.append("format = ?")
+            params.append(format_name)
+        if pending_only:
+            where_parts.append("correct IS NULL")
 
-    where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
-    params.append(limit)
+        where = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        params.append(limit)
 
-    rows = conn.execute(
-        f"SELECT * FROM predictions {where} "
-        f"ORDER BY created_at DESC LIMIT ?",
-        params
-    ).fetchall()
-    conn.close()
+        rows = conn.execute(
+            f"SELECT * FROM predictions {where} "
+            f"ORDER BY created_at DESC LIMIT ?",
+            params
+        ).fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]
 
 

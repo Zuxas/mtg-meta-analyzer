@@ -1,12 +1,12 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-03-25
+> Last updated: 2026-03-26
 
 ---
 
 ## 1. DATA ENGINE (Priority: Immediate)
 
-- [ ] Memory/resource leak audit and fix (app crashed overnight — CRITICAL)
+- [x] Memory/resource leak audit and fix (2026-03-26 — all workers, DB conns, app exit cleanup)
 - [x] Real match W/L pipeline — MTGMelee scraper + matches table + dashboard ★ badges (complete)
 - [x] MTGMelee scraper rewritten for new API endpoints (2026-03-25) — 250 Standard tournaments scraped
 - [x] Dedup-aware trend denominator in `get_archetype_trend()` (2026-03-25)

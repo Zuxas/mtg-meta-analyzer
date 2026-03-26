@@ -78,49 +78,51 @@ def run_scraper():
     skipped = 0
     now     = datetime.now().isoformat(timespec="seconds")
 
-    for row in rows:
-        url = row.get("Link", "").strip()
-        if not url or not url.startswith("http"):
-            continue
+    try:
+        for row in rows:
+            url = row.get("Link", "").strip()
+            if not url or not url.startswith("http"):
+                continue
 
-        fmt = row.get("Format", "").strip().lower()
-        # Normalise format names to match the rest of the app
-        fmt_map = {
-            "std": "standard", "standard": "standard",
-            "pio": "pioneer",  "pioneer": "pioneer",
-            "mod": "modern",   "modern": "modern",
-            "leg": "legacy",   "legacy": "legacy",
-        }
-        fmt = fmt_map.get(fmt, fmt)
+            fmt = row.get("Format", "").strip().lower()
+            # Normalise format names to match the rest of the app
+            fmt_map = {
+                "std": "standard", "standard": "standard",
+                "pio": "pioneer",  "pioneer": "pioneer",
+                "mod": "modern",   "modern": "modern",
+                "leg": "legacy",   "legacy": "legacy",
+            }
+            fmt = fmt_map.get(fmt, fmt)
 
-        try:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO guides
-                    (date, url, format, archetype, type, author, source, comment, added_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    row.get("Date",    ""),
-                    url,
-                    fmt,
-                    row.get("Deck",    ""),
-                    row.get("Type",    ""),
-                    row.get("Author",  ""),
-                    row.get("Source",  ""),
-                    row.get("Comment", ""),
-                    now,
-                ),
-            )
-            if conn.execute("SELECT changes()").fetchone()[0]:
-                added += 1
-            else:
-                skipped += 1
-        except Exception as e:
-            print(f"  [skip] {url}: {e}")
+            try:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO guides
+                        (date, url, format, archetype, type, author, source, comment, added_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        row.get("Date",    ""),
+                        url,
+                        fmt,
+                        row.get("Deck",    ""),
+                        row.get("Type",    ""),
+                        row.get("Author",  ""),
+                        row.get("Source",  ""),
+                        row.get("Comment", ""),
+                        now,
+                    ),
+                )
+                if conn.execute("SELECT changes()").fetchone()[0]:
+                    added += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                print(f"  [skip] {url}: {e}")
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
     print(f"  Added: {added} new guides | Already in DB: {skipped}")
     print("Done.")
 

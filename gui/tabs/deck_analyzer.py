@@ -222,6 +222,21 @@ class DeckAnalyzerTab(QWidget):
         self._build_ui()
         self._refresh_archetypes()  # populate combo on first show
 
+    def cleanup(self):
+        """Stop running workers. Called by MainWindow on app exit."""
+        if self._worker is not None:
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._worker = None
+        for w in self._workers:
+            try:
+                w.blockSignals(True)
+            except RuntimeError:
+                pass
+        self._workers.clear()
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -727,13 +742,21 @@ class DeckAnalyzerTab(QWidget):
         self._analyze_btn.setEnabled(False)
         self._clear_results()
 
+        # Cancel any previous analysis still running
+        if getattr(self, "_worker", None) is not None:
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._worker = None
+
         self._worker = _AnalyzeWorker(main, side, fmt, arch)
         self._worker.blunder_done.connect(self._show_blunder)
         self._worker.chapin_done.connect(self._show_chapin)
         self._worker.error.connect(self._on_error)
-        self._worker.finished.connect(
-            lambda: self._analyze_btn.setEnabled(True)
-        )
+        self._worker.finished.connect(lambda: self._analyze_btn.setEnabled(True))
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.finished.connect(lambda: setattr(self, "_worker", None))
         self._worker.start()
 
     def _clear_results(self):

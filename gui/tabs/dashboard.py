@@ -506,6 +506,13 @@ class DashboardTab(QWidget):
     # Public API
     # ------------------------------------------------------------------
 
+    def cleanup(self):
+        """Stop all running workers. Called by MainWindow on app exit."""
+        DashboardTab._cancel_worker(self._panel_worker)
+        DashboardTab._cancel_worker(self._chart_worker)
+        self._panel_worker = None
+        self._chart_worker = None
+
     @staticmethod
     def _cancel_worker(w):
         """Block signals on a running worker so stale results are silently dropped.

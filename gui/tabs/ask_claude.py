@@ -150,6 +150,15 @@ class AskClaudeTab(QWidget):
         self._streaming_buf = ""
         self._build_ui()
 
+    def cleanup(self):
+        """Stop streaming worker. Called by MainWindow on app exit."""
+        if self._worker is not None:
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._worker = None
+
     # ------------------------------------------------------------------
     # UI
     # ------------------------------------------------------------------
@@ -287,6 +296,14 @@ class AskClaudeTab(QWidget):
         )
         self._send_btn.setEnabled(False)
 
+        # Clean up previous worker before replacing
+        if getattr(self, "_worker", None) is not None:
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._worker = None
+
         self._worker = _StreamWorker(
             messages=list(self._messages),
             system=system,
@@ -295,6 +312,10 @@ class AskClaudeTab(QWidget):
         self._worker.chunk.connect(self._on_chunk)
         self._worker.done.connect(self._on_done)
         self._worker.error.connect(self._on_error)
+        self._worker.done.connect(self._worker.deleteLater)
+        self._worker.done.connect(lambda: setattr(self, "_worker", None))
+        self._worker.error.connect(self._worker.deleteLater)
+        self._worker.error.connect(lambda _: setattr(self, "_worker", None))
         self._worker.start()
 
     def _on_chunk(self, text: str):

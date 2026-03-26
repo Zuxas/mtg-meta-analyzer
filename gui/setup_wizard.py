@@ -310,6 +310,19 @@ class SetupWizard(QDialog):
             self._btn_next.setText("Open App")
 
     def closeEvent(self, event):
+        if self._scryfall_worker:
+            try:
+                self._scryfall_worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._scryfall_worker.deleteLater()
+            self._scryfall_worker = None
         if self._backfill_worker:
             self._backfill_worker.stop()
+            try:
+                self._backfill_worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._backfill_worker.deleteLater()
+            self._backfill_worker = None
         super().closeEvent(event)

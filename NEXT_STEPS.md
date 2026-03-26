@@ -184,10 +184,16 @@ python run_gui.py
 
 ---
 
-### 1. Memory leak audit (CRITICAL — app crashed overnight)
-- Audit all long-running threads, worker objects, and signal connections for leaks
-- Check QuickScrapeWorker, FigureCanvasQTAgg, and DB connections for improper teardown
-- Add resource tracking / explicit cleanup on close
+### 1. ~~Memory leak audit~~ — **DONE** (2026-03-26)
+- Audited all 11 worker threads, 3 FigureCanvasQTAgg instances, ~100 DB connections
+- Fixed: `setup_wizard.py` closeEvent now calls deleteLater() for both workers
+- Fixed: `deck_analyzer.py` _AnalyzeWorker now has deleteLater + setattr(None) + signal blocking
+- Fixed: `ask_claude.py` _StreamWorker now has deleteLater on both done and error signals
+- Fixed: `predictions.py` all 5 bare conn.close() wrapped in try/finally
+- Fixed: `scrapers/guides.py` conn.close() wrapped in try/finally
+- Added: `cleanup()` methods on DashboardTab, HeatmapTab, ChartsTab, DeckAnalyzerTab, AskClaudeTab
+- Added: `MainWindow.cleanup()` orchestrator — stops all workers, called via `app.aboutToQuit`
+- Added: `run_gui.py` wires `app.aboutToQuit.connect(window.cleanup)`
 
 ### 2. My Decks GUI tab
 - `db/saved_decks.py` **now exists** (created 2026-03-25)
