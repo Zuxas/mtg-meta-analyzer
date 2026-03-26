@@ -20,17 +20,24 @@ from PyQt6.QtGui import QFont
 from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
 
 
-def fetch_chart_data(format_name, top, weeks, since, until, standings=None):
+def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
+                     dedup_cross_source=True, unique_player_decks=False):
     """
     Load weekly meta_share AND est_winpct for all archetypes in one pass.
     Designed to run in a DataLoadWorker; returns a dict or None.
     Result is cache-friendly — pass to ChartCanvas.draw_from_data() to draw.
+
+    dedup_cross_source / unique_player_decks mirror the params on
+    get_meta_standings and get_archetype_trend — see dedup_filters.py for
+    full documentation on what each removes.
     """
     from analysis.win_rates import get_meta_standings, get_archetype_trend
     if standings is None:
         standings = get_meta_standings(
             format_name=format_name, min_appearances=2,
             top=top, since=since, until=until,
+            dedup_cross_source=dedup_cross_source,
+            unique_player_decks=unique_player_decks,
         )
     if not standings:
         return None
@@ -44,6 +51,8 @@ def fetch_chart_data(format_name, top, weeks, since, until, standings=None):
         weekly = get_archetype_trend(
             arch, format_name=format_name, weeks=weeks,
             since=since, until=until,
+            dedup_cross_source=dedup_cross_source,
+            unique_player_decks=unique_player_decks,
         )
         meta_data[arch]   = {w["week_start"]: w["meta_share"] for w in weekly}
         winpct_data[arch] = {w["week_start"]: w.get("est_winpct") for w in weekly}

@@ -128,6 +128,7 @@ def _apply_schema(conn):
     for stmt in [
         "ALTER TABLE events ADD COLUMN event_type TEXT",
         "ALTER TABLE events ADD COLUMN event_fingerprint TEXT",
+        "ALTER TABLE events ADD COLUMN event_fingerprint_cs TEXT",
         "ALTER TABLE decks  ADD COLUMN deck_fingerprint  TEXT",
     ]:
         try:
@@ -136,7 +137,12 @@ def _apply_schema(conn):
             pass
     # Indexes for fast fingerprint duplicate lookups
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_fp ON events(event_fingerprint)"
+        "CREATE INDEX IF NOT EXISTS idx_events_fp    ON events(event_fingerprint)"
+    )
+    conn.execute(
+        # Cross-source fingerprint index — used by upsert_event dup detection
+        # and filter_cross_source_duplicates in the deck dedup layer.
+        "CREATE INDEX IF NOT EXISTS idx_events_fp_cs ON events(event_fingerprint_cs)"
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_decks_fp ON decks(deck_fingerprint)"
@@ -156,32 +162,41 @@ def init_db():
 
 
 def upsert_event(source, source_id, name, date, fmt, url, event_type=None):
-    from core.data_engine.dedup import generate_event_fingerprint
-    fp = generate_event_fingerprint(name, date, fmt)
+    from core.data_engine.dedup import generate_event_fingerprint, generate_event_fingerprint_cs
+    # Strict fingerprint — stored for analysis; preserves trailing numbers so
+    # numbered same-source same-day events (LCQ #1 … #22) stay distinct.
+    fp    = generate_event_fingerprint(name, date, fmt)
+    # Cross-source fingerprint — strips trailing serials; used to detect when
+    # the same real-world event was scraped by both mtgtop8 and mtgdecks.
+    fp_cs = generate_event_fingerprint_cs(name, date, fmt)
 
     with get_connection() as conn:
-        # Detect cross-source duplicates before upserting (non-blocking — log only)
+        # Cross-source duplicate detection uses fp_cs so that e.g.
+        # "MTGO Challenge 32" (mtgtop8) matches "MTGO Challenge 32 #12835978" (mtgdecks).
         dup = conn.execute(
             "SELECT id, source, source_id, name FROM events "
-            "WHERE event_fingerprint = ? AND NOT (source = ? AND source_id = ?)",
-            (fp, source, source_id),
+            "WHERE event_fingerprint_cs = ? AND NOT (source = ? AND source_id = ?)",
+            (fp_cs, source, source_id),
         ).fetchone()
         if dup:
             print(
                 f"  [DEDUP:event] '{name}' ({source}/{source_id})"
                 f" matches '{dup['name']}' ({dup['source']}/{dup['source_id']})"
-                f" fp={fp}"
+                f" fp_cs={fp_cs}"
             )
 
         conn.execute("""
             INSERT INTO events
-                (source, source_id, name, date, format, event_type, url, event_fingerprint)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (source, source_id, name, date, format, event_type, url,
+                 event_fingerprint, event_fingerprint_cs)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source, source_id) DO UPDATE SET
                 name=excluded.name, date=excluded.date,
                 format=excluded.format, event_type=excluded.event_type,
-                url=excluded.url, event_fingerprint=excluded.event_fingerprint
-        """, (source, source_id, name, date, fmt, event_type, url, fp))
+                url=excluded.url,
+                event_fingerprint=excluded.event_fingerprint,
+                event_fingerprint_cs=excluded.event_fingerprint_cs
+        """, (source, source_id, name, date, fmt, event_type, url, fp, fp_cs))
         return conn.execute(
             "SELECT id FROM events WHERE source=? AND source_id=?", (source, source_id)
         ).fetchone()["id"]

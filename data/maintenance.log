@@ -1,0 +1,195 @@
+2026-03-20 04:22:33  INFO  [DRY RUN] --- Maintenance started ---
+2026-03-20 04:22:33  INFO  [DRY RUN]   Standard   cutoff=2023-03-21 (Foundations extended to 2021-03-21)
+2026-03-20 04:22:33  INFO  [DRY RUN]   Pioneer    cutoff=2023-03-21
+2026-03-20 04:22:33  INFO  [DRY RUN]   Modern     cutoff=2023-03-21
+2026-03-20 04:22:33  INFO  [DRY RUN]   Legacy     cutoff=2023-03-21
+2026-03-20 04:22:33  INFO  [DRY RUN]   Vintage    cutoff=2023-03-21
+2026-03-20 04:22:33  INFO  [DRY RUN]   Pauper     cutoff=2023-03-21
+2026-03-20 04:22:33  INFO  [DRY RUN]   Nothing to prune — all data within retention windows.
+2026-03-20 04:22:33  INFO  [DRY RUN] --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows, 0 orphaned cards removed ---
+2026-03-20 04:23:21  INFO  [DRY RUN] --- Maintenance started ---
+2026-03-20 04:23:21  INFO  [DRY RUN]   Standard   cutoff=2023-03-21 (Foundations extended to 2021-03-21)
+2026-03-20 04:23:21  INFO  [DRY RUN]   Pioneer    cutoff=2023-03-21
+2026-03-20 04:23:21  INFO  [DRY RUN]   Modern     cutoff=2023-03-21
+2026-03-20 04:23:21  INFO  [DRY RUN]   Legacy     cutoff=2023-03-21
+2026-03-20 04:23:21  INFO  [DRY RUN]   Vintage    cutoff=2023-03-21
+2026-03-20 04:23:21  INFO  [DRY RUN]   Pauper     cutoff=2023-03-21
+2026-03-20 04:23:21  INFO  [DRY RUN]   Nothing to prune — all data within retention windows.
+2026-03-20 04:23:21  INFO  [DRY RUN] --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows, 0 orphaned cards removed ---
+2026-03-20 04:26:16  INFO  [DRY RUN] --- Maintenance started (archive mode) ---
+2026-03-20 04:26:16  INFO  [DRY RUN]   Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-20 04:26:16  INFO  [DRY RUN]   Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-20 04:26:16  INFO  [DRY RUN]   Standard   cutoff=2023-03-21 (Foundations window: 2021-03-21)
+2026-03-20 04:26:16  INFO  [DRY RUN]   Pioneer    cutoff=2023-03-21
+2026-03-20 04:26:16  INFO  [DRY RUN]   Modern     cutoff=2023-03-21
+2026-03-20 04:26:16  INFO  [DRY RUN]   Legacy     cutoff=2023-03-21
+2026-03-20 04:26:16  INFO  [DRY RUN]   Vintage    cutoff=2023-03-21
+2026-03-20 04:26:16  INFO  [DRY RUN]   Pauper     cutoff=2023-03-21
+2026-03-20 04:26:16  INFO  [DRY RUN]   Nothing to archive — all data within retention windows.
+2026-03-20 04:26:16  INFO  [DRY RUN] --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-20 17:10:19  INFO  --- Maintenance started (archive mode) ---
+2026-03-20 17:10:19  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-20 17:10:19  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-20 17:10:19  INFO    Standard   cutoff=2023-03-21 (Foundations window: 2021-03-21)
+2026-03-20 17:10:19  INFO    Nothing to archive — all data within retention windows.
+2026-03-20 17:10:19  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-20 17:10:19  INFO  --- Maintenance started (archive mode) ---
+2026-03-20 17:10:19  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-20 17:10:19  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-20 17:10:19  INFO    Standard   cutoff=2023-03-21 (Foundations window: 2021-03-21)
+2026-03-20 17:10:19  INFO    Nothing to archive — all data within retention windows.
+2026-03-20 17:10:19  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-21 17:11:30  INFO  --- Maintenance started (archive mode) ---
+2026-03-21 17:11:30  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-21 17:11:30  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-21 17:11:30  INFO    Standard   cutoff=2023-03-22 (Foundations window: 2021-03-22)
+2026-03-21 17:11:31  INFO    Nothing to archive — all data within retention windows.
+2026-03-21 17:11:31  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-21 17:11:31  INFO  --- Maintenance started (archive mode) ---
+2026-03-21 17:11:31  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-21 17:11:31  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-21 17:11:31  INFO    Standard   cutoff=2023-03-22 (Foundations window: 2021-03-22)
+2026-03-21 17:11:31  INFO    Nothing to archive — all data within retention windows.
+2026-03-21 17:11:31  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-22 06:15:53  INFO  --- Maintenance started (archive mode) ---
+2026-03-22 06:15:53  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-22 06:15:53  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-22 06:15:53  INFO    Standard   cutoff=2023-03-23 (Foundations window: 2021-03-23)
+2026-03-22 06:15:53  INFO      Archived: 2 events, 16 decks, 402 deck_card rows
+2026-03-22 06:15:54  INFO  --- Maintenance complete: 2 events, 16 decks, 402 deck_card rows archived; 0 orphans cleaned ---
+2026-03-22 06:24:18  INFO  --- Maintenance started (archive mode) ---
+2026-03-22 06:24:18  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-22 06:24:18  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-22 06:24:18  INFO    Pioneer    cutoff=2023-03-23
+2026-03-22 06:24:18  INFO    Nothing to archive — all data within retention windows.
+2026-03-22 06:24:18  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-22 07:01:16  INFO  --- Maintenance started (archive mode) ---
+2026-03-22 07:01:16  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-22 07:01:16  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-22 07:01:16  INFO    Standard   cutoff=2023-03-23 (Foundations window: 2021-03-23)
+2026-03-22 07:01:16  INFO    Pioneer    cutoff=2023-03-23
+2026-03-22 07:01:16  INFO    Modern     cutoff=2023-03-23
+2026-03-22 07:01:16  INFO    Legacy     cutoff=2023-03-23
+2026-03-22 07:01:16  INFO    Vintage    cutoff=2023-03-23
+2026-03-22 07:01:16  INFO    Pauper     cutoff=2023-03-23
+2026-03-22 07:01:16  INFO    Nothing to archive — all data within retention windows.
+2026-03-22 07:01:16  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-22 17:10:49  INFO  --- Maintenance started (archive mode) ---
+2026-03-22 17:10:49  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-22 17:10:49  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-22 17:10:49  INFO    Standard   cutoff=2023-03-23 (Foundations window: 2021-03-23)
+2026-03-22 17:10:49  INFO    Nothing to archive — all data within retention windows.
+2026-03-22 17:10:49  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-22 17:10:50  INFO  --- Maintenance started (archive mode) ---
+2026-03-22 17:10:50  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-22 17:10:50  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-22 17:10:50  INFO    Standard   cutoff=2023-03-23 (Foundations window: 2021-03-23)
+2026-03-22 17:10:50  INFO    Nothing to archive — all data within retention windows.
+2026-03-22 17:10:50  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-23 06:14:53  INFO  --- Maintenance started (archive mode) ---
+2026-03-23 06:14:53  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-23 06:14:53  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-23 06:14:53  INFO    Standard   cutoff=2023-03-24 (Foundations window: 2021-03-24)
+2026-03-23 06:14:53  INFO      Archived: 2 events, 12 decks, 340 deck_card rows
+2026-03-23 06:14:53  INFO  --- Maintenance complete: 2 events, 12 decks, 340 deck_card rows archived; 0 orphans cleaned ---
+2026-03-23 06:24:31  INFO  --- Maintenance started (archive mode) ---
+2026-03-23 06:24:31  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-23 06:24:31  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-23 06:24:31  INFO    Pioneer    cutoff=2023-03-24
+2026-03-23 06:24:32  INFO    Nothing to archive — all data within retention windows.
+2026-03-23 06:24:32  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-23 06:56:46  INFO  --- Maintenance started (archive mode) ---
+2026-03-23 06:56:46  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-23 06:56:46  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-23 06:56:46  INFO    Standard   cutoff=2023-03-24 (Foundations window: 2021-03-24)
+2026-03-23 06:56:46  INFO    Pioneer    cutoff=2023-03-24
+2026-03-23 06:56:46  INFO    Modern     cutoff=2023-03-24
+2026-03-23 06:56:46  INFO    Legacy     cutoff=2023-03-24
+2026-03-23 06:56:46  INFO    Vintage    cutoff=2023-03-24
+2026-03-23 06:56:46  INFO    Pauper     cutoff=2023-03-24
+2026-03-23 06:56:47  INFO    Nothing to archive — all data within retention windows.
+2026-03-23 06:56:47  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-23 17:08:40  INFO  --- Maintenance started (archive mode) ---
+2026-03-23 17:08:40  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-23 17:08:40  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-23 17:08:40  INFO    Standard   cutoff=2023-03-24 (Foundations window: 2021-03-24)
+2026-03-23 17:08:40  INFO    Nothing to archive — all data within retention windows.
+2026-03-23 17:08:40  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-23 17:08:40  INFO  --- Maintenance started (archive mode) ---
+2026-03-23 17:08:40  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-23 17:08:40  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-23 17:08:40  INFO    Standard   cutoff=2023-03-24 (Foundations window: 2021-03-24)
+2026-03-23 17:08:41  INFO    Nothing to archive — all data within retention windows.
+2026-03-23 17:08:41  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-24 06:14:17  INFO  --- Maintenance started (archive mode) ---
+2026-03-24 06:14:17  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-24 06:14:17  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-24 06:14:17  INFO    Standard   cutoff=2023-03-25 (Foundations window: 2021-03-25)
+2026-03-24 06:14:17  INFO      Archived: 5 events, 68 decks, 1848 deck_card rows
+2026-03-24 06:14:18  INFO    Removed 1 orphaned card records from active DB
+2026-03-24 06:14:18  INFO  --- Maintenance complete: 5 events, 68 decks, 1848 deck_card rows archived; 1 orphans cleaned ---
+2026-03-24 06:24:33  INFO  --- Maintenance started (archive mode) ---
+2026-03-24 06:24:33  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-24 06:24:33  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-24 06:24:33  INFO    Pioneer    cutoff=2023-03-25
+2026-03-24 06:24:33  INFO    Nothing to archive — all data within retention windows.
+2026-03-24 06:24:33  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-24 06:54:36  INFO  --- Maintenance started (archive mode) ---
+2026-03-24 06:54:36  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-24 06:54:36  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-24 06:54:36  INFO    Standard   cutoff=2023-03-25 (Foundations window: 2021-03-25)
+2026-03-24 06:54:36  INFO    Pioneer    cutoff=2023-03-25
+2026-03-24 06:54:36  INFO    Modern     cutoff=2023-03-25
+2026-03-24 06:54:36  INFO    Legacy     cutoff=2023-03-25
+2026-03-24 06:54:36  INFO    Vintage    cutoff=2023-03-25
+2026-03-24 06:54:36  INFO    Pauper     cutoff=2023-03-25
+2026-03-24 06:54:37  INFO    Nothing to archive — all data within retention windows.
+2026-03-24 06:54:37  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-24 17:09:34  INFO  --- Maintenance started (archive mode) ---
+2026-03-24 17:09:34  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-24 17:09:34  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-24 17:09:34  INFO    Standard   cutoff=2023-03-25 (Foundations window: 2021-03-25)
+2026-03-24 17:09:34  INFO    Nothing to archive — all data within retention windows.
+2026-03-24 17:09:34  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-24 17:09:35  INFO  --- Maintenance started (archive mode) ---
+2026-03-24 17:09:35  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-24 17:09:35  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-24 17:09:35  INFO    Standard   cutoff=2023-03-25 (Foundations window: 2021-03-25)
+2026-03-24 17:09:35  INFO    Nothing to archive — all data within retention windows.
+2026-03-24 17:09:35  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-25 06:15:14  INFO  --- Maintenance started (archive mode) ---
+2026-03-25 06:15:14  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-25 06:15:14  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-25 06:15:14  INFO    Standard   cutoff=2023-03-26 (Foundations window: 2021-03-26)
+2026-03-25 06:15:14  INFO      Archived: 3 events, 19 decks, 543 deck_card rows
+2026-03-25 06:15:14  INFO    Removed 1 orphaned card records from active DB
+2026-03-25 06:15:14  INFO  --- Maintenance complete: 3 events, 19 decks, 543 deck_card rows archived; 1 orphans cleaned ---
+2026-03-25 06:26:18  INFO  --- Maintenance started (archive mode) ---
+2026-03-25 06:26:18  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-25 06:26:18  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-25 06:26:18  INFO    Pioneer    cutoff=2023-03-26
+2026-03-25 06:26:18  INFO    Nothing to archive — all data within retention windows.
+2026-03-25 06:26:18  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-25 06:51:15  INFO  --- Maintenance started (archive mode) ---
+2026-03-25 06:51:15  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-25 06:51:15  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-25 06:51:15  INFO    Standard   cutoff=2023-03-26 (Foundations window: 2021-03-26)
+2026-03-25 06:51:15  INFO    Pioneer    cutoff=2023-03-26
+2026-03-25 06:51:15  INFO    Modern     cutoff=2023-03-26
+2026-03-25 06:51:15  INFO    Legacy     cutoff=2023-03-26
+2026-03-25 06:51:15  INFO    Vintage    cutoff=2023-03-26
+2026-03-25 06:51:15  INFO    Pauper     cutoff=2023-03-26
+2026-03-25 06:51:15  INFO    Nothing to archive — all data within retention windows.
+2026-03-25 06:51:15  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---
+2026-03-25 17:08:21  INFO  --- Maintenance started (archive mode) ---
+2026-03-25 17:08:21  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-25 17:08:21  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-25 17:08:21  INFO    Standard   cutoff=2023-03-26 (Foundations window: 2021-03-26)
+2026-03-25 17:08:21  INFO    Removed 1 orphaned card records from active DB
+2026-03-25 17:08:21  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 1 orphans cleaned ---
+2026-03-25 17:08:21  INFO  --- Maintenance started (archive mode) ---
+2026-03-25 17:08:21  INFO    Active DB : E:\vscode ai project\mtg-meta-analyzer\data/mtg_meta.db
+2026-03-25 17:08:21  INFO    Archive DB: E:\vscode ai project\mtg-meta-analyzer\data/mtg_archive.db
+2026-03-25 17:08:21  INFO    Standard   cutoff=2023-03-26 (Foundations window: 2021-03-26)
+2026-03-25 17:08:22  INFO    Nothing to archive — all data within retention windows.
+2026-03-25 17:08:22  INFO  --- Maintenance complete: 0 events, 0 decks, 0 deck_card rows archived; 0 orphans cleaned ---

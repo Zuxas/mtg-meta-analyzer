@@ -42,7 +42,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from core.data_engine.dedup import generate_event_fingerprint, generate_deck_fingerprint
+from core.data_engine.dedup import (
+    generate_event_fingerprint,
+    generate_event_fingerprint_cs,
+    generate_deck_fingerprint,
+)
 from db.database import (
     get_connection, get_archive_connection, _apply_schema, ARCHIVE_PATH,
 )
@@ -68,62 +72,139 @@ def _elapsed(seconds):
 # Event backfill
 # ---------------------------------------------------------------------------
 
-def _backfill_events(conn, batch_size, dry_run, label):
+def _backfill_events(conn, batch_size, dry_run, label, recompute=False):
     """
-    Compute and store event_fingerprint for every event row with a NULL value.
+    Compute and store event_fingerprint (strict — preserves trailing numbers).
 
-    Fingerprint inputs: name, date, format — all available on the events row,
-    no joins required.
+    Normal mode (recompute=False): only processes rows WHERE event_fingerprint IS NULL.
+    Recompute mode (recompute=True): rewrites ALL rows.  Use this once after the
+    fingerprint logic changed from loose (strips trailing numbers) to strict
+    (preserves them) to ensure existing data is consistent.
     """
+    where_clause = "" if recompute else "WHERE event_fingerprint IS NULL"
     total = conn.execute(
-        "SELECT COUNT(*) FROM events WHERE event_fingerprint IS NULL"
+        f"SELECT COUNT(*) FROM events {where_clause}"
     ).fetchone()[0]
 
+    mode_label = "recompute" if recompute else "backfill"
     if total == 0:
-        print(f"  [{label}] events : all {conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]} fingerprints already present")
+        all_count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        print(f"  [{label}] events fp      : all {all_count} already present")
         return 0
 
-    print(f"  [{label}] events : {total} rows need fingerprints")
+    print(f"  [{label}] events fp      : {total} rows ({mode_label})")
     if dry_run:
         return 0
 
     updated = 0
+    order_clause = "ORDER BY id"
+    if recompute:
+        # Need OFFSET for recompute since committed rows stay in the result set
+        offset = 0
+        while True:
+            rows = conn.execute(
+                f"SELECT id, name, date, format FROM events {order_clause} LIMIT ? OFFSET ?",
+                (batch_size, offset),
+            ).fetchall()
+            if not rows:
+                break
+            for row in rows:
+                fp = generate_event_fingerprint(
+                    name=row["name"] or "",
+                    date=row["date"] or "",
+                    format_name=row["format"] or "",
+                )
+                conn.execute(
+                    "UPDATE events SET event_fingerprint = ? WHERE id = ?",
+                    (fp, row["id"]),
+                )
+            conn.commit()
+            offset += len(rows)
+            updated += len(rows)
+            pct = updated * 100 // total
+            print(f"  [{label}] events fp      : {updated:>6} / {total} ({pct:>3}%)",
+                  end="\r", flush=True)
+            if len(rows) < batch_size:
+                break
+    else:
+        while True:
+            rows = conn.execute(
+                "SELECT id, name, date, format FROM events "
+                "WHERE event_fingerprint IS NULL ORDER BY id LIMIT ?",
+                (batch_size,),
+            ).fetchall()
+            if not rows:
+                break
+            for row in rows:
+                fp = generate_event_fingerprint(
+                    name=row["name"] or "",
+                    date=row["date"] or "",
+                    format_name=row["format"] or "",
+                )
+                conn.execute(
+                    "UPDATE events SET event_fingerprint = ? WHERE id = ?",
+                    (fp, row["id"]),
+                )
+            conn.commit()
+            updated += len(rows)
+            pct = updated * 100 // total
+            print(f"  [{label}] events fp      : {updated:>6} / {total} ({pct:>3}%)",
+                  end="\r", flush=True)
+            if len(rows) < batch_size:
+                break
 
+    print(f"  [{label}] events fp      : {updated:>6} / {total} done          ")
+    return updated
+
+
+def _backfill_event_fp_cs(conn, batch_size, dry_run, label):
+    """
+    Compute and store event_fingerprint_cs (cross-source — strips trailing numbers).
+
+    Always NULL-only: recompute is not needed since this is a new column and
+    the cross-source normalization logic is not expected to change.
+    """
+    total = conn.execute(
+        "SELECT COUNT(*) FROM events WHERE event_fingerprint_cs IS NULL"
+    ).fetchone()[0]
+
+    if total == 0:
+        all_count = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        print(f"  [{label}] events fp_cs   : all {all_count} already present")
+        return 0
+
+    print(f"  [{label}] events fp_cs   : {total} rows need cross-source fingerprints")
+    if dry_run:
+        return 0
+
+    updated = 0
     while True:
-        # Always fetch from the top of the NULL set — committed rows drop out
-        # of this query automatically, so no OFFSET is needed.
         rows = conn.execute(
             "SELECT id, name, date, format FROM events "
-            "WHERE event_fingerprint IS NULL ORDER BY id LIMIT ?",
+            "WHERE event_fingerprint_cs IS NULL ORDER BY id LIMIT ?",
             (batch_size,),
         ).fetchall()
-
         if not rows:
             break
-
         for row in rows:
-            fp = generate_event_fingerprint(
+            fp_cs = generate_event_fingerprint_cs(
                 name=row["name"] or "",
                 date=row["date"] or "",
                 format_name=row["format"] or "",
             )
             conn.execute(
-                "UPDATE events SET event_fingerprint = ? WHERE id = ?",
-                (fp, row["id"]),
+                "UPDATE events SET event_fingerprint_cs = ? WHERE id = ?",
+                (fp_cs, row["id"]),
             )
-
         conn.commit()
         updated += len(rows)
         pct = updated * 100 // total
-        print(
-            f"  [{label}] events : {updated:>6} / {total} ({pct:>3}%)",
-            end="\r", flush=True,
-        )
-
+        print(f"  [{label}] events fp_cs   : {updated:>6} / {total} ({pct:>3}%)",
+              end="\r", flush=True)
         if len(rows) < batch_size:
-            break  # last partial batch — we're done
+            break
 
-    print(f"  [{label}] events : {updated:>6} / {total} done          ")
+    print(f"  [{label}] events fp_cs   : {updated:>6} / {total} done          ")
     return updated
 
 
@@ -216,13 +297,14 @@ def _backfill_decks(conn, batch_size, dry_run, label):
 # Per-DB orchestration
 # ---------------------------------------------------------------------------
 
-def _process_db(conn, batch_size, dry_run, label):
+def _process_db(conn, batch_size, dry_run, label, recompute_events=False):
     """Apply schema migrations (adds columns/indexes if absent), then backfill."""
     _apply_schema(conn)  # idempotent — adds fingerprint columns + indexes if missing
     t0 = time.time()
-    ev = _backfill_events(conn, batch_size, dry_run, label)
-    dk = _backfill_decks(conn, batch_size, dry_run, label)
-    return ev, dk, time.time() - t0
+    ev    = _backfill_events(conn, batch_size, dry_run, label, recompute=recompute_events)
+    ev_cs = _backfill_event_fp_cs(conn, batch_size, dry_run, label)
+    dk    = _backfill_decks(conn, batch_size, dry_run, label)
+    return ev + ev_cs, dk, time.time() - t0
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +333,15 @@ def main():
         "--dry-run", action="store_true",
         help="Print row counts only — no rows are modified",
     )
+    parser.add_argument(
+        "--recompute-events", action="store_true",
+        help=(
+            "Rewrite ALL event_fingerprint values using the current (strict) logic. "
+            "Run this once after upgrading from the old loose fingerprint that stripped "
+            "trailing numbers. Without this, existing rows keep old loose values and "
+            "same-source same-day numbered events may still appear as duplicates."
+        ),
+    )
     args = parser.parse_args()
 
     do_active  = not args.archive_only
@@ -260,6 +351,7 @@ def main():
         f"Fingerprint Backfill"
         f"  batch={args.batch_size}"
         + ("  DRY RUN" if args.dry_run else "")
+        + ("  RECOMPUTE-EVENTS" if args.recompute_events else "")
     )
 
     total_ev = total_dk = 0
@@ -269,7 +361,10 @@ def main():
         print("\n[Active DB]")
         conn = get_connection()
         try:
-            ev, dk, elapsed = _process_db(conn, args.batch_size, args.dry_run, "active")
+            ev, dk, elapsed = _process_db(
+                conn, args.batch_size, args.dry_run, "active",
+                recompute_events=args.recompute_events,
+            )
         finally:
             conn.close()
         total_ev += ev
@@ -284,7 +379,10 @@ def main():
             print("\n[Archive DB]")
             conn = get_archive_connection()
             try:
-                ev, dk, elapsed = _process_db(conn, args.batch_size, args.dry_run, "archive")
+                ev, dk, elapsed = _process_db(
+                    conn, args.batch_size, args.dry_run, "archive",
+                    recompute_events=args.recompute_events,
+                )
             finally:
                 conn.close()
             total_ev += ev

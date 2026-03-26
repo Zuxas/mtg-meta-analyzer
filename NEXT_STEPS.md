@@ -177,7 +177,10 @@ python run_gui.py
    - Dry-run verified: 21 tournaments, ~10k+ matches, exit code 0
 5. **Swagger API explored** — all 21 REST endpoints at `/swagger/ui/index` require staff authentication; public DataTables approach is correct
 6. **`db/saved_decks.py` created** — tables: `saved_decks` + `saved_sb_plans` (CASCADE delete); functions: save_deck, get_deck(s), delete_deck, save_sb_plan, get_sb_plan(s), delete_sb_plan; all tests pass
-7. **Live MTGMelee scrape running** — 250 qualifying Standard tournaments (9 pages), actively inserting to DB
+7. **Full MTGMelee scrape complete** — 221,163 real match records across all formats:
+   - Standard: 108,648 matches (250 tournaments)
+   - Pioneer:   20,095 matches  (58 tournaments — all available)
+   - Modern:    92,420 matches (347 tournaments — all available)
 
 ---
 

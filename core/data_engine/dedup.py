@@ -10,7 +10,8 @@ PHASE 2 (future): fuzzy matching + confidence scoring.
 Typical usage:
 
     from core.data_engine.dedup import (
-        generate_event_fingerprint,
+        generate_event_fingerprint,      # strict — stored in events.event_fingerprint
+        generate_event_fingerprint_cs,   # cross-source — stored in events.event_fingerprint_cs
         generate_deck_fingerprint,
         events_are_duplicates,
         decks_are_duplicates,
@@ -72,7 +73,8 @@ _MTGO_ALIASES = re.compile(
     r"\b(magic\s*online|mtgo|mtg\s*online)\b", re.IGNORECASE
 )
 
-# "MTGO Standard Challenge #12" and "... Challenge 12" should match.
+# Strips trailing serial numbers e.g. "#12835978" or bare "12" at end of name.
+# Used ONLY in cross-source normalization — not in the stored event fingerprint.
 _TRAILING_NUMBER = re.compile(r"\s*#?\d+\s*$")
 
 _MULTI_SPACE = re.compile(r"\s+")
@@ -80,24 +82,45 @@ _MULTI_SPACE = re.compile(r"\s+")
 
 def _normalize_event_name(name: str) -> str:
     """
-    Normalize an event name for fingerprinting.
+    Strict normalization — trailing numbers are PRESERVED.
 
-    Steps applied in order:
+    Used for the stored event_fingerprint so that same-source same-day
+    numbered events (e.g. "LCQ #1" through "LCQ #22") each receive a
+    distinct fingerprint.  The old behaviour of stripping trailing numbers
+    caused all 22 rounds on the same day to collapse into one fingerprint,
+    producing 417 false-positive duplicate groups.
+
+    Steps:
       1. Lowercase
-      2. Collapse "Magic Online" / "MTGO" / "MTG Online" → "mtgo"
-      3. Strip trailing event number ("#12", "12") — these differ between
-         sources and would cause false non-matches on the same event
-      4. Collapse runs of whitespace to single space
+      2. Collapse MTGO name variants → "mtgo"
+      3. Collapse runs of whitespace
+      4. Strip leading/trailing whitespace
+    """
+    n = (name or "").lower()
+    n = _MTGO_ALIASES.sub("mtgo", n)
+    n = _MULTI_SPACE.sub(" ", n)
+    return n.strip()
+
+
+def _normalize_event_name_cs(name: str) -> str:
+    """
+    Cross-source normalization — strips trailing numbers.
+
+    Used for event_fingerprint_cs so that the same real-world event matches
+    across scrapers even when one source appends an internal serial number
+    (e.g. mtgdecks appends "#12835978" to MTGO event names).
+
+    The one confirmed cross-source event match in production ("RC Turin 2026")
+    has identical names on both sources so trailing-number stripping is not
+    needed there.  This function is retained for robustness against future
+    cases where sources differ in trailing numbers.
+
+    Steps:
+      1. Lowercase
+      2. Collapse MTGO name variants → "mtgo"
+      3. Strip trailing number/serial
+      4. Collapse runs of whitespace
       5. Strip leading/trailing whitespace
-
-    This is intentionally lossy — we care more about precision (no false
-    positives) than recall for Phase 1. Near-misses are Phase 2's job.
-
-    Phase 2 ideas:
-      - Tokenize and compute Jaccard similarity of name token sets
-      - Treat "challenge", "showcase", "qualifier" as strong match signals
-        (if both have the same keyword + same date + same format → high confidence)
-      - Use edit distance on remaining tokens after keyword extraction
     """
     n = (name or "").lower()
     n = _MTGO_ALIASES.sub("mtgo", n)
@@ -135,26 +158,46 @@ def generate_event_fingerprint(
     format_name: str,
 ) -> str:
     """
-    Return a 16-char hex fingerprint for an event.
+    Return a 16-char hex fingerprint for an event (strict — preserves trailing numbers).
 
-    Hashes the pipe-delimited string:
-        normalized_date | normalized_format | normalized_name
+    Hashes: normalized_date | normalized_format | normalized_name_strict
 
-    event_type is deliberately excluded — it is inconsistently labelled
-    across sources (e.g. "mtgo_challenge_64" vs "challenge").
+    Trailing numbers are preserved so same-source same-day numbered events
+    (e.g. "LCQ #1" through "LCQ #22") receive distinct fingerprints and do
+    not form false-positive duplicate groups.
 
-    16 hex chars = 64-bit prefix of SHA-256.  Collision probability across
-    ~100K events is negligible (birthday paradox: ~1 in 10^14 per pair).
+    Stored in the events.event_fingerprint column.  For cross-source duplicate
+    detection, use generate_event_fingerprint_cs which tolerates source-
+    specific trailing serials.
 
-    Phase 2 plan:
-      - Expose generate_event_fingerprint_components() returning the
-        normalized fields so callers can compute partial matches
-      - Add event_type as an optional tiebreaker (not part of primary hash)
-      - Add player_count as a fuzzy-match weight (not hashable — too noisy)
+    16 hex chars = 64-bit SHA-256 prefix.
     """
     norm_date = normalize_date(date)
     norm_fmt  = _normalize_format(format_name)
-    norm_name = _normalize_event_name(name)
+    norm_name = _normalize_event_name(name)        # strict: no trailing-number strip
+    payload   = f"{norm_date}|{norm_fmt}|{norm_name}"
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+def generate_event_fingerprint_cs(
+    name: str,
+    date: str,
+    format_name: str,
+) -> str:
+    """
+    Return a 16-char hex fingerprint for cross-source event matching.
+
+    Uses _normalize_event_name_cs which strips trailing numbers, allowing
+    the same real-world event to match across scrapers even when one source
+    appends an internal serial (e.g. "#12835978" in mtgdecks event names).
+
+    Stored in events.event_fingerprint_cs.  Used by:
+      - upsert_event: detect cross-source duplicate events at scrape time
+      - filter_cross_source_duplicates: group deck appearances by real event
+    """
+    norm_date = normalize_date(date)
+    norm_fmt  = _normalize_format(format_name)
+    norm_name = _normalize_event_name_cs(name)     # cross-source: strips trailing number
     payload   = f"{norm_date}|{norm_fmt}|{norm_name}"
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
@@ -215,11 +258,15 @@ def generate_deck_fingerprint(
 def events_are_duplicates(
     name_a: str, date_a: str, format_a: str,
     name_b: str, date_b: str, format_b: str,
+    cross_source: bool = False,
 ) -> bool:
     """
     Return True if two event rows represent the same real-world event.
 
-    Phase 1: exact fingerprint match only.
+    cross_source=False (default): uses strict fingerprint — trailing numbers
+        preserved.  Suitable for same-source comparison.
+    cross_source=True: uses cross-source fingerprint — trailing numbers
+        stripped.  Suitable for comparing events from different scrapers.
 
     Phase 2 plan:
       - Return (is_dup: bool, confidence: float) tuple
@@ -227,8 +274,12 @@ def events_are_duplicates(
       - Expose threshold parameter (default 0.85) for callers to tune
       - At confidence 0.7–0.85: surface to user for manual review
     """
-    fp_a = generate_event_fingerprint(name_a, date_a, format_a)
-    fp_b = generate_event_fingerprint(name_b, date_b, format_b)
+    if cross_source:
+        fp_a = generate_event_fingerprint_cs(name_a, date_a, format_a)
+        fp_b = generate_event_fingerprint_cs(name_b, date_b, format_b)
+    else:
+        fp_a = generate_event_fingerprint(name_a, date_a, format_a)
+        fp_b = generate_event_fingerprint(name_b, date_b, format_b)
     return fp_a == fp_b
 
 
