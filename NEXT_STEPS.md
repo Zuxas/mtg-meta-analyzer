@@ -206,7 +206,7 @@ python run_gui.py
 
 ### 3. Fix remaining smoke test bugs
 - ~~"Use Cached" crash in Matchup Data tab~~ — **FIXED** (2026-03-25 session 3): `_cancel_worker()` + `self._worker = None` on finish
-- Auto-legality check triggers on Analyze (should only run on explicit button click)
+- ~~Auto-legality check triggers on Analyze~~ — **FIXED** (2026-03-26): `_AnalyzeWorker` now passes `check_legality=False` to `analyze_deck()`; legality only runs on explicit "Check Legality" button click
 - ~~Predictions tab "how this works" info box~~ — **DONE** (2026-03-25 session 3)
 
 ### 4. Legend/key for dashboard colors and star badges

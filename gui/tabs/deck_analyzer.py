@@ -131,7 +131,8 @@ class _AnalyzeWorker(QThread):
         try:
             from analysis.blunders import analyze_deck
             from analysis.chapin   import evaluate_deck
-            blunder = analyze_deck(self._main, self._side, self._fmt, self._arch)
+            blunder = analyze_deck(self._main, self._side, self._fmt, self._arch,
+                                   check_legality=False)
             self.blunder_done.emit(blunder)
             chapin = evaluate_deck(self._main, self._side, self._fmt, self._arch)
             self.chapin_done.emit(chapin)
