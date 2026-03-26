@@ -270,10 +270,12 @@ Both DB files are gitignored. After cloning: run `fill_database.bat`
 - Standard: 2,043+ events, ~24,289+ decks (Nov 2024 – Mar 2026), 99.98% card coverage
 - Pioneer: 109 events, 3,125 decks (MTGDecks 20-page scrape completed 2026-03-21)
 - Modern: scraping in background; enrich after with `python -m scrapers.scryfall`
-- Matches (MTGMelee): 221,163 real match records across all formats (as of 2026-03-26)
-  - Standard: 108,648 matches (250 tournaments, 9-page run)
-  - Pioneer:   20,095 matches  (58 tournaments, all available data)
-  - Modern:    92,420 matches (347 tournaments, all available data)
+- Matches (MTGMelee): 262,641 real match records across all formats (as of 2026-03-26)
+  - Standard: 108,648 matches (250 tournaments)
+  - Modern:    92,420 matches (347 tournaments, all available)
+  - Legacy:    25,304 matches  (86 tournaments)
+  - Pioneer:   20,095 matches  (58 tournaments, all available)
+  - Pauper:    16,174 matches (~130 tournaments)
 - Daily 6 AM task registered — maintains Standard + Pioneer + Modern going forward
 - Guides: 331 guides from Skill Issue Magic sheet (last synced 2026-03-21)
 

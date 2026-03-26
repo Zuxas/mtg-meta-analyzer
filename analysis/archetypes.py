@@ -287,9 +287,131 @@ ALIASES = {
     "sultai beanstalk":        "Four-Color Beanstalk",
     "azorius midrange":        "Azorius Control",
 
+    # --- Legacy: Reanimator (Dimir is canonical) ---
+    "w-u-b-g reanimator":      "Dimir Reanimator",
+    "reanimator":              "Dimir Reanimator",
+    "jund reanimator":         "Dimir Reanimator",
+    "rakdos reanimator":       "Dimir Reanimator",
+    "golgari reanimator":      "Dimir Reanimator",
+    "w-u-b-r-g reanimator":    "Dimir Reanimator",
+    "colorless reanimator":    "Dimir Reanimator",
+
+    # --- Legacy: Cephalid Breakfast ---
+    "w-u-b-g cephalid breakfast": "Cephalid Breakfast",
+    "esper cephalid breakfast":   "Cephalid Breakfast",
+    "w-u-b-g cephalid breakfast (yorion)": "Cephalid Breakfast",
+    "sultai cephalid breakfast":  "Cephalid Breakfast",
+    "colorless cephalid breakfast": "Cephalid Breakfast",
+    "cephalid breakfast (yorion)": "Cephalid Breakfast",
+    "nadu breakfast":             "Cephalid Breakfast",
+
+    # --- Legacy: Sneak And Show ---
+    "w-u-b-r-g sneak and show":  "Sneak And Show",
+    "w-u-b-g sneak and show":    "Sneak And Show",
+    "simic show and tell":       "Sneak And Show",
+    "colorless sneak and show":  "Sneak And Show",
+    "dimir show and tell":       "Sneak And Show",
+
+    # --- Legacy: Omni-Tell ---
+    "w-u-b-g omni-tell":        "Omni-Tell",
+    "w-u-b-r-g omni-tell":      "Omni-Tell",
+
+    # --- Legacy: Death And Taxes (consolidate color splashes) ---
+    "orzhov death and taxes (yorion)": "Death And Taxes",
+    "orzhov death and taxes":    "Death And Taxes",
+    "death and taxes (yorion)":  "Death And Taxes",
+    "mardu death and taxes":     "Death And Taxes",
+    "colorless death and taxes (yorion)": "Death And Taxes",
+    "abzan death and taxes":     "Death And Taxes",
+    "abzan death and taxes (yorion)": "Death And Taxes",
+
+    # --- Legacy: Doomsday (all variants → canonical) ---
+    "sultai doomsday":           "Doomsday",
+    "dimir tempo doomsday":      "Doomsday",
+    "dimir doomsday":            "Doomsday",
+    "esper doomsday":            "Doomsday",
+    "sultai tempo doomsday":     "Doomsday",
+    "nbc doomsday":              "Doomsday",
+    "w-u-b-r-g doomsday":        "Doomsday",
+
+    # --- Legacy: Storm variants ---
+    "u-b-r-g the epic storm":   "The Epic Storm",
+    "storm":                    "The Epic Storm",
+    "u-b-r-g beseech storm":    "Beseech Storm",
+    "rakdos beseech storm":     "Beseech Storm",
+
+    # --- Legacy: Oops All Spells ---
+    "u-b-r-g oops! all spells": "Oops! All Spells",
+
+    # --- Legacy: WUBRG generic codes ---
+    "w-u-b-r-g":               "5C Control",
+    "u-b-r-g":                 "Four-Color",
+    "w-u-r-g beanstalk":       "Four-Color Beanstalk",
+
+    # --- Pauper: Affinity (Grixis is canonical) ---
+    "esper affinity":          "Grixis Affinity",
+    "dimir affinity":          "Grixis Affinity",
+    "rakdos affinity":         "Grixis Affinity",
+    "jund affinity":           "Grixis Affinity",
+    "mono blue affinity":      "Grixis Affinity",
+    "w-u-b-r affinity":       "Grixis Affinity",
+    "colorless affinity":      "Grixis Affinity",
+
+    # --- Pauper: Bogles (Selesnya is canonical) ---
+    "naya bogles":             "Selesnya Bogles",
+    "bant bogles":             "Selesnya Bogles",
+    "w-u-r-g bogles":         "Selesnya Bogles",
+    "golgari bogles":          "Selesnya Bogles",
+    "abzan bogles":            "Selesnya Bogles",
+    "azorius bogles":          "Selesnya Bogles",
+    "mono white bogles":       "Selesnya Bogles",
+
+    # --- Pauper: Elves (Mono Green is canonical) ---
+    "golgari elves":           "Mono Green Elves",
+    "temur elves":             "Mono Green Elves",
+    "w-u-b-g elves":           "Mono Green Elves",
+    "w-u-b-r-g elves":         "Mono Green Elves",
+    "sultai elves":            "Mono Green Elves",
+    "gruul elves":             "Mono Green Elves",
+    "w-u-r-g elves":           "Mono Green Elves",
+
+    # --- Pauper: Slivers → 5C Slivers ---
+    "w-u-b-r-g slivers":      "5C Slivers",
+    "w-u-r-g slivers":        "5C Slivers",
+    "naya slivers":            "5C Slivers",
+    "abzan slivers":           "5C Slivers",
+    "boros slivers":           "5C Slivers",
+    "grixis slivers":          "5C Slivers",
+    "golgari slivers":         "5C Slivers",
+    "bant slivers":            "5C Slivers",
+
+    # --- Pauper: Dredge → Jund Dredge ---
+    "w-b-r-g dredge":         "Jund Dredge",
+    "u-b-r-g dredge":         "Jund Dredge",
+    "golgari dredge":          "Jund Dredge",
+    "mono red dredge":         "Jund Dredge",
+    "grixis dredge":           "Jund Dredge",
+    "abzan dredge":            "Jund Dredge",
+    "rakdos dredge":           "Jund Dredge",
+
+    # --- Pauper: WUBRG generic codes ---
+    "w-u-b-r cycle storm":    "Cycle Storm",
+    "u-b-r-g poison storm":   "Poison Storm",
+    "u-b-r-g turbo fog":      "Turbo Fog",
+    "w-u-r-g tron":           "Four-Color Tron",
+    "w-u-b-r-g tron":         "5C Tron",
+    "u-b-r-g tron":           "Four-Color Tron",
+    "w-b-r-g synthesizer":    "Four-Color Synthesizer",
+    "w-u-b-r caw-gates":      "Four-Color Caw-Gates",
+    "w-u-b-r-g aggro":        "5C Aggro",
+    "u-b-r-g reanimator":     "Four-Color Reanimator",
+
     # --- Junk entries (map to empty so they're recognized as bad) ---
     "decklist":                "",
     "all other decklists":     "",
+    "rogue decklists":         "",
+    "others":                  "",
+    "other":                   "",
 }
 
 # Reverse lookup: canonical -> canonical (so we don't change already-canonical names)

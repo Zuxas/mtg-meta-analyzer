@@ -28,6 +28,9 @@ from core.query_engine.dedup_filters import apply_deck_filters
 EXCLUDE_ARCHETYPES = frozenset({
     "Decklist",
     "All Other Decklists",
+    "Rogue Decklists",
+    "Others",
+    "Other",
 })
 
 

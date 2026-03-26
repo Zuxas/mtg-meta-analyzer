@@ -184,6 +184,17 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 17) — Legacy + Pauper archetype normalization
+
+1. **89 new aliases** for Legacy and Pauper:
+   - Legacy: Reanimator (7 variants → Dimir), Cephalid Breakfast (7→canonical), Sneak And Show (5→canonical), Death And Taxes (7→canonical), Doomsday (7→canonical), Omni-Tell (2→canonical), Storm variants, Oops! All Spells
+   - Pauper: Affinity (7→Grixis), Bogles (7→Selesnya), Elves (7→Mono Green), Slivers (8→5C), Dredge (7→Jund), WUBRG codes for Cycle Storm, Poison Storm, Turbo Fog, Tron variants
+2. **EXCLUDE_ARCHETYPES expanded**: added "Rogue Decklists" (731 Pauper matches), "Others" (356), "Other" (10)
+3. **Backfill**: 89 renames applied across all formats
+4. **After cleanup**: Standard 1,139 | Pioneer 301 | Modern 731 | Legacy 448 | Pauper 285
+
+---
+
 ### Session 2026-03-26 (Session 16) — Legacy + Pauper support, full historical scrapes
 
 1. **Pauper added** to `_FORMAT_MAP` in mtgmelee_scraper.py and heatmap format dropdown
