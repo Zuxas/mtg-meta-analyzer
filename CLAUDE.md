@@ -1,6 +1,17 @@
 # CLAUDE.md - MTG Meta Analyzer Project Context
 
-Last updated: 2026-03-21 (session 3)
+Last updated: 2026-03-25
+
+---
+
+## NON-NEGOTIABLE RULES
+
+1. **ALWAYS update CLAUDE.md, NEXT_STEPS.md, and ROADMAP.md before every commit — no exceptions**
+2. **ALWAYS `git push` after every commit**
+3. **ALWAYS run `--counts` or verify output after any scrape**
+4. **Documentation must reflect actual current state, not planned state**
+
+---
 
 ## Project Purpose
 Build an automated tool to analyze competitive Magic: The Gathering tournament
@@ -19,7 +30,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - Always open VS Code from the project folder so Claude Code registers the correct project path
 - User has limited coding experience; AI assistants are primary dev support
 
-## Current State (as of 2026-03-21)
+## Current State (as of 2026-03-25)
 
 ### Working
 - MTGTop8 scraper pulls events, decklists (main + sideboard), player names
@@ -103,7 +114,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     significant WR drops, favorable post-board swings
   - `render_guide_html(guide_data, my_arch, opp_arch)`: HTML with IN/OUT for both sides
 - **Real Match W/L Pipeline** (`scrapers/mtgmelee_scraper.py` + `db/matches_queries.py`):
-  - Scrapes MTGMelee round-by-round pairings using DataTables POST API (cloudscraper)
+  - Source: **melee.gg** (not mtgmelee.com — that domain doesn't resolve)
   - Stores in `matches` table: (event_id, round, player1, player2, player1_arch, player2_arch, winner_arch, result, format, event_date, source)
   - `source` values: 'mtgmelee' (live scrape), 'bracket_finals', 'bracket_sf' (inferred)
   - Bracket inference: `--infer-brackets` flag derives finals + SF matches from existing top-8 placement data
@@ -111,11 +122,43 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `get_real_archetype_winrates(format, since, min_matches=20)` in `analysis/win_rates.py`
   - Dashboard WIN RATE panel uses real match W/L where n≥20; shows "54.3%★" (star = real data)
     tooltip shows "Match W/L (n=142): 85W – 57L – 0D" vs "Estimated from placement tier"
-  - CLI: `python -m scrapers.mtgmelee_scraper --format standard --pages 5`
-  - CLI: `python -m scrapers.mtgmelee_scraper --test` (dump raw API for endpoint verification)
+  - CLI: `python -m scrapers.mtgmelee_scraper --format standard --pages 9`
+  - CLI: `python -m scrapers.mtgmelee_scraper --test` (verify endpoints and print sample data)
   - CLI: `python -m scrapers.mtgmelee_scraper --infer-brackets`
   - CLI: `python -m scrapers.mtgmelee_scraper --counts`
-  - **Note**: MTGMelee DataTables endpoints may need adjustment — run `--test` first to verify shapes
+  - **Current endpoints (updated 2026-03-25 — scraper fully rewritten):**
+    - Tournament list: `POST https://melee.gg/Tournament/TournamentSearch`
+      body: `{ordering, mode, filters[]=["Standard","MagicTheGathering","Ended"], variables[draw/start/length/...]}`
+      response: `{recordsTotal, data: [{id, name, formatString, startDate, enrolledPlayerCount, gameDescription, ...}]}`
+    - Pairings (3-step flow):
+      1. `GET /Tournament/View/{tid}` — establishes session cookies
+      2. Parse `<button class="round-selector" data-id="{roundId}" data-is-started="True">` from HTML
+      3. `POST /Match/GetRoundMatches/{roundId}` with DataTables column payload
+         columns (exact order): TableNumber, PodNumber, Teams, Decklists, ResultString
+         headers: `X-Requested-With: XMLHttpRequest`, `Referer: /Tournament/View/{tid}`
+    - Match JSON: `Competitors[i].Team.Players[0].DisplayName` (player name),
+      `Competitors[i].Decklists[0].DecklistName` (deck), `Competitors[i].GameWins` (result)
+    - "No started rounds" warnings on bundle events are expected (bundles have no direct pairings)
+  - **Swagger API** at `https://melee.gg/swagger/ui/index` — all 21 endpoints require staff auth (401); not usable without credentials
+
+- **Dashboard Meta Impact bar** (`gui/tabs/dashboard.py`):
+  - `_impact_bar` QFrame between mode selector and chart — shows dedup filter effect
+  - `_compute_impact(standings, raw_standings)` compares raw vs deduplicated appearance counts
+  - Displays: rows removed, % removed, top-3 most-affected archetypes (with delta), most stable archetype
+  - Hidden when dedup filters are off or remove zero rows
+- **Dashboard worker lifecycle** (`gui/tabs/dashboard.py`):
+  - `_cancel_worker` has `try/except RuntimeError: pass` guard for deleted C++ QThread objects
+  - Both panel and chart workers connect `finished → lambda: setattr(self, "_panel_worker/chart_worker", None)`
+  - Prevents Refresh button crash when startup auto-refresh completes before user clicks
+- **Trend denominator fix** (`analysis/win_rates.py`):
+  - `get_archetype_trend()` denominator uses `COUNT(DISTINCT COALESCE(d.deck_fingerprint || '|' || e.event_fingerprint_cs, CAST(d.id AS TEXT)))` when `dedup_cross_source=True`
+  - Mirrors Python dedup filter logic; NULL fingerprints fall back to `d.id`
+- **My Decks DB backend** (`db/saved_decks.py`):
+  - Tables: `saved_decks` (id, name, format, archetype, mainboard JSON, sideboard JSON, notes, created_at)
+            `saved_sb_plans` (id, deck_id, opponent_archetype, play_in/out/draw_in/out JSON, notes, difficulty, updated_at)
+  - CASCADE delete: removing a deck removes all its SB plans
+  - `ON CONFLICT ... DO UPDATE` for upsert on (deck_id, opponent_archetype)
+  - Functions: `save_deck`, `get_deck`, `get_decks`, `delete_deck`, `save_sb_plan`, `get_sb_plan`, `get_sb_plans`, `delete_sb_plan`
 
 - **Live Matchup Data** (`scrapers/matchup_scraper.py` + `db/matchup_queries.py` + `gui/tabs/heatmap_tab.py`):
   - Scrapes MTGDecks.net `/winrates` page using existing `cloudscraper` setup
@@ -197,10 +240,11 @@ Use `--include-archive` flag (via `get_combined_connection()`) to query across b
 
 Both DB files are gitignored. After cloning: run `fill_database.bat`
 
-### Current data (as of 2026-03-21, end of session)
+### Current data (as of 2026-03-25)
 - Standard: 2,043+ events, ~24,289+ decks (Nov 2024 – Mar 2026), 99.98% card coverage
 - Pioneer: 109 events, 3,125 decks (MTGDecks 20-page scrape completed 2026-03-21)
-- Modern: scraping in background (MTGDecks 20-page scrape); enrich after with `python -m scrapers.scryfall`
+- Modern: scraping in background; enrich after with `python -m scrapers.scryfall`
+- Matches (MTGMelee): 250 Standard tournaments scraped (9-page run 2026-03-25); run `--counts` to see totals
 - Daily 6 AM task registered — maintains Standard + Pioneer + Modern going forward
 - Guides: 331 guides from Skill Issue Magic sheet (last synced 2026-03-21)
 
@@ -245,6 +289,8 @@ scrapers/scryfall.py            Scryfall local card database + enrichment
 scrapers/guides.py              Imports Skill Issue Magic Google Sheet → guides table
 scrapers/matchup_scraper.py     Scrapes MTGDecks.net /winrates table → win-rate matrix dict
 
+db/saved_decks.py               saved_decks + saved_sb_plans tables; save/get/delete helpers
+db/matches_queries.py           matches table: save_matches / get_matches / get_stored_event_ids / get_match_counts
 db/matchup_queries.py           matchup_matrix table: save/get/get_last_updated helpers
 db/database.py                  Schema, connections, active + archive DB helpers
 db/maintenance.py               Format-aware archive maintenance + orphan cleanup
@@ -554,5 +600,10 @@ Installed via: `npx skills@latest add mattpocock/skills/<name> -a claude-code -y
 ---
 
 ## Always Do at End of Session
-Update this CLAUDE.md to reflect any new features completed or design decisions made.
-Create/update NEXT_STEPS.md with the immediate priorities for the next session.
+1. Update CLAUDE.md — current state, new files, changed endpoints, design decisions
+2. Update NEXT_STEPS.md — accurate priorities, completed items marked done
+3. Update ROADMAP.md — check off completed items
+4. `git add` all changed files, commit with a clear message, `git push`
+5. After any scrape: run `--counts` or equivalent to verify output before closing
+
+**These steps are NON-NEGOTIABLE. See the rules section at the top of this file.**

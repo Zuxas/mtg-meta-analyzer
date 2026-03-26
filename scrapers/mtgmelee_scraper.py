@@ -1,15 +1,20 @@
 """
-Scraper for MTGMelee (https://mtgmelee.com) — real round-by-round match results.
+Scraper for Melee.gg (https://melee.gg) — real round-by-round match results.
 
-MTGMelee is a .NET Razor Pages app that uses server-side DataTables for its
-tournament list and pairings tables.  Both endpoints accept a standard DataTables
-POST payload and return JSON with a ``data`` array.
+Melee.gg is a .NET Razor Pages app.  The site migrated from DataTables column-filter
+POSTs to a new REST-ish API in late 2024/early 2025.  Current endpoints:
 
-Endpoint notes (verify with --test if these change):
-  Tournament list : POST https://mtgmelee.com/Tournaments
-                    extra field: columns[3][search][value] = "Standard"  (format filter)
-  Round pairings  : POST https://mtgmelee.com/Tournament/View/{id}
-                    extra field: columns[2][search][value] = "1"         (round filter)
+  Tournament list : POST https://melee.gg/Tournament/TournamentSearch
+                    Body: JSON state wrapper with filters[] array
+                    Returns: {recordsTotal, data: [{id, name, formatString,
+                              startDate, enrolledPlayerCount, gameDescription, ...}]}
+
+  Round IDs       : GET https://melee.gg/Tournament/View/{tid}
+                    Parse <button class="round-selector" data-id="{roundId}" ...>
+
+  Round pairings  : POST https://melee.gg/Match/GetRoundMatches/{roundId}
+                    Body: standard DataTables server-side payload with exact column names
+                    Returns: {recordsTotal, data: [{Competitors:[...], ResultString, ...}]}
 
 Usage:
     python -m scrapers.mtgmelee_scraper --format standard --pages 5
@@ -21,11 +26,18 @@ Usage:
 
 import re
 import sys
+import io
 import time
 import json
 import logging
 import argparse
 from datetime import datetime
+
+# Force UTF-8 output on Windows (tournament names can contain non-ASCII characters)
+if hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "buffer"):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -34,18 +46,22 @@ from analysis.archetypes import normalize as normalize_arch
 
 log = logging.getLogger(__name__)
 
-_BASE = "https://mtgmelee.com"
-_LIST_URL     = f"{_BASE}/Tournaments"
-_PAIRING_URL  = f"{_BASE}/Tournament/View/{{tid}}"
+_BASE            = "https://melee.gg"
+_SEARCH_URL      = f"{_BASE}/Tournament/TournamentSearch"
+_VIEW_URL        = f"{_BASE}/Tournament/View/{{tid}}"
+_ROUND_URL       = f"{_BASE}/Match/GetRoundMatches/{{rid}}"
 
 # Seconds between requests — be respectful
 _SLEEP = 1.5
 
-# DataTables column index that holds the format name in the tournament list
-_FORMAT_COL = 3
-
-# DataTables column index that holds the round number in the pairings table
-_ROUND_COL = 2
+# Pairings DataTables column definitions (must match pairings-section.min.js exactly)
+_PAIRING_COLS = [
+    ("TableNumber",  True,  True),
+    ("PodNumber",    True,  True),
+    ("Teams",        False, False),
+    ("Decklists",    False, False),
+    ("ResultString", False, False),
+]
 
 _FORMAT_MAP = {
     "standard": "Standard",
@@ -65,32 +81,25 @@ def _session():
     )
 
 
-def _dt_post(session, url: str, start: int = 0, length: int = 100,
-             extra: dict = None) -> dict | None:
-    """
-    Fire a standard DataTables server-side POST and return the JSON response.
-    Returns None on any network or parse error.
-    """
-    payload = {
-        "draw":           "1",
-        "start":          str(start),
-        "length":         str(length),
-        "search[value]":  "",
-        "search[regex]":  "false",
+def _pairing_dt_payload(start: int = 0, length: int = 500) -> dict:
+    """Build the DataTables server-side POST payload for GetRoundMatches."""
+    p = {
+        "draw":             "1",
+        "start":            str(start),
+        "length":           str(length),
+        "search[value]":    "",
+        "search[regex]":    "false",
+        "order[0][column]": "0",
+        "order[0][dir]":    "asc",
     }
-    if extra:
-        payload.update(extra)
-    try:
-        resp = session.post(url, data=payload, timeout=30)
-        resp.raise_for_status()
-        ct = resp.headers.get("content-type", "")
-        if "json" not in ct and not resp.text.strip().startswith("{"):
-            log.warning("Unexpected content-type from %s: %s", url, ct)
-            return None
-        return resp.json()
-    except Exception as exc:
-        log.warning("POST %s failed: %s", url, exc)
-        return None
+    for i, (name, searchable, orderable) in enumerate(_PAIRING_COLS):
+        p[f"columns[{i}][data]"]            = name
+        p[f"columns[{i}][name]"]            = name
+        p[f"columns[{i}][searchable]"]      = str(searchable).lower()
+        p[f"columns[{i}][orderable]"]       = str(orderable).lower()
+        p[f"columns[{i}][search][value]"]   = ""
+        p[f"columns[{i}][search][regex]"]   = "false"
+    return p
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +112,7 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
     Return a list of completed tournament dicts:
         {id, name, format, date, player_count}
 
-    Applies server-side format filter via DataTables column search.
+    Uses the TournamentSearch endpoint with filters[] array.
     """
     fmt_display = _FORMAT_MAP.get(format_name.lower(), format_name.title())
     session = _session()
@@ -111,30 +120,35 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
 
     for page in range(pages):
         start = page * 100
-        payload = _dt_post(
-            session, _LIST_URL,
-            start=start, length=100,
-            extra={
-                f"columns[{_FORMAT_COL}][search][value]": fmt_display,
-                f"columns[{_FORMAT_COL}][searchable]":    "true",
-            },
-        )
-        if not payload:
-            log.error("Tournament list page %d returned no data — check --test output", page)
+        body = {
+            "ordering":           "StartDate",
+            "mode":               "Table",
+            "filters[]":          [fmt_display, "MagicTheGathering", "Ended"],
+            "variables[draw]":    "1",
+            "variables[start]":   str(start),
+            "variables[length]":  "100",
+            "variables[search][value]": "",
+            "variables[search][regex]": "false",
+        }
+        try:
+            resp = session.post(_SEARCH_URL, data=body, timeout=30)
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as exc:
+            log.error("Tournament search page %d failed: %s", page, exc)
             break
 
         rows = payload.get("data", [])
         if not rows:
-            break  # no more pages
+            break
 
         for row in rows:
             t = _parse_tournament_row(row, fmt_display)
             if t and t["player_count"] >= min_players:
                 results.append(t)
 
-        log.info("Page %d: %d/%d matching tournaments (≥%d players, %s)",
-                 page + 1, len([r for r in results]), len(results),
-                 min_players, fmt_display)
+        log.info("Page %d: %d cumulative qualifying tournaments (%s)",
+                 page + 1, len(results), fmt_display)
         time.sleep(_SLEEP)
 
     log.info("Total: %d %s tournaments found", len(results), format_name)
@@ -142,36 +156,28 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
 
 
 def _parse_tournament_row(row, expected_format: str) -> dict | None:
-    """Parse one DataTables row from the tournament list."""
+    """Parse one row dict from the TournamentSearch response."""
     try:
-        if isinstance(row, list):
-            # Array form: [name_html, organizer_html?, format_html?, date_html?, players_html?, ...]
-            def _text(cell):
-                return BeautifulSoup(str(cell), "html.parser").get_text(strip=True)
-
-            name_soup = BeautifulSoup(str(row[0]), "html.parser")
-            link = name_soup.find("a", href=re.compile(r"/Tournament/View/\d+"))
-            if not link:
-                return None
-            tid  = re.search(r"/Tournament/View/(\d+)", link["href"]).group(1)
-            name = link.get_text(strip=True)
-
-            fmt   = _text(row[_FORMAT_COL]) if len(row) > _FORMAT_COL else ""
-            date  = _text(row[_FORMAT_COL + 1]) if len(row) > _FORMAT_COL + 1 else ""
-            pcount = _parse_int(_text(row[_FORMAT_COL + 2])) if len(row) > _FORMAT_COL + 2 else 0
-
-        elif isinstance(row, dict):
-            tid    = str(row.get("id", row.get("Id", "")))
-            name   = row.get("name", row.get("Name", ""))
-            fmt    = row.get("format", row.get("Format", ""))
-            date   = row.get("startDate", row.get("date", ""))
-            pcount = _parse_int(row.get("playerCount", row.get("players", 0)))
-        else:
+        if not isinstance(row, dict):
             return None
 
-        # Normalise date to YYYY-MM-DD
-        date = _normalise_date(date)
+        # gameDescription filters non-MTG games (e.g. "Flesh and Blood")
+        game = row.get("gameDescription", "")
+        if game and "magic" not in game.lower():
+            return None
 
+        tid    = str(row.get("id", ""))
+        name   = row.get("name", "")
+        # formatString may be comma-separated for multi-format bundles
+        fmt    = row.get("formatString", row.get("format", ""))
+        date   = row.get("startDate", row.get("date", ""))
+        pcount = _parse_int(row.get("enrolledPlayerCount",
+                            row.get("playerCount", row.get("players", 0))))
+
+        if not tid:
+            return None
+
+        date = _normalise_date(date)
         return {"id": tid, "name": name, "format": fmt, "date": date,
                 "player_count": pcount}
     except Exception as exc:
@@ -183,85 +189,153 @@ def _parse_tournament_row(row, expected_format: str) -> dict | None:
 # Round pairings
 # ---------------------------------------------------------------------------
 
-def fetch_tournament_pairings(tournament_id: str,
-                               max_rounds: int = 16) -> list[dict]:
+def _get_round_ids(session, tournament_id: str) -> list[tuple[int, str]]:
+    """
+    GET the tournament view page and parse round selector buttons.
+    Returns [(round_id, round_name), ...] ordered as they appear on the page.
+    Only includes rounds where data-is-started="True".
+    """
+    url = _VIEW_URL.format(tid=tournament_id)
+    try:
+        resp = session.get(url, timeout=30)
+        resp.raise_for_status()
+    except Exception as exc:
+        log.warning("GET %s failed: %s", url, exc)
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    rounds = []
+    for btn in soup.find_all("button", class_="round-selector"):
+        rid  = btn.get("data-id")
+        name = btn.get("data-name", "")
+        # Only scrape started rounds (in-progress or finished)
+        started = btn.get("data-is-started", "").lower()
+        if rid and started == "true":
+            rounds.append((int(rid), name))
+    return rounds
+
+
+def fetch_tournament_pairings(tournament_id: str) -> list[dict]:
     """
     Return all match records for a tournament:
         {round, player1, player2, player1_deck, player2_deck,
          player1_wins, player2_wins, draws, result}
 
-    Iterates rounds 1..max_rounds, stopping when a round returns no data.
+    Flow:
+      1. GET tournament view page to establish session cookies + parse round IDs
+      2. For each round ID, POST /Match/GetRoundMatches/{roundId} with DataTables payload
     """
-    url     = _PAIRING_URL.format(tid=tournament_id)
     session = _session()
-    matches = []
+    round_ids = _get_round_ids(session, tournament_id)
+    if not round_ids:
+        log.warning("No started rounds found for tournament %s", tournament_id)
+        return []
 
-    for rnd in range(1, max_rounds + 1):
-        payload = _dt_post(
-            session, url,
-            start=0, length=500,
-            extra={
-                f"columns[{_ROUND_COL}][search][value]": str(rnd),
-                f"columns[{_ROUND_COL}][searchable]":    "true",
-            },
-        )
-        if not payload:
-            break
+    matches = []
+    for rid, rname in round_ids:
+        url = _ROUND_URL.format(rid=rid)
+        try:
+            resp = session.post(
+                url,
+                data=_pairing_dt_payload(),
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": _VIEW_URL.format(tid=tournament_id),
+                    "Accept": "application/json, text/javascript, */*; q=0.01",
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception as exc:
+            log.warning("GetRoundMatches %s (%s) failed: %s", rid, rname, exc)
+            time.sleep(_SLEEP)
+            continue
 
         rows = payload.get("data", [])
-        if not rows:
-            break  # no more rounds
-
+        rnd_num = _round_number(rname)
         for row in rows:
-            m = _parse_pairing_row(row, rnd)
+            m = _parse_pairing_row(row, rnd_num)
             if m:
                 matches.append(m)
 
-        log.debug("Tournament %s round %d: %d pairings", tournament_id, rnd, len(rows))
+        log.debug("Tournament %s %s (id=%s): %d pairings", tournament_id, rname, rid, len(rows))
         time.sleep(_SLEEP)
 
     return matches
 
 
-def _parse_pairing_row(row, round_num: int) -> dict | None:
-    """Parse one DataTables row from the pairings table."""
-    def _text(cell):
-        return BeautifulSoup(str(cell), "html.parser").get_text(strip=True)
+def _round_number(round_name: str) -> int:
+    """Extract integer round number from name like 'Round 3', 'Finals', 'Semifinals'."""
+    m = re.search(r"\d+", round_name)
+    if m:
+        return int(m.group())
+    name_lower = round_name.lower()
+    if "final" in name_lower and "semi" not in name_lower:
+        return -1   # sentinel: finals
+    if "semi" in name_lower:
+        return -2   # sentinel: semifinals
+    if "quarter" in name_lower:
+        return -3   # sentinel: quarterfinals
+    return 0
 
+
+def _parse_pairing_row(row: dict, round_num: int) -> dict | None:
+    """
+    Parse one match dict from GetRoundMatches response.
+
+    Structure:
+      row["Competitors"] = list of 1 or 2 competitor dicts
+      competitor["Team"]["Players"][0]["DisplayName"] = player name
+      competitor["Decklists"][0]["DecklistName"]      = registered deck name
+      competitor["GameWins"]                          = game wins (int or null)
+      row["GameDraws"]                                = draws
+      row["ByeReason"]                                = non-null → bye
+      row["HasResult"]                                = bool
+    """
     try:
-        if isinstance(row, list) and len(row) >= 3:
-            # Typical column order: player1 | result | player2 | deck1? | deck2?
-            p1          = _text(row[0])
-            result_str  = _text(row[1])
-            p2          = _text(row[2])
-            deck1       = _text(row[3]) if len(row) > 3 else ""
-            deck2       = _text(row[4]) if len(row) > 4 else ""
-        elif isinstance(row, dict):
-            p1         = row.get("player1Name", row.get("player1", ""))
-            p2         = row.get("player2Name", row.get("player2", ""))
-            result_str = row.get("result", row.get("outcome", ""))
-            deck1      = row.get("deck1", row.get("deckName1", ""))
-            deck2      = row.get("deck2", row.get("deckName2", ""))
-        else:
+        comps = row.get("Competitors", [])
+        # Skip byes (only 1 competitor) and unresolved matches
+        if len(comps) != 2:
+            return None
+        if not row.get("HasResult"):
+            return None
+        if row.get("ByeReason") is not None:
             return None
 
-        if not p1 or not p2:
-            return None  # bye or incomplete row
+        def _player_name(comp):
+            players = comp.get("Team", {}).get("Players", [])
+            return players[0].get("DisplayName", "") if players else ""
 
-        p1w, p2w, draws = _parse_result(result_str)
-        if p1w == 0 and p2w == 0 and draws == 0:
-            result = None   # BYE / unknown
-        elif p1w > p2w:
+        def _deck_name(comp):
+            decklists = comp.get("Decklists", [])
+            return decklists[0].get("DecklistName", "") if decklists else ""
+
+        p1, p2   = comps[0], comps[1]
+        name1    = _player_name(p1)
+        name2    = _player_name(p2)
+        deck1    = _deck_name(p1)
+        deck2    = _deck_name(p2)
+        p1w      = p1.get("GameWins") or 0
+        p2w      = p2.get("GameWins") or 0
+        draws    = row.get("GameDraws") or 0
+
+        if not name1 or not name2:
+            return None
+
+        if p1w > p2w:
             result = "player1"
         elif p2w > p1w:
             result = "player2"
-        else:
+        elif draws > 0:
             result = "draw"
+        else:
+            return None  # 0-0-0 — no result recorded
 
         return {
             "round":        round_num,
-            "player1":      p1,
-            "player2":      p2,
+            "player1":      name1,
+            "player2":      name2,
             "player1_deck": deck1,
             "player2_deck": deck2,
             "player1_wins": p1w,
@@ -270,7 +344,7 @@ def _parse_pairing_row(row, round_num: int) -> dict | None:
             "result":       result,
         }
     except Exception as exc:
-        log.debug("Failed to parse pairing row: %s — %s", row, exc)
+        log.debug("Failed to parse pairing row: %s", exc)
         return None
 
 
@@ -521,13 +595,68 @@ def _cmd_test(args):
     """Dump raw API responses so the user can verify endpoint shapes."""
     fmt_display = _FORMAT_MAP.get(args.format.lower(), args.format.title())
     session = _session()
-    print(f"\n=== Tournament list (format={fmt_display}, first 5 rows) ===")
-    payload = _dt_post(session, _LIST_URL, start=0, length=5,
-                       extra={f"columns[{_FORMAT_COL}][search][value]": fmt_display})
-    if payload:
-        print(json.dumps(payload, indent=2, default=str)[:4000])
-    else:
-        print("ERROR: no response — check network / Cloudflare status")
+
+    # --- Tournament list ---
+    print(f"\n=== Tournament list (format={fmt_display}, first 3 rows) ===")
+    body = {
+        "ordering":           "StartDate",
+        "mode":               "Table",
+        "filters[]":          [fmt_display, "MagicTheGathering", "Ended"],
+        "variables[draw]":    "1",
+        "variables[start]":   "0",
+        "variables[length]":  "3",
+        "variables[search][value]": "",
+        "variables[search][regex]": "false",
+    }
+    try:
+        resp = session.post(_SEARCH_URL, data=body, timeout=30)
+        resp.raise_for_status()
+        payload = resp.json()
+        print(f"recordsTotal={payload.get('recordsTotal')}, rows={len(payload.get('data',[]))}")
+        for t in payload.get("data", [])[:3]:
+            print(json.dumps(t, indent=2, default=str))
+    except Exception as exc:
+        print(f"ERROR: {exc}")
+
+    # --- Round IDs from most recent tournament ---
+    tournaments = fetch_tournament_list(fmt_display, min_players=32, pages=1)
+    if not tournaments:
+        print("\nNo tournaments found — cannot test pairings endpoint")
+        return
+
+    t = tournaments[0]
+    print(f"\n=== Round IDs for '{t['name']}' (id={t['id']}) ===")
+    round_ids = _get_round_ids(session, t["id"])
+    for rid, rname in round_ids:
+        print(f"  {rname}: id={rid}")
+
+    if not round_ids:
+        print("  No started rounds found")
+        return
+
+    # --- First round pairings ---
+    rid, rname = round_ids[0]
+    print(f"\n=== Pairings for {rname} (roundId={rid}), first 3 matches ===")
+    try:
+        resp = session.post(
+            _ROUND_URL.format(rid=rid),
+            data=_pairing_dt_payload(),
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": _VIEW_URL.format(tid=t["id"]),
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        pdata = resp.json()
+        print(f"recordsTotal={pdata.get('recordsTotal')}, rows={len(pdata.get('data',[]))}")
+        non_byes = [m for m in pdata.get("data", []) if len(m.get("Competitors",[])) == 2]
+        for m in non_byes[:3]:
+            parsed = _parse_pairing_row(m, _round_number(rname))
+            print(f"  {parsed}")
+    except Exception as exc:
+        print(f"ERROR: {exc}")
 
 
 def main(argv=None):

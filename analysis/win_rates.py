@@ -21,6 +21,7 @@ Core functions (no UI coupling):
 import re
 from datetime import datetime, timedelta
 from db.database import get_connection, get_combined_connection
+from core.query_engine.dedup_filters import apply_deck_filters
 
 
 # ---------------------------------------------------------------------------
@@ -236,24 +237,40 @@ _DATE_KEY = (
 # ---------------------------------------------------------------------------
 
 def _fetch_appearances(conn, archetype, format_name=None, event_type=None,
-                       since=None, until=None):
+                       since=None, until=None,
+                       dedup_cross_source=True, unique_player_decks=False):
     """
     Return all deck appearances for an archetype with event context.
     since/until: datetime objects or None.
+
+    dedup_cross_source (default True):
+        Remove rows where the same 75 cards were scraped from multiple sources
+        for the same real event (matched by deck_fingerprint + event_fingerprint).
+        Prevents double-counting ~7% of standard decks that appear in both
+        mtgtop8 and mtgdecks.
+
+    unique_player_decks (default False):
+        Collapse a player's repeated appearances with the same 75 to their
+        single best result.  Useful for "unique builds" views; off by default
+        so each tournament appearance counts as a separate data point.
     """
     q = """
         SELECT
-            d.id          AS deck_id,
+            d.id              AS deck_id,
             d.archetype,
             d.player,
             d.placement,
-            e.id          AS event_id,
-            e.name        AS event_name,
+            d.deck_fingerprint,
+            e.id              AS event_id,
+            e.name            AS event_name,
             e.date,
             e.format,
             e.event_type,
+            e.source          AS event_source,
+            e.event_fingerprint,
+            e.event_fingerprint_cs,
             (SELECT MAX(d2.placement) FROM decks d2 WHERE d2.event_id = e.id)
-                          AS max_placement
+                              AS max_placement
         FROM decks d
         JOIN events e ON e.id = d.event_id
         WHERE lower(d.archetype) LIKE lower(?)
@@ -274,7 +291,9 @@ def _fetch_appearances(conn, archetype, format_name=None, event_type=None,
         params.append(_dt_to_db_str(until))
 
     q += f" ORDER BY {_DATE_KEY} DESC, d.placement ASC"
-    return conn.execute(q, params).fetchall()
+    rows = conn.execute(q, params).fetchall()
+    return apply_deck_filters(rows, dedup_cross_source=dedup_cross_source,
+                              unique_player_decks=unique_player_decks)
 
 
 def _aggregate_appearances(rows):
@@ -379,14 +398,17 @@ def _confidence_label(shared_events):
 # ---------------------------------------------------------------------------
 
 def get_archetype_stats(archetype, format_name="standard", event_type=None,
-                        include_archive=False, since=None, until=None):
+                        include_archive=False, since=None, until=None,
+                        dedup_cross_source=True, unique_player_decks=False):
     """
     Full performance stats for one archetype.
     since/until: datetime objects (use parse_date_range() for natural language input).
     """
     conn = get_combined_connection(include_archive=include_archive)
     try:
-        rows = _fetch_appearances(conn, archetype, format_name, event_type, since, until)
+        rows = _fetch_appearances(conn, archetype, format_name, event_type, since, until,
+                                  dedup_cross_source=dedup_cross_source,
+                                  unique_player_decks=unique_player_decks)
     finally:
         conn.close()
 
@@ -402,13 +424,22 @@ def get_archetype_stats(archetype, format_name="standard", event_type=None,
 
 def get_meta_standings(format_name="standard", event_type=None,
                        min_appearances=3, top=20, include_archive=False,
-                       since=None, until=None):
+                       since=None, until=None,
+                       dedup_cross_source=True, unique_player_decks=False):
     """
     Ranked performance table for all archetypes in a format.
     Returns list of stats dicts sorted by avg_points descending.
 
     Uses a single bulk query (instead of one query per archetype) to avoid
     the N+1 performance problem on large databases.
+
+    dedup_cross_source (default True):
+        Remove cross-source duplicates before counting.  Without this, decks
+        scraped from both mtgtop8 and mtgdecks inflate every archetype's
+        appearance count and meta-share by ~7% in standard.
+
+    unique_player_decks (default False):
+        Collapse a player's repeated identical 75 to their best result.
     """
     from collections import defaultdict
 
@@ -418,15 +449,19 @@ def get_meta_standings(format_name="standard", event_type=None,
         # max_placement per event is pre-aggregated via a subquery join.
         q = """
             SELECT
-                d.id          AS deck_id,
+                d.id              AS deck_id,
                 d.archetype,
                 d.player,
                 d.placement,
-                e.id          AS event_id,
-                e.name        AS event_name,
+                d.deck_fingerprint,
+                e.id              AS event_id,
+                e.name            AS event_name,
                 e.date,
                 e.format,
                 e.event_type,
+                e.source          AS event_source,
+                e.event_fingerprint,
+                e.event_fingerprint_cs,
                 mp.max_placement
             FROM decks d
             JOIN events e ON e.id = d.event_id
@@ -452,6 +487,11 @@ def get_meta_standings(format_name="standard", event_type=None,
     finally:
         conn.close()
 
+    # Remove cross-source and/or player duplicates before counting.
+    # This must happen before grouping so appearance counts are accurate.
+    all_rows = apply_deck_filters(all_rows, dedup_cross_source=dedup_cross_source,
+                                  unique_player_decks=unique_player_decks)
+
     # Group by archetype in Python, then aggregate each group
     arch_rows = defaultdict(list)
     for row in all_rows:
@@ -471,15 +511,26 @@ def get_meta_standings(format_name="standard", event_type=None,
 
 def get_archetype_trend(archetype, format_name="standard", weeks=8,
                         event_type=None, include_archive=False,
-                        since=None, until=None):
+                        since=None, until=None,
+                        dedup_cross_source=True, unique_player_decks=False):
     """
     Week-by-week performance breakdown for an archetype.
     If since/until are given, buckets the window they define (up to `weeks` buckets).
     Returns list of weekly stats dicts, most recent first.
+
+    Note: when dedup_cross_source=True, the total_decks_in_format denominator
+    uses COUNT(DISTINCT deck_fp + event_fp_cs) to match the numerator's dedup
+    logic.  When unique_player_decks=True, the denominator is left as a raw
+    per-event count because that filter is a global cross-event dedup that
+    cannot be expressed as a per-event GROUP BY; meta_share may be slightly
+    underestimated in that case, but the effect is small and trend direction
+    is unaffected.
     """
     conn = get_combined_connection(include_archive=include_archive)
     try:
-        all_rows = _fetch_appearances(conn, archetype, format_name, event_type, since, until)
+        all_rows = _fetch_appearances(conn, archetype, format_name, event_type, since, until,
+                                      dedup_cross_source=dedup_cross_source,
+                                      unique_player_decks=unique_player_decks)
     finally:
         conn.close()
 
@@ -488,8 +539,24 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
 
     conn2 = get_combined_connection(include_archive=include_archive)
     try:
-        total_q = """
-            SELECT e.date, COUNT(d.id) as n
+        # When dedup_cross_source is active, count distinct (deck_fp, event_fp_cs)
+        # pairs per event so the denominator uses the same dedup logic as the
+        # numerator.  NULL fingerprints fall back to d.id (same as the filter:
+        # rows with NULL fingerprints pass through and are counted individually).
+        # unique_player_decks cannot be expressed as a per-event GROUP BY (it is a
+        # global cross-event dedup), so the denominator is left raw in that case.
+        if dedup_cross_source:
+            count_expr = (
+                "COUNT(DISTINCT COALESCE("
+                "d.deck_fingerprint || '|' || e.event_fingerprint_cs,"
+                "CAST(d.id AS TEXT)"
+                ")) as n"
+            )
+        else:
+            count_expr = "COUNT(d.id) as n"
+
+        total_q = f"""
+            SELECT e.date, {count_expr}
             FROM decks d JOIN events e ON e.id = d.event_id
             WHERE lower(e.format) = lower(?)
         """
@@ -546,15 +613,20 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
 
 
 def get_head_to_head(archetype_a, archetype_b, format_name="standard",
-                     include_archive=False, since=None, until=None):
+                     include_archive=False, since=None, until=None,
+                     dedup_cross_source=True, unique_player_decks=False):
     """
     Head-to-head: events where both archetypes appeared.
     A "win" = archetype_a's best placement in the event was better than B's.
     """
     conn = get_combined_connection(include_archive=include_archive)
     try:
-        rows_a = _fetch_appearances(conn, archetype_a, format_name, since=since, until=until)
-        rows_b = _fetch_appearances(conn, archetype_b, format_name, since=since, until=until)
+        rows_a = _fetch_appearances(conn, archetype_a, format_name, since=since, until=until,
+                                    dedup_cross_source=dedup_cross_source,
+                                    unique_player_decks=unique_player_decks)
+        rows_b = _fetch_appearances(conn, archetype_b, format_name, since=since, until=until,
+                                    dedup_cross_source=dedup_cross_source,
+                                    unique_player_decks=unique_player_decks)
     finally:
         conn.close()
 
@@ -619,14 +691,17 @@ def get_head_to_head(archetype_a, archetype_b, format_name="standard",
 
 def get_archetype_matchups(archetype, format_name="standard",
                            include_archive=False, since=None, until=None,
-                           min_shared_events=2):
+                           min_shared_events=2,
+                           dedup_cross_source=True, unique_player_decks=False):
     """
     One archetype vs every other archetype it shared events with.
     Returns list of matchup dicts sorted by win_rate descending.
     """
     conn = get_combined_connection(include_archive=include_archive)
     try:
-        rows_self = _fetch_appearances(conn, archetype, format_name, since=since, until=until)
+        rows_self = _fetch_appearances(conn, archetype, format_name, since=since, until=until,
+                                       dedup_cross_source=dedup_cross_source,
+                                       unique_player_decks=unique_player_decks)
         if not rows_self:
             return []
 
@@ -649,7 +724,9 @@ def get_archetype_matchups(archetype, format_name="standard",
 
         matchups = []
         for opp in opponents:
-            opp_rows = _fetch_appearances(conn, opp, format_name, since=since, until=until)
+            opp_rows = _fetch_appearances(conn, opp, format_name, since=since, until=until,
+                                          dedup_cross_source=dedup_cross_source,
+                                          unique_player_decks=unique_player_decks)
             opp_best = _best_per_event(opp_rows)
             stats = _matchup_stats(self_best, opp_best)
             if stats is None or stats["shared_events"] < min_shared_events:
@@ -667,7 +744,8 @@ def get_archetype_matchups(archetype, format_name="standard",
 
 
 def get_matchup_matrix(format_name="standard", min_appearances=5,
-                       include_archive=False, since=None, until=None, top=15):
+                       include_archive=False, since=None, until=None, top=15,
+                       dedup_cross_source=True, unique_player_decks=False):
     """
     Full NxN placement-based matchup matrix for top archetypes.
     Returns:
@@ -683,7 +761,8 @@ def get_matchup_matrix(format_name="standard", min_appearances=5,
     """
     standings = get_meta_standings(
         format_name=format_name, min_appearances=min_appearances,
-        include_archive=include_archive, since=since, until=until, top=top
+        include_archive=include_archive, since=since, until=until, top=top,
+        dedup_cross_source=dedup_cross_source, unique_player_decks=unique_player_decks,
     )
     if not standings:
         return {"archetypes": [], "matrix": {}, "note": "No data"}
@@ -694,7 +773,9 @@ def get_matchup_matrix(format_name="standard", min_appearances=5,
     try:
         all_best = {}
         for arch in archetypes:
-            rows = _fetch_appearances(conn, arch, format_name, since=since, until=until)
+            rows = _fetch_appearances(conn, arch, format_name, since=since, until=until,
+                                      dedup_cross_source=dedup_cross_source,
+                                      unique_player_decks=unique_player_decks)
             all_best[arch] = _best_per_event(rows)
     finally:
         conn.close()

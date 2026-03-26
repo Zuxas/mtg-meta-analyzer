@@ -154,30 +154,41 @@ python run_gui.py
 
 ---
 
-## TOP PRIORITIES — Mar 25
+## TOP PRIORITIES — Mar 25 (Session 2)
+
+### Session 2026-03-25 Summary — What was completed
+
+1. **Dashboard Meta Impact bar** — shows dedup filter effect (rows removed, most affected archetypes)
+2. **Dashboard worker lifecycle fix** — Refresh crash resolved (RuntimeError guard + `_panel_worker = None` on finish)
+3. **Trend denominator fix** (`analysis/win_rates.py`) — `get_archetype_trend()` denominator now uses dedup-aware `COUNT(DISTINCT ...)` when `dedup_cross_source=True`
+4. **MTGMelee scraper — full rewrite** (`scrapers/mtgmelee_scraper.py`)
+   - melee.gg migrated to new API — both old endpoints dead
+   - Tournament list: `POST /Tournament/TournamentSearch` with `filters[]` array
+   - Pairings: GET view page → parse round `data-id` → POST `/Match/GetRoundMatches/{roundId}` with exact DataTables column payload
+   - Dry-run verified: 21 tournaments, ~10k+ matches, exit code 0
+5. **Swagger API explored** — all 21 REST endpoints at `/swagger/ui/index` require staff authentication; public DataTables approach is correct
+6. **`db/saved_decks.py` created** — tables: `saved_decks` + `saved_sb_plans` (CASCADE delete); functions: save_deck, get_deck(s), delete_deck, save_sb_plan, get_sb_plan(s), delete_sb_plan; all tests pass
+7. **Live MTGMelee scrape running** — 250 qualifying Standard tournaments (9 pages), actively inserting to DB
+
+---
 
 ### 1. Memory leak audit (CRITICAL — app crashed overnight)
 - Audit all long-running threads, worker objects, and signal connections for leaks
 - Check QuickScrapeWorker, FigureCanvasQTAgg, and DB connections for improper teardown
 - Add resource tracking / explicit cleanup on close
 
-### 2. Melee.gg scraper fix
-- Run `python -m scrapers.mtgmelee_scraper --test --verbose` in terminal first
-- 200 OK confirmed from user — parse the response shape and fix endpoint/field mapping
-- Then test a real scrape: `python -m scrapers.mtgmelee_scraper --format standard --pages 2`
-
-### 3. My Decks library + SB plan editor
-- `db/saved_decks.py` already exists — go straight to GUI
+### 2. My Decks GUI tab
+- `db/saved_decks.py` **now exists** (created this session)
 - `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
 - Click deck → shows 75 + all saved SB plans
 - "Open in RCQ Optimizer" passes deck to tournament_prep.py
 
-### 4. Fix remaining smoke test bugs
+### 3. Fix remaining smoke test bugs
 - "Use Cached" crash in Matchup Data tab (theme.ERROR → theme.ERR — may be fixed, verify)
 - Auto-legality check triggers on Analyze (should only run on explicit button click)
 - Predictions tab "how this works" info box — verify it renders correctly
 
-### 5. Legend/key for dashboard colors and star badges
+### 4. Legend/key for dashboard colors and star badges
 - Add a small key or tooltip explaining tier badge colors (S/A/B/C) in the WIN RATE panel
 - Explain the ★ star suffix (real match W/L data vs estimated placement)
 
@@ -186,7 +197,7 @@ python run_gui.py
 ## PREVIOUS TOP PRIORITIES (Mar 25 Session 1)
 
 ### My Decks GUI tab + RCQ Optimizer upgrade
-- `db/saved_decks.py` already exists (built session 3) — go straight to GUI
+- `db/saved_decks.py` exists (created 2026-03-25) — go straight to GUI
 - `gui/tabs/my_decks.py` — list saved decks, import from DB, add manually, edit/delete
 - Click deck → shows 75 + all saved SB plans
 - "Open in RCQ Optimizer" passes deck to tournament_prep.py
@@ -207,12 +218,11 @@ python run_gui.py
 - Overlay multiple archetypes as lines on one trend chart
 - No new files — only `gui/tabs/charts.py` + `gui/widgets/chart_canvas.py`
 
-### 4. DB layer for My Decks (~20 min)
-- Create `db/saved_decks.py`
-- Tables: `saved_decks` (id, name, format, archetype, mainboard JSON, sideboard JSON, notes, created_at)
-         `saved_sb_plans` (id, deck_id, opponent_archetype, play_in JSON, play_out JSON, draw_in JSON, draw_out JSON, notes, difficulty)
-- Functions: save_deck / get_decks / get_deck / delete_deck / save_sb_plan / get_sb_plans / delete_sb_plan
-- No GUI yet — backend only
+### 4. DB layer for My Decks — DONE (2026-03-25)
+- `db/saved_decks.py` created and tested
+- Tables: `saved_decks`, `saved_sb_plans` (CASCADE delete on deck removal)
+- Functions: save_deck / get_decks / get_deck / delete_deck / save_sb_plan / get_sb_plan / get_sb_plans / delete_sb_plan
+- Next: GUI tab (`gui/tabs/my_decks.py`)
 
 ### 5. Play/draw split in sideboard guides (~20 min)
 - Upgrade `analysis/sideboard_guides.py`

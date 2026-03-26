@@ -37,5 +37,7 @@ Desktop.ini
 debug_response.html
 mtgdecks.net homepage.txt
 
-# Local roadmap (personal planning doc, not for repo)
-ROADMAP.md
+# Exports and scratch files
+exports/
+flexslotpage.html
+"To Claude from ChatGPT.txt"

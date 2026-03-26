@@ -47,15 +47,34 @@ def _pip_color(identity: str) -> QColor:
 # Data loaders
 # ---------------------------------------------------------------------------
 
-def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
-    """Load standings + recent top finishes for the three top panels."""
+def _load_panel_data(format_name: str, since_dt, top: int,
+                     dedup_cross_source: bool = True,
+                     unique_player_decks: bool = False) -> dict:
+    """Load standings + recent top finishes for the three top panels.
+
+    When any dedup filter is active, also fetches raw (unfiltered) standings so
+    the Meta Impact bar can show how many rows the filters removed.  Both calls
+    use the same SQL — the dedup filters are pure-Python post-processing, so the
+    extra call costs ~50 ms at most.
+    """
     from datetime import datetime
     from analysis.win_rates import get_meta_standings
     from db.database import get_combined_connection
 
     standings = get_meta_standings(
         format_name=format_name, top=top, min_appearances=2, since=since_dt,
+        dedup_cross_source=dedup_cross_source,
+        unique_player_decks=unique_player_decks,
     )
+
+    # Raw (unfiltered) standings — fetched only when a filter is on so we can
+    # show before/after impact without an extra query on every load.
+    raw_standings = None
+    if dedup_cross_source or unique_player_decks:
+        raw_standings = get_meta_standings(
+            format_name=format_name, top=top, min_appearances=2, since=since_dt,
+            dedup_cross_source=False, unique_player_decks=False,
+        )
 
     # Real match win rates from matches table (MTGMelee + bracket inference).
     # Silently empty if no data has been scraped yet.
@@ -78,6 +97,8 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
         prior_standings = get_meta_standings(
             format_name=format_name, top=top, min_appearances=2,
             since=prior_since, until=prior_until,
+            dedup_cross_source=dedup_cross_source,
+            unique_player_decks=unique_player_decks,
         )
 
     conn = get_combined_connection()
@@ -104,7 +125,8 @@ def _load_panel_data(format_name: str, since_dt, top: int) -> dict:
         conn.close()
 
     return {"standings": standings, "prior_standings": prior_standings,
-            "recent": recent, "real_wrs": real_wrs}
+            "recent": recent, "real_wrs": real_wrs,
+            "raw_standings": raw_standings}
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +261,37 @@ class DashboardTab(QWidget):
         self._refresh_btn.clicked.connect(self.refresh)
         ctrl.addWidget(self._refresh_btn)
 
+        # ── Dedup controls ────────────────────────────────────────────
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setFixedWidth(1)
+        sep.setStyleSheet(f"background: {theme.BORDER};")
+        ctrl.addWidget(sep)
+
+        _chk_style = f"color: {theme.TEXT}; font-size: 11px;"
+
+        self._dedup_cs = QCheckBox("Dedup cross-source")
+        self._dedup_cs.setChecked(True)
+        self._dedup_cs.setStyleSheet(_chk_style)
+        self._dedup_cs.setToolTip(
+            "Remove duplicate decks scraped from multiple sites for the same event.\n"
+            "Prevents the same deck from being double-counted in meta-share and win-rate.\n"
+            "Recommended: ON"
+        )
+        self._dedup_cs.stateChanged.connect(self.refresh)
+        ctrl.addWidget(self._dedup_cs)
+
+        self._dedup_upd = QCheckBox("One per player")
+        self._dedup_upd.setChecked(False)
+        self._dedup_upd.setStyleSheet(_chk_style)
+        self._dedup_upd.setToolTip(
+            "Count only a player's best result with each unique deck, not every event they entered.\n"
+            "Useful when a single player is dominating raw appearance counts.\n"
+            "Default: OFF (each tournament result counts separately)"
+        )
+        self._dedup_upd.stateChanged.connect(self.refresh)
+        ctrl.addWidget(self._dedup_upd)
+
         ctrl.addStretch()
         self._status_lbl = QLabel("")
         self._status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
@@ -282,6 +335,33 @@ class DashboardTab(QWidget):
         mode_row.addWidget(self._mode_win_btn)
         mode_row.addStretch()
         bl.addLayout(mode_row)
+
+        # Meta Impact bar — shown only when dedup filters remove rows
+        self._impact_bar = QFrame()
+        self._impact_bar.setFixedHeight(22)
+        self._impact_bar.setStyleSheet(
+            f"background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+            f" border-radius: 3px;"
+        )
+        impact_hl = QHBoxLayout(self._impact_bar)
+        impact_hl.setContentsMargins(8, 0, 8, 0)
+        impact_hl.setSpacing(8)
+
+        impact_title = QLabel("META IMPACT:")
+        impact_title.setStyleSheet(
+            f"color: {theme.ACCENT}; font-size: 10px; font-weight: bold;"
+            f" letter-spacing: 1px; font-family: '{theme.HEADING_FONT}', Arial;"
+            f" background: transparent; border: none;"
+        )
+        impact_hl.addWidget(impact_title)
+
+        self._impact_lbl = QLabel("")
+        self._impact_lbl.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 11px; background: transparent; border: none;"
+        )
+        impact_hl.addWidget(self._impact_lbl, 1)
+        self._impact_bar.setVisible(False)
+        bl.addWidget(self._impact_bar)
 
         # Chart + sidebar
         chart_row = QHBoxLayout()
@@ -418,9 +498,17 @@ class DashboardTab(QWidget):
 
     @staticmethod
     def _cancel_worker(w):
-        """Block signals on a running worker so stale results are silently dropped."""
+        """Block signals on a running worker so stale results are silently dropped.
+
+        Guards against RuntimeError when the underlying C++ QThread has already been
+        freed by deleteLater (e.g. auto-refresh on startup completes before the user
+        clicks Refresh, leaving self._panel_worker pointing at a dead wrapper).
+        """
         if w is not None:
-            w.blockSignals(True)
+            try:
+                w.blockSignals(True)
+            except RuntimeError:
+                pass  # C++ object already deleted — nothing to cancel
 
     def refresh(self):
         self._status_lbl.setText("Loading…")
@@ -431,15 +519,18 @@ class DashboardTab(QWidget):
         self._cancel_worker(self._panel_worker)
         self._cancel_worker(self._chart_worker)
 
-        fmt   = self._fmt.currentText()
-        top   = int(self._top_n.currentText())
-        since = self._since_dt()
+        fmt       = self._fmt.currentText()
+        top       = int(self._top_n.currentText())
+        since     = self._since_dt()
+        dedup_cs  = self._dedup_cs.isChecked()
+        dedup_upd = self._dedup_upd.isChecked()
 
         self._panel_worker = DataLoadWorker(
             _load_panel_data,
             # Fetch top=50 so high-frequency archetypes (e.g. Izzet Prowess) aren't
             # excluded by performance-based ranking; display is limited to top N below.
-            {"format_name": fmt, "since_dt": since, "top": 50},
+            {"format_name": fmt, "since_dt": since, "top": 50,
+             "dedup_cross_source": dedup_cs, "unique_player_decks": dedup_upd},
         )
         self._panel_worker.result.connect(self._on_panel_data)
         self._panel_worker.error.connect(self._on_error)
@@ -447,6 +538,9 @@ class DashboardTab(QWidget):
             lambda: self._refresh_btn.setEnabled(True)
         )
         self._panel_worker.finished.connect(self._panel_worker.deleteLater)
+        self._panel_worker.finished.connect(
+            lambda: setattr(self, "_panel_worker", None)
+        )
         self._panel_worker.start()
 
         # Load chart data separately (slower — one trend query per archetype)
@@ -454,13 +548,17 @@ class DashboardTab(QWidget):
         self._chart_worker = DataLoadWorker(
             fetch_chart_data,
             {"format_name": fmt, "top": top, "weeks": weeks,
-             "since": since, "until": None, "standings": None},
+             "since": since, "until": None, "standings": None,
+             "dedup_cross_source": dedup_cs, "unique_player_decks": dedup_upd},
         )
         self._chart_worker.result.connect(self._on_chart_data)
         self._chart_worker.error.connect(
             lambda e: self._canvas.show_message(f"Chart error: {e}", theme.ERR)
         )
         self._chart_worker.finished.connect(self._chart_worker.deleteLater)
+        self._chart_worker.finished.connect(
+            lambda: setattr(self, "_chart_worker", None)
+        )
         self._chart_worker.start()
 
     # ------------------------------------------------------------------
@@ -481,6 +579,23 @@ class DashboardTab(QWidget):
         self._populate_winrate(self._standings, prior_map, data.get("real_wrs", {}))
         self._populate_popularity(self._standings, prior_map)
         self._populate_recent(data["recent"])
+
+        # Meta Impact bar
+        impact = _compute_impact(self._standings, data.get("raw_standings"))
+        if impact and impact["rows_removed"] > 0:
+            parts = [f"-{impact['rows_removed']} decks ({impact['pct_removed']}%)"]
+            if impact["most_affected"]:
+                affected_str = ", ".join(
+                    f"{_shorten_arch(a['archetype'], 18)} \u2212{a['delta']}"
+                    for a in impact["most_affected"]
+                )
+                parts.append(f"Most affected: {affected_str}")
+            if impact["most_stable"]:
+                parts.append(f"Most stable: {_shorten_arch(impact['most_stable']['archetype'], 20)}")
+            self._impact_lbl.setText("  \u2502  ".join(parts))
+            self._impact_bar.setVisible(True)
+        else:
+            self._impact_bar.setVisible(False)
 
     def _on_chart_data(self, data):
         self._chart_data = data
@@ -843,3 +958,54 @@ class DashboardTab(QWidget):
 
 def _shorten_arch(name: str, max_len: int = 22) -> str:
     return name if len(name) <= max_len else name[:max_len - 1] + "\u2026"
+
+
+# ---------------------------------------------------------------------------
+# Dedup impact computation
+# ---------------------------------------------------------------------------
+
+def _compute_impact(standings: list, raw_standings) -> dict | None:
+    """Compare filtered standings vs raw to produce a dedup impact summary.
+
+    Returns None when raw_standings is None (no filters active).
+    Returns a dict:
+      total_raw      int
+      total_dedup    int
+      rows_removed   int
+      pct_removed    float
+      most_affected  list[dict]  — up to 3, each: archetype, raw, dedup, delta
+      most_stable    dict | None — archetype with smallest removal (still present)
+    """
+    if raw_standings is None:
+        return None
+
+    total_raw   = sum(s["appearances"] for s in raw_standings)
+    total_dedup = sum(s["appearances"] for s in standings)
+    rows_removed = total_raw - total_dedup
+    pct_removed  = rows_removed * 100 / total_raw if total_raw else 0.0
+
+    raw_map   = {s["archetype"]: s["appearances"] for s in raw_standings}
+    dedup_map = {s["archetype"]: s["appearances"] for s in standings}
+
+    deltas = []
+    for arch in set(raw_map) | set(dedup_map):
+        r = raw_map.get(arch, 0)
+        d = dedup_map.get(arch, 0)
+        deltas.append({"archetype": arch, "raw": r, "dedup": d, "delta": r - d})
+
+    deltas.sort(key=lambda x: -x["delta"])
+    most_affected = [a for a in deltas if a["delta"] > 0][:3]
+
+    # Most stable: present in both with the smallest (non-negative) delta
+    stable = [a for a in reversed(deltas)
+              if a["raw"] > 0 and a["dedup"] > 0 and a["delta"] >= 0]
+    most_stable = stable[0] if stable else None
+
+    return {
+        "total_raw":     total_raw,
+        "total_dedup":   total_dedup,
+        "rows_removed":  rows_removed,
+        "pct_removed":   round(pct_removed, 1),
+        "most_affected": most_affected,
+        "most_stable":   most_stable,
+    }
