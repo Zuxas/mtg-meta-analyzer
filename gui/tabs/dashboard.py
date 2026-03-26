@@ -585,7 +585,7 @@ class DashboardTab(QWidget):
         self._chart_worker = None
 
         fmt   = self._fmt.currentText()
-        top   = self._top_n.value()
+        top   = int(self._top_n.currentText())
         since = self._since_dt()
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
         gran  = getattr(self, "_chart_granularity", "weekly")
@@ -1018,8 +1018,9 @@ class DashboardTab(QWidget):
         self._gran_daily_btn.setStyleSheet(
             theme.btn_primary() if gran == "daily" else theme.btn_secondary()
         )
-        # Reload chart data with new granularity
-        self._reload_chart()
+        # Reload chart data with new granularity (skip during _build_ui)
+        if getattr(self, "_chart_data", None) is not None:
+            self._reload_chart()
 
     # ------------------------------------------------------------------
     # Helpers
