@@ -105,6 +105,8 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - **Sideboard Guide Integration** (`analysis/sideboard_guides.py`):
   - `parse_sb_plan(comment)`: parses free-text guides for IN/OUT card lists
     using regex patterns for `+N Name`, `-N Name`, `IN:`, `OUT:`, `bring in`, etc.
+    Supports play/draw split via "On the play"/"On the draw"/OTP/OTD markers;
+    returns `play_in`, `play_out`, `draw_in`, `draw_out`, `has_play_draw`
   - `get_matchup_guides(my_arch, opp_arch, fmt)`: queries DB for guides tagged
     with either archetype, separates into my_guides/opp_guides, merges SB plans
   - `estimate_postboard_wr(g1_wr, my_sb_in, opp_sb_in)`: models G2/G3 WR shift:

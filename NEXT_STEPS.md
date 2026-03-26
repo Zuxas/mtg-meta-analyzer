@@ -246,11 +246,12 @@ python run_gui.py
 - Functions: save_deck / get_decks / get_deck / delete_deck / save_sb_plan / get_sb_plan / get_sb_plans / delete_sb_plan
 - Next: GUI tab (`gui/tabs/my_decks.py`)
 
-### 5. Play/draw split in sideboard guides (~20 min)
-- Upgrade `analysis/sideboard_guides.py`
-- Add in_cards_play / out_cards_play / in_cards_draw / out_cards_draw fields
-- Add difficulty field (Easy/Medium/Hard based on variance between lines)
-- No new files — only `analysis/sideboard_guides.py`
+### 5. ~~Play/draw split in sideboard guides~~ — **DONE** (2026-03-26)
+- `parse_sb_plan()` now detects "On the play" / "On the draw" / OTP / OTD markers
+- Returns `play_in`, `play_out`, `draw_in`, `draw_out` + `has_play_draw` flag
+- `_merge_sb_plans()` merges play/draw fields across multiple guides
+- `render_guide_html()` shows ON THE PLAY / ON THE DRAW sections when available
+- Falls back to generic IN/OUT when no play/draw markers present
 
 ### Remaining lower-priority features
 - **User Preferences System** — format selection in setup wizard (page 0), wire scrapers to skip unselected formats

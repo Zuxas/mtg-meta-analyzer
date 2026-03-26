@@ -44,6 +44,43 @@ def _extract_cards(text: str, *patterns) -> list[tuple[int, str]]:
     return results
 
 
+# Play/draw section markers
+_ON_PLAY = re.compile(r'(?:^|\n)\s*(?:on\s+the\s+play|OTP)\s*[:\-]?\s*', re.IGNORECASE)
+_ON_DRAW = re.compile(r'(?:^|\n)\s*(?:on\s+the\s+draw|OTD)\s*[:\-]?\s*', re.IGNORECASE)
+
+
+def _split_play_draw(comment: str) -> tuple[str | None, str | None]:
+    """Split comment into play-specific and draw-specific sections.
+
+    Returns (play_section, draw_section). If no markers found, returns (None, None).
+    """
+    play_m = _ON_PLAY.search(comment)
+    draw_m = _ON_DRAW.search(comment)
+    if not play_m and not draw_m:
+        return None, None
+
+    # Figure out section boundaries
+    play_start = play_m.end() if play_m else None
+    draw_start = draw_m.end() if draw_m else None
+
+    play_text = None
+    draw_text = None
+
+    if play_start is not None and draw_start is not None:
+        if play_start < draw_start:
+            play_text = comment[play_start:draw_m.start()]
+            draw_text = comment[draw_start:]
+        else:
+            draw_text = comment[draw_start:play_m.start()]
+            play_text = comment[play_start:]
+    elif play_start is not None:
+        play_text = comment[play_start:]
+    elif draw_start is not None:
+        draw_text = comment[draw_start:]
+
+    return play_text, draw_text
+
+
 def parse_sb_plan(comment: str | None) -> dict:
     """
     Parse a sideboard plan from free-form comment text.
@@ -53,21 +90,51 @@ def parse_sb_plan(comment: str | None) -> dict:
       IN: 4 Card Name / OUT: 4 Card Name
       Bring in 4 Card Name / Take out 4 Card Name
 
+    If the comment contains "On the play" / "On the draw" (or OTP/OTD) markers,
+    also returns play-specific and draw-specific IN/OUT lists.
+
     Returns:
       {
-        "in":       [(qty, name), ...],
-        "out":      [(qty, name), ...],
-        "total_in": int,
+        "in":           [(qty, name), ...],
+        "out":          [(qty, name), ...],
+        "total_in":     int,
+        "play_in":      [(qty, name), ...],   # play-specific (empty if no markers)
+        "play_out":     [(qty, name), ...],
+        "draw_in":      [(qty, name), ...],   # draw-specific (empty if no markers)
+        "draw_out":     [(qty, name), ...],
+        "has_play_draw": bool,
       }
     """
     if not comment:
-        return {"in": [], "out": [], "total_in": 0}
+        return {"in": [], "out": [], "total_in": 0,
+                "play_in": [], "play_out": [], "draw_in": [], "draw_out": [],
+                "has_play_draw": False}
+
+    # Global IN/OUT (entire comment)
     cards_in  = _extract_cards(comment, _IN_PLUS,  _IN_LABEL)
     cards_out = _extract_cards(comment, _OUT_MINUS, _OUT_LABEL)
+
+    # Play/draw split
+    play_text, draw_text = _split_play_draw(comment)
+    has_pd = play_text is not None or draw_text is not None
+
+    play_in = play_out = draw_in = draw_out = []
+    if play_text:
+        play_in  = _extract_cards(play_text, _IN_PLUS, _IN_LABEL)
+        play_out = _extract_cards(play_text, _OUT_MINUS, _OUT_LABEL)
+    if draw_text:
+        draw_in  = _extract_cards(draw_text, _IN_PLUS, _IN_LABEL)
+        draw_out = _extract_cards(draw_text, _OUT_MINUS, _OUT_LABEL)
+
     return {
-        "in":       cards_in,
-        "out":      cards_out,
-        "total_in": sum(q for q, _ in cards_in),
+        "in":            cards_in,
+        "out":           cards_out,
+        "total_in":      sum(q for q, _ in cards_in),
+        "play_in":       play_in,
+        "play_out":      play_out,
+        "draw_in":       draw_in,
+        "draw_out":      draw_out,
+        "has_play_draw": has_pd,
     }
 
 
@@ -165,19 +232,29 @@ def get_matchup_guides(my_archetype: str, opp_archetype: str, fmt: str) -> dict:
     }
 
 
+def _merge_card_lists(plans: list[dict], field: str) -> list[tuple[int, str]]:
+    """Merge card lists from multiple plans, keeping the highest qty per card."""
+    seen: dict[str, int] = {}
+    for plan in plans:
+        for qty, name in plan.get(field, []):
+            seen[name] = max(seen.get(name, 0), qty)
+    return sorted([(q, n) for n, q in seen.items()], key=lambda x: -x[0])
+
+
 def _merge_sb_plans(plans: list[dict]) -> dict:
     """Merge multiple parsed plans, keeping the highest qty seen per card name."""
-    seen_in:  dict[str, int] = {}
-    seen_out: dict[str, int] = {}
-    for plan in plans:
-        for qty, name in plan.get("in", []):
-            seen_in[name] = max(seen_in.get(name, 0), qty)
-        for qty, name in plan.get("out", []):
-            seen_out[name] = max(seen_out.get(name, 0), qty)
+    merged_in  = _merge_card_lists(plans, "in")
+    merged_out = _merge_card_lists(plans, "out")
+    has_pd = any(p.get("has_play_draw") for p in plans)
     return {
-        "in":       sorted([(q, n) for n, q in seen_in.items()],  key=lambda x: -x[0]),
-        "out":      sorted([(q, n) for n, q in seen_out.items()],  key=lambda x: -x[0]),
-        "total_in": sum(seen_in.values()),
+        "in":            merged_in,
+        "out":           merged_out,
+        "total_in":      sum(q for q, _ in merged_in),
+        "play_in":       _merge_card_lists(plans, "play_in"),
+        "play_out":      _merge_card_lists(plans, "play_out"),
+        "draw_in":       _merge_card_lists(plans, "draw_in"),
+        "draw_out":      _merge_card_lists(plans, "draw_out"),
+        "has_play_draw": has_pd,
     }
 
 
@@ -340,8 +417,18 @@ def render_guide_html(guide_data: dict, my_archetype: str, opp_archetype: str) -
             f'for {my_archetype})</span><br>'
         )
         if my_sb["in"] or my_sb["out"]:
-            parts.append(_sb_list_html(my_sb["in"],  "IN",  "#3cb44b"))
-            parts.append(_sb_list_html(my_sb["out"], "OUT", "#e6194b"))
+            if my_sb.get("has_play_draw") and (my_sb.get("play_in") or my_sb.get("draw_in")):
+                # Show play/draw split
+                parts.append('<span style="color:#bfef45; font-weight:bold;">ON THE PLAY:</span><br>')
+                parts.append(_sb_list_html(my_sb.get("play_in", []),  "IN",  "#3cb44b"))
+                parts.append(_sb_list_html(my_sb.get("play_out", []), "OUT", "#e6194b"))
+                parts.append('<span style="color:#bfef45; font-weight:bold;">ON THE DRAW:</span><br>')
+                parts.append(_sb_list_html(my_sb.get("draw_in", []),  "IN",  "#3cb44b"))
+                parts.append(_sb_list_html(my_sb.get("draw_out", []), "OUT", "#e6194b"))
+            else:
+                # Fallback: show generic IN/OUT
+                parts.append(_sb_list_html(my_sb["in"],  "IN",  "#3cb44b"))
+                parts.append(_sb_list_html(my_sb["out"], "OUT", "#e6194b"))
         else:
             parts.append(
                 '<span style="color:#8a9aaa; font-style:italic;">'
