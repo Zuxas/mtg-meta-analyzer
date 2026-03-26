@@ -584,10 +584,12 @@ class HeatmapTab(QWidget):
         if self._load_source == "combined":
             real_ct = sum(1 for v in self._source_map.values() if v == "real")
             scr_ct  = sum(1 for v in self._source_map.values() if v == "scraped")
-            self._updated_lbl.setText(
-                f"{fmt.upper()}  \u2022  "
-                f"\u2605 {real_ct} real cells  |  {scr_ct} scraped cells"
-            )
+            parts = [f"{fmt.upper()}  \u2022  \u2605 {real_ct} real cells"]
+            if scr_ct:
+                parts.append(f"{scr_ct} scraped cells")
+            else:
+                parts.append("no cached scrapes \u2014 click MTGDecks Live to fill gaps")
+            self._updated_lbl.setText("  |  ".join(parts))
         else:
             try:
                 from db.matchup_queries import get_last_updated
