@@ -184,6 +184,13 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 13) — Heatmap Overall WR column + Dashboard daily charts
+
+1. **Heatmap Overall WR column**: fixed "Overall" column at index 0 in matchup grid — shows weighted average WR across all matchups for each archetype, color-coded. Tooltip shows "Overall WR: 54% (weighted by sample size), Total matches: n=1,247".
+2. **Dashboard daily granularity**: Weekly|Daily toggle buttons next to Popularity/Win Rate mode buttons. `get_archetype_trend()` gains `granularity="daily"` parameter — daily uses 1-day buckets (capped at 90). `fetch_chart_data()` passes through granularity + stores `sample_data` for tooltips. Auto-suggest: timeframe ≤2 weeks defaults to Daily. `_reload_chart()` extracted so granularity toggle reloads without full refresh.
+
+---
+
 ### Session 2026-03-26 (Session 12) — Modern heatmap coverage
 
 1. **Modern min_matches lowered to 5** (was 10) — Modern meta is more diverse (786 unique archetypes in 92k matches), so pairings are spread thinner. At min_matches=5, 294 archetypes qualify.

@@ -688,9 +688,10 @@ class HeatmapTab(QWidget):
                      else sorted(matrix.keys())
         n = len(archetypes)
         source_map = self._source_map
+        ncols = n + 1  # +1 for Overall column at index 0
 
-        tbl = QTableWidget(n, n)
-        tbl.setHorizontalHeaderLabels(archetypes)
+        tbl = QTableWidget(n, ncols)
+        tbl.setHorizontalHeaderLabels(["Overall"] + archetypes)
         tbl.setVerticalHeaderLabels(archetypes)
         tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         tbl.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -706,8 +707,37 @@ class HeatmapTab(QWidget):
         tbl.horizontalHeader().setFont(header_font)
         tbl.verticalHeader().setFont(header_font)
 
+        # Populate Overall column (index 0) — weighted avg WR across all matchups
+        for ri, arch_a in enumerate(archetypes):
+            opps = matrix.get(arch_a, {})
+            total_w = 0.0
+            total_n = 0
+            for arch_b, mu in opps.items():
+                m = mu.get("matches", 0) or 1
+                total_w += mu["winrate"] * m
+                total_n += m
+            if total_n > 0:
+                overall_wr = total_w / total_n
+                pct = round(overall_wr * 100)
+                item = QTableWidgetItem(f"{pct}%")
+                item.setBackground(_wr_color(overall_wr))
+                bold = QFont(); bold.setBold(True); item.setFont(bold)
+                item.setToolTip(
+                    f"{arch_a}\nOverall WR: {pct}% (weighted by sample size)\n"
+                    f"Total matches: n={total_n:,}"
+                )
+            else:
+                item = QTableWidgetItem("\u2014")
+                item.setBackground(QColor(40, 40, 50))
+                item.setForeground(QColor(theme.TEXT_DIM))
+                total_n = 0
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 0, item)
+
+        # Populate matchup cells (columns 1..n)
         for ri, arch_a in enumerate(archetypes):
             for ci, arch_b in enumerate(archetypes):
+                col = ci + 1  # offset by 1 for Overall column
                 if arch_a == arch_b:
                     item = QTableWidgetItem("\u2014")
                     item.setBackground(QColor(40, 40, 50))
@@ -742,9 +772,12 @@ class HeatmapTab(QWidget):
                             f.setBold(True)
                             item.setFont(f)
 
-                tbl.setItem(ri, ci, item)
+                tbl.setItem(ri, col, item)
 
-        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        hh.resizeSection(0, 64)
+        for ci in range(1, ncols):
+            hh.setSectionResizeMode(ci, QHeaderView.ResizeMode.Fixed)
         tbl.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
 
         # Replace grid widget entirely — avoids sip.delete layout issues.

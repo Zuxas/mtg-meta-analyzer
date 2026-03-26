@@ -182,6 +182,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - Low-coverage warning for <8 archetypes on non-Standard formats
   - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
   - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
+  - Fixed "Overall" column (index 0): weighted avg WR across all matchups, color-coded, with total match count in tooltip
   - Tooltip per cell: archetype names, win%, verdict, source (Real/Scraped), sample size n=X
   - Legend shows ★ real / no-star scraped + color key
   - CLI: `python -m scrapers.matchup_scraper --format standard --save`
@@ -198,7 +199,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
   - **Dashboard performance fix**: `get_meta_standings` uses single bulk SQL query (was 918 queries → 1); load time 9s → 0.07s
   - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
-  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts, archetype checkboxes
+  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts with Weekly|Daily granularity toggle, archetype checkboxes
   - Panel titles are **dynamic**: "WIN RATE — 2 WEEKS", "POPULAR — 4 WEEKS" etc. update with timeframe selector
   - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion); "This List" tab shows exact 75 when opened from Recent Top Finishes click
   - **Date filter fix**: all panels use SQLite CASE expression (`_DATE_KEY`) to normalize `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) to `YYYYMMDD` for correct filtering/ordering everywhere

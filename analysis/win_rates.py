@@ -512,11 +512,14 @@ def get_meta_standings(format_name="standard", event_type=None,
 def get_archetype_trend(archetype, format_name="standard", weeks=8,
                         event_type=None, include_archive=False,
                         since=None, until=None,
-                        dedup_cross_source=True, unique_player_decks=False):
+                        dedup_cross_source=True, unique_player_decks=False,
+                        granularity="weekly"):
     """
-    Week-by-week performance breakdown for an archetype.
-    If since/until are given, buckets the window they define (up to `weeks` buckets).
-    Returns list of weekly stats dicts, most recent first.
+    Time-bucketed performance breakdown for an archetype.
+    If since/until are given, buckets the window they define.
+    Returns list of stats dicts, most recent first.
+
+    granularity: "weekly" (default, ISO week buckets) or "daily" (calendar day buckets).
 
     Note: when dedup_cross_source=True, the total_decks_in_format denominator
     uses COUNT(DISTINCT deck_fp + event_fp_cs) to match the numerator's dedup
@@ -574,35 +577,43 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
 
     window_end   = until or datetime.now()
     window_start = since or (window_end - timedelta(weeks=weeks or 520))
-    span_weeks   = max(1, int((window_end - window_start).days / 7) + 1)
-    num_buckets  = min(span_weeks, weeks if weeks is not None else span_weeks)
+
+    is_daily = granularity == "daily"
+    if is_daily:
+        span_days   = max(1, (window_end - window_start).days + 1)
+        num_buckets = min(span_days, 90)  # cap at 90 daily buckets
+        bucket_delta = timedelta(days=1)
+    else:
+        span_weeks   = max(1, int((window_end - window_start).days / 7) + 1)
+        num_buckets  = min(span_weeks, weeks if weeks is not None else span_weeks)
+        bucket_delta = timedelta(weeks=1)
 
     weekly = []
     for w in range(num_buckets):
-        week_end   = window_end - timedelta(weeks=w)
-        week_start = window_end - timedelta(weeks=w + 1)
+        bucket_end   = window_end - bucket_delta * w
+        bucket_start = window_end - bucket_delta * (w + 1)
 
-        week_rows = [
+        bucket_rows = [
             r for r in all_rows
             if _parse_date(r["date"]) and
-               week_start <= _parse_date(r["date"]) < week_end
+               bucket_start <= _parse_date(r["date"]) < bucket_end
         ]
-        total_in_week = sum(
+        total_in_bucket = sum(
             r["n"] for r in total_rows
             if _parse_date(r["date"]) and
-               week_start <= _parse_date(r["date"]) < week_end
+               bucket_start <= _parse_date(r["date"]) < bucket_end
         )
 
-        if not week_rows and total_in_week == 0:
+        if not bucket_rows and total_in_bucket == 0:
             continue
 
-        stats = _aggregate_appearances(week_rows) if week_rows else None
+        stats = _aggregate_appearances(bucket_rows) if bucket_rows else None
         weekly.append({
-            "week_start":            week_start.strftime("%Y-%m-%d"),
-            "week_end":              week_end.strftime("%Y-%m-%d"),
-            "appearances":           len(week_rows),
-            "total_decks_in_format": total_in_week,
-            "meta_share":            round(len(week_rows) / total_in_week, 3) if total_in_week else 0,
+            "week_start":            bucket_start.strftime("%Y-%m-%d"),
+            "week_end":              bucket_end.strftime("%Y-%m-%d"),
+            "appearances":           len(bucket_rows),
+            "total_decks_in_format": total_in_bucket,
+            "meta_share":            round(len(bucket_rows) / total_in_bucket, 3) if total_in_bucket else 0,
             "top8_rate":             stats["top8_rate"]       if stats else None,
             "avg_points":            stats["avg_points"]      if stats else None,
             "event_wins":            stats["event_wins"]      if stats else 0,

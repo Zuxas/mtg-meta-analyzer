@@ -343,6 +343,23 @@ class DashboardTab(QWidget):
         self._mode_win_btn.clicked.connect(lambda: self._set_chart_mode("win_pct"))
         mode_row.addWidget(self._mode_pop_btn)
         mode_row.addWidget(self._mode_win_btn)
+
+        sep = QLabel("|")
+        sep.setStyleSheet(f"color: {theme.BORDER}; font-size: 14px;")
+        sep.setFixedWidth(12)
+        mode_row.addWidget(sep)
+
+        self._gran_weekly_btn = QPushButton("Weekly")
+        self._gran_daily_btn  = QPushButton("Daily")
+        for btn in (self._gran_weekly_btn, self._gran_daily_btn):
+            btn.setFixedHeight(26)
+        self._gran_weekly_btn.clicked.connect(lambda: self._set_granularity("weekly"))
+        self._gran_daily_btn.clicked.connect(lambda: self._set_granularity("daily"))
+        mode_row.addWidget(self._gran_weekly_btn)
+        mode_row.addWidget(self._gran_daily_btn)
+        self._chart_granularity = "weekly"
+        self._set_granularity("weekly")  # set initial button styles
+
         mode_row.addStretch()
         bl.addLayout(mode_row)
 
@@ -560,13 +577,35 @@ class DashboardTab(QWidget):
         )
         self._panel_worker.start()
 
-        # Load chart data separately (slower — one trend query per archetype)
+        self._reload_chart()
+
+    def _reload_chart(self):
+        """Load chart data with current settings. Called from refresh() and _set_granularity()."""
+        DashboardTab._cancel_worker(self._chart_worker)
+        self._chart_worker = None
+
+        fmt   = self._fmt.currentText()
+        top   = self._top_n.value()
+        since = self._since_dt()
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
+        gran  = getattr(self, "_chart_granularity", "weekly")
+
+        # Auto-suggest: short timeframes default to daily
+        if gran == "weekly" and weeks is not None and weeks <= 2:
+            gran = "daily"
+            self._chart_granularity = gran
+            self._gran_weekly_btn.setStyleSheet(theme.btn_secondary())
+            self._gran_daily_btn.setStyleSheet(theme.btn_primary())
+
+        dedup_cs  = self._dedup_cs.isChecked()
+        dedup_upd = self._dedup_upd.isChecked()
+
         self._chart_worker = DataLoadWorker(
             fetch_chart_data,
             {"format_name": fmt, "top": top, "weeks": weeks,
              "since": since, "until": None, "standings": None,
-             "dedup_cross_source": dedup_cs, "unique_player_decks": dedup_upd},
+             "dedup_cross_source": dedup_cs, "unique_player_decks": dedup_upd,
+             "granularity": gran},
         )
         self._chart_worker.result.connect(self._on_chart_data)
         self._chart_worker.error.connect(
@@ -970,6 +1009,17 @@ class DashboardTab(QWidget):
         if self._chart_data:
             visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
             self._canvas.draw_from_data(self._chart_data, visible, mode=mode)
+
+    def _set_granularity(self, gran: str):
+        self._chart_granularity = gran
+        self._gran_weekly_btn.setStyleSheet(
+            theme.btn_primary() if gran == "weekly" else theme.btn_secondary()
+        )
+        self._gran_daily_btn.setStyleSheet(
+            theme.btn_primary() if gran == "daily" else theme.btn_secondary()
+        )
+        # Reload chart data with new granularity
+        self._reload_chart()
 
     # ------------------------------------------------------------------
     # Helpers

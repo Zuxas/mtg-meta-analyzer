@@ -21,15 +21,14 @@ from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as
 
 
 def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
-                     dedup_cross_source=True, unique_player_decks=False):
+                     dedup_cross_source=True, unique_player_decks=False,
+                     granularity="weekly"):
     """
-    Load weekly meta_share AND est_winpct for all archetypes in one pass.
+    Load time-bucketed meta_share AND est_winpct for all archetypes in one pass.
     Designed to run in a DataLoadWorker; returns a dict or None.
     Result is cache-friendly — pass to ChartCanvas.draw_from_data() to draw.
 
-    dedup_cross_source / unique_player_decks mirror the params on
-    get_meta_standings and get_archetype_trend — see dedup_filters.py for
-    full documentation on what each removes.
+    granularity: "weekly" (default) or "daily".
     """
     from analysis.win_rates import get_meta_standings, get_archetype_trend
     if standings is None:
@@ -46,6 +45,7 @@ def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
     all_weeks  = set()
     meta_data  = {}
     winpct_data = {}
+    sample_data = {}  # {arch: {bucket_key: appearances}}
 
     for arch in archetypes:
         weekly = get_archetype_trend(
@@ -53,9 +53,11 @@ def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
             since=since, until=until,
             dedup_cross_source=dedup_cross_source,
             unique_player_decks=unique_player_decks,
+            granularity=granularity,
         )
         meta_data[arch]   = {w["week_start"]: w["meta_share"] for w in weekly}
         winpct_data[arch] = {w["week_start"]: w.get("est_winpct") for w in weekly}
+        sample_data[arch] = {w["week_start"]: w["appearances"] for w in weekly}
         all_weeks.update(meta_data[arch].keys())
 
     if not all_weeks:
@@ -65,8 +67,10 @@ def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
         "archetypes":   archetypes,
         "meta_data":    meta_data,
         "winpct_data":  winpct_data,
+        "sample_data":  sample_data,
         "all_weeks":    all_weeks,
         "format_name":  format_name,
+        "granularity":  granularity,
     }
 
 
