@@ -516,6 +516,55 @@ def get_meta_standings(format_name="standard", event_type=None,
         results.append(stats)
 
     results.sort(key=lambda s: (s["avg_points"], s["top8_rate"]), reverse=True)
+
+    trimmed = results[:top]
+
+    # Fallback: if decks data is too sparse (top archetype < 20 appearances,
+    # or total appearances across all results < 100), use matches table instead
+    top_apps = trimmed[0]["appearances"] if trimmed else 0
+    total_apps = sum(s["appearances"] for s in trimmed)
+    if top_apps < 20 or total_apps < 100:
+        fallback = _meta_standings_from_matches(format_name, since, until, top,
+                                                min_appearances)
+        if fallback:
+            return fallback
+
+    return trimmed
+
+
+def _meta_standings_from_matches(format_name, since=None, until=None,
+                                 top=20, min_appearances=3):
+    """
+    Build meta standings from the matches table (melee.gg data) as a fallback
+    when the decks table has stale or missing data for the requested format/timeframe.
+
+    Returns a list of dicts compatible with get_meta_standings() output.
+    """
+    real_wrs = get_real_archetype_winrates(format_name, since=since, min_matches=5)
+    if not real_wrs:
+        return []
+
+    # Total match appearances across all archetypes
+    total = sum(v["total"] for v in real_wrs.values())
+
+    results = []
+    for arch, stats in real_wrs.items():
+        if arch in EXCLUDE_ARCHETYPES:
+            continue
+        if stats["total"] < min_appearances:
+            continue
+        results.append({
+            "archetype":         arch,
+            "appearances":       stats["total"],
+            "meta_share":        round(stats["total"] / total, 4) if total else 0,
+            "est_match_winpct":  stats["win_rate"],
+            "avg_points":        0,
+            "top8_rate":         None,
+            "event_wins":        0,
+            "_source":           "matches",  # marker for dashboard warning
+        })
+
+    results.sort(key=lambda s: -s["appearances"])
     return results[:top]
 
 

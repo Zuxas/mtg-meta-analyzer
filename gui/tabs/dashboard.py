@@ -636,7 +636,16 @@ class DashboardTab(QWidget):
     def _on_panel_data(self, data: dict):
         self._standings = data["standings"]
         n = len(self._standings)
-        self._status_lbl.setText(f"{n} archetype{'s' if n != 1 else ''} loaded")
+        # Detect matches-table fallback
+        using_matches = any(s.get("_source") == "matches" for s in self._standings)
+        if using_matches:
+            self._status_lbl.setText(
+                f"{n} archetypes (using match data \u2014 deck scraper needs refresh)"
+            )
+            self._status_lbl.setStyleSheet(f"color: {theme.WARN};")
+        else:
+            self._status_lbl.setText(f"{n} archetype{'s' if n != 1 else ''} loaded")
+            self._status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM};")
 
         # Update panel titles to reflect the current timeframe
         tf_label = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]

@@ -184,6 +184,16 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 21) — Meta standings fallback to matches table
+
+1. **Root cause found**: decks table (MTGTop8/MTGDecks) is stale — last real data is Oct 2025. Daily scrapers run (Last Result: 0) but crash silently with UnicodeEncodeError on non-ASCII player names. Only ~50 obscure entries exist in recent weeks.
+2. **Fallback built**: `get_meta_standings()` now checks if top archetype has <20 appearances or total <100. If so, falls back to `_meta_standings_from_matches()` which builds standings from the 262k real match records. Results tagged with `_source="matches"`.
+3. **Dashboard warning**: when fallback is active, status bar shows orange "using match data — deck scraper needs refresh"
+4. **Result**: Standard meta now shows Izzet Prowess (23,662 matches, 52.1%), Dimir Midrange (15,481, 50.0%), Mono Red Aggro (14,791, 50.7%) etc. — real data instead of "Momo-White" at 3 appearances.
+5. **Scraper issue**: MTGTop8 `main.py` crashes with `UnicodeEncodeError: 'charmap' codec can't encode character '\u0144'` — needs encoding fix in stdout wrapper (separate task)
+
+---
+
 ### Session 2026-03-26 (Session 20) — Fix default top 8, WR debug, event labels
 
 1. **Top 8 by appearances**: `_rebuild_checkboxes()` now computes total appearances from `sample_data` and checks the 8 archetypes with the most data — no more Momo-White/Vivi appearing by default
