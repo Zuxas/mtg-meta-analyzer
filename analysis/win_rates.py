@@ -822,7 +822,8 @@ def get_matchup_matrix(format_name="standard", min_appearances=5,
 # ---------------------------------------------------------------------------
 
 def get_real_matchup_winrates(format_name: str = "standard",
-                               since=None, min_matches: int = 20) -> dict:
+                               since=None, min_matches: int = 20,
+                               min_arch_appearances: int = 10) -> dict:
     """
     Return per-pairing win rates calculated from real recorded match results.
 
@@ -878,9 +879,31 @@ def get_real_matchup_winrates(format_name: str = "standard",
     result = {}
     try:
         with get_connection() as conn:
+            # Pre-compute which archetypes have enough total appearances
+            excl_params = list(EXCLUDE_ARCHETYPES)
+            freq_q = f"""
+                SELECT arch, SUM(n) AS total FROM (
+                    SELECT player1_arch AS arch, COUNT(*) AS n
+                    FROM matches WHERE lower(format)=lower(?) AND player1_arch != ''
+                      AND player1_arch NOT IN ({",".join("?" * len(EXCLUDE_ARCHETYPES))})
+                    GROUP BY player1_arch
+                    UNION ALL
+                    SELECT player2_arch, COUNT(*)
+                    FROM matches WHERE lower(format)=lower(?) AND player2_arch != ''
+                      AND player2_arch NOT IN ({",".join("?" * len(EXCLUDE_ARCHETYPES))})
+                    GROUP BY player2_arch
+                ) GROUP BY arch HAVING total >= ?
+            """
+            freq_rows = conn.execute(
+                freq_q, [format_name] + excl_params + [format_name] + excl_params + [min_arch_appearances]
+            ).fetchall()
+            valid_archs = {r["arch"] for r in freq_rows}
+
             rows = conn.execute(q, params).fetchall()
         for r in rows:
             a, b     = r["arch_a"], r["arch_b"]
+            if a not in valid_archs or b not in valid_archs:
+                continue
             wins_a   = r["wins_a"] or 0
             wins_b   = r["wins_b"] or 0
             draws    = r["draws"]  or 0

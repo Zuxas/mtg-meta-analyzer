@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 15) — Major archetype consolidation + min-appearance filter
+
+1. **35 new ALIASES**: Amulet Titan (10 splash variants → canonical), Eldrazi Tron (5 variants), Goryo's Vengeance (5 variants), Murktide (2→Dimir), Merfolk (2→canonical), Burn (2→canonical), 8-Rack (3→canonical), Birthing Ritual (2→Simic), Grinding Breach (3→canonical), Standard: Domain Overlords→Four-Color, Sultai Beanstalk→Four-Color, Azorius Midrange→Azorius Control
+2. **min_arch_appearances=10 filter**: `get_real_matchup_winrates()` now pre-filters archetypes with <10 total match appearances, removing one-off junk entries from matchup calculations
+3. **Backfill**: 35 renames applied. Key consolidations: Amulet Titan 8,567 matches, Goryo's Vengeance 5,623, Grinding Breach 6,239, Eldrazi Tron 4,578
+4. **After cleanup**: Standard 1,151 (was 1,157), Modern 750 (was 782), Pioneer 302 (was 304)
+
+---
+
 ### Session 2026-03-26 (Session 14) — Archetype normalization + junk exclusion
 
 1. **EXCLUDE_ARCHETYPES** in win_rates.py: "Decklist" and "All Other Decklists" filtered from all real-match WR calculations via SQL NOT IN clause (1,106 matches excluded from analysis, not deleted from DB)

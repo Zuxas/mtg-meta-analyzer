@@ -195,8 +195,8 @@ ALIASES = {
     "crashing footfalls":      "Temur Rhinos",
 
     # --- WUBRG color-code patterns (melee.gg) ---
-    "w-u-b-g goryo's vengeance": "Four-Color Goryo's Vengeance",
-    "w-u-b-g goryo'S vengeance": "Four-Color Goryo's Vengeance",
+    "w-u-b-g goryo's vengeance": "Goryo's Vengeance",
+    "w-u-b-g goryo'S vengeance": "Goryo's Vengeance",
     "w-u-b-g overlords":       "Four-Color Overlords",
     "w-u-b-g beanstalk":       "Four-Color Beanstalk",
     "w-u-b-g":                 "Four-Color",
@@ -217,7 +217,7 @@ ALIASES = {
 
     # --- Apostrophe fixes ---
     "goryo's":                 "Goryo's Vengeance",
-    "esper goryo's":           "Esper Goryo's Vengeance",
+    "esper goryo's":           "Goryo's Vengeance",
 
     # --- Additional Standard aliases ---
     "4/5c control":            "Four-Color Control",
@@ -229,6 +229,63 @@ ALIASES = {
     "ur control":              "Izzet Control",
     "azorius aggro":           "Azorius Aggro",
     "uw aggro":                "Azorius Aggro",
+
+    # --- Modern: Amulet Titan (splash variants → canonical) ---
+    "simic amulet titan":      "Amulet Titan",
+    "selesnya amulet titan":   "Amulet Titan",
+    "naya amulet titan":       "Amulet Titan",
+    "izzet amulet titan":      "Amulet Titan",
+    "grixis amulet titan":     "Amulet Titan",
+    "jund amulet titan":       "Amulet Titan",
+    "orzhov amulet titan":     "Amulet Titan",
+    "golgari amulet titan":    "Amulet Titan",
+    "esper amulet titan":      "Amulet Titan",
+    "azorius amulet titan":    "Amulet Titan",
+
+    # --- Modern: Eldrazi / Tron family ---
+    "colorless eldrazi tron":  "Eldrazi Tron",
+    "colorless eldrazi":       "Eldrazi Tron",
+    "mono green tron":         "Eldrazi Tron",
+    "colorless tron":          "Eldrazi Tron",
+    "colorless":               "Eldrazi Tron",
+
+    # --- Modern: Goryo's Vengeance (color labels → canonical) ---
+    "esper goryo's vengeance":        "Goryo's Vengeance",
+    "four-color goryo's vengeance":   "Goryo's Vengeance",
+    "grixis goryo's vengeance":       "Goryo's Vengeance",
+    "4c goryo's":                     "Goryo's Vengeance",
+    "4cc goryo's":                    "Goryo's Vengeance",
+
+    # --- Modern: Murktide (Dimir is canonical) ---
+    "izzet murktide":          "Dimir Murktide",
+    "grixis murktide":         "Dimir Murktide",
+
+    # --- Modern: Merfolk ---
+    "mono blue merfolk":       "Merfolk",
+    "simic merfolk":           "Merfolk",
+
+    # --- Modern: Burn ---
+    "boros burn":              "Burn",
+    "mono red burn":           "Burn",
+
+    # --- Modern: 8-Rack ---
+    "10-rack":                 "8-Rack",
+    "mono black 8-rack":       "8-Rack",
+    "orzhov 8-rack":           "8-Rack",
+
+    # --- Modern: Birthing Ritual (Simic is canonical) ---
+    "abzan birthing ritual":   "Simic Birthing Ritual",
+    "jund birthing ritual":    "Simic Birthing Ritual",
+
+    # --- Modern: Grinding Breach variants ---
+    "esper grinding breach":   "Grinding Breach",
+    "grixis grinding breach":  "Grinding Breach",
+    "bant grinding breach":    "Grinding Breach",
+
+    # --- Standard consolidations ---
+    "domain overlords":        "Four-Color Overlords",
+    "sultai beanstalk":        "Four-Color Beanstalk",
+    "azorius midrange":        "Azorius Control",
 
     # --- Junk entries (map to empty so they're recognized as bad) ---
     "decklist":                "",
