@@ -74,10 +74,11 @@ def _draw_event_markers(ax, x_labels: list[str], sorted_keys: list[str],
         color = _EVENT_COLORS.get(ev.get("type"), "#888888")
         ax.axvline(x=best_idx, color=color, linestyle="--",
                    linewidth=1, alpha=0.6, zorder=1)
-        ax.text(best_idx, 0.97, ev.get("short", ""),
-                color=color, fontsize=6, rotation=45,
-                ha="left", va="top", alpha=0.8,
-                transform=ax.get_xaxis_transform())
+        ax.annotate(ev.get("short", ""),
+                    xy=(best_idx, 1.0),
+                    xycoords=("data", "axes fraction"),
+                    rotation=45, fontsize=6, color=color,
+                    ha="left", va="bottom", clip_on=False, alpha=0.85)
 
 
 def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
@@ -402,15 +403,36 @@ class ChartCanvas(QWidget):
         ax = self._fig.add_subplot(111)
         _style_ax(ax, self._fig)
 
+        sample = data.get("sample_data", {})
+
         for i, arch in enumerate(archetypes):
             color = _PALETTE[i % len(_PALETTE)]
             row = series.get(arch, {})
-            y = [
-                (row.get(w) or 0) * 100
-                for w in sorted_weeks
-            ]
-            ax.plot(x_labels, y, marker="o", markersize=4, linewidth=2,
-                    color=color, label=_shorten(arch), alpha=0.9)
+            arch_samples = sample.get(arch, {})
+
+            if mode == "win_pct":
+                # For win rate: suppress weeks with <3 appearances, apply 3-point rolling avg
+                raw = []
+                for w in sorted_weeks:
+                    val = row.get(w)
+                    n   = arch_samples.get(w, 0)
+                    raw.append((val or 0) * 100 if val is not None and n >= 3 else None)
+                # 3-point rolling average (skip Nones)
+                y = []
+                for j in range(len(raw)):
+                    window = [raw[k] for k in range(max(0, j - 1), min(len(raw), j + 2))
+                              if raw[k] is not None]
+                    y.append(sum(window) / len(window) if window else None)
+                # Plot only non-None segments
+                xs = [x_labels[j] for j in range(len(y)) if y[j] is not None]
+                ys = [y[j] for j in range(len(y)) if y[j] is not None]
+                if ys:
+                    ax.plot(xs, ys, marker="o", markersize=3, linewidth=2,
+                            color=color, label=_shorten(arch), alpha=0.9)
+            else:
+                y = [(row.get(w) or 0) * 100 for w in sorted_weeks]
+                ax.plot(x_labels, y, marker="o", markersize=4, linewidth=2,
+                        color=color, label=_shorten(arch), alpha=0.9)
 
         fmt = data.get("format_name", "standard").upper()
         ax.set_title(f"{title_sfx} \u2014 {fmt}",

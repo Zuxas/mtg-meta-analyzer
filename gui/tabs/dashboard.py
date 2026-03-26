@@ -990,7 +990,7 @@ class DashboardTab(QWidget):
             row_hl.addWidget(dot)
 
             cb = QCheckBox(_shorten_arch(arch))
-            cb.setChecked(True)
+            cb.setChecked(i < 8)  # default: top 8 by meta share
             cb.setStyleSheet(f"color: {theme.TEXT}; font-size: 11px; background: transparent;")
             cb.stateChanged.connect(self._on_checkbox_changed)
             row_hl.addWidget(cb, 1)

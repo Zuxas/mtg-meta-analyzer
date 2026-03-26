@@ -184,6 +184,14 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 19) — Chart polish: event labels, WR smoothing, default top 8
+
+1. **Event marker labels**: replaced `ax.text` with `ax.annotate(xycoords=("data","axes fraction"))` + `clip_on=False` so labels render above the chart area
+2. **Win rate smoothing**: win_pct mode now suppresses weeks with <3 appearances, applies 3-point rolling average before plotting — eliminates 0-100% noise spikes
+3. **Default top 8**: archetype checkboxes default to only top 8 checked (by meta share), rest unchecked — makes chart readable; user can check more via sidebar
+
+---
+
 ### Session 2026-03-26 (Session 18) — Format event markers on timeline charts
 
 1. **data/format_events.json**: manually maintained file with set releases, B&R announcements, and rotation dates for all 5 formats (28 events total covering last 18 months)
