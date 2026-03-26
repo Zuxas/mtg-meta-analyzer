@@ -297,6 +297,12 @@ class MyDecksTab(QWidget):
         self._export_btn.clicked.connect(self._export_deck)
         exp_row.addWidget(self._export_btn)
 
+        self._guide_btn = QPushButton("Export Guide")
+        self._guide_btn.setEnabled(False)
+        self._guide_btn.setToolTip("Generate a printable HTML tournament guide with SB plans")
+        self._guide_btn.clicked.connect(self._export_guide)
+        exp_row.addWidget(self._guide_btn)
+
         self._rcq_btn = QPushButton("Open in RCQ Optimizer")
         self._rcq_btn.setEnabled(False)
         self._rcq_btn.setStyleSheet(
@@ -403,6 +409,7 @@ class MyDecksTab(QWidget):
         self._edit_btn.setEnabled(True)
         self._del_btn.setEnabled(True)
         self._export_btn.setEnabled(True)
+        self._guide_btn.setEnabled(True)
         self._rcq_btn.setEnabled(True)
 
     def _show_deck(self, deck):
@@ -492,6 +499,7 @@ class MyDecksTab(QWidget):
         self._edit_btn.setEnabled(False)
         self._del_btn.setEnabled(False)
         self._export_btn.setEnabled(False)
+        self._guide_btn.setEnabled(False)
         self._rcq_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
@@ -584,7 +592,145 @@ class MyDecksTab(QWidget):
             format_name=self._current_deck.get("format", "standard"),
         )
 
+    def _export_guide(self):
+        if not self._current_deck:
+            return
+        deck = self._current_deck
+        deck_id = deck.get("id")
+
+        def _do():
+            from db.saved_decks import get_sb_plans
+            plans = get_sb_plans(deck_id) if deck_id else []
+            return _generate_guide_html(deck, plans)
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_guide_generated)
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
+    def _on_guide_generated(self, html: str):
+        import os
+        from datetime import datetime
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        exports = os.path.join(root, "exports")
+        os.makedirs(exports, exist_ok=True)
+
+        name = self._current_deck.get("name", "deck") if self._current_deck else "deck"
+        safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in name).strip()
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join(exports, f"guide_{safe}_{ts}.html")
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+
     def _open_in_rcq(self):
         if not self._current_deck:
             return
         self.open_in_rcq.emit(self._current_deck)
+
+
+# ---------------------------------------------------------------------------
+# Tournament guide HTML generator
+# ---------------------------------------------------------------------------
+
+_DIFF_COLORS = {"Easy": "#3cb44b", "Medium": "#f58231", "Hard": "#e6194b"}
+
+
+def _card_list_html(cards: list, label: str, color: str) -> str:
+    """Format a list of card name strings as an HTML line."""
+    if not cards:
+        return ""
+    items = ", ".join(cards)
+    return f'<span style="color:{color}; font-weight:bold;">{label}:</span> {items}<br>\n'
+
+
+def _generate_guide_html(deck: dict, plans: list[dict]) -> str:
+    """Generate a printable HTML tournament guide."""
+    name = deck.get("name", "Deck")
+    fmt  = deck.get("format", "").capitalize()
+    arch = deck.get("archetype", "")
+    main = deck.get("mainboard", {})
+    side = deck.get("sideboard", {})
+    notes = deck.get("notes", "")
+
+    parts = [f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>{name} — Tournament Guide</title>
+<style>
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 20px auto;
+         background: #1a1a2e; color: #e0e0e0; padding: 20px; }}
+  h1 {{ color: #65bcd5; border-bottom: 2px solid #65bcd5; padding-bottom: 8px; }}
+  h2 {{ color: #65bcd5; margin-top: 24px; }}
+  h3 {{ color: #bfef45; margin-top: 16px; margin-bottom: 4px; }}
+  .meta {{ color: #8a9aaa; font-size: 13px; margin-bottom: 16px; }}
+  .decklist {{ background: #2e3848; padding: 12px; border-radius: 6px;
+               font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap; }}
+  .matchup {{ background: #2e3848; padding: 10px 14px; border-radius: 6px;
+              margin-bottom: 12px; border-left: 4px solid #65bcd5; }}
+  .diff {{ font-weight: bold; font-size: 11px; padding: 2px 8px; border-radius: 3px; }}
+  .notes {{ color: #8a9aaa; font-style: italic; font-size: 12px; }}
+  @media print {{
+    body {{ background: white; color: black; }}
+    .decklist, .matchup {{ background: #f5f5f5; border-color: #333; }}
+    h1, h2, h3 {{ color: #333; }}
+  }}
+</style>
+</head><body>
+<h1>{name}</h1>
+<div class="meta">{fmt} &bull; {arch}{(' &bull; ' + notes) if notes else ''}</div>
+"""]
+
+    # Decklist
+    main_ct = sum(main.values())
+    side_ct = sum(side.values())
+    parts.append(f'<h2>Decklist ({main_ct} main / {side_ct} side)</h2>\n<div class="decklist">')
+    for card, qty in sorted(main.items()):
+        parts.append(f"{qty} {card}\n")
+    if side:
+        parts.append("\nSideboard\n")
+        for card, qty in sorted(side.items()):
+            parts.append(f"{qty} {card}\n")
+    parts.append("</div>\n")
+
+    # Sideboard plans
+    if plans:
+        parts.append(f"<h2>Sideboard Guide ({len(plans)} matchups)</h2>\n")
+        for p in plans:
+            opp  = p.get("opponent_archetype", "Unknown")
+            diff = p.get("difficulty", "Medium")
+            dc   = _DIFF_COLORS.get(diff, "#f58231")
+            pn   = p.get("notes", "")
+
+            parts.append(f'<div class="matchup">\n')
+            parts.append(f'<b>{opp}</b> <span class="diff" style="color:{dc};">[{diff}]</span><br>\n')
+
+            play_in  = p.get("play_in", [])
+            play_out = p.get("play_out", [])
+            draw_in  = p.get("draw_in", [])
+            draw_out = p.get("draw_out", [])
+
+            has_play_draw = play_in or play_out or draw_in or draw_out
+            if has_play_draw:
+                parts.append('<b>On the Play:</b><br>\n')
+                parts.append(_card_list_html(play_in, "IN", "#3cb44b"))
+                parts.append(_card_list_html(play_out, "OUT", "#e6194b"))
+                parts.append('<b>On the Draw:</b><br>\n')
+                parts.append(_card_list_html(draw_in, "IN", "#3cb44b"))
+                parts.append(_card_list_html(draw_out, "OUT", "#e6194b"))
+            else:
+                parts.append('<span class="notes">No play/draw split saved.</span><br>\n')
+
+            if pn:
+                parts.append(f'<div class="notes">{pn}</div>\n')
+            parts.append("</div>\n")
+    else:
+        parts.append('<h2>Sideboard Guide</h2>\n<p class="notes">No sideboard plans saved yet. '
+                     'Create them in the RCQ Optimizer tab.</p>\n')
+
+    parts.append("</body></html>")
+    return "".join(parts)

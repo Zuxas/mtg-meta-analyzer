@@ -201,7 +201,8 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     - Left panel: format-filtered deck list with Add/Edit/Delete buttons
     - Right panel: deck detail with Decklist and Sideboard Plans sub-tabs
     - Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
-    - Export and "Open in RCQ Optimizer" buttons on deck detail
+    - Export, "Export Guide" (printable HTML), and "Open in RCQ Optimizer" buttons on deck detail
+    - Guide export: deck name, full 75, per-matchup difficulty + ON PLAY/DRAW IN/OUT + notes; print-friendly CSS
     - `open_in_rcq` signal wired to MainWindow → switches to Tournament Prep tab
   - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
   - **Deck parser**: handles all sideboard formats — `Sideboard`, `SIDEBOARD:`, `SB:`, `// Sideboard`, `SB: 4 Card`, blank-line fallback

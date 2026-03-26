@@ -227,10 +227,11 @@ python run_gui.py
 - "Edit Plan" button per row → inline play/draw IN/OUT editor with difficulty badge
 - Plans auto-save to saved_sb_plans table
 
-### 2. Printable tournament guide export (Mar 25 Session 2)
-- "Export Guide" on any saved deck → clean .txt or HTML
-- Full 75 + each matchup as a section with ON PLAY / ON DRAW IN/OUT + notes
-- Save to exports/ and auto-open; clean enough to print and fold for a tournament
+### 2. ~~Printable tournament guide export~~ — **DONE** (2026-03-26)
+- "Export Guide" button on My Decks tab → generates clean HTML in exports/
+- Full 75 + per-matchup sections with difficulty badge, ON PLAY / ON DRAW IN/OUT, notes
+- Dark theme for screen, print media query for clean B&W printing
+- Auto-opens in browser via QDesktopServices
 
 ## MEDIUM PRIORITY — Easy wins still TODO (do in order, commit after each)
 
