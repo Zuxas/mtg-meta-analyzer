@@ -184,6 +184,16 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 6) — Heatmap crash on format+source switch
+
+1. **Crash root cause**: `finished → deleteLater` destroyed the C++ QThread before `_clear_worker_ref` lambda ran, causing `RuntimeError: wrapped C/C++ object has been deleted`
+2. **Fix**: replaced split `deleteLater` + `_clear_worker_ref` with single `_on_worker_finished(w_ref)` that guards both with try/except RuntimeError
+3. **`_cancel_worker`** now calls `w.quit()` + `w.wait(3000)` to actually stop the thread before starting a new one
+4. **Debounce**: `_is_busy()` guard at top of each button handler — returns early if a worker is still running
+5. **`_on_data` / `_on_error`**: only call `_set_busy(False)` if no new worker has started, preventing premature UI re-enable
+
+---
+
 ### Session 2026-03-26 (Session 5) — Heatmap stability fixes
 
 1. **Worker lifecycle crash fix** — `_wire_worker()` captures worker in a local variable for `deleteLater` lambda; `_clear_worker_ref()` only clears `self._worker` if it still points to the same worker; prevents deleting a newer worker when an old one finishes

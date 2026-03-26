@@ -427,15 +427,30 @@ class HeatmapTab(QWidget):
         """Stop running worker. Called by MainWindow on app exit."""
         self._cancel_worker()
 
+    def _is_busy(self) -> bool:
+        """True if a worker is currently running."""
+        w = self._worker
+        if w is None:
+            return False
+        try:
+            return w.isRunning()
+        except RuntimeError:
+            self._worker = None
+            return False
+
     def _cancel_worker(self):
         """Safely cancel any running worker without crashing."""
         w = self._worker
-        if w is not None:
-            try:
-                w.blockSignals(True)
-            except RuntimeError:
-                pass
-            self._worker = None
+        self._worker = None
+        if w is None:
+            return
+        try:
+            w.blockSignals(True)
+            if w.isRunning():
+                w.quit()
+                w.wait(3000)  # wait up to 3 s for thread to finish
+        except RuntimeError:
+            pass  # C++ object already deleted — nothing to do
 
     def _prepare_load(self, source: str):
         """Common pre-load steps: cancel old worker, reset state, show loading UI."""
@@ -449,23 +464,23 @@ class HeatmapTab(QWidget):
         self._set_busy(True)
 
     def _wire_worker(self, worker):
-        """Store worker reference and wire finished → deleteLater safely.
-
-        Key fix: capture the worker in a local variable for the lambda so that
-        deleteLater always targets the correct QThread object, even if
-        self._worker has been replaced by a newer load before this one finishes.
-        """
+        """Store worker reference and wire finished → deleteLater safely."""
         self._worker = worker
-        w_ref = worker  # captured by lambdas below — won't change
+        w_ref = worker  # captured by lambdas — won't change if self._worker is reassigned
         worker.error.connect(self._on_error)
-        worker.finished.connect(w_ref.deleteLater)
-        worker.finished.connect(lambda: self._clear_worker_ref(w_ref))
+        worker.finished.connect(lambda: self._on_worker_finished(w_ref))
         worker.start()
 
-    def _clear_worker_ref(self, w):
-        """Only clear self._worker if it still points to *this* worker."""
+    def _on_worker_finished(self, w):
+        """Clean up after a worker finishes. Safely handles deleted C++ objects."""
+        # Only re-enable UI if no newer worker has taken over
         if self._worker is w:
             self._worker = None
+        # Schedule C++ deletion; guard against already-deleted wrapper
+        try:
+            w.deleteLater()
+        except RuntimeError:
+            pass
 
     # ------------------------------------------------------------------
     # Load actions
@@ -473,6 +488,8 @@ class HeatmapTab(QWidget):
 
     def _load_combined(self):
         """Default action: real match data + scraped fills gaps."""
+        if self._is_busy():
+            return
         fmt = self._fmt.currentText()
         self._prepare_load("combined")
         self._status.setText(f"Loading real match data + cached scrapes for {fmt}\u2026")
@@ -486,6 +503,8 @@ class HeatmapTab(QWidget):
         self._on_data(fmt, matrix)
 
     def _fetch_live(self):
+        if self._is_busy():
+            return
         fmt = self._fmt.currentText()
         self._prepare_load("fetch")
         self._status.setText(f"Fetching {fmt} win-rates from MTGDecks\u2026")
@@ -495,6 +514,8 @@ class HeatmapTab(QWidget):
         self._wire_worker(worker)
 
     def _load_cached(self):
+        if self._is_busy():
+            return
         fmt = self._fmt.currentText()
         self._prepare_load("cache")
         self._status.setText(f"Loading cached {fmt} data\u2026")
@@ -516,13 +537,15 @@ class HeatmapTab(QWidget):
     # ------------------------------------------------------------------
 
     def _on_error(self, msg: str):
-        self._set_busy(False)
+        if not self._is_busy():
+            self._set_busy(False)
         self._scroll.setVisible(False)
         self._status.setVisible(True)
         self._status.setText(f"Error: {msg}")
 
     def _on_data(self, fmt: str, matrix: dict):
-        self._set_busy(False)
+        if not self._is_busy():
+            self._set_busy(False)
         self._loaded_format = fmt
 
         if not matrix:

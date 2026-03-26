@@ -172,7 +172,9 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     3. Paste Data — manual CSV / JSON (Frank Karsten format)
   - `_CombinedWorker` builds bidirectional matrix from canonical (a<b) real data + cached scrapes
   - Workers emit `(format_name, matrix)` tuples; `_on_data` uses loaded format, not current combo
-  - `_wire_worker()` captures worker ref locally for safe `deleteLater`; prevents crash on source switching
+  - `_wire_worker()` → `_on_worker_finished()` handles `deleteLater` + ref clear in one guarded method
+  - `_cancel_worker()` calls `quit()` + `wait(3000)` to stop thread before starting new one
+  - `_is_busy()` debounce guard on all button handlers; `_on_data`/`_on_error` only re-enable if no new worker
   - `_prepare_load()` cancels old worker + clears state before each new load
   - `_filter_to_meta()` uses case-insensitive + substring matching to bridge naming differences
   - Only archetypes in `get_meta_standings(top=30)` shown; low-coverage warning for <8 archetypes
