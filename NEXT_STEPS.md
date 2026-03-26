@@ -184,6 +184,13 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 8) — Heatmap grid replacement crash fix
+
+1. **Root cause found**: `import sip` fails on this system (`sip` is only available as `PyQt6.sip`); the `try/except` silently swallowed the ImportError, so `sip.delete(old_layout)` never ran. On the second grid draw, `QVBoxLayout(self._grid_widget)` tried to set a new layout on a widget that already had one — Qt rejected it, widgets piled up, and eventually something crashed.
+2. **Fix**: replaced `sip.delete(old_layout)` pattern with full widget replacement — `_draw_grid` creates a fresh `QWidget`, sets it as `_scroll`'s widget (which takes ownership and deletes the old one), then builds the new layout on the fresh widget. No `sip` import needed.
+
+---
+
 ### Session 2026-03-26 (Session 7) — Heatmap gen-counter fix + background scrape time gate
 
 1. **Heatmap gen-counter**: replaced `_is_busy()` debounce with `_load_gen` monotonic counter — all callbacks (`_on_data`, `_on_error`, `_on_combined_data`, `_on_worker_finished`) check `gen == self._load_gen` and silently discard stale results from cancelled loads
