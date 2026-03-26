@@ -184,6 +184,16 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 18) — Format event markers on timeline charts
+
+1. **data/format_events.json**: manually maintained file with set releases, B&R announcements, and rotation dates for all 5 formats (28 events total covering last 18 months)
+2. **chart_canvas.py**: `_draw_event_markers()` overlays vertical dashed lines at event dates — blue for set releases, orange for rotations, red for B&R. Short label rotated 45deg at top of line.
+3. **Applied to all chart types**: `draw_from_data()`, `_draw_meta_share()`, `_draw_trend()`, `_draw_compare()` — all call `_draw_event_markers()` after plotting data
+4. **Dashboard "Show Events" checkbox**: toggle next to Weekly/Daily buttons, default on, instant redraw on toggle — passed as `show_events` param to `draw_from_data()`
+5. **Charts tab**: markers appear automatically (no separate toggle needed since Charts tab is less dense)
+
+---
+
 ### Session 2026-03-26 (Session 17) — Legacy + Pauper archetype normalization
 
 1. **89 new aliases** for Legacy and Pauper:

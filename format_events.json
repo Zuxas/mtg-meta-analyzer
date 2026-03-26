@@ -1,0 +1,40 @@
+{
+  "standard": [
+    {"date": "2024-08-02", "type": "set_release", "name": "Bloomburrow", "short": "BLB"},
+    {"date": "2024-09-27", "type": "set_release", "name": "Duskmourn: House of Horror", "short": "DSK"},
+    {"date": "2024-09-27", "type": "rotation", "name": "Rotation — MID/VOW/NEO/SNC/DMU/BRO rotated out", "short": "ROT"},
+    {"date": "2024-11-15", "type": "set_release", "name": "Foundations", "short": "FDN"},
+    {"date": "2025-02-14", "type": "set_release", "name": "Aetherdrift", "short": "AET"},
+    {"date": "2025-04-18", "type": "set_release", "name": "Tarkir: Dragonstorm", "short": "TDM"},
+    {"date": "2024-12-16", "type": "banlist", "name": "B&R: Leyline of Resonance banned in Standard", "short": "B&R"},
+    {"date": "2025-09-05", "type": "set_release", "name": "Final Fantasy", "short": "FF"},
+    {"date": "2025-11-14", "type": "set_release", "name": "Innistrad Remastered", "short": "INR"}
+  ],
+  "modern": [
+    {"date": "2024-08-26", "type": "banlist", "name": "B&R: Nadu, Grief, Fury banned; Energy refund adjustments", "short": "B&R Aug24"},
+    {"date": "2024-08-02", "type": "set_release", "name": "Modern Horizons 3", "short": "MH3"},
+    {"date": "2024-11-15", "type": "set_release", "name": "Foundations", "short": "FDN"},
+    {"date": "2025-02-14", "type": "set_release", "name": "Aetherdrift", "short": "AET"},
+    {"date": "2025-04-18", "type": "set_release", "name": "Tarkir: Dragonstorm", "short": "TDM"}
+  ],
+  "pioneer": [
+    {"date": "2024-08-26", "type": "banlist", "name": "B&R: Sorin, Smuggler's Copter unbanned in Pioneer", "short": "B&R Aug24"},
+    {"date": "2024-08-02", "type": "set_release", "name": "Bloomburrow", "short": "BLB"},
+    {"date": "2024-09-27", "type": "set_release", "name": "Duskmourn", "short": "DSK"},
+    {"date": "2024-11-15", "type": "set_release", "name": "Foundations", "short": "FDN"},
+    {"date": "2025-02-14", "type": "set_release", "name": "Aetherdrift", "short": "AET"},
+    {"date": "2025-04-18", "type": "set_release", "name": "Tarkir: Dragonstorm", "short": "TDM"}
+  ],
+  "legacy": [
+    {"date": "2024-06-24", "type": "banlist", "name": "B&R: Nadu banned, Grief banned in Legacy", "short": "B&R Jun24"},
+    {"date": "2024-08-02", "type": "set_release", "name": "Modern Horizons 3 (Legacy legal)", "short": "MH3"},
+    {"date": "2024-11-15", "type": "set_release", "name": "Foundations", "short": "FDN"},
+    {"date": "2025-02-14", "type": "set_release", "name": "Aetherdrift", "short": "AET"}
+  ],
+  "pauper": [
+    {"date": "2024-08-26", "type": "banlist", "name": "B&R: All That Glitters banned in Pauper", "short": "B&R Aug24"},
+    {"date": "2024-11-15", "type": "set_release", "name": "Foundations", "short": "FDN"},
+    {"date": "2025-02-14", "type": "set_release", "name": "Aetherdrift", "short": "AET"},
+    {"date": "2025-04-18", "type": "set_release", "name": "Tarkir: Dragonstorm", "short": "TDM"}
+  ]
+}

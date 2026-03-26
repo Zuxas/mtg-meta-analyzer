@@ -360,6 +360,18 @@ class DashboardTab(QWidget):
         self._chart_granularity = "weekly"
         self._set_granularity("weekly")  # set initial button styles
 
+        sep2 = QLabel("|")
+        sep2.setStyleSheet(f"color: {theme.BORDER}; font-size: 14px;")
+        sep2.setFixedWidth(12)
+        mode_row.addWidget(sep2)
+
+        self._show_events_cb = QCheckBox("Show Events")
+        self._show_events_cb.setChecked(True)
+        self._show_events_cb.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        self._show_events_cb.setToolTip("Show set releases, B&R announcements, and rotation dates on charts")
+        self._show_events_cb.stateChanged.connect(self._on_events_toggled)
+        mode_row.addWidget(self._show_events_cb)
+
         mode_row.addStretch()
         bl.addLayout(mode_row)
 
@@ -656,7 +668,8 @@ class DashboardTab(QWidget):
     def _on_chart_data(self, data):
         self._chart_data = data
         self._rebuild_checkboxes(data["archetypes"] if data else [])
-        self._canvas.draw_from_data(data, mode=self._chart_mode)
+        show_ev = self._show_events_cb.isChecked()
+        self._canvas.draw_from_data(data, mode=self._chart_mode, show_events=show_ev)
 
     def _on_error(self, msg: str):
         self._status_lbl.setText(f"Error: {msg}")
@@ -982,7 +995,9 @@ class DashboardTab(QWidget):
     def _on_checkbox_changed(self):
         if self._chart_data:
             visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
-            self._canvas.draw_from_data(self._chart_data, visible, mode=self._chart_mode)
+            show_ev = self._show_events_cb.isChecked()
+            self._canvas.draw_from_data(self._chart_data, visible,
+                                        mode=self._chart_mode, show_events=show_ev)
 
     def _select_all_archetypes(self):
         for cb in self._chart_checks.values():
@@ -1008,7 +1023,16 @@ class DashboardTab(QWidget):
         )
         if self._chart_data:
             visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
-            self._canvas.draw_from_data(self._chart_data, visible, mode=mode)
+            show_ev = self._show_events_cb.isChecked()
+            self._canvas.draw_from_data(self._chart_data, visible, mode=mode,
+                                        show_events=show_ev)
+
+    def _on_events_toggled(self):
+        if self._chart_data:
+            visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
+            show_ev = self._show_events_cb.isChecked()
+            self._canvas.draw_from_data(self._chart_data, visible,
+                                        mode=self._chart_mode, show_events=show_ev)
 
     def _set_granularity(self, gran: str):
         self._chart_granularity = gran

@@ -199,7 +199,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
   - **Dashboard performance fix**: `get_meta_standings` uses single bulk SQL query (was 918 queries → 1); load time 9s → 0.07s
   - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
-  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts with Weekly|Daily granularity toggle, archetype checkboxes
+  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts with Weekly|Daily granularity toggle, archetype checkboxes, "Show Events" toggle for format event markers (set releases=blue, B&R=red, rotations=orange dashed lines)
   - Panel titles are **dynamic**: "WIN RATE — 2 WEEKS", "POPULAR — 4 WEEKS" etc. update with timeframe selector
   - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion); "This List" tab shows exact 75 when opened from Recent Top Finishes click
   - **Date filter fix**: all panels use SQLite CASE expression (`_DATE_KEY`) to normalize `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) to `YYYYMMDD` for correct filtering/ordering everywhere

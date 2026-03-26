@@ -8,6 +8,7 @@ IMPORTANT: This module must be imported AFTER matplotlib.use("QtAgg") is
 set in run_gui.py. Do NOT import analysis.charts here — it sets Agg backend
 at module level and would conflict.
 """
+import os, json
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -18,6 +19,64 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
+
+# ---------------------------------------------------------------------------
+# Format event markers (set releases, B&R, rotations)
+# ---------------------------------------------------------------------------
+
+_EVENT_COLORS = {
+    "set_release": "#42a5f5",   # blue
+    "rotation":    "#f58231",   # orange
+    "banlist":     "#e6194b",   # red
+}
+
+_FORMAT_EVENTS: dict = {}  # lazy-loaded
+
+
+def _load_format_events() -> dict:
+    global _FORMAT_EVENTS
+    if _FORMAT_EVENTS:
+        return _FORMAT_EVENTS
+    path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "format_events.json",
+    )
+    try:
+        with open(path, encoding="utf-8") as f:
+            _FORMAT_EVENTS = json.load(f)
+    except Exception:
+        _FORMAT_EVENTS = {}
+    return _FORMAT_EVENTS
+
+
+def _draw_event_markers(ax, x_labels: list[str], sorted_keys: list[str],
+                        format_name: str):
+    """Overlay vertical dashed lines for format events that fall within the chart range."""
+    events = _load_format_events().get(format_name.lower(), [])
+    if not events or not sorted_keys:
+        return
+
+    # sorted_keys are bucket start dates like "2025-01-06"
+    # x_labels are the shortened display versions like "01-06"
+    first_date = sorted_keys[0]
+    last_date  = sorted_keys[-1]
+
+    for ev in events:
+        d = ev["date"]
+        if d < first_date or d > last_date:
+            continue
+        # Find the closest x position
+        best_idx = 0
+        best_dist = abs(ord(d[5]) - ord(first_date[5]))  # rough
+        for i, k in enumerate(sorted_keys):
+            if k <= d:
+                best_idx = i
+        color = _EVENT_COLORS.get(ev.get("type"), "#888888")
+        ax.axvline(x=best_idx, color=color, linestyle="--",
+                   linewidth=1, alpha=0.6, zorder=1)
+        ax.text(best_idx, ax.get_ylim()[1] * 0.97, ev.get("short", ""),
+                color=color, fontsize=6, rotation=45,
+                ha="left", va="top", alpha=0.8)
 
 
 def fetch_chart_data(format_name, top, weeks, since, until, standings=None,
@@ -305,12 +364,14 @@ class ChartCanvas(QWidget):
     # Meta share — line chart, top N archetypes over time
     # ------------------------------------------------------------------
 
-    def draw_from_data(self, data, visible_archetypes=None, mode="meta_share"):
+    def draw_from_data(self, data, visible_archetypes=None, mode="meta_share",
+                       show_events=True):
         """
         Draw the meta-share or win-pct chart from a pre-loaded data dict
         (returned by fetch_chart_data). No DB query — instant redraw.
         visible_archetypes: set/list of archetype names to include (None = all).
         mode: 'meta_share' or 'win_pct'
+        show_events: overlay format event markers (set releases, B&R, rotations)
         """
         if data is None:
             self.show_message("No data to display.")
@@ -364,6 +425,9 @@ class ChartCanvas(QWidget):
         )
         ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
                   labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        if show_events:
+            _draw_event_markers(ax, x_labels, sorted_weeks,
+                                data.get("format_name", "standard"))
         self._fig.tight_layout()
         self._canvas.draw()
 
@@ -409,6 +473,8 @@ class ChartCanvas(QWidget):
         )
         ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
                   labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        _draw_event_markers(ax, x_labels, sorted_weeks,
+                            data.get("format_name", "standard"))
         self._fig.tight_layout()
         self._canvas.draw()
 
@@ -431,6 +497,7 @@ class ChartCanvas(QWidget):
 
         weekly      = list(reversed(weekly))
         x_labels    = [w["week_start"][5:] for w in weekly]
+        _trend_keys = [w["week_start"] for w in weekly]
         appearances = [w["appearances"] for w in weekly]
         meta_share  = [w["meta_share"] * 100 for w in weekly]
         est_winpct  = [
@@ -498,6 +565,7 @@ class ChartCanvas(QWidget):
             loc="upper left", fontsize=7, framealpha=0.3,
             labelcolor="white", facecolor=_BG, edgecolor=_GRID,
         )
+        _draw_event_markers(ax1, x_labels, _trend_keys, format_name)
         self._fig.tight_layout()
         self._canvas.draw()
 
@@ -551,6 +619,8 @@ class ChartCanvas(QWidget):
         )
         ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
                   labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        _draw_event_markers(ax, x_labels, sorted_weeks,
+                            data.get("format_name", "standard"))
         self._fig.tight_layout()
         self._canvas.draw()
 
