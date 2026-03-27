@@ -805,7 +805,8 @@ class DashboardTab(QWidget):
         tbl.setSortingEnabled(False)
         top_n = int(self._top_n.currentText())
         ranked = sorted(
-            [s for s in standings if s.get("est_match_winpct") is not None],
+            [s for s in standings
+             if s.get("est_match_winpct") is not None and s["appearances"] >= 15],
             key=lambda s: -s["est_match_winpct"],
         )[:top_n]
 
@@ -820,6 +821,8 @@ class DashboardTab(QWidget):
 
             # Use real match W/L where available (MTGMelee / bracket inference)
             real = (real_wrs or {}).get(s["archetype"])
+            print(f"[WR PANEL] {s['archetype']:30s} apps={s['appearances']:>6} wr={s.get('est_match_winpct',0)*100:.1f}% "
+                  f"{'HIDDEN' if s['appearances'] < 15 else 'SHOW'}")
             if s["appearances"] < 15:
                 # Too few data points for meaningful win rate
                 pct        = s["est_match_winpct"] * 100
