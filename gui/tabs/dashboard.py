@@ -1097,7 +1097,7 @@ class DashboardTab(QWidget):
         return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
 
 
-def _make_sparkline(values: list[float], width: int = 60, height: int = 18) -> "QPixmap":
+def _make_sparkline(values: list[float], width: int = 64, height: int = 24) -> "QPixmap":
     """Draw a tiny trend line as a QPixmap. values = list of floats (e.g. meta shares)."""
     from PyQt6.QtGui import QPixmap, QPainter, QPen, QPainterPath
     pix = QPixmap(width, height)
@@ -1108,18 +1108,18 @@ def _make_sparkline(values: list[float], width: int = 60, height: int = 18) -> "
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     mn, mx = min(values), max(values)
     rng = mx - mn if mx != mn else 1.0
-    pad = 2
+    pad = 3
     w = width - pad * 2
     h = height - pad * 2
-    # Determine trend color: green if rising, red if falling, grey if flat
+    # Determine trend color: bright green if rising, bright red if falling, grey if flat
     delta = values[-1] - values[0]
     if delta > 0.002:
-        color = QColor(theme.OK)
+        color = QColor("#00ff88")
     elif delta < -0.002:
-        color = QColor(theme.ERR)
+        color = QColor("#ff4444")
     else:
         color = QColor(theme.TEXT_DIM)
-    pen = QPen(color, 1.5)
+    pen = QPen(color, 2.0)
     p.setPen(pen)
     path = QPainterPath()
     for i, v in enumerate(values):
