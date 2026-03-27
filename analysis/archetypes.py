@@ -260,6 +260,34 @@ ALIASES = {
     "izzet murktide":          "Dimir Murktide",
     "grixis murktide":         "Dimir Murktide",
 
+    # --- Modern: Affinity (Izzet is canonical) ---
+    "affinity":                "Izzet Affinity",
+    "jeskai affinity":         "Izzet Affinity",
+    "azorius affinity":        "Izzet Affinity",
+    "grixis affinity":         "Izzet Affinity",
+    "abzan affinity":          "Izzet Affinity",
+    "boros affinity":          "Izzet Affinity",
+    "w-u-r-g affinity":        "Izzet Affinity",
+    "temur affinity":          "Izzet Affinity",
+    "mono green affinity":     "Izzet Affinity",
+    "simic affinity":          "Izzet Affinity",
+    "orzhov affinity":         "Izzet Affinity",
+    "gruul affinity":          "Izzet Affinity",
+    "wurg affinity":           "Izzet Affinity",
+    "wbrg affinity":           "Izzet Affinity",
+    "w-u-b-g affinity":        "Izzet Affinity",
+    "bant affinity":           "Izzet Affinity",
+    "mardu affinity":          "Izzet Affinity",
+    "mono red affinity":       "Izzet Affinity",
+    "affinity neoform":        "Izzet Affinity",
+
+    # --- Modern: Neoform (Simic is canonical) ---
+    "neoform":                 "Simic Neoform",
+    "w-u-b-r-g neoform":      "Simic Neoform",
+    "jeskai neoform":          "Simic Neoform",
+    "bant neoform":            "Simic Neoform",
+    "temur neoform":           "Simic Neoform",
+
     # --- Modern: Merfolk ---
     "mono blue merfolk":       "Merfolk",
     "simic merfolk":           "Merfolk",

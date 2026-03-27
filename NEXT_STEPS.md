@@ -184,6 +184,14 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 24) — Affinity + Neoform consolidation
+
+1. **Izzet Affinity**: 18 variants (plain Affinity, Jeskai, Azorius, Grixis, etc.) consolidated → now 7,326 total matches (was 2,631)
+2. **Simic Neoform**: 5 variants consolidated → now 517 total matches
+3. **Backfill**: 23 renames applied, Modern 708 unique archetypes (was 731)
+
+---
+
 ### Session 2026-03-26 (Session 23) — Trend data fallback to matches table
 
 1. **`_archetype_trend_from_matches()`**: new function builds weekly/daily trend data from the matches table when the decks table has no recent data for an archetype
