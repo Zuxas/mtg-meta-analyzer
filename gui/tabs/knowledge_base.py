@@ -120,9 +120,23 @@ class KnowledgeBaseTab(QWidget):
         hdr.addWidget(hdr_lbl)
         hdr.addStretch()
 
+        self._filter_fmt = QComboBox()
+        self._filter_fmt.addItems(["All Formats"] + _FORMATS[1:])  # skip "any"
+        self._filter_fmt.setFixedWidth(100)
+        self._filter_fmt.currentIndexChanged.connect(lambda _: self._apply_filter(self._search_box.text()))
+        hdr.addWidget(self._filter_fmt)
+
+        self._filter_arch = QComboBox()
+        self._filter_arch.setEditable(True)
+        self._filter_arch.addItem("All Archetypes")
+        self._filter_arch.setFixedWidth(150)
+        self._filter_arch.lineEdit().setPlaceholderText("Archetype…")
+        self._filter_arch.currentTextChanged.connect(lambda _: self._apply_filter(self._search_box.text()))
+        hdr.addWidget(self._filter_arch)
+
         self._search_box = QLineEdit()
-        self._search_box.setPlaceholderText("Filter by archetype / type…")
-        self._search_box.setFixedWidth(200)
+        self._search_box.setPlaceholderText("Search text…")
+        self._search_box.setFixedWidth(160)
         self._search_box.textChanged.connect(self._apply_filter)
         hdr.addWidget(self._search_box)
 
@@ -233,17 +247,41 @@ class KnowledgeBaseTab(QWidget):
 
     def _on_rows_loaded(self, rows):
         self._all_rows = rows
+        # Populate archetype filter from loaded data
+        archs = sorted({r.get("archetype", "") for r in rows if r.get("archetype")})
+        self._filter_arch.blockSignals(True)
+        self._filter_arch.clear()
+        self._filter_arch.addItem("All Archetypes")
+        self._filter_arch.addItems(archs)
+        self._filter_arch.blockSignals(False)
         self._apply_filter(self._search_box.text())
 
-    def _apply_filter(self, text: str):
-        term = text.strip().lower()
+    def _apply_filter(self, text: str = ""):
         rows = self._all_rows
+
+        # Format dropdown filter
+        fmt_filter = self._filter_fmt.currentText()
+        if fmt_filter and fmt_filter != "All Formats":
+            rows = [r for r in rows
+                    if (r.get("format") or "").lower() == fmt_filter.lower()]
+
+        # Archetype dropdown filter
+        arch_filter = self._filter_arch.currentText().strip()
+        if arch_filter and arch_filter != "All Archetypes":
+            al = arch_filter.lower()
+            rows = [r for r in rows
+                    if al in (r.get("archetype") or "").lower()]
+
+        # Text search across archetype, type, title, comment
+        term = (text or self._search_box.text()).strip().lower()
         if term:
             rows = [r for r in rows
                     if term in (r.get("archetype") or "").lower()
                     or term in (r.get("type") or "").lower()
-                    or term in (r.get("format") or "").lower()
-                    or term in (r.get("title") or "").lower()]
+                    or term in (r.get("title") or "").lower()
+                    or term in (r.get("comment") or "").lower()
+                    or term in (r.get("source") or "").lower()]
+
         self._populate_table(rows)
 
     def _populate_table(self, rows: list[dict]):
