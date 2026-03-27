@@ -184,6 +184,14 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 26) — Boros Energy merge, URL import, Popular panel
+
+1. **Boros Energy Modern merge**: format-specific SQL update (not in aliases) — Boros Aggro→Boros Energy for Modern only. Now 21,417 total Modern matches.
+2. **URL Import in Deck Analyzer**: "Import from URL" button + `_fetch_decklist_from_url()` supporting Moxfield (v3 API), MTGGoldfish (download endpoint), Archidekt (small API), MTGTop8 (HTML parse). Background worker with error handling.
+3. **Popular panel**: sorting already worked correctly (sortByColumn + _SortItem with numeric sort role) — verified no change needed.
+
+---
+
 ### Session 2026-03-26 (Session 25) — Standard + Pioneer normalization audit
 
 1. **Standard**: Esper Pixie (6 variants → 6,122 matches), Izzet Cauldron (9 variants → 6,487), Four-Color Overlords (6 small variants consolidated), Izzet Spellementals (plural/Dimir → 1,888), Simic Rhythm (Nature's Rhythm + Five-Color → canonical), Convoke small variants, Azorious typo fix

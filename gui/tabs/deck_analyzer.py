@@ -112,6 +112,90 @@ def parse_arena_decklist(text: str):
 
 
 # ------------------------------------------------------------------
+# URL import
+# ------------------------------------------------------------------
+
+def _fetch_decklist_from_url(url: str) -> str:
+    """Fetch a decklist from a supported URL and return as Arena-format text.
+
+    Supported: Moxfield, Archidekt, MTGGoldfish, MTGTop8.
+    """
+    import requests
+
+    url = url.strip()
+
+    # Moxfield: https://moxfield.com/decks/[id]
+    if "moxfield.com/decks/" in url:
+        deck_id = url.rstrip("/").split("/")[-1]
+        api = f"https://api2.moxfield.com/v3/decks/all/{deck_id}"
+        resp = requests.get(api, headers={"User-Agent": "MTGMetaAnalyzer/1.0"}, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        lines = ["Deck"]
+        for name, card in data.get("mainboard", {}).items():
+            lines.append(f"{card.get('quantity', 1)} {name}")
+        if data.get("sideboard"):
+            lines.append("")
+            lines.append("Sideboard")
+            for name, card in data.get("sideboard", {}).items():
+                lines.append(f"{card.get('quantity', 1)} {name}")
+        return "\n".join(lines)
+
+    # MTGGoldfish: https://www.mtggoldfish.com/deck/[id]
+    if "mtggoldfish.com/deck/" in url:
+        deck_id = url.rstrip("/").split("/")[-1].split("#")[0]
+        dl_url = f"https://www.mtggoldfish.com/deck/download/{deck_id}"
+        resp = requests.get(dl_url, headers={"User-Agent": "MTGMetaAnalyzer/1.0"}, timeout=15)
+        resp.raise_for_status()
+        return resp.text.strip()
+
+    # Archidekt: https://archidekt.com/decks/[id]
+    if "archidekt.com/decks/" in url:
+        deck_id = url.rstrip("/").split("/")[-1].split("#")[0]
+        api = f"https://archidekt.com/api/decks/{deck_id}/small/"
+        resp = requests.get(api, headers={"User-Agent": "MTGMetaAnalyzer/1.0"}, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        lines = ["Deck"]
+        for card in data.get("cards", []):
+            cat = card.get("categories", [""])
+            name = card.get("card", {}).get("oracleCard", {}).get("name", "")
+            qty = card.get("quantity", 1)
+            if not name:
+                continue
+            if "Sideboard" in cat:
+                continue  # collect sideboard in second pass
+            lines.append(f"{qty} {name}")
+        sb = [c for c in data.get("cards", []) if "Sideboard" in c.get("categories", [])]
+        if sb:
+            lines.append("")
+            lines.append("Sideboard")
+            for card in sb:
+                name = card.get("card", {}).get("oracleCard", {}).get("name", "")
+                qty = card.get("quantity", 1)
+                if name:
+                    lines.append(f"{qty} {name}")
+        return "\n".join(lines)
+
+    # MTGTop8: https://mtgtop8.com/event?e=[id]&d=[deck_id]
+    if "mtgtop8.com" in url:
+        resp = requests.get(url, headers={"User-Agent": "MTGMetaAnalyzer/1.0"}, timeout=15)
+        resp.raise_for_status()
+        # MTGTop8 has an MTGA export textarea or we parse the deck table
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(resp.text, "html.parser")
+        # Try finding the MTGA export
+        textarea = soup.find("textarea")
+        if textarea and textarea.text.strip():
+            return textarea.text.strip()
+        raise ValueError("Could not parse decklist from MTGTop8 page")
+
+    raise ValueError(
+        f"Unsupported URL. Supported: Moxfield, Archidekt, MTGGoldfish, MTGTop8"
+    )
+
+
+# ------------------------------------------------------------------
 # Background worker
 # ------------------------------------------------------------------
 
@@ -324,7 +408,16 @@ class DeckAnalyzerTab(QWidget):
         left = QFrame()
         lv   = QVBoxLayout(left)
         lv.setContentsMargins(0, 0, 4, 0)
-        lv.addWidget(QLabel("Paste decklist (Arena export format):"))
+        paste_row = QHBoxLayout()
+        paste_row.addWidget(QLabel("Paste decklist (Arena export format):"))
+        paste_row.addStretch()
+        self._url_btn = QPushButton("Import from URL")
+        self._url_btn.setStyleSheet(theme.btn_secondary())
+        self._url_btn.setFixedHeight(22)
+        self._url_btn.setToolTip("Import decklist from Moxfield, Archidekt, MTGGoldfish, or MTGTop8")
+        self._url_btn.clicked.connect(self._import_from_url)
+        paste_row.addWidget(self._url_btn)
+        lv.addLayout(paste_row)
         self._deck_input = QPlainTextEdit()
         self._deck_input.setPlaceholderText(
             "Deck\n4 Lightning Bolt\n4 Monastery Swiftspear\n"
@@ -710,6 +803,40 @@ class DeckAnalyzerTab(QWidget):
         self._hyper_result.setText(
             f"P(≥{k} in {n} draws)  =  {pct:.1f}%"
         )
+
+    def _import_from_url(self):
+        """Import decklist from a URL (Moxfield, Archidekt, MTGGoldfish, MTGTop8)."""
+        from PyQt6.QtWidgets import QInputDialog
+        url, ok = QInputDialog.getText(
+            self, "Import from URL",
+            "Paste a deck URL (Moxfield, Archidekt, MTGGoldfish, MTGTop8):",
+        )
+        if not ok or not url.strip():
+            return
+        url = url.strip()
+        self._status.setText("Fetching decklist\u2026")
+        self._url_btn.setEnabled(False)
+
+        def _do():
+            return _fetch_decklist_from_url(url)
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_url_imported)
+        w.error.connect(lambda e: (
+            self._status.setText(f"Import failed: {e}"),
+            self._url_btn.setEnabled(True),
+        ))
+        w.finished.connect(lambda: self._url_btn.setEnabled(True))
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
+    def _on_url_imported(self, text: str):
+        if text:
+            self._deck_input.setPlainText(text)
+            self._status.setText("Decklist imported from URL.")
+        else:
+            self._status.setText("No decklist found at that URL.")
 
     def _on_export(self):
         from gui.widgets.deck_export import show_export_menu
