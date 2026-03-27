@@ -24,7 +24,7 @@
 
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
 - [ ] Global "All Formats" option everywhere
-- [ ] URL import in Deck Analyzer (Moxfield, Archidekt, MTGGoldfish, MTGTop8, MTGMelee)
+- [x] URL import in Deck Analyzer (Moxfield, Archidekt, MTGGoldfish, MTGTop8) (2026-03-26)
 - [ ] Event peer navigation (all decks from same event)
 - [ ] Flex slot competition view (cards competing for same slot)
 
@@ -78,9 +78,13 @@
 - [x] Default top 8 by appearances in chart checkboxes (2026-03-26)
 - [x] SB plan CRUD dialog in My Decks tab (2026-03-26)
 - [x] "This List" tab in archetype detail for exact decklists from Recent Top Finishes (2026-03-26)
-- [ ] Layout consistency (global filters top, nav left, data center, detail right)
-- [ ] Sticky headers + sortable columns everywhere
-- [ ] Sparklines + trend arrows on meta table
+- [x] Sparklines on Popular panel — 4-week trend mini chart per archetype (2026-03-26)
+- [x] Layout consistency pass — tab margins standardized to 8px (2026-03-26)
+- [x] Heatmap sticky headers — replaced QScrollArea with direct QTableWidget (2026-03-26)
+- [x] Card image tooltips — Scryfall API, in-memory cache, custom floating widget (2026-03-26)
+- [x] URL import in Deck Analyzer — Moxfield, Archidekt, MTGGoldfish, MTGTop8 (2026-03-26)
+- [x] Knowledge Base filters — format/archetype dropdowns, comment text search (2026-03-26)
+- [x] Archetype normalization — 250+ aliases across all 5 formats, junk exclusion (2026-03-26)
 - [ ] Quick-glance summary bar at top of each tab
 - [ ] Chart readability (always show sample size + timeframe)
 - [ ] Interaction speed (filters update in place)

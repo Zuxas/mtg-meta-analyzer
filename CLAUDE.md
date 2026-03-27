@@ -69,7 +69,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - Layer 1: `pre_normalize()` — fixes spacing/hyphens/color abbreviations before alias lookup
     ("Mono-Green Landfall", "MonoGreen Landfall", "monogreen landfall" → "Mono Green Landfall";
     "UR Prowess" → "Izzet Prowess"; "UWR Control" → "Jeskai Control" — automatic, no alias needed)
-  - Layer 2: ALIASES table — hard-coded exact mappings (fast, deterministic); includes WUBRG codes, Five-Color→5C, apostrophe fixes, UR/UW expansions
+  - Layer 2: ALIASES table — 250+ hard-coded mappings; includes WUBRG codes, Five-Color→5C, apostrophe fixes, UR/UW expansions, Affinity/Neoform/Pixie/Cauldron/Overlords/Reanimator/Greasefang consolidation across all 5 formats
   - Layer 3: optional fuzzy match via thefuzz
   - `suggest_aliases()` scans DB for likely duplicate names
   - `find_card_based_duplicates(format, name_threshold, card_overlap)` — finds pairs sharing
@@ -226,7 +226,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     - Checks deck size (main=60, side≤15) and per-card legal status
     - Color-coded table: red=banned, orange=restricted/not_legal, yellow=size issues
     - Shows ✓ or ✗ summary label with issue count
-  - **Card images**: Card Lookup tab fetches card art from Scryfall API on first search, cached to `data/card_images/`
+  - **Card image tooltips** (`gui/widgets/card_tooltip.py`): hovering card names shows Scryfall card images in a floating tooltip; in-memory session cache (no disk writes), background fetch with 100ms rate limit, handles double-faced cards
   - **Deck search click-to-detail**: clicking any row in Deck Search opens ArchetypeDetailDialog
   - **Charts autocomplete**: Archetype field is now an editable dropdown populated from DB, refreshes on format change
   - **Charts Compare Mode**: "Compare Trends" chart type — select multiple archetypes, overlay meta share lines on one chart; `_CompareLoader` worker in chart_canvas.py
@@ -337,15 +337,16 @@ analysis/query.py               CLI query interface (all subcommands)
 
 gui/theme.py                    Single source of truth: colors, fonts, stylesheets, TIMEFRAME_OPTIONS
 gui/fonts/Orbitron.ttf          Bundled heading font (personal website match)
-gui/main_window.py              8-tab main window, startup wizard check
+gui/main_window.py              10-tab main window, startup wizard check
 gui/setup_wizard.py             First-time setup (Scryfall + backfill + event counter)
 gui/worker_threads.py           QThread workers: scrape, download, load
 gui/widgets/chart_canvas.py     FigureCanvasQTAgg: plot_meta_share/trend/heatmap
 gui/widgets/meta_table.py       Meta standings table with click signal
-gui/widgets/archetype_detail.py 4 tabs: Average Deck / Recent Lists / Tech Choices / Resources
+gui/widgets/archetype_detail.py 5 tabs: This List / Average Deck / Recent Lists / Tech Choices / Resources
+gui/widgets/card_tooltip.py     Card image tooltips (Scryfall API, in-memory cache, custom floating widget)
 gui/widgets/deck_export.py      MTGO/MTGA .txt export + decklist.org tournament sheet
-gui/tabs/dashboard.py           Table + chart, format/weeks/top-N controls
-gui/tabs/deck_analyzer.py       Arena paste → Blunder + Chapin analysis + Legality Checker
+gui/tabs/dashboard.py           Table + chart, format/weeks/top-N controls, sparklines, event markers
+gui/tabs/deck_analyzer.py       Arena paste + URL import → Blunder + Chapin analysis + Legality Checker
 gui/tabs/search.py              Card lookup, deck search, head-to-head (with timeframe)
 gui/tabs/charts.py              Interactive controls + live chart canvas (TIMEFRAME_OPTIONS)
 gui/tabs/predictions.py         Generate/validate/view predictions

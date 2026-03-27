@@ -490,7 +490,7 @@ python run_gui.py
 
 ### Remaining lower-priority features
 - **User Preferences System** — format selection in setup wizard (page 0), wire scrapers to skip unselected formats
-- **Knowledge Base improvements** — filter by archetype/format, full-text search, guide rating
+- ~~**Knowledge Base improvements**~~ — **DONE** (2026-03-26): format/archetype filter dropdowns, full-text search across comments
 
 ## LOW PRIORITY / FUTURE
 

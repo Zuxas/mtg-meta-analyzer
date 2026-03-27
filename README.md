@@ -40,10 +40,12 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 - Cross-source deduplication so the same deck counted on two sites isn't double-counted
 
 **Deck tools**
+- Import decklists from URL (Moxfield, Archidekt, MTGGoldfish, MTGTop8) or paste Arena format
 - Blunder detection: land count, curve, color consistency, interaction, threats, deck size
 - Chapin Principles evaluation: six scored principles (Threats, Answers, Consistency, Velocity, Mana, Clock)
 - Decklist legality checker for any format
 - Average deck calculator — see the consensus 75 for any archetype over any timeframe
+- Card image tooltips: hover any card name to see the Scryfall card art
 
 **Tournament prep**
 - Event Optimizer: RCQ / Regional Championship / PTQ presets with auto player count and round structure
@@ -61,7 +63,7 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 
 **Other features**
 - Weekly meta predictions with accuracy tracking (which signals are most reliable)
-- Knowledge Base: bookmark articles and guides; sync Skill Issue Magic Google Sheet
+- Knowledge Base: bookmark articles and guides; sync Skill Issue Magic Google Sheet; filter by format/archetype, full-text search
 - Ask Claude tab: optional AI assistant with full meta context (requires Anthropic API key)
 - System tray with status dot and right-click menu — runs in the background after window close
 - All data stays on your machine — nothing is ever pushed to GitHub
