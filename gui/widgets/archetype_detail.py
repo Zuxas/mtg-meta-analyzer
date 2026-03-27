@@ -18,9 +18,20 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
+import os
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
 from gui.widgets.deck_export import show_export_menu
+
+_IMG_CACHE = os.path.normpath(os.path.join(
+    os.path.dirname(__file__), "..", "..", "data", "card_images"))
+
+
+def _card_image_tooltip(card_name: str) -> str | None:
+    """Return local cached image path if it exists, else None (no fetch)."""
+    safe = card_name.replace("/", "_").replace(":", "_").replace("?", "_")
+    path = os.path.join(_IMG_CACHE, f"{safe}.jpg")
+    return path.replace("\\", "/") if os.path.exists(path) else None
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +274,12 @@ def _make_avg_table(mainboard: list, sideboard: list) -> QTableWidget:
             bg = _inc_color(rate)
             name_item = QTableWidgetItem(name)
             name_item.setBackground(bg)
+            # Card image tooltip (lazy — checks cache, no fetch on hover)
+            img_path = _card_image_tooltip(name)
+            if img_path:
+                name_item.setToolTip(
+                    f'<img src="file:///{img_path}" width="250">'
+                )
             tbl.setItem(row, 0, name_item)
 
             pct_item = QTableWidgetItem(f"{rate*100:.0f}%")
@@ -688,6 +705,21 @@ class ArchetypeDetailDialog(QDialog):
         # Tab 1 — Average Deck
         avg_tbl = _make_avg_table(data["mainboard"], data["sideboard"])
         self._tabs.addTab(avg_tbl, "Average Deck")
+
+        # Prefetch card images in background (respects Scryfall 100ms rate limit)
+        all_cards = [c["name"] for c in data["mainboard"] + data["sideboard"]]
+        missing = [n for n in all_cards if not _card_image_tooltip(n)]
+        if missing:
+            def _prefetch():
+                import time
+                from gui.tabs.search import _fetch_card_image
+                for name in missing[:30]:  # cap to avoid long fetches
+                    _fetch_card_image(name)
+                    time.sleep(0.1)  # Scryfall rate limit
+                return len(missing)
+            w = DataLoadWorker(_prefetch)
+            w.finished.connect(w.deleteLater)
+            w.start()
 
         # Tab 2 — Recent Lists
         grid = _make_recent_grid(data["recent_decks"])
