@@ -133,7 +133,7 @@ class _DeckDetailDialog(QDialog):
         self.setMinimumSize(680, 560)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
         # Header
