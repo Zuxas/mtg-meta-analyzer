@@ -184,6 +184,20 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 27) — 7-item feature batch
+
+1. **Normalization audit** (Standard + Pioneer): 34 aliases, Standard 1,113 / Pioneer 293 archetypes
+2. **URL Import**: Deck Analyzer "Import from URL" — Moxfield, Archidekt, MTGGoldfish, MTGTop8
+3. **Knowledge Base**: Format + Archetype filter dropdowns, search includes comment/source text
+4. **Card images**: Average Deck tab shows card image tooltips on hover, background prefetch from Scryfall (capped 30 cards, 100ms rate limit)
+5. **Heatmap sticky headers**: replaced QScrollArea with direct QTableWidget (has built-in frozen headers)
+6. **Layout consistency**: search tab margins fixed 12→8 to match all other tabs
+7. **Sparklines**: Popular panel "Trend" column with 4-week mini line chart (QPainter, green/red/grey)
+8. **Win Rate threshold**: raised to 15 appearances minimum
+9. **Boros Energy**: Modern-only merge (21,417 matches)
+
+---
+
 ### Session 2026-03-26 (Session 26) — Boros Energy merge, URL import, Popular panel
 
 1. **Boros Energy Modern merge**: format-specific SQL update (not in aliases) — Boros Aggro→Boros Energy for Modern only. Now 21,417 total Modern matches.
