@@ -7,6 +7,7 @@ REM ============================================================
 
 SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
 SET PYTHON=python
+SET PYTHONIOENCODING=utf-8
 SET LOG_DATE=%DATE:~10,4%-%DATE:~4,2%-%DATE:~7,2%
 SET LOG_FILE=%PROJECT_DIR%\logs\%LOG_DATE%.log
 

@@ -579,6 +579,7 @@ def run_scraper(format_name="standard", pages=1, min_players=50, dry_run=False):
 
 if __name__ == "__main__":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
     parser = argparse.ArgumentParser(description="MTGDecks.net scraper")
     parser.add_argument("--format", default="standard", choices=list(FORMATS.keys()))

@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 22) — Fix scraper Unicode crash, encoding for all entry points
+
+1. **Root cause fixed**: `main.py` crashed with `UnicodeEncodeError: 'charmap' codec can't encode '\u0144'` when printing Polish player names. The `print()` call encoded to cp1252 (Windows default) which can't handle Unicode. This crash has been silently killing the daily scraper for months.
+2. **Fix applied to all entry points**: `sys.stdout/stderr = TextIOWrapper(..., encoding='utf-8', errors='replace')` added to `main.py`, `scrapers/mtgdecks.py` (stderr was missing)
+3. **Bat files**: `SET PYTHONIOENCODING=utf-8` added to `background_fill.bat` and `run_daily.bat` as defense-in-depth
+4. **Verified**: `python main.py --format standard --pages 3` now processes events with Unicode player names without crashing
+
+---
+
 ### Session 2026-03-26 (Session 21) — Meta standings fallback to matches table
 
 1. **Root cause found**: decks table (MTGTop8/MTGDecks) is stale — last real data is Oct 2025. Daily scrapers run (Last Result: 0) but crash silently with UnicodeEncodeError on non-ASCII player names. Only ~50 obscure entries exist in recent weeks.

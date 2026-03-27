@@ -17,6 +17,7 @@ exit
 :run
 SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
 SET PYTHON=python
+SET PYTHONIOENCODING=utf-8
 SET LOG_FILE=%PROJECT_DIR%\logs\background_fill.log
 SET TIMESTAMP=%DATE% %TIME%
 
