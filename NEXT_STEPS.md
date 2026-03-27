@@ -184,6 +184,15 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 23) — Trend data fallback to matches table
+
+1. **`_archetype_trend_from_matches()`**: new function builds weekly/daily trend data from the matches table when the decks table has no recent data for an archetype
+2. **`_parse_match_date()`**: handles both YYYY-MM-DD and DD/MM/YY date formats in the matches table (bracket-inferred matches use DD/MM/YY)
+3. **Two fallback triggers in `get_archetype_trend()`**: (a) when `_fetch_appearances` returns empty (archetype not in decks table at all), (b) when decks-based trend has 0 total appearances across all buckets (stale data)
+4. **Verified**: Izzet Prowess 795 apps/7w (from decks), Izzet Cauldron 0 apps/8w but 85 apps/52w (from matches — correctly shows deck fell out of meta recently), all archetypes produce valid trend data
+
+---
+
 ### Session 2026-03-26 (Session 22) — Fix scraper Unicode crash, encoding for all entry points
 
 1. **Root cause fixed**: `main.py` crashed with `UnicodeEncodeError: 'charmap' codec can't encode '\u0144'` when printing Polish player names. The `print()` call encoded to cp1252 (Windows default) which can't handle Unicode. This crash has been silently killing the daily scraper for months.

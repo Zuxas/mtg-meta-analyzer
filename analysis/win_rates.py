@@ -568,6 +568,127 @@ def _meta_standings_from_matches(format_name, since=None, until=None,
     return results[:top]
 
 
+def _parse_match_date(raw: str):
+    """Parse event_date from matches table — handles both YYYY-MM-DD and DD/MM/YY."""
+    if not raw:
+        return None
+    try:
+        if "/" in raw:
+            return datetime.strptime(raw, "%d/%m/%y")
+        return datetime.strptime(raw[:10], "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+
+
+def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
+                                   granularity="weekly"):
+    """
+    Build archetype trend data from the matches table as a fallback when the
+    decks table has no data for this archetype.
+
+    Groups matches by time bucket, counts appearances and calculates win rate.
+    Returns the same data structure as get_archetype_trend().
+    """
+    from db.database import get_connection
+
+    window_end   = until or datetime.now()
+    window_start = since or (window_end - timedelta(weeks=weeks or 52))
+
+    excl_ph = ",".join("?" * len(EXCLUDE_ARCHETYPES))
+    excl_list = list(EXCLUDE_ARCHETYPES)
+
+    # Query ALL matches for this archetype (no date filter in SQL — we filter in Python
+    # because dates use mixed formats DD/MM/YY and YYYY-MM-DD)
+    q = f"""
+        SELECT event_date, result, player1_arch, player2_arch
+        FROM matches
+        WHERE lower(format) = lower(?)
+          AND (player1_arch = ? OR player2_arch = ?)
+          AND player1_arch NOT IN ({excl_ph})
+          AND player2_arch NOT IN ({excl_ph})
+          AND result IS NOT NULL
+    """
+    params = [format_name, archetype, archetype] + excl_list + excl_list
+
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(q, params).fetchall()
+
+            total_q = f"""
+                SELECT event_date, COUNT(*) as n
+                FROM matches
+                WHERE lower(format) = lower(?)
+                  AND player1_arch NOT IN ({excl_ph})
+                  AND player2_arch NOT IN ({excl_ph})
+                  AND result IS NOT NULL
+                GROUP BY event_date
+            """
+            total_params = [format_name] + excl_list + excl_list
+            total_rows = conn.execute(total_q, total_params).fetchall()
+    except Exception:
+        return []
+
+    if not rows:
+        return []
+
+    # Buckets
+    is_daily = granularity == "daily"
+    if is_daily:
+        num_buckets = min(max(1, (window_end - window_start).days + 1), 90)
+        bucket_delta = timedelta(days=1)
+    else:
+        span_weeks = max(1, int((window_end - window_start).days / 7) + 1)
+        num_buckets = min(span_weeks, weeks if weeks is not None else span_weeks)
+        bucket_delta = timedelta(weeks=1)
+
+    weekly = []
+    for w in range(num_buckets):
+        bucket_end   = window_end - bucket_delta * w
+        bucket_start = window_end - bucket_delta * (w + 1)
+
+        wins = losses = draws = appearances = 0
+        total_in_bucket = 0
+
+        for r in rows:
+            d = _parse_match_date(r["event_date"])
+            if d is None or not (bucket_start <= d < bucket_end):
+                continue
+            appearances += 1
+            is_p1 = r["player1_arch"] == archetype
+            if r["result"] == "draw":
+                draws += 1
+            elif (r["result"] == "player1" and is_p1) or (r["result"] == "player2" and not is_p1):
+                wins += 1
+            else:
+                losses += 1
+
+        for r in total_rows:
+            d = _parse_match_date(r["event_date"])
+            if d is not None and bucket_start <= d < bucket_end:
+                total_in_bucket += r["n"]
+
+        if appearances == 0 and total_in_bucket == 0:
+            continue
+
+        decisive = wins + losses
+        wr = wins / decisive if decisive else None
+        meta_share = (appearances / total_in_bucket) if total_in_bucket else 0
+
+        weekly.append({
+            "week_start":            bucket_start.strftime("%Y-%m-%d"),
+            "week_end":              bucket_end.strftime("%Y-%m-%d"),
+            "appearances":           appearances,
+            "total_decks_in_format": total_in_bucket,
+            "meta_share":            round(meta_share, 4),
+            "top8_rate":             None,
+            "avg_points":            None,
+            "event_wins":            0,
+            "est_winpct":            round(wr, 4) if wr is not None else None,
+        })
+
+    return weekly
+
+
 def get_archetype_trend(archetype, format_name="standard", weeks=8,
                         event_type=None, include_archive=False,
                         since=None, until=None,
@@ -597,7 +718,10 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
         conn.close()
 
     if not all_rows:
-        return []
+        # Fallback: try matches table when decks table has no data for this archetype
+        fallback = _archetype_trend_from_matches(
+            archetype, format_name, weeks, since, until, granularity)
+        return fallback
 
     conn2 = get_combined_connection(include_archive=include_archive)
     try:
@@ -678,6 +802,14 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
             "event_wins":            stats["event_wins"]      if stats else 0,
             "est_winpct":            stats["est_match_winpct"] if stats else None,
         })
+
+    # Fallback: if decks-based trend produced no meaningful data, try matches table
+    total_trend_apps = sum(w["appearances"] for w in weekly)
+    if total_trend_apps == 0:
+        fallback = _archetype_trend_from_matches(
+            archetype, format_name, weeks, since, until, granularity)
+        if fallback and sum(w["appearances"] for w in fallback) > 0:
+            return fallback
 
     return weekly
 
