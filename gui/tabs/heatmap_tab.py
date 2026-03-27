@@ -23,7 +23,7 @@ Color scale:
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QDialog, QPlainTextEdit, QDialogButtonBox, QScrollArea,
+    QDialog, QPlainTextEdit, QDialogButtonBox,
     QFrame, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
@@ -380,13 +380,13 @@ class HeatmapTab(QWidget):
         self._status.setWordWrap(True)
         outer.addWidget(self._status)
 
-        # ── Grid (inside a scroll area) ───────────────────────────────
-        self._scroll = QScrollArea()
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setVisible(False)
-        self._grid_widget = QWidget()
-        self._scroll.setWidget(self._grid_widget)
-        outer.addWidget(self._scroll, 1)
+        # ── Grid container (QTableWidget has its own scrolling with sticky headers)
+        self._grid_container = QWidget()
+        self._grid_container.setVisible(False)
+        self._grid_layout = QVBoxLayout(self._grid_container)
+        self._grid_layout.setContentsMargins(0, 0, 0, 0)
+        self._grid_layout.setSpacing(2)
+        outer.addWidget(self._grid_container, 1)
 
         # ── Legend ────────────────────────────────────────────────────
         legend = self._build_legend()
@@ -464,7 +464,7 @@ class HeatmapTab(QWidget):
         self._current_matrix = {}
         self._source_map = {}
         self._status.setVisible(True)
-        self._scroll.setVisible(False)
+        self._grid_container.setVisible(False)
         self._updated_lbl.setText("")
         self._set_busy(True)
 
@@ -546,7 +546,7 @@ class HeatmapTab(QWidget):
     def _on_error(self, msg: str, gen: int = -1):
         if gen != -1 and gen != self._load_gen:
             return  # stale error from a cancelled load
-        self._scroll.setVisible(False)
+        self._grid_container.setVisible(False)
         self._status.setVisible(True)
         self._status.setText(f"Error: {msg}")
 
@@ -556,7 +556,7 @@ class HeatmapTab(QWidget):
         self._loaded_format = fmt
 
         if not matrix:
-            self._scroll.setVisible(False)
+            self._grid_container.setVisible(False)
             self._status.setVisible(True)
             if self._load_source == "cache":
                 self._status.setText(
@@ -782,17 +782,12 @@ class HeatmapTab(QWidget):
             hh.setSectionResizeMode(ci, QHeaderView.ResizeMode.Fixed)
         tbl.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
 
-        # Replace grid widget entirely — avoids sip.delete layout issues.
-        # takeWidget() detaches the old widget (prevents setWidget from destroying it
-        # while we still hold a Python reference), then we delete it safely ourselves.
-        new_grid = QWidget()
-        vl = QVBoxLayout(new_grid)
-        vl.setContentsMargins(0, 0, 0, 0)
-        old_grid = self._scroll.takeWidget()  # detach old widget from scroll area
-        self._scroll.setWidget(new_grid)      # install new widget
-        self._grid_widget = new_grid
-        if old_grid is not None:
-            old_grid.deleteLater()
+        # Clear existing grid content
+        while self._grid_layout.count():
+            child = self._grid_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        vl = self._grid_layout
 
         # Info label
         if total_archetypes and total_archetypes > n:
@@ -824,4 +819,4 @@ class HeatmapTab(QWidget):
         vl.addWidget(tbl, 1)
 
         self._status.setVisible(False)
-        self._scroll.setVisible(True)
+        self._grid_container.setVisible(True)
