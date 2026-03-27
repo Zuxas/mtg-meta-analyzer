@@ -1,6 +1,6 @@
 # CLAUDE.md - MTG Meta Analyzer Project Context
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 
 ---
 
@@ -10,6 +10,30 @@ Last updated: 2026-03-26
 2. **ALWAYS `git push` after every commit**
 3. **ALWAYS run `--counts` or verify output after any scrape**
 4. **Documentation must reflect actual current state, not planned state**
+
+---
+
+## Workspace Context
+
+This project is part of the Team Resolve competitive MTG workspace.
+
+| Project | Path | Purpose |
+|---|---|---|
+| MTG Meta Analyzer | `E:/vscode ai project/mtg-meta-analyzer/` | This project — tournament data, meta analysis, GUI |
+| Team Resolve | `E:/vscode ai project/Team Resolve/` | Sideboard guides, gauntlet data, RC prep packages |
+| Road to Pro Tour site | `E:/vscode ai project/My-Website/` | Public-facing website documenting the journey |
+
+**Who uses this tool:** Jermey Wallace (Zuxas), team captain of Team Resolve.
+5x RC qualifier. Current format focus: Modern.
+Last season: 17 RCQ Top 8s (Boros Energy), 23 RCQ Top 8s prior Standard season (Dimir Midrange).
+Goal: Pro Tour qualification via RC conversion.
+
+**How it connects to Team Resolve workflow:**
+- Dashboard meta share data informs which archetypes go into the gauntlet
+- Field Optimizer tells us which deck has the best weighted win% vs the expected RC field
+- Matchup matrix data feeds into the sideboard guide builds in `Team Resolve/guides/`
+- Sideboard guides synced from Skill Issue Magic sheet are the same ones used in Team Resolve prep packages
+- The Event Optimizer's binomial top-cut probability is used for RC entry decisions
 
 ---
 
@@ -226,7 +250,16 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     - Checks deck size (main=60, side≤15) and per-card legal status
     - Color-coded table: red=banned, orange=restricted/not_legal, yellow=size issues
     - Shows ✓ or ✗ summary label with issue count
-  - **Card image tooltips** (`gui/widgets/card_tooltip.py`): hovering card names shows Scryfall card images in a floating tooltip; in-memory session cache (no disk writes), background fetch with 100ms rate limit, handles double-faced cards
+  - **User Preferences System** (`gui/tabs/settings.py` + `gui/setup_wizard.py` + `scripts/run_fill_from_prefs.py`):
+  - `data/preferences.json` — single source of truth for format selection, date window, auto-update, API key
+  - Setup wizard page 0: format checkboxes before Scryfall download — Standard always forced on
+  - `_save_format_prefs()` in setup_wizard.py writes preferences.json immediately on Next click
+  - `fill_database.py` reads `_load_formats()` at runtime — BACKFILL_FORMATS and MTGDECKS_FORMATS are no longer hardcoded
+  - `scripts/run_fill_from_prefs.py` — background fill script that reads preferences and runs scrapers for selected formats only; Legacy/Pauper always get MTGMelee scrapes
+  - `background_fill.bat` now delegates entirely to `scripts/run_fill_from_prefs.py`
+  - `gui/tabs/settings.py` — full UI for format checkboxes, data window, auto-update, API key; saves to preferences.json on Save click
+
+- **Card image tooltips** (`gui/widgets/card_tooltip.py`): hovering card names shows Scryfall card images in a floating tooltip; in-memory session cache (no disk writes), background fetch with 100ms rate limit, handles double-faced cards
   - **Deck search click-to-detail**: clicking any row in Deck Search opens ArchetypeDetailDialog
   - **Charts autocomplete**: Archetype field is now an editable dropdown populated from DB, refreshes on format change
   - **Charts Compare Mode**: "Compare Trends" chart type — select multiple archetypes, overlay meta share lines on one chart; `_CompareLoader` worker in chart_canvas.py
@@ -301,9 +334,10 @@ across both active and archive DBs. Populated by `python -m scrapers.scryfall`.
 ```
 main.py                         CLI entry point (default: Standard, 1 page, 10 events)
 run_gui.py                      GUI entry point — also handles --register-tasks mode
-fill_database.py                Standalone full DB builder (first-time use)
+fill_database.py                Standalone full DB builder (reads preferences.json for format list)
 fill_database.bat               Double-click launcher for fill_database.py
-background_fill.bat             6 AM daily background scrape (all formats)
+background_fill.bat             6 AM daily background scrape — delegates to scripts/run_fill_from_prefs.py
+scripts/run_fill_from_prefs.py  Reads preferences.json, runs scrapers for selected formats only
 schedule_background_fill.bat    One-time setup: register 6 AM Task Scheduler task
 register_tasks.py               Elevated task registration (called by first-run wizard)
 schedule_task.bat               One-time setup: register 5 PM daily task
@@ -466,77 +500,41 @@ is False, `flip_analysis` returns a neutral "No data" verdict rather than a
 misleading 0-delta flip. The G2/G3 WR model is calibrated conservatively:
 opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84].
 
-## User Preferences System (CORE — implement before packaging)
+## User Preferences System — FULLY IMPLEMENTED (2026-03-27)
 
 ### Overview
-Users should only download and maintain data for the formats they actually play.
-A Standard-only player should never wait for Pioneer/Modern data.
-Preferences are stored in `data/preferences.json` (gitignored) and a
-`user_preferences` table in the database.
+Users only download and maintain data for the formats they play.
+Preferences are stored in `data/preferences.json` (gitignored).
 
 ### preferences.json schema
 ```json
 {
   "formats": ["standard"],
-  "date_window": "1year",
-  "timezone": "America/Los_Angeles",
+  "date_window": "3years",
+  "timezone": "UTC",
   "auto_update": "daily",
-  "updated_at": "2026-03-21T12:00:00"
+  "anthropic_api_key": "sk-ant-...",
+  "updated_at": "2026-03-27T12:00:00"
 }
 ```
-- `formats`: list from `["standard", "pioneer", "modern", "legacy"]`
-- `date_window`: `"2weeks"` | `"1month"` | `"3months"` | `"1year"` | `"3years"` (default)
-- `timezone`: IANA timezone string; used for display and scheduled-task timing
-- `auto_update`: `"daily"` | `"twice_daily"` | `"weekly"`
 
-### Database: user_preferences table
-```sql
-CREATE TABLE IF NOT EXISTS user_preferences (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
+### Implementation status — ALL DONE
+- [x] `data/preferences.json` load/save helpers in `gui/tabs/settings.py`
+- [x] Format selection in setup wizard (page 0) — saves before Scryfall download
+- [x] `fill_database.py` reads formats via `_load_formats()` at runtime
+- [x] `scripts/run_fill_from_prefs.py` — background fill reads preferences
+- [x] `background_fill.bat` delegates to `run_fill_from_prefs.py`
+- [x] Settings tab GUI with format checkboxes, data window, auto-update, API key
+
+### Files involved
 ```
-Scrapers read preferences before running:
-- `background_fill.bat` and `fill_database.py` check formats list and skip unselected formats
-- `_load_cutoff()` in `backfill.py` respects `date_window` preference
-
-### GUI: Settings Tab (implemented)
-`gui/tabs/settings.py` registered in `main_window.py` as the last tab.
-
-Controls:
-- **Formats to track**: checkboxes for Standard / Pioneer / Modern / Legacy
-- **Data window**: dropdown (2 weeks / 1 month / 3 months / 1 year / 3 years)
-- **Timezone**: dropdown or text field (default: auto-detect from Windows)
-- **Auto-update frequency**: radio buttons (Daily / Twice daily / Weekly)
-- **AI Assistant**: API key input (stored in preferences.json, gitignored)
-- **Storage usage**: per-format event/deck counts and estimated DB size
-- **Save button**: writes preferences.json + updates user_preferences table
-
-### Setup Wizard: Format Selection as Step 1
-Add a format-selection page before the Scryfall download step:
-- Page 0: Format selection (checkboxes, default = Standard only)
-- Page 1: Scryfall download (as now)
-- Page 2: Backfill (only selected formats)
-
-Saves preferences.json immediately when user clicks Next from format page.
-
-### Files to create/modify
+data/preferences.json               Local preferences (gitignored)
+gui/tabs/settings.py                Settings tab — full UI, load_preferences(), save_preferences()
+gui/setup_wizard.py                 Page 0: format selection before Scryfall download
+fill_database.py                    _load_formats() reads preferences at runtime
+scripts/run_fill_from_prefs.py      Background fill script driven by preferences
+background_fill.bat                 Delegates to scripts/run_fill_from_prefs.py
 ```
-data/preferences.json           Local preferences (gitignored)
-gui/tabs/settings.py            Settings tab (done)
-gui/main_window.py              Settings tab wired (done)
-gui/setup_wizard.py             Add format-selection page 0 (TODO)
-scrapers/backfill.py            Read formats + date_window from preferences (TODO)
-fill_database.py                Read formats from preferences before scraping (TODO)
-background_fill.bat             Pass format list from preferences (TODO)
-db/database.py                  Add user_preferences table to schema (TODO)
-```
-
-### Implementation priority
-1. `data/preferences.json` load/save helpers (simple JSON, no DB needed)
-2. Format selection in setup wizard (prevents wasted first-run scrape time)
-3. Wire scrapers to read preferences
 
 ---
 
@@ -640,3 +638,6 @@ Installed via: `npx skills@latest add mattpocock/skills/<name> -a claude-code -y
 5. After any scrape: run `--counts` or equivalent to verify output before closing
 
 **These steps are NON-NEGOTIABLE. See the rules section at the top of this file.**
+
+---
+*Last documentation update: 2026-03-27 — User Preferences System fully wired; setup_wizard page 0 added; fill_database.py and background_fill.bat now driven by preferences.json via scripts/run_fill_from_prefs.py*

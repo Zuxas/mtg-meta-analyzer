@@ -1,6 +1,45 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
+
+---
+
+## Session 2026-03-27 — User Preferences System wired end-to-end
+
+### What was built
+
+1. **`gui/setup_wizard.py` — Format selection page 0**
+   - New `_build_format_page()` method: checkboxes for Standard/Pioneer/Modern/Legacy
+   - Standard pre-checked; others unchecked by default
+   - `_save_format_prefs(formats)` saves immediately to `data/preferences.json` before Scryfall download
+   - Standard forced into selection even if unchecked (required for core app)
+   - `_next()` updated: page 0→1 saves formats, page 1→2 starts Scryfall, page 2→3 starts backfill
+   - `_on_scryfall_done` fixed to advance to page index 3 (was 2, now offset by format page)
+   - `_start_backfill()` uses selected formats from checkboxes (primary format for initial scrape)
+
+2. **`fill_database.py` — Reads preferences at runtime**
+   - Added `import json` to imports
+   - New `_load_formats()` function reads `data/preferences.json`, returns `["standard"]` on any failure
+   - `step_mtgtop8_backfill()` calls `_load_formats()` at start — no more module-level `BACKFILL_FORMATS`
+   - `step_mtgdecks()` calls `_load_formats()` at start — no more module-level `MTGDECKS_FORMATS`
+   - Safe to re-run: if preferences.json doesn't exist yet, defaults to Standard only
+
+3. **`scripts/run_fill_from_prefs.py` — New script**
+   - Reads `data/preferences.json` at runtime for format list
+   - Runs MTGTop8, MTGDecks, MTGMelee, Scryfall enrichment, normalization, archive maintenance
+   - MTGMelee always runs Legacy + Pauper in addition to selected formats (real match data is broadly useful)
+   - Subprocess approach — each scraper runs as a child process with UTF-8 encoding set
+
+4. **`background_fill.bat` — Simplified**
+   - Was: 7 hardcoded sections with format-specific commands for Standard/Pioneer/Modern
+   - Now: single call to `scripts\run_fill_from_prefs.py`
+   - Format list is now owned entirely by preferences.json — change Settings → next scrape picks it up
+
+### What this means for Claude Code sessions
+- `fill_database.py` and `background_fill.bat` no longer need editing when adding/changing formats
+- Format selection lives in `data/preferences.json` (gitignored) and `gui/tabs/settings.py`
+- The setup wizard now correctly captures user intent before doing any network work
+- `scripts/run_fill_from_prefs.py` is the canonical place to add new scraper steps
 
 ---
 
@@ -489,7 +528,11 @@ python run_gui.py
 - Falls back to generic IN/OUT when no play/draw markers present
 
 ### Remaining lower-priority features
-- **User Preferences System** — format selection in setup wizard (page 0), wire scrapers to skip unselected formats
+- ~~**User Preferences System**~~ — **DONE** (2026-03-27)
+  - Setup wizard now has page 0: format checkboxes (Standard pre-checked), saves `preferences.json` immediately before Scryfall download begins
+  - `fill_database.py` reads preferences via `_load_formats()` — `BACKFILL_FORMATS` and `MTGDECKS_FORMATS` now driven by user selection, not hardcoded
+  - `scripts/run_fill_from_prefs.py` — new script reads preferences and runs all scraper steps for selected formats only; Legacy/Pauper always get MTGMelee scrapes
+  - `background_fill.bat` simplified to single call to `scripts/run_fill_from_prefs.py`
 - ~~**Knowledge Base improvements**~~ — **DONE** (2026-03-26): format/archetype filter dropdowns, full-text search across comments
 
 ## LOW PRIORITY / FUTURE

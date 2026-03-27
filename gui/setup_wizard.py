@@ -9,9 +9,10 @@ MIN_EVENTS tournament events. Guides the user through:
 Analysis features unlock automatically once MIN_EVENTS events are collected.
 """
 import os
+import json
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QProgressBar, QStackedWidget, QWidget, QFrame,
+    QProgressBar, QStackedWidget, QWidget, QFrame, QCheckBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
@@ -19,6 +20,30 @@ from PyQt6.QtGui import QFont, QColor
 from gui.worker_threads import ScryfallDownloadWorker, BackfillWorker, _count_events
 
 MIN_EVENTS = 50
+
+_PREFS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "preferences.json",
+)
+
+def _save_format_prefs(formats: list):
+    """Persist format selection immediately so scrapers pick it up."""
+    import json
+    from datetime import datetime
+    os.makedirs(os.path.dirname(_PREFS_PATH), exist_ok=True)
+    prefs = {"formats": formats, "date_window": "3years",
+             "auto_update": "daily", "updated_at": datetime.now().isoformat(timespec="seconds")}
+    try:
+        if os.path.exists(_PREFS_PATH):
+            with open(_PREFS_PATH, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            existing["formats"] = formats
+            existing["updated_at"] = prefs["updated_at"]
+            prefs = existing
+    except Exception:
+        pass
+    with open(_PREFS_PATH, "w", encoding="utf-8") as f:
+        json.dump(prefs, f, indent=2)
 
 
 def _btn_style(color="#65bcd5", hover="#7acee0"):
@@ -80,8 +105,9 @@ class SetupWizard(QDialog):
         hl.addStretch()
         layout.addWidget(header)
 
-        # Pages
+        # Pages — 0: formats, 1: welcome, 2: scryfall, 3: backfill
         self._stack = QStackedWidget()
+        self._stack.addWidget(self._build_format_page())
         self._stack.addWidget(self._build_welcome())
         self._stack.addWidget(self._build_scryfall_page())
         self._stack.addWidget(self._build_backfill_page())
@@ -111,6 +137,47 @@ class SetupWizard(QDialog):
         bl.addStretch()
         bl.addWidget(self._btn_next)
         layout.addWidget(btn_bar)
+
+    def _build_format_page(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(40, 28, 40, 16)
+        v.setSpacing(14)
+
+        title = QLabel("Which formats do you play?")
+        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        title.setStyleSheet("color: white;")
+        v.addWidget(title)
+
+        desc = QLabel(
+            "Select the formats you want data for. Only selected formats will be "
+            "scraped during setup and in background updates — this keeps the "
+            "database small and setup fast.\n\n"
+            "You can change this later in Settings."
+        )
+        desc.setStyleSheet("color: #cccccc; font-size: 13px;")
+        desc.setWordWrap(True)
+        v.addWidget(desc)
+
+        self._fmt_checks = {}
+        formats = [
+            ("standard",  "Standard",  "Current competitive format — always recommended"),
+            ("pioneer",   "Pioneer",   "Eternal format (2012-present, no Modern/Legacy cards)"),
+            ("modern",    "Modern",    "Eternal format (8th Edition onward)"),
+            ("legacy",    "Legacy",    "All cards legal (except banned list)"),
+        ]
+        for key, label, hint in formats:
+            cb = QCheckBox(f"{label}  —  {hint}")
+            cb.setStyleSheet("color: #ddd; font-size: 12px;")
+            cb.setChecked(key == "standard")
+            self._fmt_checks[key] = cb
+            v.addWidget(cb)
+
+        note = QLabel("Standard is required for core app functionality.")
+        note.setStyleSheet("color: #6c8c94; font-size: 11px; font-style: italic;")
+        v.addWidget(note)
+        v.addStretch()
+        return w
 
     def _build_welcome(self):
         w = QWidget()
@@ -229,11 +296,22 @@ class SetupWizard(QDialog):
     def _next(self):
         page = self._stack.currentIndex()
         if page == 0:
+            # Save format selection, advance to welcome
+            selected = [f for f, cb in self._fmt_checks.items() if cb.isChecked()]
+            if not selected:
+                selected = ["standard"]
+            if "standard" not in selected:
+                selected = ["standard"] + selected
+            _save_format_prefs(selected)
             self._stack.setCurrentIndex(1)
+            self._btn_next.setText("Begin Setup")
+        elif page == 1:
+            # Welcome → Scryfall download
+            self._stack.setCurrentIndex(2)
             self._btn_next.setEnabled(False)
             self._btn_next.setText("Downloading\u2026")
             self._start_scryfall()
-        elif page == 2 and self._btn_next.text() == "Open App":
+        elif page == 3 and self._btn_next.text() == "Open App":
             self._finish()
 
     def _skip(self):
@@ -269,8 +347,8 @@ class SetupWizard(QDialog):
             self._scryfall_bar.setValue(100)
             self._scryfall_status.setText("Card database ready!")
             self._scryfall_log.setText(msg)
-            # Auto-advance to backfill page
-            self._stack.setCurrentIndex(2)
+            # Auto-advance to backfill page (index 3)
+            self._stack.setCurrentIndex(3)
             self._btn_next.setEnabled(False)
             self._btn_next.setText("Collecting data\u2026")
             self._start_backfill()
@@ -281,7 +359,10 @@ class SetupWizard(QDialog):
             self._btn_next.setText("Retry")
 
     def _start_backfill(self):
-        self._backfill_worker = BackfillWorker("standard")
+        # Use first selected format (Standard unless overridden)
+        selected = [f for f, cb in self._fmt_checks.items() if cb.isChecked()]
+        primary = selected[0] if selected else "standard"
+        self._backfill_worker = BackfillWorker(primary)
         self._backfill_worker.event_count.connect(self._on_event_count)
         self._backfill_worker.finished.connect(self._on_backfill_done)
         self._backfill_worker.start()

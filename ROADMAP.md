@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-03-26 (session 22)
+> Last updated: 2026-03-27
 
 ---
 
@@ -10,6 +10,11 @@
 - [x] Real match W/L pipeline — MTGMelee scraper + matches table + dashboard ★ badges (complete)
 - [x] MTGMelee scraper rewritten for new API endpoints (2026-03-25) — 250 Standard tournaments scraped
 - [x] Dedup-aware trend denominator in `get_archetype_trend()` (2026-03-25)
+- [x] User Preferences System — format selection wired end-to-end (2026-03-27)
+      Setup wizard page 0 (format checkboxes, saves preferences.json immediately)
+      fill_database.py reads preferences via _load_formats() — no more hardcoded format lists
+      scripts/run_fill_from_prefs.py reads preferences and runs scrapers for selected formats only
+      background_fill.bat delegates to run_fill_from_prefs.py instead of hardcoded per-format commands
 - [ ] Cross-source duplicate detection with confidence scoring
 - [ ] Manual force scrape button with progress display
 - [x] Data normalization: 170+ aliases, WUBRG codes, apostrophe fix, junk exclusion, backfill (2026-03-26)

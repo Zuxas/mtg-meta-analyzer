@@ -18,6 +18,7 @@ scrapers skip events already in the database.
 import sys
 import io
 import os
+import json
 import time
 from datetime import datetime
 
@@ -96,12 +97,30 @@ def step_scryfall_download():
 
 
 # ---------------------------------------------------------------------------
+# Load user preferences
+# ---------------------------------------------------------------------------
+
+def _load_formats():
+    """Read selected formats from preferences.json, default to standard only."""
+    prefs_path = os.path.join(_ROOT, "data", "preferences.json")
+    try:
+        if os.path.exists(prefs_path):
+            with open(prefs_path, "r", encoding="utf-8") as f:
+                prefs = json.load(f)
+            fmts = prefs.get("formats", ["standard"])
+            if fmts:
+                return fmts
+    except Exception:
+        pass
+    return ["standard"]
+
+
+# ---------------------------------------------------------------------------
 # Step 3 — MTGTop8 backfill
 # ---------------------------------------------------------------------------
 
-BACKFILL_FORMATS = ["standard", "pioneer", "modern"]
-
 def step_mtgtop8_backfill():
+    BACKFILL_FORMATS = _load_formats()
     _banner("STEP 3/6 — MTGTop8 historical backfill")
     print(f"  Formats: {', '.join(BACKFILL_FORMATS)}")
     print("  Scrapes 3 years of tournament history. Safe to re-run (skips existing events).")
@@ -137,10 +156,9 @@ def step_mtgtop8_backfill():
 # Step 4 — MTGDecks scrape
 # ---------------------------------------------------------------------------
 
-MTGDECKS_FORMATS = ["standard", "pioneer", "modern"]
-MTGDECKS_PAGES   = 5   # pages per format (most recent events first)
-
 def step_mtgdecks():
+    MTGDECKS_FORMATS = _load_formats()
+    MTGDECKS_PAGES   = 5
     _banner("STEP 4/6 — MTGDecks recent events")
     print(f"  Formats: {', '.join(MTGDECKS_FORMATS)}  |  Pages per format: {MTGDECKS_PAGES}")
     print("  Complements MTGTop8 with additional recent tournament data.")
