@@ -322,7 +322,7 @@ class DashboardTab(QWidget):
             "   (no star = estimated from placement tier)"
         )
         self._pop_tbl, self._pop_hdr = self._build_ranked_panel(
-            top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%"])
+            top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%", "Trend"])
         self._vsplit.addWidget(top_widget)
 
         # -- Bottom: chart + checkbox sidebar --------------------------
@@ -928,6 +928,21 @@ class DashboardTab(QWidget):
             if bg:
                 pct_item.setBackground(bg)
             tbl.setItem(ri, 3, pct_item)
+
+            # Sparkline: 4-week trend from chart data if available
+            chart = getattr(self, "_chart_data", None)
+            if chart and chart.get("meta_data", {}).get(s["archetype"]):
+                weeks_sorted = sorted(chart["all_weeks"])
+                vals = [chart["meta_data"][s["archetype"]].get(w, 0) for w in weeks_sorted]
+                # Use last 4 data points
+                vals = vals[-4:] if len(vals) >= 4 else vals
+                if len(vals) >= 2:
+                    pix = _make_sparkline(vals)
+                    lbl = QLabel()
+                    lbl.setPixmap(pix)
+                    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    tbl.setCellWidget(ri, 4, lbl)
+
         tbl.resizeRowsToContents()
         tbl.setSortingEnabled(True)
         tbl.sortByColumn(2, Qt.SortOrder.DescendingOrder)
@@ -1080,6 +1095,43 @@ class DashboardTab(QWidget):
     def _since_dt(self):
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
         return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
+
+
+def _make_sparkline(values: list[float], width: int = 60, height: int = 18) -> "QPixmap":
+    """Draw a tiny trend line as a QPixmap. values = list of floats (e.g. meta shares)."""
+    from PyQt6.QtGui import QPixmap, QPainter, QPen, QPainterPath
+    pix = QPixmap(width, height)
+    pix.fill(QColor(0, 0, 0, 0))  # transparent
+    if not values or len(values) < 2:
+        return pix
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    mn, mx = min(values), max(values)
+    rng = mx - mn if mx != mn else 1.0
+    pad = 2
+    w = width - pad * 2
+    h = height - pad * 2
+    # Determine trend color: green if rising, red if falling, grey if flat
+    delta = values[-1] - values[0]
+    if delta > 0.002:
+        color = QColor(theme.OK)
+    elif delta < -0.002:
+        color = QColor(theme.ERR)
+    else:
+        color = QColor(theme.TEXT_DIM)
+    pen = QPen(color, 1.5)
+    p.setPen(pen)
+    path = QPainterPath()
+    for i, v in enumerate(values):
+        x = pad + (i / (len(values) - 1)) * w
+        y = pad + h - ((v - mn) / rng) * h
+        if i == 0:
+            path.moveTo(x, y)
+        else:
+            path.lineTo(x, y)
+    p.drawPath(path)
+    p.end()
+    return pix
 
 
 def _shorten_arch(name: str, max_len: int = 22) -> str:
