@@ -310,10 +310,70 @@ ALIASES = {
     "grixis grinding breach":  "Grinding Breach",
     "bant grinding breach":    "Grinding Breach",
 
-    # --- Standard consolidations ---
+    # --- Standard: Pixie (Esper is canonical) ---
+    "esper pixies":            "Esper Pixie",
+    "orzhov pixie":            "Esper Pixie",
+    "abzan pixie":             "Esper Pixie",
+    "jeskai pixie":            "Esper Pixie",
+    "mardu pixie":             "Esper Pixie",
+    "dimir pixie":             "Esper Pixie",
+
+    # --- Standard: Cauldron (Izzet is canonical) ---
+    "vivi cauldron":           "Izzet Cauldron",
+    "jeskai cauldron":         "Izzet Cauldron",
+    "golgari cauldron":        "Izzet Cauldron",
+    "sultai cauldron":         "Izzet Cauldron",
+    "temur cauldron":          "Izzet Cauldron",
+    "dimir cauldron":          "Izzet Cauldron",
+    "simic cauldron":          "Izzet Cauldron",
+    "izzet vivi cauldron":     "Izzet Cauldron",
+    "cauldron":                "Izzet Cauldron",
+
+    # --- Standard: Overlords (small splash variants → Four-Color) ---
     "domain overlords":        "Four-Color Overlords",
+    "colorless overlords":     "Four-Color Overlords",
+    "abzan overlords":         "Four-Color Overlords",
+    "naya overlords":          "Four-Color Overlords",
+    "esper overlords":         "Four-Color Overlords",
+    "jeskai overlords":        "Four-Color Overlords",
+
+    # --- Standard: Beanstalk (Four-Color is canonical; small splashes consolidate) ---
     "sultai beanstalk":        "Four-Color Beanstalk",
+
+    # --- Standard: Spellementals fix ---
+    "dimir spellementals":     "Izzet Spellementals",
+    "spellementals":           "Izzet Spellementals",
+    "spellmental":             "Izzet Spellementals",
+    "spellementals":           "Izzet Spellementals",
+
+    # --- Standard: Rhythm ---
+    "simic nature's rhythm":   "Simic Rhythm",
+    "five-color rhythm":       "Simic Rhythm",
+
+    # --- Standard: Convoke (small variants) ---
+    "simic convoke":           "Jeskai Convoke",
+    "izzet convoke":           "Jeskai Convoke",
+    "mono white convoke":      "Boros Convoke",
+
+    # --- Standard: other consolidations ---
     "azorius midrange":        "Azorius Control",
+    "azorious control":        "Azorius Control",
+    "grull aggro":             "Gruul Aggro",
+    "red deck wins":           "Mono Red Aggro",
+
+    # --- Pioneer: Greasefang (Abzan is canonical) ---
+    "esper greasefang":        "Abzan Greasefang",
+    "orzhov greasefang":       "Abzan Greasefang",
+
+    # --- Pioneer: Sacrifice (Jund is canonical) ---
+    "rakdos sacrifice":        "Jund Sacrifice",
+    "golgari sacrifice":       "Jund Sacrifice",
+
+    # --- Pioneer: Creativity (small variants) ---
+    "jund creativity":         "Izzet Creativity",
+    "w-u-b-r-g indomitable creativity": "Izzet Creativity",
+    "rakdos creativity":       "Izzet Creativity",
+    "boros creativity":        "Izzet Creativity",
 
     # --- Legacy: Reanimator (Dimir is canonical) ---
     "w-u-b-g reanimator":      "Dimir Reanimator",

@@ -184,6 +184,14 @@ python run_gui.py
 
 ---
 
+### Session 2026-03-26 (Session 25) — Standard + Pioneer normalization audit
+
+1. **Standard**: Esper Pixie (6 variants → 6,122 matches), Izzet Cauldron (9 variants → 6,487), Four-Color Overlords (6 small variants consolidated), Izzet Spellementals (plural/Dimir → 1,888), Simic Rhythm (Nature's Rhythm + Five-Color → canonical), Convoke small variants, Azorious typo fix
+2. **Pioneer**: Abzan Greasefang (Esper/Orzhov → 808), Jund Sacrifice (Rakdos/Golgari → 1,968), Izzet Creativity (4 small variants consolidated)
+3. **Backfill**: 34 renames applied. Standard 1,113 (was 1,139), Pioneer 293 (was 301), Modern 706 (was 708)
+
+---
+
 ### Session 2026-03-26 (Session 24) — Affinity + Neoform consolidation
 
 1. **Izzet Affinity**: 18 variants (plain Affinity, Jeskai, Azorius, Grixis, etc.) consolidated → now 7,326 total matches (was 2,631)
