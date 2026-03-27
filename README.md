@@ -1,6 +1,6 @@
 # MTG Meta Analyzer
 
-A personal desktop tool for competitive Magic: The Gathering players. Scrapes tournament results from multiple sources, stores years of data locally, and surfaces the meta insights you need to prepare for RCQs and competitive play.
+A personal desktop tool for competitive Magic: The Gathering players. Scrapes tournament results from multiple sources, stores years of data locally, and surfaces the meta insights you need to prepare for RCQs, Regional Championships, and Pro Tours.
 
 ---
 
@@ -11,21 +11,32 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 3. Run `python run_gui.py` to launch the app
 4. Register the daily tasks once (`schedule_background_fill.bat` as Admin) — after that the DB stays current automatically
 
+**262,641 real match records** across 5 formats. **37,186 decklists** with full card data. All on your local machine.
+
 ---
 
 ## What It Does
 
-**Data collection**
-- Scrapes MTGTop8, MTGDecks.net, and melee.gg across Standard, Pioneer, and Modern
-- Stores up to 3 years of event and decklist data in a local SQLite database (~24,000+ Standard decks as of 2026-03-25)
-- Real round-by-round match results from melee.gg (250+ Standard tournaments)
+**Data collection — 262k+ real matches across 5 formats**
+- Scrapes MTGTop8, MTGDecks.net, and melee.gg across Standard, Pioneer, Modern, Legacy, and Pauper
+- **262,641 real match results** from melee.gg (round-by-round W/L, not placement estimates)
+- 37,186+ decklists with full card data in local SQLite database
 - Daily automated updates via Windows Task Scheduler — no manual scraping needed
 
+| Format | Real Matches | Tournaments | Decklists |
+|--------|-------------|-------------|-----------|
+| Standard | 108,648 | 250 | 37,186 |
+| Modern | 92,420 | 347 | 6,770 |
+| Legacy | 25,304 | 86 | 115 |
+| Pioneer | 20,095 | 58 | 5,657 |
+| Pauper | 16,174 | ~130 | — |
+
 **Meta analysis**
-- Meta share and archetype trend charts by week
-- Real match win rates from melee.gg data; falls back to placement-based estimates
+- Meta share and archetype trend charts (weekly or daily granularity)
+- Real match win rates from melee.gg data; falls back to placement-based estimates when stale
 - Archetype tier badges: S (dominant) / A (strong) / B (solid) / C (declining)
-- Head-to-head matchup data and full NxN matchup matrix from MTGDecks.net
+- NxN matchup heatmap: combined real match data (starred) + scraped MTGDecks data fills gaps
+- Format event markers on charts (set releases, B&R announcements, rotation dates)
 - Cross-source deduplication so the same deck counted on two sites isn't double-counted
 
 **Deck tools**
@@ -35,10 +46,18 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 - Average deck calculator — see the consensus 75 for any archetype over any timeframe
 
 **Tournament prep**
-- RCQ Optimizer: enter your deck and field, get top-cut probability and matchup breakdown with G1 and G2/G3 win rates
-- Sideboard guide integration: parses Skill Issue Magic guides for IN/OUT plans per matchup
-- Flip detection: shows which matchups change dramatically after sideboarding
+- Event Optimizer: RCQ / Regional Championship / PTQ presets with auto player count and round structure
+- Binomial top-cut probability, X-loss cutoff, day-2 conversion probability for 2-day events
+- Matchup breakdown with G1 and G2/G3 win rates, sideboard flip detection
+- Sideboard guide integration: parses Skill Issue Magic guides for ON PLAY / ON DRAW IN/OUT plans
 - Breaker Math: live W/L/D tracker, ID calculator, draw equity, pair-down warning
+- Printable tournament guide export (HTML) from saved decks
+
+**My Decks**
+- Save decks with full 75, archetype, format, notes
+- Add sideboard plans per matchup (play/draw IN/OUT, difficulty rating)
+- Export to MTGO/MTGA/decklist.org or printable HTML tournament guide
+- "Open in Event Optimizer" loads deck directly into tournament analysis
 
 **Other features**
 - Weekly meta predictions with accuracy tracking (which signals are most reliable)
@@ -104,14 +123,15 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 
 | Tab | What's in it |
 |-----|-------------|
-| **Dashboard** | Meta standings with tier badges, win rates (real or estimated), popularity trend; interactive meta share and win rate charts; per-archetype click-through |
+| **Dashboard** | Meta standings with tier badges, win rates (real or estimated), popularity/win rate charts with weekly/daily toggle + format event markers, per-archetype click-through with exact decklist tab |
 | **Deck Analyzer** | Paste an Arena decklist — blunder detection, Chapin Principles scoring, legality checker, export to MTGO/MTGA/decklist.org |
+| **My Decks** | Save decks with sideboard plans (play/draw IN/OUT), export printable HTML tournament guides, open in Event Optimizer |
 | **Search** | Card lookup, deck search by archetype, head-to-head matchup comparison |
-| **Charts** | Meta share trend, archetype trend, and matchup heatmap charts with timeframe selector |
-| **Tournament Prep** | RCQ Optimizer (binomial top-cut equity + sideboard flip detection) and Breaker Math (live W/L/D + ID calc) |
-| **Matchup Data** | NxN matchup heatmap from MTGDecks.net — fetch live, use cached, or paste CSV/JSON |
-| **Knowledge Base** | Bookmark articles and guides; sync Skill Issue Magic sideboard guides |
+| **Charts** | Meta share trend, archetype trend, compare trends (multi-archetype overlay), matchup heatmap |
 | **Predictions** | Generate and validate weekly meta predictions; accuracy report by prediction type |
+| **Knowledge Base** | Bookmark articles and guides; sync Skill Issue Magic sideboard guides |
+| **Tournament Prep** | Event Optimizer (RCQ/RC/PTQ presets, top-cut equity, matchup breakdown, flip detection) + Breaker Math (live W/L/D + ID calc) |
+| **Matchup Data** | NxN heatmap: Real Match Data (262k matches) + MTGDecks Live scrapes + paste CSV/JSON. Overall WR column, source indicators (★ = real) |
 | **Ask Claude** | AI assistant with meta context — hidden until API key is set in Settings |
 | **Settings** | Format selection, data window, auto-update frequency, AI key |
 
@@ -119,12 +139,13 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 
 ## Supported Formats
 
-| Format | MTGTop8 | MTGDecks.net | melee.gg (real W/L) |
-|--------|---------|--------------|---------------------|
-| Standard | Yes | Yes | Yes |
-| Pioneer | Yes | Yes | Yes |
-| Modern | Yes | Yes | Yes |
-| Legacy | Backfill only | Yes | — |
+| Format | MTGTop8 | MTGDecks.net | melee.gg (real W/L) | Matches |
+|--------|---------|--------------|---------------------|---------|
+| Standard | Yes | Yes | 108,648 | Full |
+| Modern | Yes | Yes | 92,420 | Full |
+| Legacy | Yes | Yes | 25,304 | Active |
+| Pioneer | Yes | Yes | 20,095 | Full |
+| Pauper | — | — | 16,174 | Active |
 
 ---
 
@@ -222,7 +243,7 @@ Three Windows Task Scheduler tasks keep the database current. The first-run wiza
 
 All output is logged to `logs/background_fill.log` and `logs/YYYY-MM-DD.log`.
 
-The background fill runs 7 steps: MTGTop8 (Standard / Pioneer / Modern), MTGDecks (Standard / Pioneer / Modern), MTGMelee real match data (Standard / Pioneer / Modern), Scryfall enrichment, archetype normalization.
+The background fill runs 7 steps: MTGTop8 (Standard / Pioneer / Modern), MTGDecks (Standard / Pioneer / Modern), MTGMelee real match data (Standard / Pioneer / Modern / Legacy / Pauper), Scryfall enrichment, archetype normalization.
 
 ---
 
@@ -260,3 +281,24 @@ pip install -r requirements.txt   # pick up any new dependencies
 ```
 
 The GUI runs a background update automatically on startup. The database schema migrates automatically when new tables are added.
+
+---
+
+## Known Limitations
+
+- **MTGTop8 decklist data**: Scraper had a Unicode crash on non-ASCII player names that went undetected for months (fixed 2026-03-26). Data will recover as daily scrapes run. In the meantime, the dashboard uses real match data from melee.gg as a fallback.
+- **Pioneer/Modern heatmap coverage**: Fewer tournaments on melee.gg than Standard, so the real match data heatmap is sparser. MTGDecks Live scrapes fill the gaps.
+- **Sideboard guides**: Require manually syncing the Skill Issue Magic Google Sheet via the Knowledge Base tab. Guides are community-contributed and may not cover all matchups.
+- **Ask Claude tab**: Requires an Anthropic API key set in Settings. Uses Claude claude-opus-4-6 with adaptive thinking.
+- **Pauper/Legacy decklists**: melee.gg has real match W/L data for these formats, but MTGTop8/MTGDecks decklist scraping is limited. Heatmap and match data work; deck analysis features need more data.
+- **Windows only**: Scheduled tasks use Windows Task Scheduler. The GUI itself should work on macOS/Linux but automated updates are not set up for those platforms.
+
+---
+
+## Acknowledgements
+
+- **MTGTop8** and **MTGDecks.net** for tournament data
+- **melee.gg** for real match results
+- **Scryfall** for card data API
+- **Skill Issue Magic** for the sideboard guide database
+- Built with Python 3.13, PyQt6, matplotlib, SQLite, cloudscraper

@@ -266,17 +266,17 @@ Use `--include-archive` flag (via `get_combined_connection()`) to query across b
 
 Both DB files are gitignored. After cloning: run `fill_database.bat`
 
-### Current data (as of 2026-03-25)
-- Standard: 2,043+ events, ~24,289+ decks (Nov 2024 – Mar 2026), 99.98% card coverage
-- Pioneer: 109 events, 3,125 decks (MTGDecks 20-page scrape completed 2026-03-21)
-- Modern: scraping in background; enrich after with `python -m scrapers.scryfall`
-- Matches (MTGMelee): 262,641 real match records across all formats (as of 2026-03-26)
+### Current data (as of 2026-03-26)
+- **Decklists (MTGTop8/MTGDecks)**: Standard 37,186 decks (3,834 events), Pioneer 5,657 (210), Modern 6,770 (233), Legacy 115 (10)
+  - NOTE: MTGTop8 scraper had a Unicode crash (fixed 2026-03-26) — decklist data is stale for some formats. Recovers with daily scrapes.
+  - `get_meta_standings()` falls back to matches table when decks data is too sparse (top archetype <20 appearances)
+- **Matches (MTGMelee)**: 262,641 real match records across all formats
   - Standard: 108,648 matches (250 tournaments)
   - Modern:    92,420 matches (347 tournaments, all available)
   - Legacy:    25,304 matches  (86 tournaments)
   - Pioneer:   20,095 matches  (58 tournaments, all available)
   - Pauper:    16,174 matches (~130 tournaments)
-- Daily 6 AM task registered — maintains Standard + Pioneer + Modern going forward
+- Daily 6 AM task registered — maintains all 5 formats going forward
 - Guides: 331 guides from Skill Issue Magic sheet (last synced 2026-03-21)
 
 ### card_data table

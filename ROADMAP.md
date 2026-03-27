@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-03-26
+> Last updated: 2026-03-26 (session 22)
 
 ---
 
@@ -12,7 +12,10 @@
 - [x] Dedup-aware trend denominator in `get_archetype_trend()` (2026-03-25)
 - [ ] Cross-source duplicate detection with confidence scoring
 - [ ] Manual force scrape button with progress display
-- [ ] Data normalization improvements
+- [x] Data normalization: 170+ aliases, WUBRG codes, apostrophe fix, junk exclusion, backfill (2026-03-26)
+- [x] Unicode crash fix in MTGTop8 scraper — PYTHONIOENCODING=utf-8 (2026-03-26)
+- [x] Meta standings fallback to matches table when decks data is stale (2026-03-26)
+- [x] Legacy + Pauper format support in MTGMelee scraper + heatmap (2026-03-26)
 - [ ] Meta change detection (compare two time periods)
 
 ---
@@ -69,6 +72,12 @@
 - [x] My Decks GUI tab — list/add/edit/delete saved decks + SB plans (2026-03-26)
 - [x] Charts Compare Mode — multi-archetype trend overlay (2026-03-26)
 - [x] Legend/key for dashboard tier badge colors (S/A/B/C) and ★ star suffix — tooltip on Tier header (2026-03-25)
+- [x] Heatmap rewrite: combined real+scraped data, Overall WR column, source indicators, data-density fallback (2026-03-26)
+- [x] Dashboard daily granularity toggle, format event markers on charts (2026-03-26)
+- [x] Win rate smoothing (3-point rolling avg, min 3 appearances/week) (2026-03-26)
+- [x] Default top 8 by appearances in chart checkboxes (2026-03-26)
+- [x] SB plan CRUD dialog in My Decks tab (2026-03-26)
+- [x] "This List" tab in archetype detail for exact decklists from Recent Top Finishes (2026-03-26)
 - [ ] Layout consistency (global filters top, nav left, data center, detail right)
 - [ ] Sticky headers + sortable columns everywhere
 - [ ] Sparklines + trend arrows on meta table
@@ -80,5 +89,7 @@
 
 ## 7. FORMAT EXPANSION (Low priority)
 
-- [ ] Pauper, Legacy, Premodern support
+- [x] Legacy support: 25,304 matches from 86 tournaments, MTGTop8 scraper active (2026-03-26)
+- [x] Pauper support: 16,174 matches from ~130 tournaments, daily scrapes active (2026-03-26)
+- [ ] Premodern support
 - [ ] Format-specific banned lists + archetype dictionaries
