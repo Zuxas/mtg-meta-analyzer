@@ -448,6 +448,8 @@ class DeckAnalyzerTab(QWidget):
         self._rec_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._rec_table.setMaximumHeight(160)
         self._rec_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        from gui.widgets.card_tooltip import install_card_tooltip
+        install_card_tooltip(self._rec_table, card_name_column=0)
         rv2.addWidget(self._rec_table)
         lv.addWidget(self._rec_box)
 

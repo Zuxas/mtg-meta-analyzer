@@ -431,9 +431,6 @@ class ChartCanvas(QWidget):
                 # Plot only non-None segments
                 xs = [x_labels[j] for j in range(len(y)) if y[j] is not None]
                 ys = [y[j] for j in range(len(y)) if y[j] is not None]
-                print(f"[CHART WR] {arch[:25]:25s}: {total_raw}/{len(sorted_weeks)} weeks pass filter, "
-                      f"smoothed range {min(ys):.0f}-{max(ys):.0f}%" if ys else
-                      f"[CHART WR] {arch[:25]:25s}: 0 points after filter")
                 if ys:
                     ax.plot(xs, ys, marker="o", markersize=3, linewidth=2,
                             color=color, label=_shorten(arch), alpha=0.9)

@@ -659,15 +659,14 @@ class HeatmapTab(QWidget):
                     break
 
         overlap_pct = len(ordered) / len(standings) if standings else 0
-        print(f"[HEATMAP] _filter_to_meta: {len(ordered)}/{len(standings)} "
-              f"meta matched ({overlap_pct:.0%}), {len(matrix)} matrix archetypes")
+        # Debug removed — was: [HEATMAP] _filter_to_meta overlap info
 
         if overlap_pct >= 0.4:
             # Good overlap — use meta-share ordering
             return self._build_filtered(matrix, ordered)
         else:
             # Poor overlap (real match data vs different naming) — use data density
-            print(f"[HEATMAP] Poor name overlap — falling back to data-density sort")
+            pass  # poor name overlap — using data-density sort
             return self._build_filtered(matrix, by_density)
 
     @staticmethod

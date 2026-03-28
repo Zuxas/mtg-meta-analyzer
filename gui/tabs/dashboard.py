@@ -821,8 +821,6 @@ class DashboardTab(QWidget):
 
             # Use real match W/L where available (MTGMelee / bracket inference)
             real = (real_wrs or {}).get(s["archetype"])
-            print(f"[WR PANEL] {s['archetype']:30s} apps={s['appearances']:>6} wr={s.get('est_match_winpct',0)*100:.1f}% "
-                  f"{'HIDDEN' if s['appearances'] < 15 else 'SHOW'}")
             if s["appearances"] < 15:
                 # Too few data points for meaningful win rate
                 pct        = s["est_match_winpct"] * 100
