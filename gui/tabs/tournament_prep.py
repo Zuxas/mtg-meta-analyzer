@@ -457,10 +457,17 @@ class _BreakerWidget(QWidget):
 
         sb_row.addWidget(QLabel("Players:"))
         self._players = QSpinBox()
-        self._players.setRange(4, 512)
+        self._players.setRange(4, 5000)
         self._players.setValue(32)
         self._players.setFixedWidth(80)
         sb_row.addWidget(self._players)
+
+        sb_row.addWidget(QLabel("Top cut:"))
+        self._top_cut = QComboBox()
+        self._top_cut.addItems(["8", "16", "32", "64"])
+        self._top_cut.setCurrentText("8")
+        self._top_cut.setFixedWidth(60)
+        sb_row.addWidget(self._top_cut)
 
         self._struct_lbl = QLabel("")
         self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
@@ -523,6 +530,7 @@ class _BreakerWidget(QWidget):
         for sb in (self._players, self._my_w, self._my_l, self._my_d,
                    self._op_w, self._op_l, self._op_d):
             sb.valueChanged.connect(lambda _: self._update())
+        self._top_cut.currentIndexChanged.connect(lambda _: self._update())
 
         self._update()
 
@@ -537,23 +545,27 @@ class _BreakerWidget(QWidget):
         op_l = self._op_l.value()
         op_d = self._op_d.value()
 
-        from analysis.tournament import RCQ_MIN_PLAYERS
+        from analysis.tournament import RCQ_MIN_PLAYERS, cut_threshold, x_loss_cutoff
         struct = tournament_structure(players)
+        # Override top cut from dropdown
+        custom_cut = int(self._top_cut.currentText())
+        struct["top_cut"] = custom_cut
+        struct["threshold"] = cut_threshold(struct["rounds"]) if not struct["single_elim"] else 0
+
         if players < RCQ_MIN_PLAYERS:
             self._struct_lbl.setText(
-                f"⚠  {players} players — below minimum ({RCQ_MIN_PLAYERS} required for RCQ)"
-            )
+                f"\u26a0  {players} players \u2014 below minimum ({RCQ_MIN_PLAYERS} required for RCQ)")
             self._struct_lbl.setStyleSheet("color: #e6194b; font-size: 11px;")
         elif struct["single_elim"]:
             self._struct_lbl.setText(
-                "3 rounds, single elimination  •  All 8 players in bracket  •  No points threshold"
-            )
+                "3 rounds, single elimination  \u2022  All 8 in bracket  \u2022  No threshold")
             self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
         else:
+            max_l = x_loss_cutoff(players, struct["rounds"], custom_cut)
+            min_w = struct["rounds"] - max_l
             self._struct_lbl.setText(
-                f"{struct['rounds']} rounds  •  Top {struct['top_cut']}  "
-                f"•  Threshold: {struct['threshold']} pts"
-            )
+                f"{struct['rounds']} rounds  \u2022  Top {custom_cut}  \u2022  "
+                f"{struct['threshold']} pts  \u2022  Need {min_w}-{max_l} or better")
             self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
 
         standing = standing_analysis(my_w, my_l, my_d, players)
@@ -664,11 +676,11 @@ class _EventWidget(QWidget):
         self._field_input.setMaximumHeight(220)
         lv.addWidget(self._field_input)
 
-        meta_btn = QPushButton("Use Meta Distribution")
-        meta_btn.setStyleSheet(theme.btn_secondary())
-        meta_btn.setToolTip("Auto-fill field from current top meta archetypes by share %")
-        meta_btn.clicked.connect(self._auto_populate_field)
-        lv.addWidget(meta_btn)
+        self._meta_btn = QPushButton("Use Meta Distribution")
+        self._meta_btn.setStyleSheet(theme.btn_secondary())
+        self._meta_btn.setToolTip("Auto-fill field from current top meta archetypes by share %")
+        self._meta_btn.clicked.connect(self._auto_populate_field)
+        lv.addWidget(self._meta_btn)
 
         self._analyze_btn = QPushButton("Analyze Field")
         self._analyze_btn.setStyleSheet(theme.btn_primary())
@@ -906,9 +918,12 @@ class _EventWidget(QWidget):
                 lines.append(f"{a} x{n}")
             return "\n".join(lines)
 
+        tf_label = theme.TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+
         def _done(text):
             self._field_input.setPlainText(text)
-            self._status.setText("Field loaded from meta standings.")
+            self._status.setText(f"Field loaded from {tf_label} meta standings.")
+            self._meta_btn.setToolTip(f"Data from {tf_label} meta share for {fmt.capitalize()}")
             self._analyze_btn.setEnabled(True)
 
         w = DataLoadWorker(_auto)
