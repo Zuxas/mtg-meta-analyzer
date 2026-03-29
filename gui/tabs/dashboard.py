@@ -589,9 +589,9 @@ class DashboardTab(QWidget):
         )
         self._panel_worker.start()
 
-        self._reload_chart()
+        self._reload_chart(auto_suggest=True)
 
-    def _reload_chart(self):
+    def _reload_chart(self, auto_suggest=False):
         """Load chart data with current settings. Called from refresh() and _set_granularity()."""
         DashboardTab._cancel_worker(self._chart_worker)
         self._chart_worker = None
@@ -602,8 +602,8 @@ class DashboardTab(QWidget):
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
         gran  = getattr(self, "_chart_granularity", "weekly")
 
-        # Auto-suggest: short timeframes default to daily
-        if gran == "weekly" and weeks is not None and weeks <= 2:
+        # Auto-suggest: short timeframes default to daily (only on initial load, not user toggle)
+        if auto_suggest and gran == "weekly" and weeks is not None and weeks <= 2:
             gran = "daily"
             self._chart_granularity = gran
             self._gran_weekly_btn.setStyleSheet(theme.btn_secondary())

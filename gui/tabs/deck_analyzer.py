@@ -127,8 +127,16 @@ def _fetch_decklist_from_url(url: str) -> str:
     # Moxfield: https://moxfield.com/decks/[id]
     if "moxfield.com/decks/" in url:
         deck_id = url.rstrip("/").split("/")[-1]
-        api = f"https://api2.moxfield.com/v3/decks/all/{deck_id}"
-        resp = requests.get(api, headers={"User-Agent": "MTGMetaAnalyzer/1.0"}, timeout=15)
+        api = f"https://api2.moxfield.com/v2/decks/all/{deck_id}"
+        try:
+            import cloudscraper
+            scraper = cloudscraper.create_scraper()
+            resp = scraper.get(api, timeout=15)
+        except ImportError:
+            resp = requests.get(api, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                              "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+            }, timeout=15)
         resp.raise_for_status()
         data = resp.json()
         lines = ["Deck"]
@@ -179,12 +187,29 @@ def _fetch_decklist_from_url(url: str) -> str:
 
     # MTGTop8: https://mtgtop8.com/event?e=[id]&d=[deck_id]
     if "mtgtop8.com" in url:
-        resp = requests.get(url, headers={"User-Agent": "MTGMetaAnalyzer/1.0"}, timeout=15)
+        # MTGTop8 has a MTGO download link: same URL with &d=[id]&f=MO
+        # Parse the deck from the page's card list divs
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
         resp.raise_for_status()
-        # MTGTop8 has an MTGA export textarea or we parse the deck table
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(resp.text, "html.parser")
-        # Try finding the MTGA export
+        lines = ["Deck"]
+        in_side = False
+        for div in soup.select("div.deck_line, div.deck_line_bot"):
+            qty_span = div.select_one("span.deck_qty")
+            name_span = div.select_one("span.deck_name") or div.select_one("a")
+            if qty_span and name_span:
+                qty = qty_span.text.strip()
+                name = name_span.text.strip()
+                if qty and name:
+                    lines.append(f"{qty} {name}")
+            elif "Sideboard" in div.text or "SB:" in div.text:
+                in_side = True
+                lines.append("")
+                lines.append("Sideboard")
+        if len(lines) > 1:
+            return "\n".join(lines)
+        # Fallback: try textarea
         textarea = soup.find("textarea")
         if textarea and textarea.text.strip():
             return textarea.text.strip()
@@ -412,8 +437,7 @@ class DeckAnalyzerTab(QWidget):
         paste_row.addWidget(QLabel("Paste decklist (Arena export format):"))
         paste_row.addStretch()
         self._url_btn = QPushButton("Import from URL")
-        self._url_btn.setStyleSheet(theme.btn_secondary())
-        self._url_btn.setFixedHeight(22)
+        self._url_btn.setStyleSheet(theme.btn_primary())
         self._url_btn.setToolTip("Import decklist from Moxfield, Archidekt, MTGGoldfish, or MTGTop8")
         self._url_btn.clicked.connect(self._import_from_url)
         paste_row.addWidget(self._url_btn)

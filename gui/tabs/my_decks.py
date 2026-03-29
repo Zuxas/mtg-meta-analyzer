@@ -175,8 +175,16 @@ class _SBPlanDialog(QDialog):
         layout = QVBoxLayout(self)
 
         form = QFormLayout()
-        self._opp = QLineEdit()
-        self._opp.setPlaceholderText("e.g. Boros Energy")
+        self._opp = QComboBox()
+        self._opp.setEditable(True)
+        self._opp.lineEdit().setPlaceholderText("e.g. Boros Energy")
+        # Populate with top meta archetypes
+        try:
+            from analysis.win_rates import get_meta_standings
+            top = get_meta_standings("standard", top=15)
+            self._opp.addItems([s["archetype"] for s in top])
+        except Exception:
+            pass
         form.addRow("Opponent Archetype:", self._opp)
 
         self._diff = QComboBox()
@@ -225,7 +233,7 @@ class _SBPlanDialog(QDialog):
 
         # Pre-fill if editing
         if plan:
-            self._opp.setText(plan.get("opponent_archetype", ""))
+            self._opp.setCurrentText(plan.get("opponent_archetype", ""))
             self._diff.setCurrentText(plan.get("difficulty", "Medium"))
             self._notes.setText(plan.get("notes", ""))
             self._play_in.setPlainText("\n".join(plan.get("play_in", [])))
@@ -237,7 +245,7 @@ class _SBPlanDialog(QDialog):
         def _lines(te):
             return [l.strip() for l in te.toPlainText().splitlines() if l.strip()]
         return {
-            "opponent_archetype": self._opp.text().strip(),
+            "opponent_archetype": self._opp.currentText().strip(),
             "difficulty":         self._diff.currentText(),
             "notes":              self._notes.text().strip(),
             "play_in":            _lines(self._play_in),
