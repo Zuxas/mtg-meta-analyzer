@@ -166,7 +166,7 @@ class _DeckDialog(QDialog):
 class _SBPlanDialog(QDialog):
     """Dialog to add or edit a sideboard plan for a specific matchup."""
 
-    def __init__(self, parent=None, plan=None):
+    def __init__(self, parent=None, plan=None, exclude_opponents=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Sideboard Plan" if plan else "Add Sideboard Plan")
         self.setMinimumSize(500, 480)
@@ -178,11 +178,13 @@ class _SBPlanDialog(QDialog):
         self._opp = QComboBox()
         self._opp.setEditable(True)
         self._opp.lineEdit().setPlaceholderText("e.g. Boros Energy")
-        # Populate with top meta archetypes
+        # Populate with top meta archetypes, excluding already-planned opponents
+        already = exclude_opponents or set()
         try:
             from analysis.win_rates import get_meta_standings
-            top = get_meta_standings("standard", top=15)
-            self._opp.addItems([s["archetype"] for s in top])
+            top = get_meta_standings("standard", top=20)
+            self._opp.addItems([s["archetype"] for s in top
+                                if s["archetype"] not in already])
         except Exception:
             pass
         form.addRow("Opponent Archetype:", self._opp)
@@ -697,7 +699,13 @@ class MyDecksTab(QWidget):
     def _add_sb_plan(self):
         if not self._current_deck:
             return
-        dlg = _SBPlanDialog(self)
+        # Collect existing opponents so the dialog can exclude them
+        existing_opps = set()
+        for row in range(self._sb_table.rowCount()):
+            item = self._sb_table.item(row, 0)
+            if item:
+                existing_opps.add(item.text())
+        dlg = _SBPlanDialog(self, exclude_opponents=existing_opps)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         data = dlg.get_data()
