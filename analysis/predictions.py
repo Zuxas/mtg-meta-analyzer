@@ -140,9 +140,9 @@ def generate_predictions(format_name="standard", weeks_back=4, commit=True):
 
         signals = {
             "appearances":      s["appearances"],
-            "avg_points":       round(s["avg_points"], 3),
-            "est_winpct":       round(s["est_match_winpct"], 3),
-            "top8_rate":        round(s["top8_rate"], 3),
+            "avg_points":       round(s.get("avg_points") or 0, 3),
+            "est_winpct":       round(s.get("est_match_winpct") or 0, 3),
+            "top8_rate":        round(s.get("top8_rate") or 0, 3),
             "meta_share_trend": direction,
             "weeks_analyzed":   weeks_back,
         }

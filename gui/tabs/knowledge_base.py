@@ -316,8 +316,12 @@ class KnowledgeBaseTab(QWidget):
 
         g = sum(1 for r in rows if r.get("origin") == "guide")
         b = sum(1 for r in rows if r.get("origin") == "bookmark")
+        # Find most recent guide date as "last synced" indicator
+        guide_dates = [r.get("date_str", "")[:10] for r in rows if r.get("origin") == "guide" and r.get("date_str")]
+        last_sync = max(guide_dates) if guide_dates else "never"
         self._table_status.setText(
             f"{len(rows)} resources  ({g} scraped guides, {b} bookmarks)"
+            f"  \u2022  Last synced: {last_sync}"
         )
 
     # ------------------------------------------------------------------
