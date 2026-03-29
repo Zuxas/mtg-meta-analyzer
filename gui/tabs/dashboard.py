@@ -239,6 +239,7 @@ class DashboardTab(QWidget):
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
         self._fmt.setFixedWidth(110)
+        self._fmt.currentIndexChanged.connect(lambda _: self.refresh())
         ctrl.addWidget(self._fmt)
 
         ctrl.addWidget(QLabel("Timeframe:"))
@@ -247,6 +248,7 @@ class DashboardTab(QWidget):
             self._tf.addItem(label)
         self._tf.setCurrentText(theme.TIMEFRAME_DEFAULT)
         self._tf.setFixedWidth(110)
+        self._tf.currentIndexChanged.connect(lambda _: self.refresh())
         ctrl.addWidget(self._tf)
 
         ctrl.addWidget(QLabel("Top N:"))
@@ -600,6 +602,8 @@ class DashboardTab(QWidget):
         top   = int(self._top_n.currentText())
         since = self._since_dt()
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
+        # Cap chart weeks to 52 for performance (All Time = None → 52 week chart)
+        chart_weeks = weeks if weeks is not None else 52
         gran  = getattr(self, "_chart_granularity", "weekly")
 
         # Auto-suggest: short timeframes default to daily (only on initial load, not user toggle)
@@ -614,7 +618,7 @@ class DashboardTab(QWidget):
 
         self._chart_worker = DataLoadWorker(
             fetch_chart_data,
-            {"format_name": fmt, "top": top, "weeks": weeks,
+            {"format_name": fmt, "top": top, "weeks": chart_weeks,
              "since": since, "until": None, "standings": None,
              "dedup_cross_source": dedup_cs, "unique_player_decks": dedup_upd,
              "granularity": gran},

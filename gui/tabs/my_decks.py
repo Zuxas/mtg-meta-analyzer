@@ -451,6 +451,13 @@ class MyDecksTab(QWidget):
         self._del_plan_btn.setStyleSheet(f"color: {theme.ERR};")
         self._del_plan_btn.clicked.connect(self._delete_sb_plan)
         sb_btn_row.addWidget(self._del_plan_btn)
+
+        self._sb_guide_btn = QPushButton("Print SB Guide")
+        self._sb_guide_btn.setEnabled(False)
+        self._sb_guide_btn.setStyleSheet(theme.btn_primary())
+        self._sb_guide_btn.setToolTip("Print-friendly sideboard guide (plans only, no decklist)")
+        self._sb_guide_btn.clicked.connect(self._export_sb_only)
+        sb_btn_row.addWidget(self._sb_guide_btn)
         sb_btn_row.addStretch()
         sb_layout.addLayout(sb_btn_row)
 
@@ -526,6 +533,7 @@ class MyDecksTab(QWidget):
         self._rcq_btn.setEnabled(True)
         self._add_plan_btn.setEnabled(True)
         self._del_plan_btn.setEnabled(True)
+        self._sb_guide_btn.setEnabled(True)
 
     def _show_deck(self, deck):
         name = deck.get("name", "Unnamed")
@@ -618,6 +626,7 @@ class MyDecksTab(QWidget):
         self._rcq_btn.setEnabled(False)
         self._add_plan_btn.setEnabled(False)
         self._del_plan_btn.setEnabled(False)
+        self._sb_guide_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
     # CRUD actions
@@ -752,6 +761,24 @@ class MyDecksTab(QWidget):
     # Export & RCQ
     # ------------------------------------------------------------------
 
+    def _export_sb_only(self):
+        """Print-friendly SB guide: plans only, no decklist, two-column layout."""
+        if not self._current_deck:
+            return
+        deck = self._current_deck
+        deck_id = deck.get("id")
+
+        def _do():
+            from db.saved_decks import get_sb_plans
+            plans = get_sb_plans(deck_id) if deck_id else []
+            return _generate_sb_print_html(deck, plans)
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_guide_generated)
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
     def _export_deck(self):
         if not self._current_deck:
             return
@@ -819,6 +846,75 @@ def _card_list_html(cards: list, label: str, color: str) -> str:
         return ""
     items = ", ".join(cards)
     return f'<span style="color:{color}; font-weight:bold;">{label}:</span> {items}<br>\n'
+
+
+def _generate_sb_print_html(deck: dict, plans: list[dict]) -> str:
+    """Generate a compact, print-friendly HTML with SB plans only (no decklist).
+    Two-column grid layout that fits on one printed page."""
+    name = deck.get("name", "Deck")
+    fmt  = deck.get("format", "").capitalize()
+    arch = deck.get("archetype", "")
+
+    parts = [f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>{name} — SB Guide</title>
+<style>
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 10px; color: #222; }}
+  h1 {{ font-size: 16px; margin: 0 0 6px 0; border-bottom: 2px solid #333; padding-bottom: 4px; }}
+  .meta {{ color: #666; font-size: 11px; margin-bottom: 8px; }}
+  .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
+  .mu {{ border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; font-size: 11px; break-inside: avoid; }}
+  .mu-name {{ font-weight: bold; font-size: 12px; margin-bottom: 3px; }}
+  .diff {{ font-size: 10px; font-weight: bold; }}
+  .easy {{ color: #2a7a2a; }} .medium {{ color: #b87800; }} .hard {{ color: #c22; }}
+  .label {{ font-weight: bold; font-size: 10px; }}
+  .in {{ color: #2a7a2a; }} .out {{ color: #c22; }}
+  .notes {{ color: #666; font-style: italic; font-size: 10px; margin-top: 2px; }}
+  @media print {{
+    body {{ margin: 0; }} .grid {{ gap: 6px; }}
+    .mu {{ border: 1px solid #999; padding: 4px 6px; }}
+  }}
+</style>
+</head><body>
+<h1>{name} SB Guide</h1>
+<div class="meta">{fmt} &bull; {arch} &bull; {len(plans)} matchups</div>
+<div class="grid">
+"""]
+
+    for p in plans:
+        opp  = p.get("opponent_archetype", "?")
+        diff = p.get("difficulty", "Medium")
+        dc   = {"Easy": "easy", "Medium": "medium", "Hard": "hard"}.get(diff, "medium")
+        pn   = p.get("notes", "")
+        play_in  = p.get("play_in", [])
+        play_out = p.get("play_out", [])
+        draw_in  = p.get("draw_in", [])
+        draw_out = p.get("draw_out", [])
+
+        parts.append(f'<div class="mu">')
+        parts.append(f'<div class="mu-name">{opp} <span class="diff {dc}">[{diff}]</span></div>')
+        if play_in or play_out:
+            parts.append(f'<b>Play:</b> ')
+            if play_in:
+                parts.append(f'<span class="in">+{", +".join(play_in)}</span> ')
+            if play_out:
+                parts.append(f'<span class="out">-{", -".join(play_out)}</span>')
+            parts.append('<br>')
+        if draw_in or draw_out:
+            parts.append(f'<b>Draw:</b> ')
+            if draw_in:
+                parts.append(f'<span class="in">+{", +".join(draw_in)}</span> ')
+            if draw_out:
+                parts.append(f'<span class="out">-{", -".join(draw_out)}</span>')
+            parts.append('<br>')
+        if not (play_in or play_out or draw_in or draw_out):
+            parts.append('<span class="notes">No IN/OUT saved</span><br>')
+        if pn:
+            parts.append(f'<div class="notes">{pn}</div>')
+        parts.append('</div>\n')
+
+    parts.append('</div></body></html>')
+    return "".join(parts)
 
 
 def _generate_guide_html(deck: dict, plans: list[dict]) -> str:
