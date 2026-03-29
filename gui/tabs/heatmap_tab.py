@@ -326,6 +326,7 @@ class HeatmapTab(QWidget):
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "pauper"])
         self._fmt.setFixedWidth(100)
+        self._fmt.currentIndexChanged.connect(lambda _: self._load_combined())
         tl.addWidget(self._fmt)
 
         self._combined_btn = QPushButton("Real Match Data (DB)")
@@ -766,7 +767,7 @@ class HeatmapTab(QWidget):
                             f"Source: {src_tag}"
                         )
                         if matches:
-                            tooltip += f"\nSample: n={matches:,}"
+                            tooltip += f"\nMatches logged: {matches:,}"
                         item.setToolTip(tooltip)
                         if pct < 43 or pct > 57:
                             f = QFont()
