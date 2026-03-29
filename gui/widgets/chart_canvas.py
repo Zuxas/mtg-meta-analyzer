@@ -329,10 +329,23 @@ class ChartCanvas(QWidget):
     def _start_worker(self, worker):
         """Block signals on any running worker, then start the new one."""
         if self._worker is not None:
-            self._worker.blockSignals(True)
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
         self._worker = worker
-        worker.finished.connect(worker.deleteLater)
+        w_ref = worker  # capture local ref for safe deleteLater
+        worker.finished.connect(lambda: self._on_chart_worker_done(w_ref))
         worker.start()
+
+    def _on_chart_worker_done(self, w):
+        """Safely clean up a finished chart worker."""
+        if self._worker is w:
+            self._worker = None
+        try:
+            w.deleteLater()
+        except RuntimeError:
+            pass
 
     # ------------------------------------------------------------------
     # Helpers
@@ -672,8 +685,12 @@ class ChartCanvas(QWidget):
             )
             return
 
-        archetypes = matrix_data.get("archetypes", [])
+        all_archs = matrix_data.get("archetypes", [])
         raw_matrix = matrix_data.get("matrix", {})
+        # Filter out archetypes with no matchup cells
+        archetypes = [a for a in all_archs
+                      if any(raw_matrix.get(a, {}).get(b) is not None
+                             for b in all_archs if b != a)]
         n = len(archetypes)
         if n < 2:
             self.show_message("Need at least 2 archetypes with matchup data.")
