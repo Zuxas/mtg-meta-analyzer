@@ -446,6 +446,12 @@ class MyDecksTab(QWidget):
         self._add_plan_btn.clicked.connect(self._add_sb_plan)
         sb_btn_row.addWidget(self._add_plan_btn)
 
+        self._edit_plan_btn = QPushButton("Edit Plan")
+        self._edit_plan_btn.setEnabled(False)
+        self._edit_plan_btn.setStyleSheet(theme.btn_secondary())
+        self._edit_plan_btn.clicked.connect(self._edit_sb_plan)
+        sb_btn_row.addWidget(self._edit_plan_btn)
+
         self._del_plan_btn = QPushButton("Delete Plan")
         self._del_plan_btn.setEnabled(False)
         self._del_plan_btn.setStyleSheet(f"color: {theme.ERR};")
@@ -541,6 +547,7 @@ class MyDecksTab(QWidget):
         self._guide_btn.setEnabled(True)
         self._rcq_btn.setEnabled(True)
         self._add_plan_btn.setEnabled(True)
+        self._edit_plan_btn.setEnabled(True)
         self._del_plan_btn.setEnabled(True)
         self._sb_guide_btn.setEnabled(True)
         self._suggest_btn.setEnabled(True)
@@ -635,6 +642,7 @@ class MyDecksTab(QWidget):
         self._guide_btn.setEnabled(False)
         self._rcq_btn.setEnabled(False)
         self._add_plan_btn.setEnabled(False)
+        self._edit_plan_btn.setEnabled(False)
         self._del_plan_btn.setEnabled(False)
         self._sb_guide_btn.setEnabled(False)
         self._suggest_btn.setEnabled(False)
@@ -734,6 +742,42 @@ class MyDecksTab(QWidget):
         if not data["opponent_archetype"]:
             QMessageBox.warning(self, "Missing Opponent", "Enter an opponent archetype.")
             return
+        from db.saved_decks import save_sb_plan
+        save_sb_plan(
+            deck_id=self._current_deck["id"],
+            opponent_archetype=data["opponent_archetype"],
+            play_in=data["play_in"],
+            play_out=data["play_out"],
+            draw_in=data["draw_in"],
+            draw_out=data["draw_out"],
+            notes=data["notes"],
+            difficulty=data["difficulty"],
+        )
+        self._load_sb_plans(self._current_deck["id"])
+
+    def _edit_sb_plan(self):
+        """Edit an existing SB plan — opens the dialog pre-filled with current data."""
+        if not self._current_deck:
+            return
+        row = self._sb_table.currentRow()
+        if row < 0:
+            return
+        opp_item = self._sb_table.item(row, 0)
+        if not opp_item:
+            return
+        opp = opp_item.text()
+
+        # Load the plan from DB
+        from db.saved_decks import get_sb_plan
+        plan = get_sb_plan(self._current_deck["id"], opp)
+        if not plan:
+            return
+
+        fmt = self._current_deck.get("format", "modern")
+        dlg = _SBPlanDialog(self, plan=plan, format_name=fmt)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        data = dlg.get_data()
         from db.saved_decks import save_sb_plan
         save_sb_plan(
             deck_id=self._current_deck["id"],

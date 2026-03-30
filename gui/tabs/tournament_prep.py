@@ -860,12 +860,12 @@ class _EventWidget(QWidget):
         fmt = deck.get("format", "")
         if fmt:
             self._fmt.setCurrentText(fmt)
-        arch = deck.get("archetype", "")
+        arch = deck.get("archetype", "") or deck.get("name", "")
         if arch:
             self._my_arch.setCurrentText(arch)
         self._loaded_deck = deck
-        # Refresh the combo and try to select this deck
         self._refresh_deck_combo()
+        self._status.setText(f"Loaded: {deck.get('name', arch)}")
 
     def _since_dt(self):
         from datetime import datetime, timedelta

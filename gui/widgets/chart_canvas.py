@@ -699,15 +699,15 @@ class ChartCanvas(QWidget):
             if not standings:
                 return None
 
-            # Fetch card images for signature cards (in worker thread)
-            images = {}  # archetype → PIL Image or None
+            # Try to fetch card images (non-critical — plain dots as fallback)
+            images = {}
             try:
                 import requests
                 from io import BytesIO
                 from PIL import Image
                 from urllib.parse import quote
 
-                for s in standings[:top]:
+                for s in standings[:min(top, 15)]:
                     arch = s["archetype"]
                     sig_card = SIGNATURE_CARDS.get(arch)
                     if not sig_card:
@@ -715,7 +715,7 @@ class ChartCanvas(QWidget):
                     try:
                         r = requests.get(
                             f"https://api.scryfall.com/cards/named?fuzzy={quote(sig_card)}",
-                            timeout=8, headers={"User-Agent": "MTGMetaAnalyzer/1.0"})
+                            timeout=6, headers={"User-Agent": "MTGMetaAnalyzer/1.0"})
                         if r.status_code != 200:
                             continue
                         data = r.json()
@@ -726,15 +726,14 @@ class ChartCanvas(QWidget):
                         img_url = uris.get("art_crop") or uris.get("normal")
                         if not img_url:
                             continue
-                        ir = requests.get(img_url, timeout=10)
+                        ir = requests.get(img_url, timeout=8)
                         if ir.status_code == 200:
-                            img = Image.open(BytesIO(ir.content)).convert("RGBA")
-                            images[arch] = img
-                        time.sleep(0.08)  # rate limit
+                            images[arch] = Image.open(BytesIO(ir.content)).convert("RGBA")
+                        time.sleep(0.08)
                     except Exception:
                         continue
             except ImportError:
-                pass  # PIL not available — fall back to plain dots
+                pass  # PIL not available
 
             return {"standings": standings, "images": images}
 
