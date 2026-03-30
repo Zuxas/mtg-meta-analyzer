@@ -802,7 +802,8 @@ class MyDecksTab(QWidget):
             standings = get_meta_standings(fmt, top=15, since=since_4w)
             meta_names = [s["archetype"] for s in standings
                           if s["archetype"] not in existing and s["appearances"] >= 15]
-            return suggest_all_plans(sideboard, meta_names, fmt)
+            mainboard = deck.get("mainboard", {})
+            return suggest_all_plans(sideboard, meta_names, fmt, mainboard=mainboard)
 
         def _done(suggestions):
             self._suggest_btn.setEnabled(True)
@@ -823,22 +824,32 @@ class MyDecksTab(QWidget):
                 f"Suggested SB plans for {len(suggestions)} matchups based on your 15 sideboard cards.\n"
                 f"Review and click Save to create plans."))
 
-            tbl = QTableWidget(len(suggestions), 4)
-            tbl.setHorizontalHeaderLabels(["Opponent", "Bring In", "Confidence", "# Cards"])
+            tbl = QTableWidget(len(suggestions), 5)
+            tbl.setHorizontalHeaderLabels(["Opponent", "Bring IN", "Take OUT", "Source", "#"])
             tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
             tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-            tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
             tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            tbl.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
             tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             tbl.verticalHeader().setVisible(False)
 
             for ri, s in enumerate(suggestions):
                 tbl.setItem(ri, 0, QTableWidgetItem(s["opponent"]))
-                cards = ", ".join(f"+{b['qty']} {b['card']}" for b in s["bring_in"])
-                tbl.setItem(ri, 1, QTableWidgetItem(cards))
-                tbl.setItem(ri, 2, QTableWidgetItem(s["coverage"]))
+                in_cards = ", ".join(f"+{b['qty']} {b['card']}" for b in s["bring_in"])
+                in_item = QTableWidgetItem(in_cards)
+                in_item.setForeground(QColor(theme.OK))
+                tbl.setItem(ri, 1, in_item)
+                out_cards = ", ".join(f"-{b['qty']} {b['card']}" for b in s.get("take_out", []))
+                out_item = QTableWidgetItem(out_cards or "(edit after saving)")
+                if out_cards:
+                    out_item.setForeground(QColor(theme.ERR))
+                else:
+                    out_item.setForeground(QColor(theme.TEXT_DIM))
+                tbl.setItem(ri, 2, out_item)
+                tbl.setItem(ri, 3, QTableWidgetItem(s["coverage"]))
                 total = sum(b["qty"] for b in s["bring_in"])
-                tbl.setItem(ri, 3, QTableWidgetItem(str(total)))
+                tbl.setItem(ri, 4, QTableWidgetItem(str(total)))
 
             layout.addWidget(tbl, 1)
 
@@ -856,12 +867,13 @@ class MyDecksTab(QWidget):
             saved = 0
             for s in suggestions:
                 in_cards = [b["card"] for b in s["bring_in"]]
+                out_cards = [b["card"] for b in s.get("take_out", [])]
                 if in_cards:
                     save_sb_plan(
                         deck_id=deck_id,
                         opponent_archetype=s["opponent"],
-                        play_in=in_cards, play_out=[],
-                        draw_in=in_cards, draw_out=[],
+                        play_in=in_cards, play_out=out_cards,
+                        draw_in=in_cards, draw_out=out_cards,
                         notes=f"Auto-suggested: {s['coverage']}",
                         difficulty="Medium",
                     )
@@ -869,7 +881,7 @@ class MyDecksTab(QWidget):
 
             self._load_sb_plans(deck_id)
             QMessageBox.information(self, "Plans Saved",
-                                    f"Created {saved} SB plans. Edit them to add OUT cards.")
+                                    f"Created {saved} SB plans. Review and edit as needed.")
 
         w = DataLoadWorker(_do)
         w.result.connect(_done)
