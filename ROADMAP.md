@@ -115,12 +115,11 @@
 - [ ] Integration with SB advisor: "your WR is low vs X, adjust your plan"
 
 ### New Set Break Protocol
-- [ ] "Set Analysis" tool: paste new set card list
-- [ ] AI classification of each card into buckets:
-    Rate Outliers / Engine Pieces / Enablers / SB Breakers / Upgrade Cards
-- [ ] For each top meta archetype, flag which new cards slot in and why
-- [ ] Output: ranked "most likely to matter" list with reasoning
-- [ ] Uses Claude API (Ask Claude tab infrastructure) for classification
+- [x] "Set Analysis" tab: paste new set card list (2026-03-30)
+- [x] AI classification into buckets: Rate Outliers / Engine Pieces / Enablers / SB Breakers / Upgrade Cards
+- [x] For each top meta archetype, flags which new cards slot in and why
+- [x] Output: ranked "most likely to matter" list with reasoning
+- [x] Uses Claude API (Ask Claude tab infrastructure) — API-key-gated, streaming
 
 ### Team Collaboration
 - [ ] Export/import gauntlet results as JSON (share on Discord)

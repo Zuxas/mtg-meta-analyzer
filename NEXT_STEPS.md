@@ -6,11 +6,12 @@ Last updated: 2026-03-30
 
 ## TOP PRIORITIES — Next Session
 
-### 1. New Set Break Protocol (HIGH — competitive edge)
-- Build "Set Analysis" tool using Claude API
-- Input: paste new set spoilers → AI classifies each card
-- Output: which cards matter for each meta archetype
-- Uses existing Ask Claude infrastructure
+### 1. New Set Break Protocol (DONE)
+- [x] SET ANALYSIS tab — paste spoilers → Claude classifies competitive impact
+- [x] Card buckets: Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade
+- [x] Impact by Archetype + Top 10 Most Likely to Matter output
+- [x] Meta context injection (top 15 archetypes from local DB)
+- [x] API-key-gated (same as Ask Claude)
 
 ### 2. Team Collaboration (MEDIUM — RC prep workflow)
 - [x] Export/import SB plans + decklist as JSON (Share JSON / Import JSON buttons in My Decks)

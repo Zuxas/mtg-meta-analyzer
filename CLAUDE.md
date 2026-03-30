@@ -214,7 +214,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - **PyQt6 GUI** — fully wired, personal website theme applied:
   - Entry point: `run_gui.py`
   - Theme: `gui/theme.py` — #3b3c4d bg, #65bcd5 cyan, Orbitron heading font
-  - **9 tabs**: Dashboard, Deck Analyzer, My Decks, Search, Charts, Tournament Prep, Knowledge Base, Matchup Data, Ask Claude (optional), Settings
+  - **13 tabs**: Dashboard, Deck Analyzer, My Decks, Match Log, Search, Tournament Prep, Matchup Data, Knowledge Base, Predictions, Charts, Ask Claude (optional), Set Analysis (optional), Settings
   - Setup wizard on first run (Scryfall download + backfill + 50-event unlock)
   - Interactive embedded matplotlib charts (FigureCanvasQTAgg)
   - Background QuickScrapeWorker on startup for returning users
@@ -267,6 +267,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
   - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
   - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
+  - **Set Analysis tab** (optional, API-key-gated): New Set Break Protocol — paste spoilers, Claude classifies each card into competitive buckets (Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade Card), shows impact per archetype + top 10 ranked list; injects live meta context from local DB
   - **Tournament Prep tab** (2 sub-tabs):
     - **Event Optimizer**: event type selector (RCQ/RC/PTQ/Custom) auto-sets player range + rounds; enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown; "Use Meta Distribution" button; shows X-loss cutoff + day-2 conversion probability for 2-day events; player max 5000
     - **Breaker Math**: real-time W/L/D tracker, ID calculator, draw equity, pair-down warning, seeding impact, breaker education
@@ -387,6 +388,7 @@ gui/tabs/charts.py              Interactive controls + live chart canvas (TIMEFR
 gui/tabs/predictions.py         Generate/validate/view predictions
 gui/tabs/knowledge_base.py      Add/browse bookmarks + guides table, Sync Guides button
 gui/tabs/ask_claude.py          Optional streaming chat (hidden until API key set in Settings)
+gui/tabs/set_analysis.py        New Set Break Protocol — AI card classification for spoiler season
 gui/tabs/settings.py            Settings tab: formats, data window, auto-update, AI key
 gui/tabs/tournament_prep.py     Event Optimizer + Breaker Math sub-tabs (with timeframe)
 gui/tabs/my_decks.py            MY DECKS tab: saved decks CRUD, export, open in Event Optimizer

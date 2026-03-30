@@ -24,6 +24,7 @@ from gui.tabs.predictions       import PredictionsTab
 from gui.tabs.settings          import SettingsTab
 from gui.tabs.knowledge_base    import KnowledgeBaseTab
 from gui.tabs.ask_claude        import AskClaudeTab
+from gui.tabs.set_analysis      import SetAnalysisTab
 from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.tabs.heatmap_tab       import HeatmapTab
 from gui.tabs.my_decks          import MyDecksTab
@@ -76,6 +77,7 @@ class MainWindow(QMainWindow):
         self._my_decks  = MyDecksTab()
         self._match_log = MatchLogTab()
         self._claude    = AskClaudeTab()
+        self._set_analysis = SetAnalysisTab()
         self._settings  = SettingsTab()
 
         self._tabs.addTab(self._dash,      "DASHBOARD")
@@ -93,13 +95,15 @@ class MainWindow(QMainWindow):
         # Wire "Open in Event Optimizer" from My Decks → Tournament Prep
         self._my_decks.open_in_rcq.connect(self._on_open_in_rcq)
 
-        # Ask Claude tab — added/removed dynamically based on API key presence
+        # AI tabs — added/removed dynamically based on API key presence
         self._claude_tab_index = -1
+        self._set_analysis_tab_index = -1
         self._settings.api_key_changed.connect(self._on_api_key_changed)
         # Show on startup if key already saved
         from gui.tabs.settings import load_preferences
         if load_preferences().get("anthropic_api_key", "").strip():
             self._add_claude_tab()
+            self._add_set_analysis_tab()
 
         self.setCentralWidget(self._tabs)
 
@@ -133,11 +137,26 @@ class MainWindow(QMainWindow):
         self._tabs.removeTab(self._tabs.indexOf(self._claude))
         self._claude_tab_index = -1
 
+    def _add_set_analysis_tab(self):
+        if self._set_analysis_tab_index >= 0:
+            return
+        settings_idx = self._tabs.indexOf(self._settings)
+        self._tabs.insertTab(settings_idx, self._set_analysis, "SET ANALYSIS")
+        self._set_analysis_tab_index = self._tabs.indexOf(self._set_analysis)
+
+    def _remove_set_analysis_tab(self):
+        if self._set_analysis_tab_index < 0:
+            return
+        self._tabs.removeTab(self._tabs.indexOf(self._set_analysis))
+        self._set_analysis_tab_index = -1
+
     def _on_api_key_changed(self, key: str):
         if key:
             self._add_claude_tab()
+            self._add_set_analysis_tab()
         else:
             self._remove_claude_tab()
+            self._remove_set_analysis_tab()
 
     def _on_open_in_rcq(self, deck: dict):
         """Switch to Tournament Prep tab when user clicks 'Open in Event Optimizer'."""
@@ -271,7 +290,7 @@ class MainWindow(QMainWindow):
                 pass
             self._scrape_worker = None
         # Delegate cleanup to tabs that hold their own workers
-        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._my_decks, self._match_log):
+        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._set_analysis, self._my_decks, self._match_log):
             if hasattr(tab, "cleanup"):
                 try:
                     tab.cleanup()
