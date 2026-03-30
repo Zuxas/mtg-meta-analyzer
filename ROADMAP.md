@@ -124,6 +124,6 @@
 
 ### Team Collaboration
 - [ ] Export/import gauntlet results as JSON (share on Discord)
-- [ ] Export/import SB plans in shareable format (teammates can load)
+- [x] Export/import SB plans + decklist as JSON — Share JSON / Import JSON buttons in My Decks (2026-03-30)
 - [ ] Team notes field on matchup heatmap cells
 - [ ] No server needed — file-based import/export only

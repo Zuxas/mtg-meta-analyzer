@@ -240,6 +240,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
     - Sideboard Plans: `+ Add Plan` dialog (opponent, difficulty, play/draw IN/OUT) + `Delete Plan`
     - Export, "Export Guide" (printable HTML), and "Open in Event Optimizer" buttons on deck detail
     - Guide export: deck name, full 75, per-matchup difficulty + ON PLAY/DRAW IN/OUT + notes; print-friendly CSS
+    - **Share JSON** / **Import JSON**: export deck + all SB plans as JSON file (saves to `exports/`), import from JSON file to create new deck + plans
     - `open_in_rcq` signal wired to MainWindow → switches to Tournament Prep tab
   - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
   - **Deck parser**: handles all sideboard formats — `Sideboard`, `SIDEBOARD:`, `SB:`, `// Sideboard`, `SB: 4 Card`, blank-line fallback

@@ -353,6 +353,12 @@ class MyDecksTab(QWidget):
         self._del_btn.clicked.connect(self._delete_deck)
         btn_row.addWidget(self._del_btn)
 
+        self._import_json_btn = QPushButton("Import JSON")
+        self._import_json_btn.setStyleSheet(theme.btn_secondary())
+        self._import_json_btn.setToolTip("Import a deck + SB plans from a shared JSON file")
+        self._import_json_btn.clicked.connect(self._import_json)
+        btn_row.addWidget(self._import_json_btn)
+
         btn_row.addStretch()
         lv.addLayout(btn_row)
 
@@ -401,6 +407,12 @@ class MyDecksTab(QWidget):
         self._guide_btn.setToolTip("Generate a printable HTML tournament guide with SB plans")
         self._guide_btn.clicked.connect(self._export_guide)
         exp_row.addWidget(self._guide_btn)
+
+        self._share_btn = QPushButton("Share JSON")
+        self._share_btn.setEnabled(False)
+        self._share_btn.setToolTip("Export deck + SB plans as JSON for teammates")
+        self._share_btn.clicked.connect(self._share_json)
+        exp_row.addWidget(self._share_btn)
 
         self._rcq_btn = QPushButton("Open in Event Optimizer")
         self._rcq_btn.setEnabled(False)
@@ -545,6 +557,7 @@ class MyDecksTab(QWidget):
         self._del_btn.setEnabled(True)
         self._export_btn.setEnabled(True)
         self._guide_btn.setEnabled(True)
+        self._share_btn.setEnabled(True)
         self._rcq_btn.setEnabled(True)
         self._add_plan_btn.setEnabled(True)
         self._edit_plan_btn.setEnabled(True)
@@ -936,6 +949,92 @@ class MyDecksTab(QWidget):
         w.finished.connect(w.deleteLater)
         w.start()
         self._workers.append(w)
+
+    def _share_json(self):
+        """Export deck + SB plans as JSON for teammates."""
+        if not self._current_deck:
+            return
+        import json, os
+        from datetime import datetime
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+
+        deck = self._current_deck
+        deck_id = deck.get("id")
+
+        # Get SB plans
+        from db.saved_decks import get_sb_plans
+        plans = get_sb_plans(deck_id) if deck_id else []
+
+        export = {
+            "name": deck.get("name", ""),
+            "format": deck.get("format", ""),
+            "archetype": deck.get("archetype", ""),
+            "mainboard": deck.get("mainboard", {}),
+            "sideboard": deck.get("sideboard", {}),
+            "notes": deck.get("notes", ""),
+            "sb_plans": [{
+                "opponent": p.get("opponent_archetype", ""),
+                "difficulty": p.get("difficulty", "Medium"),
+                "play_in": p.get("play_in", []),
+                "play_out": p.get("play_out", []),
+                "draw_in": p.get("draw_in", []),
+                "draw_out": p.get("draw_out", []),
+                "notes": p.get("notes", ""),
+            } for p in plans],
+            "exported_at": datetime.now().isoformat(timespec="seconds"),
+        }
+
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        exports = os.path.join(root, "exports")
+        os.makedirs(exports, exist_ok=True)
+        safe = deck.get("name", "deck").replace("/", "_").replace(":", "_")
+        path = os.path.join(exports, f"{safe}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(export, f, indent=2, ensure_ascii=False)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(exports))
+
+    def _import_json(self):
+        """Import a deck + SB plans from a shared JSON file."""
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Deck JSON", "", "JSON files (*.json)")
+        if not path:
+            return
+        import json
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            QMessageBox.warning(self, "Import Error", f"Could not read file: {e}")
+            return
+
+        name = data.get("name", "Imported Deck")
+        fmt = data.get("format", "modern")
+        arch = data.get("archetype", "")
+        main = data.get("mainboard", {})
+        side = data.get("sideboard", {})
+        notes = data.get("notes", "")
+
+        from db.saved_decks import save_deck, save_sb_plan
+        deck_id = save_deck(name=name, format_name=fmt, archetype=arch,
+                            mainboard=main, sideboard=side, notes=notes)
+
+        for p in data.get("sb_plans", []):
+            save_sb_plan(
+                deck_id=deck_id,
+                opponent_archetype=p.get("opponent", ""),
+                play_in=p.get("play_in", []),
+                play_out=p.get("play_out", []),
+                draw_in=p.get("draw_in", []),
+                draw_out=p.get("draw_out", []),
+                notes=p.get("notes", ""),
+                difficulty=p.get("difficulty", "Medium"),
+            )
+
+        self._load_decks()
+        QMessageBox.information(self, "Imported",
+                                f"Imported '{name}' with {len(data.get('sb_plans', []))} SB plans.")
 
     def _export_sb_only(self):
         """Print-friendly SB guide: plans only, no decklist, two-column layout."""

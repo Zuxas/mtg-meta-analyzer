@@ -1,0 +1,11 @@
+
+  - name: Mono W Humans
+    signatureCards:
+      - name: "Thalia"
+        minCopies: 3
+      - name: "thalia's lieutenant"
+        minCopies: 3
+      - name: "adeline"
+        minCopies: 3
+      - name: "hopeful initiate"
+        minCopies: 3

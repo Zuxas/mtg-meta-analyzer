@@ -13,8 +13,9 @@ Last updated: 2026-03-30
 - Uses existing Ask Claude infrastructure
 
 ### 2. Team Collaboration (MEDIUM — RC prep workflow)
-- Export/import SB plans as JSON (share on Discord)
-- Export/import gauntlet results
+- [x] Export/import SB plans + decklist as JSON (Share JSON / Import JSON buttons in My Decks)
+- [ ] Export/import gauntlet results
+- [ ] Team notes field on matchup heatmap cells
 - File-based, no server
 
 ### 3. Match Logging Enhancements (MEDIUM — long-term data)
