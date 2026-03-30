@@ -319,8 +319,8 @@ class DashboardTab(QWidget):
 
         self._recent_tbl  = self._build_recent_panel(top_layout)
         self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
-            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Tier"])
-        self._winrate_tbl.horizontalHeaderItem(3).setToolTip(
+            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Record", "Tier"])
+        self._winrate_tbl.horizontalHeaderItem(4).setToolTip(
             "Tier badge key\n"
             "──────────────\n"
             "S  (gold)   Win% >55% AND meta share >8%\n"
@@ -880,6 +880,20 @@ class DashboardTab(QWidget):
                            if prior_map and s["archetype"] in prior_map else 0)
             prior_share = prior_apps / prior_total if prior_map else meta_share
             is_declining = prior_map is not None and (meta_share - prior_share) < -0.005
+            # Record column (W-L-D from real match data)
+            real = (real_wrs or {}).get(s["archetype"])
+            if real:
+                rec_text = f"{real['wins']}-{real['losses']}-{real['draws']}"
+            else:
+                rec_text = "\u2014"
+            rec_item = QTableWidgetItem(rec_text)
+            rec_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            rec_item.setStyleSheet(f"font-size: 10px;")
+            rec_item.setForeground(QColor(theme.TEXT_DIM))
+            if bg:
+                rec_item.setBackground(bg)
+            tbl.setItem(ri, 3, rec_item)
+
             tier, tier_color = self._tier_badge(s["est_match_winpct"], meta_share, is_declining)
             tier_item = QTableWidgetItem(tier)
             tier_item.setForeground(tier_color)
@@ -888,7 +902,7 @@ class DashboardTab(QWidget):
             f = tier_item.font(); f.setBold(True); tier_item.setFont(f)
             if bg:
                 tier_item.setBackground(bg)
-            tbl.setItem(ri, 3, tier_item)
+            tbl.setItem(ri, 4, tier_item)
 
         tbl.resizeRowsToContents()
         tbl.setSortingEnabled(True)
