@@ -36,6 +36,27 @@ _TYPE_COLOR = {
 }
 
 
+class _DateSortItem(QTableWidgetItem):
+    """QTableWidgetItem that sorts dates correctly regardless of format."""
+    def __lt__(self, other):
+        return (self.data(Qt.ItemDataRole.UserRole + 2) or "") < \
+               (other.data(Qt.ItemDataRole.UserRole + 2) or "")
+
+
+def _date_sort_key(raw: str) -> str:
+    """Convert DD/MM/YYYY or YYYY-MM-DD or ISO to YYYYMMDD for sorting."""
+    s = (raw or "").strip()[:10]
+    if not s:
+        return ""
+    # DD/MM/YYYY
+    if len(s) == 10 and s[2] == "/" and s[5] == "/":
+        return s[6:10] + s[3:5] + s[0:2]
+    # YYYY-MM-DD
+    if len(s) == 10 and s[4] == "-":
+        return s.replace("-", "")
+    return s
+
+
 class KnowledgeBaseTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -309,7 +330,11 @@ class KnowledgeBaseTab(QWidget):
             tooltip = f"{arch} — {rtype}\n{url}"
 
             for ci, val in enumerate([arch, fmt, rtype, title, source, date]):
-                item = QTableWidgetItem(val)
+                if ci == 5:  # Date column — use sort-aware item
+                    item = _DateSortItem(val)
+                    item.setData(Qt.ItemDataRole.UserRole + 2, _date_sort_key(val))
+                else:
+                    item = QTableWidgetItem(val)
                 item.setBackground(tint)
                 item.setToolTip(tooltip)
                 item.setData(Qt.ItemDataRole.UserRole, url)
