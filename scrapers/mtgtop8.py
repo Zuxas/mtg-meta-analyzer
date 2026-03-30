@@ -242,18 +242,21 @@ def run(format_name="standard", pages=1, max_events=10):
             )
             mainboard, sideboard = scrape_deck_cards(dk["url"])
             if mainboard:
-                # Card-based reclassification: override MTGTop8 name if classifier matches
-                try:
-                    from analysis.archetype_classifier import classify_by_cards
-                    classified = classify_by_cards(mainboard, format_name)
-                    if classified and classified != dk["archetype"]:
-                        from db.database import get_connection
-                        with get_connection() as conn:
-                            conn.execute("UPDATE decks SET archetype=? WHERE id=?",
-                                         (classified, deck_db_id))
-                        dk["archetype"] = classified
-                except Exception:
-                    pass
+                # Card-based reclassification: ONLY for junk/empty names
+                _JUNK = {"", "Decklist", "All Other Decklists", "Rogue Decklists",
+                          "Others", "Other", "Unclassified"}
+                if dk["archetype"] in _JUNK:
+                    try:
+                        from analysis.archetype_classifier import classify_by_cards
+                        classified = classify_by_cards(mainboard, format_name)
+                        if classified:
+                            from db.database import get_connection
+                            with get_connection() as conn:
+                                conn.execute("UPDATE decks SET archetype=? WHERE id=?",
+                                             (classified, deck_db_id))
+                            dk["archetype"] = classified
+                    except Exception:
+                        pass
                 insert_deck_cards(deck_db_id, mainboard, sideboard)
                 print(f"      [{dk['placement']}] {dk['archetype'][:30]:<30} "
                       f"{dk['player']:<15} "
