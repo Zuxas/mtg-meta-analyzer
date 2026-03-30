@@ -23,9 +23,9 @@ _ARCHETYPE_DEAD_ROLES = {
     "ruby storm":       ["removal", "board_wipe"],
     "simic neoform":    ["removal", "board_wipe"],
     "grinding breach":  ["removal"],
-    # Big mana (removal doesn't matter, they go over you)
+    # Big mana (spot removal doesn't matter, they go over you)
     "amulet titan":     ["removal"],
-    "eldrazi tron":     [],
+    "eldrazi tron":     ["removal"],
     # Aggro (counterspells too slow)
     "burn":             ["counterspell"],
     "mono red aggro":   ["counterspell"],
@@ -106,15 +106,40 @@ def _get_archetype_weaknesses(opponent: str) -> list:
     for key, roles in _ARCHETYPE_WEAKNESSES.items():
         if key in opp_lower or opp_lower in key:
             return roles
+    # Heuristic fallback: guess from archetype name keywords
+    if any(k in opp_lower for k in ["combo", "storm", "breach", "belcher", "neoform", "lotus"]):
+        return ["counterspell", "discard", "graveyard_hate"]
+    if any(k in opp_lower for k in ["aggro", "burn", "prowess", "red", "zoo"]):
+        return ["lifegain", "board_wipe", "removal"]
+    if any(k in opp_lower for k in ["control", "blink"]):
+        return ["discard", "counterspell", "protection"]
+    if any(k in opp_lower for k in ["tron", "titan", "ramp", "eldrazi"]):
+        return ["land_hate", "counterspell", "artifact_hate"]
+    if any(k in opp_lower for k in ["midrange", "mid"]):
+        return ["board_wipe", "protection"]
+    if any(k in opp_lower for k in ["affinity", "artifact"]):
+        return ["artifact_hate", "board_wipe"]
+    if any(k in opp_lower for k in ["reanimator", "dredge", "vengeance", "goryo"]):
+        return ["graveyard_hate"]
     return []
 
 
 def _get_dead_roles(opponent: str) -> list:
     """Get card roles that are WEAK/dead against this opponent."""
     opp_lower = opponent.lower()
+    # Direct match
     for key, roles in _ARCHETYPE_DEAD_ROLES.items():
         if key in opp_lower or opp_lower in key:
             return roles
+    # Heuristic fallback from archetype name keywords
+    if any(k in opp_lower for k in ["combo", "storm", "breach", "belcher", "neoform", "lotus"]):
+        return ["removal", "board_wipe"]
+    if any(k in opp_lower for k in ["control", "blink"]):
+        return []  # nothing is truly dead vs control
+    if any(k in opp_lower for k in ["tron", "titan", "ramp", "eldrazi"]):
+        return ["removal"]  # spot removal bad vs big mana
+    if any(k in opp_lower for k in ["aggro", "burn", "prowess", "zoo"]):
+        return ["counterspell"]  # too slow vs aggro
     return []
 
 

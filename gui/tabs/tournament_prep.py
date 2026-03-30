@@ -862,7 +862,8 @@ class _EventWidget(QWidget):
             self._fmt.setCurrentText(fmt)
         arch = deck.get("archetype", "") or deck.get("name", "")
         if arch:
-            self._my_arch.setCurrentText(arch)
+            # Set the text directly in the editable combo (works even if not in dropdown)
+            self._my_arch.setEditText(arch)
         self._loaded_deck = deck
         self._refresh_deck_combo()
         self._status.setText(f"Loaded: {deck.get('name', arch)}")
