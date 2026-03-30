@@ -265,161 +265,37 @@ class SearchTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._workers = []
+        self._card_browser = None
         self._build_ui()
+
+    def cleanup(self):
+        for w in self._workers:
+            try:
+                w.blockSignals(True)
+            except RuntimeError:
+                pass
+        self._workers.clear()
+        if self._card_browser and hasattr(self._card_browser, "cleanup"):
+            self._card_browser.cleanup()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
 
         tabs = QTabWidget()
-        tabs.addTab(self._build_card_tab(),  "Card Lookup")
-        tabs.addTab(self._build_deck_tab(),  "Deck Search")
-        tabs.addTab(self._build_h2h_tab(),   "Head-to-Head")
+        tabs.addTab(self._build_card_browser_tab(), "Card Browser")
+        tabs.addTab(self._build_deck_tab(),         "Deck Search")
+        tabs.addTab(self._build_h2h_tab(),          "Head-to-Head")
         layout.addWidget(tabs)
 
     # ======================================================================
-    # Card Lookup  (unchanged)
+    # Card Browser  (replaced old Card Lookup — now full Scryfall-style)
     # ======================================================================
 
-    def _build_card_tab(self):
-        w = QWidget()
-        v = QVBoxLayout(w)
-        v.setContentsMargins(8, 8, 8, 8)
-        v.setSpacing(8)
-
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Name or description:"))
-        self._card_q = QLineEdit()
-        self._card_q.setPlaceholderText(
-            "e.g. Sheoldred, the Apocalypse  —  or  —  what does sheoldred do"
-        )
-        self._card_q.returnPressed.connect(self._search_card)
-        row.addWidget(self._card_q, 1)
-
-        self._card_fmt = QComboBox()
-        self._card_fmt.addItems(["(any format)", "standard", "pioneer", "modern", "legacy"])
-        self._card_fmt.setFixedWidth(130)
-        row.addWidget(self._card_fmt)
-
-        btn = _btn("Search")
-        btn.clicked.connect(self._search_card)
-        row.addWidget(btn)
-        v.addLayout(row)
-
-        split = QSplitter(Qt.Orientation.Horizontal)
-
-        self._card_image_lbl = QLabel()
-        self._card_image_lbl.setFixedWidth(230)
-        self._card_image_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        self._card_image_lbl.setStyleSheet(
-            f"background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
-            " border-radius: 3px; padding: 4px;"
-        )
-        self._card_image_lbl.setText("Image loads\nafter search")
-        split.addWidget(self._card_image_lbl)
-
-        self._card_result = QTextBrowser()
-        self._card_result.setFont(QFont("Consolas", 10))
-        split.addWidget(self._card_result)
-        split.setSizes([230, 600])
-
-        v.addWidget(split, 1)
-        return w
-
-    def _search_card(self):
-        query = self._card_q.text().strip()
-        if not query:
-            return
-        self._card_result.setPlainText("Searching…")
-        self._card_image_lbl.setText("Loading image…")
-        self._card_image_lbl.setPixmap(QPixmap())
-        fmt_text = self._card_fmt.currentText()
-        fmt = None if fmt_text == "(any format)" else fmt_text
-
-        def _do():
-            import json
-            from scrapers.scryfall import search_local, get_card_data
-            # Try exact match first
-            exact = get_card_data(query)
-            if exact:
-                results = [exact]
-            else:
-                results = search_local(query)
-            if not results:
-                return {"text": "No results found.", "image_name": None}
-            lines = []
-            first_name = None
-            for card in results[:8]:
-                lines.append("=" * 52)
-                name = card.get("name", "")
-                if first_name is None:
-                    first_name = name
-                type_line = card.get("type_line", "")
-                lines.append(f"  {name}")
-                if type_line:
-                    lines.append(f"  {type_line}")
-                mana = card.get("mana_cost", "")
-                cmc  = card.get("cmc", "")
-                if mana or cmc != "":
-                    lines.append(f"  Mana: {mana}  CMC: {cmc}")
-                oracle = card.get("oracle_text", "")
-                if oracle:
-                    for ol in oracle.splitlines():
-                        lines.append(f"  {ol}")
-                pt = card.get("power"), card.get("toughness")
-                if pt[0]:
-                    lines.append(f"  P/T: {pt[0]}/{pt[1]}")
-                rarity   = card.get("rarity", "")
-                set_code = card.get("set", "")
-                if rarity or set_code:
-                    lines.append(f"  {rarity.capitalize()} — {set_code.upper()}")
-                if fmt:
-                    legal = card.get("legalities", {})
-                    if isinstance(legal, str):
-                        try:
-                            legal = json.loads(legal)
-                        except Exception:
-                            legal = {}
-                    lines.append(f"  {fmt.upper()}: {legal.get(fmt, 'unknown')}")
-            return {"text": "\n".join(lines), "image_name": first_name}
-
-        def _show(result):
-            self._card_result.setPlainText(result["text"])
-            img_name = result.get("image_name")
-            if img_name:
-                from gui.widgets.card_tooltip import _FetchWorker as _ImgFetch, _IMAGE_CACHE
-                if img_name in _IMAGE_CACHE and _IMAGE_CACHE[img_name]:
-                    self._card_image_lbl.setPixmap(
-                        _IMAGE_CACHE[img_name].scaledToWidth(
-                            250, Qt.TransformationMode.SmoothTransformation))
-                else:
-                    self._card_image_lbl.setText("Loading image\u2026")
-                    w = _ImgFetch(img_name)
-                    def _on_img(name, pix):
-                        if pix:
-                            self._card_image_lbl.setPixmap(
-                                pix.scaledToWidth(250, Qt.TransformationMode.SmoothTransformation))
-                        else:
-                            self._card_image_lbl.setText("No image available")
-                    w.done.connect(_on_img)
-                    w.finished.connect(w.deleteLater)
-                    w.start()
-                    self._workers.append(w)
-            else:
-                self._card_image_lbl.setText("No image")
-
-        w = DataLoadWorker(_do)
-        w.result.connect(_show)
-        w.error.connect(lambda e: self._card_result.setPlainText(f"Error: {e}"))
-        w.start()
-        self._workers.append(w)
-
-    def _show_card_image(self, path):
-        if path and os.path.exists(path):
-            pix = QPixmap(path).scaledToWidth(220, Qt.TransformationMode.SmoothTransformation)
-            self._card_image_lbl.setPixmap(pix)
-        else:
-            self._card_image_lbl.setText("No image available")
+    def _build_card_browser_tab(self):
+        from gui.tabs.card_browser import CardBrowserTab
+        self._card_browser = CardBrowserTab()
+        return self._card_browser
 
     # ======================================================================
     # Deck Search  (rewritten — filters + sortable + click opens exact deck)

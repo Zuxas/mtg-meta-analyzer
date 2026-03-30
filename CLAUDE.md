@@ -214,7 +214,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
 - **PyQt6 GUI** — fully wired, personal website theme applied:
   - Entry point: `run_gui.py`
   - Theme: `gui/theme.py` — #3b3c4d bg, #65bcd5 cyan, Orbitron heading font
-  - **14 tabs**: Dashboard, Deck Analyzer, My Decks, Match Log, Search, Card Browser, Tournament Prep, Matchup Data, Knowledge Base, Predictions, Charts, Ask Claude (optional), Set Analysis (optional), Settings
+  - **13 tabs**: Dashboard, Deck Analyzer, My Decks, Match Log, Search (Card Browser / Deck Search / H2H), Tournament Prep, Matchup Data, Knowledge Base, Predictions, Charts, Ask Claude (optional), Set Analysis (optional), Settings
   - Setup wizard on first run (Scryfall download + backfill + 50-event unlock)
   - Interactive embedded matplotlib charts (FigureCanvasQTAgg)
   - Background QuickScrapeWorker on startup for returning users
@@ -261,13 +261,8 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - `gui/tabs/settings.py` — full UI for format checkboxes, data window, auto-update, API key; saves to preferences.json on Save click
 
 - **Card image tooltips** (`gui/widgets/card_tooltip.py`): hovering card names shows Scryfall card images in a floating tooltip; in-memory session cache (no disk writes), background fetch with 100ms rate limit, handles double-faced cards
-  - **Card Browser tab** (`gui/tabs/card_browser.py`): full Scryfall-style local card database browser
-    - Powered by local `data/scryfall_oracle.json` (~75k cards)
-    - Scryfall query syntax: `t:creature c:red cmc<=3 o:"draw a card" f:standard r:mythic is:legendary k:flying pow>=4 s:tdm ci:wub`
-    - Dropdown filters: format, color, type, rarity, CMC comparison
-    - "Cards in Meta only" toggle: shows only cards in local deck_cards table
-    - Results table with hover card tooltips (reuses CardTooltip widget)
-    - Card detail panel: full image, oracle text, legality in all formats, meta usage (which archetypes play it, avg copies, deck count)
+  - **Search tab** has 3 sub-tabs: Card Browser, Deck Search, Head-to-Head
+    - **Card Browser** (`gui/tabs/card_browser.py`): full Scryfall-style local card database, Scryfall query syntax (`t:creature c:red cmc<=3 o:"draw a card" f:standard r:mythic is:legendary k:flying pow>=4 s:tdm ci:wub`), dropdown filters (format, color, type, rarity, CMC), "Cards in Meta only" toggle, card detail panel (image, oracle text, legalities, meta usage)
   - **Deck search click-to-detail**: clicking any row in Deck Search opens ArchetypeDetailDialog
   - **Charts autocomplete**: Archetype field is now an editable dropdown populated from DB, refreshes on format change
   - **Charts Compare Mode**: "Compare Trends" chart type — select multiple archetypes, overlay meta share lines on one chart; `_CompareLoader` worker in chart_canvas.py

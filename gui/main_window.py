@@ -29,7 +29,6 @@ from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.tabs.heatmap_tab       import HeatmapTab
 from gui.tabs.my_decks          import MyDecksTab
 from gui.tabs.match_log         import MatchLogTab
-from gui.tabs.card_browser      import CardBrowserTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -79,7 +78,6 @@ class MainWindow(QMainWindow):
         self._match_log = MatchLogTab()
         self._claude    = AskClaudeTab()
         self._set_analysis = SetAnalysisTab()
-        self._card_browser = CardBrowserTab()
         self._settings  = SettingsTab()
 
         self._tabs.addTab(self._dash,         "DASHBOARD")
@@ -87,7 +85,6 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._my_decks,     "MY DECKS")
         self._tabs.addTab(self._match_log,    "MATCH LOG")
         self._tabs.addTab(self._search,       "SEARCH")
-        self._tabs.addTab(self._card_browser, "CARD BROWSER")
         self._tabs.addTab(self._tourney,      "TOURNAMENT PREP")
         self._tabs.addTab(self._heatmap,      "MATCHUP DATA")
         self._tabs.addTab(self._kb,           "KNOWLEDGE BASE")
@@ -293,7 +290,7 @@ class MainWindow(QMainWindow):
                 pass
             self._scrape_worker = None
         # Delegate cleanup to tabs that hold their own workers
-        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._set_analysis, self._card_browser, self._my_decks, self._match_log):
+        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._set_analysis, self._search, self._my_decks, self._match_log):
             if hasattr(tab, "cleanup"):
                 try:
                     tab.cleanup()
