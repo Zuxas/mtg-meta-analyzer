@@ -352,7 +352,11 @@ class HeatmapTab(QWidget):
 
         self._gauntlet_btn = QPushButton("TR Gauntlet")
         self._gauntlet_btn.setStyleSheet(theme.btn_secondary())
-        self._gauntlet_btn.setToolTip("Load Team Resolve gauntlet play/draw matrices")
+        self._gauntlet_btn.setToolTip(
+            "Team Resolve Houston RC gauntlet (Modern only)\n"
+            "12 decks, 500 Bo3 sims per pairing\n"
+            "Shows averaged play/draw WR per matchup"
+        )
         self._gauntlet_btn.clicked.connect(self._load_gauntlet)
         tl.addWidget(self._gauntlet_btn)
 
@@ -617,6 +621,8 @@ class HeatmapTab(QWidget):
             matrix, source = result
             self._source_map = source
             fmt = "modern"  # gauntlet is always Modern
+            self._updated_lbl.setText(
+                "MODERN  \u2022  TR Gauntlet (500 Bo3 sims/pairing, play+draw averaged)")
             self._on_data(fmt, matrix, self._load_gen)
 
         from gui.worker_threads import DataLoadWorker
