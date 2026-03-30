@@ -251,7 +251,7 @@ class SettingsTab(QWidget):
 
     def _refresh_storage(self):
         try:
-            from db.database import DB_PATH, ARCHIVE_DB_PATH
+            from db.database import DB_PATH, ARCHIVE_PATH as ARCHIVE_DB_PATH
             import sqlite3
 
             lines = []
