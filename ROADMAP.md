@@ -16,7 +16,7 @@
       scripts/run_fill_from_prefs.py reads preferences and runs scrapers for selected formats only
       background_fill.bat delegates to run_fill_from_prefs.py instead of hardcoded per-format commands
 - [ ] Cross-source duplicate detection with confidence scoring
-- [ ] Manual force scrape button with progress display
+- [x] "Collect More Data" button in Settings → Storage (2026-03-30) — dialog with format/source/pages selection, background worker, progress updates
 - [x] Data normalization: 170+ aliases, WUBRG codes, apostrophe fix, junk exclusion, backfill (2026-03-26)
 - [x] Unicode crash fix in MTGTop8 scraper — PYTHONIOENCODING=utf-8 (2026-03-26)
 - [x] Meta standings fallback to matches table when decks data is stale (2026-03-26)

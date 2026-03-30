@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QDialog, QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit,
     QDialogButtonBox, QMessageBox, QScrollArea,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QColor
 
 import gui.theme as theme
@@ -120,7 +120,30 @@ class SettingsTab(QWidget):
         sv.setSpacing(6)
         self._storage_lbl = QLabel("Loading…")
         self._storage_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        self._storage_lbl.setWordWrap(True)
         sv.addWidget(self._storage_lbl)
+
+        store_btns = QHBoxLayout()
+        self._backfill_btn = QPushButton("Collect More Data")
+        self._backfill_btn.setStyleSheet(theme.btn_primary())
+        self._backfill_btn.setToolTip(
+            "Run a backfill scrape for selected formats and sources"
+        )
+        self._backfill_btn.clicked.connect(self._show_backfill_dialog)
+        store_btns.addWidget(self._backfill_btn)
+
+        self._refresh_storage_btn = QPushButton("Refresh")
+        self._refresh_storage_btn.setStyleSheet(theme.btn_secondary())
+        self._refresh_storage_btn.clicked.connect(self._refresh_storage)
+        store_btns.addWidget(self._refresh_storage_btn)
+
+        store_btns.addStretch()
+        self._backfill_status = QLabel("")
+        self._backfill_status.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
+        self._backfill_status.setWordWrap(True)
+        store_btns.addWidget(self._backfill_status)
+        sv.addLayout(store_btns)
+
         outer.addWidget(store_box)
 
         # ── Archetype Manager ─────────────────────────────────────
@@ -423,3 +446,192 @@ class SettingsTab(QWidget):
         finally:
             self._sync_btn.setEnabled(True)
             self._sync_btn.setText("Run Sync Now")
+
+    # ------------------------------------------------------------------
+    # Backfill / Collect More Data
+    # ------------------------------------------------------------------
+
+    def _show_backfill_dialog(self):
+        dlg = _BackfillDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        formats = dlg.selected_formats()
+        sources = dlg.selected_sources()
+        pages = dlg.page_count()
+
+        if not formats:
+            QMessageBox.warning(self, "No Formats", "Select at least one format.")
+            return
+        if not sources:
+            QMessageBox.warning(self, "No Sources", "Select at least one data source.")
+            return
+
+        self._backfill_btn.setEnabled(False)
+        self._backfill_status.setText(
+            f"Collecting data: {', '.join(formats)} from {', '.join(sources)}..."
+        )
+
+        self._backfill_worker = _BackfillWorker(formats, sources, pages)
+        self._backfill_worker.progress.connect(self._on_backfill_progress)
+        self._backfill_worker.finished_ok.connect(self._on_backfill_done)
+        self._backfill_worker.error.connect(self._on_backfill_error)
+        self._backfill_worker.finished.connect(self._backfill_worker.deleteLater)
+        self._backfill_worker.finished.connect(
+            lambda: setattr(self, "_backfill_worker", None))
+        self._backfill_worker.start()
+
+    def _on_backfill_progress(self, msg: str):
+        self._backfill_status.setText(msg)
+
+    def _on_backfill_done(self, summary: str):
+        self._backfill_btn.setEnabled(True)
+        self._backfill_status.setText(summary)
+        self._refresh_storage()
+
+    def _on_backfill_error(self, msg: str):
+        self._backfill_btn.setEnabled(True)
+        self._backfill_status.setText(f"Error: {msg}")
+
+
+# ======================================================================
+# Backfill dialog
+# ======================================================================
+
+class _BackfillDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Collect More Data")
+        self.setMinimumWidth(380)
+        v = QVBoxLayout(self)
+        v.setSpacing(10)
+
+        v.addWidget(QLabel("Select which formats and sources to scrape.\n"
+                           "This runs in the background — you can keep using the app."))
+
+        # Formats
+        fmt_box = QGroupBox("Formats")
+        fmt_lay = QVBoxLayout(fmt_box)
+        self._fmt_checks = {}
+        for fmt in ("standard", "pioneer", "modern", "legacy", "pauper"):
+            cb = QCheckBox(fmt.capitalize())
+            if fmt in ("modern", "pioneer"):
+                cb.setChecked(True)  # these are thin by default
+            self._fmt_checks[fmt] = cb
+            fmt_lay.addWidget(cb)
+        v.addWidget(fmt_box)
+
+        # Sources
+        src_box = QGroupBox("Data Sources")
+        src_lay = QVBoxLayout(src_box)
+        self._src_checks = {}
+        sources = [
+            ("mtgtop8_backfill", "MTGTop8 Historical Backfill (deep — years of data)"),
+            ("mtgtop8_latest", "MTGTop8 Latest Events (recent pages)"),
+            ("mtgdecks", "MTGDecks.net (decklists + events)"),
+            ("melee", "Melee.gg (real match results)"),
+        ]
+        for key, label in sources:
+            cb = QCheckBox(label)
+            if key == "mtgtop8_backfill":
+                cb.setChecked(True)
+            self._src_checks[key] = cb
+            src_lay.addWidget(cb)
+        v.addWidget(src_box)
+
+        # Pages
+        page_row = QHBoxLayout()
+        page_row.addWidget(QLabel("Pages per source:"))
+        self._pages_spin = QComboBox()
+        self._pages_spin.addItems(["3 (quick)", "5 (moderate)", "10 (thorough)", "20 (deep)"])
+        self._pages_spin.setCurrentIndex(1)
+        page_row.addWidget(self._pages_spin)
+        page_row.addStretch()
+        v.addLayout(page_row)
+
+        # Buttons
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btns.button(QDialogButtonBox.StandardButton.Ok).setText("Start Collection")
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        v.addWidget(btns)
+
+    def selected_formats(self) -> list[str]:
+        return [fmt for fmt, cb in self._fmt_checks.items() if cb.isChecked()]
+
+    def selected_sources(self) -> list[str]:
+        return [src for src, cb in self._src_checks.items() if cb.isChecked()]
+
+    def page_count(self) -> int:
+        text = self._pages_spin.currentText()
+        return int(text.split(" ")[0])
+
+
+# ======================================================================
+# Backfill worker
+# ======================================================================
+
+class _BackfillWorker(QThread):
+    progress    = pyqtSignal(str)
+    finished_ok = pyqtSignal(str)
+    error       = pyqtSignal(str)
+
+    def __init__(self, formats: list[str], sources: list[str], pages: int):
+        super().__init__()
+        self._formats = formats
+        self._sources = sources
+        self._pages   = pages
+
+    def run(self):
+        import sys, io
+        if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+        total_steps = len(self._formats) * len(self._sources)
+        step = 0
+        errors = []
+
+        for fmt in self._formats:
+            for src in self._sources:
+                step += 1
+                self.progress.emit(
+                    f"[{step}/{total_steps}] {fmt.capitalize()} from {src}..."
+                )
+                try:
+                    if src == "mtgtop8_backfill":
+                        from scrapers.backfill import run_backfill
+                        run_backfill(format_name=fmt)
+
+                    elif src == "mtgtop8_latest":
+                        from scrapers.mtgtop8 import run as mtgtop8_run
+                        mtgtop8_run(format_name=fmt, pages=self._pages,
+                                    max_events=self._pages * 10)
+
+                    elif src == "mtgdecks":
+                        from scrapers.mtgdecks import run_scraper as mtgdecks_run
+                        mtgdecks_run(format_name=fmt, pages=self._pages)
+
+                    elif src == "melee":
+                        from scrapers.mtgmelee_scraper import scrape_and_store
+                        scrape_and_store(format_name=fmt, pages=self._pages)
+
+                except Exception as e:
+                    errors.append(f"{fmt}/{src}: {e}")
+
+        # Normalize after scrape
+        try:
+            self.progress.emit("Normalizing archetype names...")
+            from analysis.archetypes import apply_normalization
+            apply_normalization(dry_run=False, fuzzy=False)
+        except Exception:
+            pass
+
+        if errors:
+            self.finished_ok.emit(
+                f"Done with {len(errors)} error(s): {'; '.join(errors[:3])}")
+        else:
+            self.finished_ok.emit(
+                f"Done! Scraped {total_steps} format/source combinations."
+            )
