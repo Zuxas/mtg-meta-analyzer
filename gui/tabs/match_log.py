@@ -268,20 +268,26 @@ class MatchLogTab(QWidget):
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
 
-        rv.addWidget(QLabel("Matchup Stats (from your logged matches):"))
+        rv.addWidget(QLabel("Matchup Stats — Your Record vs Meta Expected:"))
 
         self._stats_table = QTableWidget()
-        self._stats_table.setColumnCount(6)
+        self._stats_table.setColumnCount(8)
         self._stats_table.setHorizontalHeaderLabels(
-            ["Opponent", "Record", "Win%", "On Play", "On Draw", "Matches"])
+            ["Opponent", "Record", "Your WR", "Meta WR", "Delta", "On Play", "On Draw", "#"])
         sh = self._stats_table.horizontalHeader()
         sh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in range(1, 6):
+        for c in range(1, 8):
             sh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
         self._stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._stats_table.verticalHeader().setVisible(False)
         self._stats_table.setAlternatingRowColors(True)
         rv.addWidget(self._stats_table, 1)
+
+        # Event type breakdown
+        self._event_lbl = QLabel("")
+        self._event_lbl.setWordWrap(True)
+        self._event_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        rv.addWidget(self._event_lbl)
 
         splitter.addWidget(right)
         splitter.setSizes([550, 350])
@@ -302,18 +308,52 @@ class MatchLogTab(QWidget):
             matches = get_matches(format_name=fmt_arg, my_deck=deck_arg)
             stats = {}
             overall = {"wins": 0, "losses": 0, "draws": 0, "total": 0, "wr": 0}
+            active_deck = deck_arg
             if deck_arg:
                 stats = get_matchup_stats(deck_arg, format_name=fmt_arg)
                 overall = get_overall_stats(my_deck=deck_arg, format_name=fmt_arg)
             elif matches:
-                # Use the most common deck as default
                 from collections import Counter
                 decks = Counter(m["my_deck"] for m in matches if m.get("my_deck"))
                 if decks:
-                    top_deck = decks.most_common(1)[0][0]
-                    stats = get_matchup_stats(top_deck, format_name=fmt_arg)
-                    overall = get_overall_stats(my_deck=top_deck, format_name=fmt_arg)
-            return {"matches": matches, "stats": stats, "overall": overall}
+                    active_deck = decks.most_common(1)[0][0]
+                    stats = get_matchup_stats(active_deck, format_name=fmt_arg)
+                    overall = get_overall_stats(my_deck=active_deck, format_name=fmt_arg)
+
+            # Fetch meta WR for comparison
+            meta_wrs = {}
+            try:
+                from analysis.win_rates import get_real_matchup_winrates
+                from analysis.archetypes import normalize as norm_arch
+                if active_deck and fmt_arg:
+                    real = get_real_matchup_winrates(fmt_arg or "modern", min_matches=10)
+                    my_norm = norm_arch(active_deck).lower()
+                    for a, opps in real.items():
+                        if norm_arch(a).lower() == my_norm:
+                            for b, s in opps.items():
+                                meta_wrs[norm_arch(b)] = s["win_rate"]
+                            break
+            except Exception:
+                pass
+
+            # Event type breakdown
+            from collections import Counter
+            event_types = Counter()
+            for m in matches:
+                name = (m.get("event_name") or "").lower()
+                if "rcq" in name:
+                    event_types["RCQ"] += 1
+                elif "regional" in name or " rc " in name:
+                    event_types["RC"] += 1
+                elif "open" in name or "5k" in name or "$5k" in name:
+                    event_types["Open"] += 1
+                elif "fnm" in name or "friday" in name:
+                    event_types["FNM"] += 1
+                else:
+                    event_types["Other"] += 1
+
+            return {"matches": matches, "stats": stats, "overall": overall,
+                    "meta_wrs": meta_wrs, "event_types": dict(event_types)}
 
         w = DataLoadWorker(_do)
         w.result.connect(self._on_data)
@@ -324,7 +364,7 @@ class MatchLogTab(QWidget):
     def _on_data(self, data):
         self._matches = data["matches"]
         self._populate_table(data["matches"])
-        self._populate_stats(data["stats"])
+        self._populate_stats(data["stats"], data.get("meta_wrs", {}))
         ov = data["overall"]
         if ov["total"] > 0:
             self._summary_lbl.setText(
@@ -332,6 +372,14 @@ class MatchLogTab(QWidget):
                 f"({ov['wr']*100:.0f}% WR, {ov['total']} matches)")
         else:
             self._summary_lbl.setText("No matches logged yet")
+
+        # Event type breakdown
+        ev = data.get("event_types", {})
+        if ev:
+            parts = [f"{k}: {v}" for k, v in sorted(ev.items(), key=lambda x: -x[1])]
+            self._event_lbl.setText("Events: " + " \u2022 ".join(parts))
+        else:
+            self._event_lbl.setText("")
 
     def _populate_table(self, matches):
         self._table.setRowCount(len(matches))
@@ -370,7 +418,8 @@ class MatchLogTab(QWidget):
             # Store match id
             self._table.item(ri, 0).setData(Qt.ItemDataRole.UserRole, m.get("id"))
 
-    def _populate_stats(self, stats):
+    def _populate_stats(self, stats, meta_wrs=None):
+        meta_wrs = meta_wrs or {}
         sorted_stats = sorted(stats.items(), key=lambda x: -x[1]["total"])
         self._stats_table.setRowCount(len(sorted_stats))
         for ri, (opp, s) in enumerate(sorted_stats):
@@ -379,6 +428,7 @@ class MatchLogTab(QWidget):
             record = f"{s['wins']}-{s['losses']}-{s['draws']}"
             self._stats_table.setItem(ri, 1, QTableWidgetItem(record))
 
+            # Your WR
             wr_item = QTableWidgetItem(f"{s['wr']*100:.0f}%")
             if s["wr"] >= 0.55:
                 wr_item.setForeground(QColor(theme.OK))
@@ -387,15 +437,43 @@ class MatchLogTab(QWidget):
             wr_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._stats_table.setItem(ri, 2, wr_item)
 
+            # Meta WR (from real match data)
+            from analysis.archetypes import normalize as norm_arch
+            meta_wr = meta_wrs.get(norm_arch(opp))
+            if meta_wr is not None:
+                meta_item = QTableWidgetItem(f"{meta_wr*100:.0f}%")
+                meta_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                meta_item.setForeground(QColor(theme.TEXT_DIM))
+                self._stats_table.setItem(ri, 3, meta_item)
+
+                # Delta: your WR minus meta WR
+                delta = s["wr"] - meta_wr
+                delta_item = QTableWidgetItem(f"{delta*100:+.0f}%")
+                delta_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if delta >= 0.05:
+                    delta_item.setForeground(QColor(theme.OK))
+                elif delta <= -0.05:
+                    delta_item.setForeground(QColor(theme.ERR))
+                else:
+                    delta_item.setForeground(QColor(theme.TEXT_DIM))
+                self._stats_table.setItem(ri, 4, delta_item)
+            else:
+                self._stats_table.setItem(ri, 3, QTableWidgetItem("\u2014"))
+                self._stats_table.setItem(ri, 4, QTableWidgetItem("\u2014"))
+
             play_text = f"{s['play_wr']*100:.0f}%" if s["play_wr"] is not None else "\u2014"
-            self._stats_table.setItem(ri, 3, QTableWidgetItem(play_text))
+            pi = QTableWidgetItem(play_text)
+            pi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._stats_table.setItem(ri, 5, pi)
 
             draw_text = f"{s['draw_wr']*100:.0f}%" if s["draw_wr"] is not None else "\u2014"
-            self._stats_table.setItem(ri, 4, QTableWidgetItem(draw_text))
+            di = QTableWidgetItem(draw_text)
+            di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._stats_table.setItem(ri, 6, di)
 
             ct_item = QTableWidgetItem(str(s["total"]))
             ct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._stats_table.setItem(ri, 5, ct_item)
+            self._stats_table.setItem(ri, 7, ct_item)
 
     # ------------------------------------------------------------------
     # CRUD
