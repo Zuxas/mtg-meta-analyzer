@@ -400,3 +400,224 @@ archetypes:
         minCopies: 4
       - name: "Swamp"
         minCopies: 10
+  - name: Boros Convoke
+    signatureCards:
+      - name: "Knight-Errant of Eos"
+        minCopies: 3
+      - name: "Novice Inspector"
+        minCopies: 3
+      - name: "Voldaren Epicure"
+        minCopies: 3
+
+  - name: Domain Ramp
+    signatureCards:
+      - name: "Leyline Binding"
+        minCopies: 3
+      - name: "Spara's Headquarters"
+        minCopies: 1
+      - name: "Ziatora's Proving Ground"
+        minCopies: 1
+
+  - name: Four-Color Overlords
+    signatureCards:
+      - name: "Leyline Binding"
+        minCopies: 3
+      - name: "Up the Beanstalk"
+        minCopies: 2
+      - name: "Overlord of the Hauntwoods"
+        minCopies: 2
+
+  - name: Gruul Aggro
+    signatureCards:
+      - name: "Emberheart Challenger"
+        minCopies: 3
+      - name: "Monastery Swiftspear"
+        minCopies: 3
+      - name: "Monstrous Rage"
+        minCopies: 3
+
+  - name: Esper Raffine
+    signatureCards:
+      - name: "Raffine, Scheming Seer"
+        minCopies: 3
+      - name: "Go for the Throat"
+        minCopies: 2
+      - name: "Darkslick Shores"
+        minCopies: 3
+
+  - name: Izzet Cauldron
+    signatureCards:
+      - name: "Proft's Eidetic Memory"
+        minCopies: 3
+      - name: "Fear of Missing Out"
+        minCopies: 3
+
+  - name: Dimir Aggro
+    signatureCards:
+      - name: "Go for the Throat"
+        minCopies: 2
+      - name: "Preacher of the Schism"
+        minCopies: 2
+      - name: "Deep-Cavern Bat"
+        minCopies: 3
+
+  - name: Boros Aggro
+    signatureCards:
+      - name: "Monastery Swiftspear"
+        minCopies: 3
+      - name: "Lightning Strike"
+        minCopies: 3
+      - name: "Monstrous Rage"
+        minCopies: 3
+      - name: "Kumano Faces Kakkazan"
+        minCopies: 3
+
+  - name: Azorius Omniscience
+    signatureCards:
+      - name: "Omniscience"
+        minCopies: 2
+      - name: "Temporary Lockdown"
+        minCopies: 2
+      - name: "Meticulous Archive"
+        minCopies: 2
+
+  - name: Mono-White Aggro
+    signatureCards:
+      - name: "Enduring Innocence"
+        minCopies: 2
+      - name: "Get Lost"
+        minCopies: 3
+      - name: "Beza, the Bounding Spring"
+        minCopies: 2
+
+  - name: Azorius Soldiers
+    signatureCards:
+      - name: "Knight-Errant of Eos"
+        minCopies: 3
+      - name: "Resolute Reinforcements"
+        minCopies: 3
+      - name: "Seachrome Coast"
+        minCopies: 3
+
+  - name: Temur Analyst
+    signatureCards:
+      - name: "Aftermath Analyst"
+        minCopies: 3
+      - name: "Memory Deluge"
+        minCopies: 2
+      - name: "Ill-Timed Explosion"
+        minCopies: 2
+
+  - name: Azorius Control-Slow
+    signatureCards:
+      - name: "No More Lies"
+        minCopies: 3
+      - name: "Field of Ruin"
+        minCopies: 2
+      - name: "Restless Anchorage"
+        minCopies: 2
+      - name: "Deserted Beach"
+        minCopies: 3
+
+  - name: Golgari Midrange
+    signatureCards:
+      - name: "Llanowar Elves"
+        minCopies: 3
+      - name: "Go for the Throat"
+        minCopies: 2
+      - name: "Unholy Annex / Ritual Chamber"
+        minCopies: 2
+
+  - name: Rakdos Midrange
+    signatureCards:
+      - name: "Go for the Throat"
+        minCopies: 2
+      - name: "Bloodtithe Harvester"
+        minCopies: 3
+      - name: "Fable of the Mirror-Breaker"
+        minCopies: 2
+      - name: "Blackcleave Cliffs"
+        minCopies: 3
+
+  - name: Dimir Faeries
+    signatureCards:
+      - name: "Go for the Throat"
+        minCopies: 2
+      - name: "Deep-Cavern Bat"
+        minCopies: 3
+      - name: "Spyglass Siren"
+        minCopies: 3
+
+  - name: Esper Midrange
+    signatureCards:
+      - name: "Raffine, Scheming Seer"
+        minCopies: 2
+      - name: "Deep-Cavern Bat"
+        minCopies: 3
+      - name: "Virtue of Loyalty"
+        minCopies: 1
+
+  - name: Dimir Control
+    signatureCards:
+      - name: "Sheoldred, the Apocalypse"
+        minCopies: 2
+      - name: "Faerie Mastermind"
+        minCopies: 2
+      - name: "Underground River"
+        minCopies: 3
+
+  - name: Azorius Toxic
+    signatureCards:
+      - name: "Skrelv, Defector Mite"
+        minCopies: 3
+      - name: "Skrelv's Hive"
+        minCopies: 3
+      - name: "The Seedcore"
+        minCopies: 2
+
+  - name: Selesnya Enchantments
+    signatureCards:
+      - name: "Sheltered by Ghosts"
+        minCopies: 3
+      - name: "Novice Inspector"
+        minCopies: 3
+      - name: "Warden of the Inner Sky"
+        minCopies: 3
+
+  - name: Legends Aggro
+    signatureCards:
+      - name: "Sheoldred, the Apocalypse"
+        minCopies: 2
+      - name: "Thalia, Guardian of Thraben"
+        minCopies: 2
+      - name: "Plaza of Heroes"
+        minCopies: 3
+
+  - name: Temur Prowess
+    signatureCards:
+      - name: "Keen-Eyed Curator"
+        minCopies: 3
+      - name: "Fear of Missing Out"
+        minCopies: 2
+      - name: "Patchwork Beastie"
+        minCopies: 2
+
+  - name: Domain Control
+    signatureCards:
+      - name: "Leyline Binding"
+        minCopies: 3
+      - name: "Up the Beanstalk"
+        minCopies: 2
+      - name: "Sunfall"
+        minCopies: 2
+
+  - name: Orzhov Midrange
+    signatureCards:
+      - name: "Go for the Throat"
+        minCopies: 2
+      - name: "Restless Fortress"
+        minCopies: 2
+      - name: "Deep-Cavern Bat"
+        minCopies: 3
+      - name: "Godless Shrine"
+        minCopies: 3

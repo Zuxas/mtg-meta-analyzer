@@ -1,10 +1,35 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-03-27
+Last updated: 2026-03-30
 
 ---
 
-## Session 2026-03-29 — Match Log, Prep Package, Meta Shift, bug fixes
+## TOP PRIORITIES — Next Session
+
+### 1. New Set Break Protocol (HIGH — competitive edge)
+- Build "Set Analysis" tool using Claude API
+- Input: paste new set spoilers → AI classifies each card
+- Output: which cards matter for each meta archetype
+- Uses existing Ask Claude infrastructure
+
+### 2. Team Collaboration (MEDIUM — RC prep workflow)
+- Export/import SB plans as JSON (share on Discord)
+- Export/import gauntlet results
+- File-based, no server
+
+### 3. Match Logging Enhancements (MEDIUM — long-term data)
+- Compare personal WR vs meta expected WR
+- Track by event type (RCQ/Open/RC)
+- Personal trend analysis over time
+
+### 4. Remaining Polish
+- Standard archetype config: 5,391 still unclassified (need more definitions)
+- PyInstaller .exe packaging
+- Quick-glance summary bar per tab
+
+---
+
+## Session 2026-03-29/30 — Major feature batch + classifier fix
 
 ### Features built
 1. **Match Log tab** — personal tournament match tracker with event/round/opponent/result/play-draw/game-by-game logging, matchup stats with play/draw WR splits, auto-incrementing rounds

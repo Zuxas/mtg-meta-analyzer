@@ -102,3 +102,28 @@
 - [x] Pauper support: 16,174 matches from ~130 tournaments, daily scrapes active (2026-03-26)
 - [ ] Premodern support
 - [ ] Format-specific banned lists + archetype dictionaries
+
+---
+
+## 8. ADVANCED FEATURES (Phase 4)
+
+### Match Logging (personal results)
+- [x] Basic match logging — opponent deck, W/L/D, play/draw, game-by-game, notes (2026-03-29)
+- [ ] Compare personal WR vs meta expected WR per matchup
+- [ ] Track record by event type (RCQ vs Open vs RC)
+- [ ] Trend analysis: personal WR over time, improving/declining matchups
+- [ ] Integration with SB advisor: "your WR is low vs X, adjust your plan"
+
+### New Set Break Protocol
+- [ ] "Set Analysis" tool: paste new set card list
+- [ ] AI classification of each card into buckets:
+    Rate Outliers / Engine Pieces / Enablers / SB Breakers / Upgrade Cards
+- [ ] For each top meta archetype, flag which new cards slot in and why
+- [ ] Output: ranked "most likely to matter" list with reasoning
+- [ ] Uses Claude API (Ask Claude tab infrastructure) for classification
+
+### Team Collaboration
+- [ ] Export/import gauntlet results as JSON (share on Discord)
+- [ ] Export/import SB plans in shareable format (teammates can load)
+- [ ] Team notes field on matchup heatmap cells
+- [ ] No server needed — file-based import/export only
