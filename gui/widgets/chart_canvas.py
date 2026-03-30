@@ -61,13 +61,26 @@ def _draw_event_markers(ax, x_labels: list[str], sorted_keys: list[str],
     first_date = sorted_keys[0]
     last_date  = sorted_keys[-1]
 
-    for ev in events:
+    in_range = []
+    most_recent_before = None
+    for ev in sorted(events, key=lambda e: e["date"]):
         d = ev["date"]
-        if d < first_date or d > last_date:
-            continue
-        # Find the closest x position
+        if d < first_date:
+            most_recent_before = ev  # track the last event before our window
+        elif d <= last_date:
+            in_range.append(ev)
+
+    # Show the most recent prior event as a subtle label at left edge
+    if most_recent_before and not in_range:
+        color = _EVENT_COLORS.get(most_recent_before.get("type"), "#888888")
+        ax.annotate(f'{most_recent_before.get("short", "")} ({most_recent_before["date"][5:]})',
+                    xy=(0, 1.0), xycoords=("data", "axes fraction"),
+                    fontsize=7, color=color, ha="left", va="bottom",
+                    clip_on=False, alpha=0.5)
+
+    for ev in in_range:
+        d = ev["date"]
         best_idx = 0
-        best_dist = abs(ord(d[5]) - ord(first_date[5]))  # rough
         for i, k in enumerate(sorted_keys):
             if k <= d:
                 best_idx = i

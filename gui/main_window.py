@@ -83,11 +83,11 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._my_decks,  "MY DECKS")
         self._tabs.addTab(self._match_log, "MATCH LOG")
         self._tabs.addTab(self._search,    "SEARCH")
-        self._tabs.addTab(self._charts,    "CHARTS")
-        self._tabs.addTab(self._preds,     "PREDICTIONS")
-        self._tabs.addTab(self._kb,        "KNOWLEDGE BASE")
         self._tabs.addTab(self._tourney,   "TOURNAMENT PREP")
         self._tabs.addTab(self._heatmap,   "MATCHUP DATA")
+        self._tabs.addTab(self._kb,        "KNOWLEDGE BASE")
+        self._tabs.addTab(self._preds,     "PREDICTIONS")
+        self._tabs.addTab(self._charts,    "CHARTS")
         self._tabs.addTab(self._settings,  "SETTINGS")
 
         # Wire "Open in Event Optimizer" from My Decks → Tournament Prep

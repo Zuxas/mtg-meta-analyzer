@@ -338,8 +338,13 @@ class SearchTab(QWidget):
 
         def _do():
             import json
-            from scrapers.scryfall import search_local
-            results = search_local(query)
+            from scrapers.scryfall import search_local, get_card_data
+            # Try exact match first
+            exact = get_card_data(query)
+            if exact:
+                results = [exact]
+            else:
+                results = search_local(query)
             if not results:
                 return {"text": "No results found.", "image_name": None}
             lines = []
