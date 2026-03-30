@@ -503,6 +503,69 @@ ALIASES = {
 }
 
 # Reverse lookup: canonical -> canonical (so we don't change already-canonical names)
+# Signature card per archetype — used for scatter plot card art bubbles
+SIGNATURE_CARDS = {
+    # Modern
+    "Boros Energy":        "Ocelot Pride",
+    "Izzet Prowess":       "Slickshot Show-Off",
+    "Dimir Murktide":      "Murktide Regent",
+    "Amulet Titan":        "Primeval Titan",
+    "Izzet Affinity":      "Mox Opal",
+    "Grinding Breach":     "Underworld Breach",
+    "Jeskai Blink":        "Phelia, Exuberant Shepherd",
+    "Orzhov Blink":        "Ephemerate",
+    "Eldrazi Tron":        "Ugin, the Spirit Dragon",
+    "Domain Zoo":          "Tribal Flames",
+    "Mono Red Aggro":      "Monastery Swiftspear",
+    "Ruby Storm":          "Ruby Medallion",
+    "Goryo's Vengeance":   "Goryo's Vengeance",
+    "Living End":          "Living End",
+    "Golgari Yawgmoth":    "Yawgmoth, Thran Physician",
+    "Simic Birthing Ritual": "Birthing Ritual",
+    "Merfolk":             "Lord of Atlantis",
+    "8-Rack":              "The Rack",
+    "Burn":                "Lightning Bolt",
+    "Temur Rhinos":        "Crashing Footfalls",
+    "Dimir Midrange":      "Psychic Frog",
+    "Simic Neoform":       "Neoform",
+    "Eldrazi Ramp":        "Eldrazi Temple",
+    "Hollow One":          "Hollow One",
+    "Jeskai Control":      "Teferi, Time Raveler",
+    "Azorius Control":     "Teferi, Hero of Dominaria",
+    "Domain Ramp":         "Leyline Binding",
+    # Standard
+    "Izzet Lessons":       "Gran-Gran",
+    "Izzet Cauldron":      "Soul Cauldron",
+    "Mono Green Landfall":  "Mightform Harmonizer",
+    "Esper Pixie":         "Helpful Pixie",
+    "Simic Ouroboroid":    "Ouroboroid",
+    "Golgari Midrange":    "Glissa Sunslayer",
+    "Sultai Reanimator":   "Reanimation",
+    "Gruul Aggro":         "Emberheart Challenger",
+    "Jeskai Oculus":       "Oculus",
+    "Four-Color Control":  "Teferi, Who Slows the Sunset",
+    "Four-Color Overlords": "Zur, Eternal Schemer",
+    "Izzet Spellementals": "Spellementals",
+    # Pioneer
+    "Izzet Phoenix":       "Arclight Phoenix",
+    "Rakdos Aggro":        "Bloodtithe Harvester",
+    "Jund Sacrifice":      "Cauldron Familiar",
+    "Lotus Combo":         "Lotus Field",
+    "Enigmatic Incarnation": "Enigmatic Incarnation",
+    "Selesnya Company":    "Collected Company",
+    # Legacy
+    "Dimir Reanimator":    "Reanimate",
+    "Dimir Tempo":         "Brainstorm",
+    "Cephalid Breakfast":  "Cephalid Illusionist",
+    "Sneak And Show":      "Sneak Attack",
+    "Death And Taxes":     "Thalia, Guardian of Thraben",
+    "Doomsday":            "Doomsday",
+    # Pauper
+    "Grixis Affinity":     "Myr Enforcer",
+    "Mono Blue Faeries":   "Spellstutter Sprite",
+    "Selesnya Bogles":     "Slippery Bogle",
+}
+
 _CANONICAL_NAMES = {v for v in ALIASES.values() if v}
 
 

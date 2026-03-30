@@ -688,31 +688,69 @@ class ChartCanvas(QWidget):
 
     def plot_scatter(self, format_name="standard", top=20, weeks=8,
                      since=None, until=None):
-        """Scatter plot: X=meta share, Y=win rate, size=match count."""
-        self.show_message("Loading meta positioning\u2026", "#65bcd5")
+        """Scatter plot: X=meta share, Y=win rate, with card art bubbles."""
+        self.show_message("Loading meta positioning + card art\u2026", "#65bcd5")
 
         def _load():
+            import time
             from analysis.win_rates import get_meta_standings
-            return get_meta_standings(format_name, top=top, since=since, until=until)
+            from analysis.archetypes import SIGNATURE_CARDS
+            standings = get_meta_standings(format_name, top=top, since=since, until=until)
+            if not standings:
+                return None
 
-        w_ref = type('W', (QThread,), {
-            'done': pyqtSignal(object),
-            'error': pyqtSignal(str),
-            'run': lambda self_w: (
-                self_w.done.emit(_load()) if True else None
-            ),
-        })
-        # Use DataLoadWorker pattern instead
+            # Fetch card images for signature cards (in worker thread)
+            images = {}  # archetype → PIL Image or None
+            try:
+                import requests
+                from io import BytesIO
+                from PIL import Image
+                from urllib.parse import quote
+
+                for s in standings[:top]:
+                    arch = s["archetype"]
+                    sig_card = SIGNATURE_CARDS.get(arch)
+                    if not sig_card:
+                        continue
+                    try:
+                        r = requests.get(
+                            f"https://api.scryfall.com/cards/named?fuzzy={quote(sig_card)}",
+                            timeout=8, headers={"User-Agent": "MTGMetaAnalyzer/1.0"})
+                        if r.status_code != 200:
+                            continue
+                        data = r.json()
+                        uris = data.get("image_uris") or {}
+                        if not uris:
+                            faces = data.get("card_faces", [])
+                            uris = faces[0].get("image_uris", {}) if faces else {}
+                        img_url = uris.get("art_crop") or uris.get("normal")
+                        if not img_url:
+                            continue
+                        ir = requests.get(img_url, timeout=10)
+                        if ir.status_code == 200:
+                            img = Image.open(BytesIO(ir.content)).convert("RGBA")
+                            images[arch] = img
+                        time.sleep(0.08)  # rate limit
+                    except Exception:
+                        continue
+            except ImportError:
+                pass  # PIL not available — fall back to plain dots
+
+            return {"standings": standings, "images": images}
+
         from gui.worker_threads import DataLoadWorker
         worker = DataLoadWorker(_load)
         worker.result.connect(lambda data: self._draw_scatter(data, format_name))
         worker.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
         self._start_worker(worker)
 
-    def _draw_scatter(self, standings, format_name):
-        if not standings:
+    def _draw_scatter(self, result, format_name):
+        if not result:
             self.show_message("No meta data available.")
             return
+
+        standings = result if isinstance(result, list) else result.get("standings", [])
+        images = result.get("images", {}) if isinstance(result, dict) else {}
 
         # Filter to archetypes with enough data
         data = [s for s in standings
@@ -723,29 +761,69 @@ class ChartCanvas(QWidget):
 
         shares = [s.get("meta_share", 0) * 100 for s in data]
         wrs    = [s["est_match_winpct"] * 100 for s in data]
-        sizes  = [max(20, min(300, s["appearances"] / 5)) for s in data]
         names  = [s["archetype"] for s in data]
-        colors = ["#3cb44b" if wr >= 52 else ("#e6194b" if wr <= 48 else "#888888")
-                  for wr in wrs]
+        apps   = [s["appearances"] for s in data]
 
         self._fig.clear()
         self._overlay.setVisible(False)
         ax = self._fig.add_subplot(111)
         _style_ax(ax, self._fig)
 
-        ax.scatter(shares, wrs, s=sizes, c=colors, alpha=0.7, edgecolors="white", linewidth=0.5)
+        # Try rendering card art bubbles
+        has_art = False
+        try:
+            from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+            from PIL import Image, ImageDraw
+            has_art = True
+        except ImportError:
+            pass
 
-        # Label each point
-        for i, name in enumerate(names):
-            short = name[:18] + "\u2026" if len(name) > 18 else name
-            ax.annotate(short, (shares[i], wrs[i]),
-                        fontsize=6, color="white", alpha=0.8,
-                        xytext=(4, 4), textcoords="offset points")
+        for i, (name, share, wr, app_ct) in enumerate(zip(names, shares, wrs, apps)):
+            color = "#3cb44b" if wr >= 52 else ("#e6194b" if wr <= 48 else "#888888")
+            pil_img = images.get(name)
+
+            if has_art and pil_img:
+                # Crop to circle
+                size = max(40, min(80, int(share * 6)))
+                img = pil_img.resize((size, size), Image.Resampling.LANCZOS)
+                mask = Image.new("L", (size, size), 0)
+                draw = ImageDraw.Draw(mask)
+                draw.ellipse((0, 0, size - 1, size - 1), fill=255)
+                # Add colored border ring
+                border_w = 3
+                from PIL import ImageOps
+                ring = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+                ring_draw = ImageDraw.Draw(ring)
+                r, g, b = (60, 180, 75) if wr >= 52 else ((230, 25, 75) if wr <= 48 else (136, 136, 136))
+                ring_draw.ellipse((0, 0, size - 1, size - 1), outline=(r, g, b, 255), width=border_w)
+                # Composite
+                result_img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+                result_img.paste(img, mask=mask)
+                result_img = Image.alpha_composite(result_img, ring)
+                # Convert to numpy for matplotlib
+                arr = np.array(result_img)
+                zoom = 0.6 + (share / 30)  # scale by meta share
+                imagebox = OffsetImage(arr, zoom=min(zoom, 1.2))
+                ab = AnnotationBbox(imagebox, (share, wr),
+                                    frameon=False, pad=0)
+                ax.add_artist(ab)
+            else:
+                # Fallback: colored dot
+                dot_size = max(30, min(200, app_ct / 8))
+                ax.scatter([share], [wr], s=[dot_size], c=[color],
+                           alpha=0.7, edgecolors="white", linewidth=0.5)
+
+            # Label below the bubble
+            short = name[:16] + "\u2026" if len(name) > 16 else name
+            ax.annotate(short, (share, wr),
+                        fontsize=5.5, color="white", alpha=0.85,
+                        xytext=(0, -12), textcoords="offset points",
+                        ha="center", va="top")
 
         # 50% WR reference line
         ax.axhline(y=50, color="#f58231", linestyle="--", linewidth=1, alpha=0.5)
-        ax.text(max(shares) * 0.95, 50.3, "50% WR", color="#f58231",
-                fontsize=7, ha="right", alpha=0.7)
+        ax.text(max(shares) * 0.95 if shares else 5, 50.3, "50% WR",
+                color="#f58231", fontsize=7, ha="right", alpha=0.7)
 
         ax.set_title(f"Meta Positioning \u2014 {format_name.upper()}",
                      color="white", fontsize=13, pad=10)
