@@ -159,10 +159,11 @@ class KnowledgeBaseTab(QWidget):
         )
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._table.setSortingEnabled(True)
         self._table.verticalHeader().setVisible(False)
         self._table.setAlternatingRowColors(False)
         self._table.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._table.setToolTip("Click a row to open in browser")
+        self._table.setToolTip("Click a row to open in browser — click column headers to sort")
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -285,6 +286,7 @@ class KnowledgeBaseTab(QWidget):
         self._populate_table(rows)
 
     def _populate_table(self, rows: list[dict]):
+        self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
         self._table.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -314,6 +316,7 @@ class KnowledgeBaseTab(QWidget):
                 item.setData(Qt.ItemDataRole.UserRole + 1, origin)
                 self._table.setItem(ri, ci, item)
 
+        self._table.setSortingEnabled(True)
         g = sum(1 for r in rows if r.get("origin") == "guide")
         b = sum(1 for r in rows if r.get("origin") == "bookmark")
         # Find most recent guide date as "last synced" indicator
