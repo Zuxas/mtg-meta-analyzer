@@ -701,7 +701,12 @@ class ArchetypeDetailDialog(QDialog):
                           if 0.15 <= c["inclusion_rate"] <= 0.80])
         self._tabs.addTab(tech_widget, f"Tech Choices ({tech_count})")
 
-        # Tab 4 — Resources (guides + bookmarks)
+        # Tab 4 — Card Trends (adoption changes)
+        trend_tab = self._make_card_trends_tab(data["mainboard"], data["sideboard"])
+        if trend_tab:
+            self._tabs.addTab(trend_tab, "Card Trends")
+
+        # Tab 5 — Resources (guides + bookmarks)
         resources    = data.get("resources", [])
         res_tab      = _make_resources_tab(resources)
         res_label    = f"Resources ({len(resources)})" if resources else "Resources"
@@ -709,6 +714,75 @@ class ArchetypeDetailDialog(QDialog):
 
         self._tabs.blockSignals(False)
         self._tabs.setVisible(True)
+
+    def _make_card_trends_tab(self, mainboard, sideboard):
+        """Compare card inclusion rates: recent half vs older half of available data."""
+        all_cards = mainboard + sideboard
+        if len(all_cards) < 5:
+            return None
+
+        # Split data conceptually: we have inclusion rates from the full period.
+        # To show trends, we load a second dataset from a narrower recent window.
+        try:
+            from gui.widgets.archetype_detail import _load_archetype_data
+            from datetime import datetime, timedelta
+            # Recent = last 2 weeks
+            recent_since = datetime.now() - timedelta(weeks=2)
+            recent_data = _load_archetype_data(
+                self._archetype, self._format_name, since_dt=recent_since)
+            if not recent_data or not recent_data.get("mainboard"):
+                return None
+        except Exception:
+            return None
+
+        # Build lookup: card name → recent inclusion rate
+        recent_rates = {}
+        for c in recent_data["mainboard"] + recent_data.get("sideboard", []):
+            recent_rates[c["name"]] = c["inclusion_rate"]
+
+        # Compare full-period vs recent
+        changes = []
+        for c in all_cards:
+            name = c["name"]
+            full_rate = c["inclusion_rate"]
+            recent_rate = recent_rates.get(name, 0)
+            delta = recent_rate - full_rate
+            if abs(delta) >= 0.05:  # only show 5%+ changes
+                changes.append((name, full_rate, recent_rate, delta))
+
+        if not changes:
+            return None
+
+        changes.sort(key=lambda x: -x[3])  # biggest gainers first
+
+        tbl = QTableWidget(len(changes), 4)
+        tbl.setHorizontalHeaderLabels(["Card", "Overall Incl%", "Recent Incl%", "Change"])
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for c in range(1, 4):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.verticalHeader().setVisible(False)
+
+        for ri, (name, full, recent, delta) in enumerate(changes):
+            tbl.setItem(ri, 0, QTableWidgetItem(name))
+            fi = QTableWidgetItem(f"{full*100:.0f}%")
+            fi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 1, fi)
+            ri_item = QTableWidgetItem(f"{recent*100:.0f}%")
+            ri_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 2, ri_item)
+            di = QTableWidgetItem(f"{delta*100:+.0f}%")
+            di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if delta > 0:
+                di.setForeground(QColor(theme.OK))
+            elif delta < 0:
+                di.setForeground(QColor(theme.ERR))
+            tbl.setItem(ri, 3, di)
+
+        from gui.widgets.card_tooltip import install_card_tooltip
+        install_card_tooltip(tbl, card_name_column=0)
+        return tbl
 
     def _make_this_list_tab(self, deck_id: int):
         """Build a tab showing the exact 75 for a specific deck ID."""

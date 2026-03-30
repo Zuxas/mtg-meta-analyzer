@@ -387,11 +387,24 @@ class SearchTab(QWidget):
             self._card_result.setPlainText(result["text"])
             img_name = result.get("image_name")
             if img_name:
-                img_worker = DataLoadWorker(_fetch_card_image, {"card_name": img_name})
-                img_worker.result.connect(self._show_card_image)
-                img_worker.error.connect(lambda _: self._card_image_lbl.setText("No image"))
-                img_worker.start()
-                self._workers.append(img_worker)
+                from gui.widgets.card_tooltip import _FetchWorker as _ImgFetch, _IMAGE_CACHE
+                if img_name in _IMAGE_CACHE and _IMAGE_CACHE[img_name]:
+                    self._card_image_lbl.setPixmap(
+                        _IMAGE_CACHE[img_name].scaledToWidth(
+                            250, Qt.TransformationMode.SmoothTransformation))
+                else:
+                    self._card_image_lbl.setText("Loading image\u2026")
+                    w = _ImgFetch(img_name)
+                    def _on_img(name, pix):
+                        if pix:
+                            self._card_image_lbl.setPixmap(
+                                pix.scaledToWidth(250, Qt.TransformationMode.SmoothTransformation))
+                        else:
+                            self._card_image_lbl.setText("No image available")
+                    w.done.connect(_on_img)
+                    w.finished.connect(w.deleteLater)
+                    w.start()
+                    self._workers.append(w)
             else:
                 self._card_image_lbl.setText("No image")
 
