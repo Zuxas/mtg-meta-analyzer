@@ -350,6 +350,12 @@ class HeatmapTab(QWidget):
         self._cache_btn.clicked.connect(self._load_cached)
         tl.addWidget(self._cache_btn)
 
+        self._gauntlet_btn = QPushButton("TR Gauntlet")
+        self._gauntlet_btn.setStyleSheet(theme.btn_secondary())
+        self._gauntlet_btn.setToolTip("Load Team Resolve gauntlet play/draw matrices")
+        self._gauntlet_btn.clicked.connect(self._load_gauntlet)
+        tl.addWidget(self._gauntlet_btn)
+
         self._paste_btn = QPushButton("Paste Data")
         self._paste_btn.setStyleSheet(theme.btn_secondary())
         self._paste_btn.setToolTip(
@@ -437,6 +443,7 @@ class HeatmapTab(QWidget):
         self._combined_btn.setEnabled(not busy)
         self._fetch_btn.setEnabled(not busy)
         self._cache_btn.setEnabled(not busy)
+        self._gauntlet_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
         self._fmt.setEnabled(not busy)
 
@@ -531,6 +538,93 @@ class HeatmapTab(QWidget):
         worker = _LoadWorker(fmt)
         worker.done.connect(lambda f, m: self._on_data(f, m, gen))
         self._wire_worker(worker)
+
+    def _load_gauntlet(self):
+        """Load Team Resolve gauntlet play/draw matrices."""
+        import csv, os
+        self._prepare_load("gauntlet")
+        self._status.setText("Loading Team Resolve gauntlet data\u2026")
+
+        def _do():
+            base = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "config", "gauntlet")
+            rankings_path = os.path.join(base, "gauntlet_deck_rankings.csv")
+            play_path = os.path.join(base, "gauntlet_play_matrix.csv")
+            draw_path = os.path.join(base, "gauntlet_draw_matrix.csv")
+
+            if not os.path.exists(play_path):
+                return None, {}
+
+            # Read rankings for name mapping (letter → name)
+            id_to_name = {}
+            with open(rankings_path, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    id_to_name[row["Deck_A_ID"].strip()] = row["Deck_A_Name"].strip().title()
+
+            def read_matrix(path):
+                with open(path, encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    header = next(reader)
+                    letters = [h.strip() for h in header[1:] if h.strip()]
+                    matrix = {}
+                    for row_data in reader:
+                        if not row_data or not row_data[0].strip():
+                            continue
+                        row_letter = row_data[0].strip()
+                        row_name = id_to_name.get(row_letter, row_letter)
+                        matrix[row_name] = {}
+                        for ci, letter in enumerate(letters):
+                            col_name = id_to_name.get(letter, letter)
+                            try:
+                                val = float(row_data[ci + 1])
+                                matrix[row_name][col_name] = {
+                                    "winrate": val / 100.0, "matches": 500,
+                                }
+                            except (ValueError, IndexError):
+                                pass
+                    return matrix
+
+            play = read_matrix(play_path)
+            draw = read_matrix(draw_path)
+
+            # Merge: average play + draw for combined view
+            combined = {}
+            source = {}
+            all_archs = set(play) | set(draw)
+            for a in all_archs:
+                combined[a] = {}
+                for b in all_archs:
+                    if a == b:
+                        continue
+                    p_val = play.get(a, {}).get(b, {}).get("winrate")
+                    d_val = draw.get(a, {}).get(b, {}).get("winrate")
+                    if p_val is not None and d_val is not None:
+                        avg = (p_val + d_val) / 2
+                        combined[a][b] = {"winrate": avg, "matches": 500}
+                        source[(a, b)] = "real"  # use star for gauntlet sim data
+                    elif p_val is not None:
+                        combined[a][b] = {"winrate": p_val, "matches": 250}
+                    elif d_val is not None:
+                        combined[a][b] = {"winrate": d_val, "matches": 250}
+
+            return combined, source
+
+        def _done(result):
+            if result is None:
+                self._on_error("Gauntlet CSV files not found in config/gauntlet/")
+                return
+            matrix, source = result
+            self._source_map = source
+            fmt = "modern"  # gauntlet is always Modern
+            self._on_data(fmt, matrix, self._load_gen)
+
+        from gui.worker_threads import DataLoadWorker
+        gen = self._load_gen
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(lambda e: self._on_error(e, gen))
+        self._wire_worker(w)
 
     def _open_paste_dialog(self):
         dlg = _PasteDialog(self)

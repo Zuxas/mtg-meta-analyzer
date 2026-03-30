@@ -1,0 +1,13 @@
+Deck_A_ID,Deck_A_Name,Deck_A_Archetype,Overall_WR,Play_WR,Draw_WR,Best_vs,Best_WR,Worst_vs,Worst_WR
+H,boros energy,aggro,53.6,55.6,51.6,prowess,64.0,uw blink,42.0
+G,esper blink,tempo,53.5,53.8,53.1,prowess,64.0,uw blink,42.0
+K,etron,unknown,51.5,52.4,50.5,esper blink,66.0,esper mid,36.0
+F,esper vengance,unknown,50.9,45.1,56.7,belcher,64.0,uw blink,38.0
+J,titan,unknown,50.9,48.4,53.5,control,66.0,esper vengance,38.0
+C,esper mid,midrange,50.4,46.2,54.5,esper blink,60.0,uw blink,46.0
+B,belcher,combo,49.8,52.4,47.3,control,64.0,boros energy,36.0
+D,prowess,aggro,49.8,47.6,52.0,etron,64.0,esper mid,34.0
+A,uw blink,tempo,48.9,52.0,45.8,belcher,64.0,boros energy,42.0
+L,domain,ramp,48.4,44.0,52.7,belcher,60.0,boros energy,38.0
+I,neoform,unknown,48.0,49.1,46.9,belcher,54.0,control,40.0
+E,control,control,47.1,50.9,43.3,titan,56.0,domain,38.0
