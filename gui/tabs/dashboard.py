@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QSplitter, QFrame, QTableWidget, QTableWidgetItem,
-    QHeaderView, QScrollArea, QCheckBox, QSizePolicy,
+    QHeaderView, QScrollArea, QCheckBox, QSizePolicy, QDialog, QMessageBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
@@ -293,6 +293,13 @@ class DashboardTab(QWidget):
         )
         self._dedup_upd.stateChanged.connect(self.refresh)
         ctrl.addWidget(self._dedup_upd)
+
+        self._shift_btn = QPushButton("Meta Shift")
+        self._shift_btn.setStyleSheet(theme.btn_secondary())
+        self._shift_btn.setFixedHeight(26)
+        self._shift_btn.setToolTip("Compare current meta to the prior period — shows what changed")
+        self._shift_btn.clicked.connect(self._show_meta_shift)
+        ctrl.addWidget(self._shift_btn)
 
         ctrl.addStretch()
         self._status_lbl = QLabel("")
@@ -639,6 +646,7 @@ class DashboardTab(QWidget):
 
     def _on_panel_data(self, data: dict):
         self._standings = data["standings"]
+        self._prior_standings = data.get("prior_standings", [])
         n = len(self._standings)
         # Detect matches-table fallback
         using_matches = any(s.get("_source") == "matches" for s in self._standings)
@@ -1100,6 +1108,104 @@ class DashboardTab(QWidget):
     def _since_dt(self):
         weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
         return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
+
+    def _show_meta_shift(self):
+        """Compare current period vs prior period — shows rising/falling archetypes."""
+        if not self._standings:
+            return
+        prior_map = {s["archetype"]: s for s in getattr(self, "_prior_standings", [])}
+        if not prior_map:
+            QMessageBox.information(self, "Meta Shift",
+                                   "No prior period data available. Try a shorter timeframe.")
+            return
+
+        tf_label = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Meta Shift \u2014 {tf_label}")
+        dlg.setMinimumSize(600, 450)
+        dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel(
+            f"Comparing current {tf_label} vs the prior {tf_label}. "
+            f"Green = rising, Red = falling, New = didn't exist before."
+        ))
+
+        tbl = QTableWidget()
+        tbl.setColumnCount(6)
+        tbl.setHorizontalHeaderLabels(
+            ["Archetype", "Current Apps", "Prior Apps", "Change", "Current WR", "Status"])
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for c in range(1, 6):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setAlternatingRowColors(True)
+
+        # Build comparison data
+        rows_data = []
+        for s in self._standings:
+            arch = s["archetype"]
+            cur_apps = s["appearances"]
+            prior = prior_map.get(arch)
+            prior_apps = prior["appearances"] if prior else 0
+            delta = cur_apps - prior_apps
+            wr = s.get("est_match_winpct", 0)
+
+            if prior is None:
+                status = "NEW"
+                status_color = theme.ACCENT
+            elif delta > 0:
+                status = f"\u2191 +{delta}"
+                status_color = theme.OK
+            elif delta < 0:
+                status = f"\u2193 {delta}"
+                status_color = theme.ERR
+            else:
+                status = "\u2192 stable"
+                status_color = theme.TEXT_DIM
+
+            rows_data.append((arch, cur_apps, prior_apps, delta, wr, status, status_color))
+
+        # Also find decks that disappeared
+        current_set = {s["archetype"] for s in self._standings}
+        for arch, p in prior_map.items():
+            if arch not in current_set and p["appearances"] >= 10:
+                rows_data.append((arch, 0, p["appearances"], -p["appearances"],
+                                  p.get("est_match_winpct", 0), "\u2620 GONE", theme.ERR))
+
+        rows_data.sort(key=lambda x: -x[3])  # biggest gainers first
+
+        tbl.setRowCount(len(rows_data))
+        for ri, (arch, cur, prior, delta, wr, status, color) in enumerate(rows_data):
+            tbl.setItem(ri, 0, QTableWidgetItem(arch))
+            ci = QTableWidgetItem(str(cur))
+            ci.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 1, ci)
+            pi = QTableWidgetItem(str(prior))
+            pi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 2, pi)
+
+            di = QTableWidgetItem(f"{delta:+d}" if delta != 0 else "0")
+            di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if delta > 0:
+                di.setForeground(QColor(theme.OK))
+            elif delta < 0:
+                di.setForeground(QColor(theme.ERR))
+            tbl.setItem(ri, 3, di)
+
+            wi = QTableWidgetItem(f"{wr*100:.1f}%" if wr else "\u2014")
+            wi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 4, wi)
+
+            si = QTableWidgetItem(status)
+            si.setForeground(QColor(color))
+            si.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            tbl.setItem(ri, 5, si)
+
+        layout.addWidget(tbl)
+        dlg.exec()
 
 
 def _make_sparkline(values: list[float], width: int = 64, height: int = 24) -> "QPixmap":
