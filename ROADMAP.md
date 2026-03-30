@@ -120,6 +120,9 @@
 - [x] For each top meta archetype, flags which new cards slot in and why
 - [x] Output: ranked "most likely to matter" list with reasoning
 - [x] Uses Claude API (Ask Claude tab infrastructure) — API-key-gated, streaming
+- [x] Mythic Spoiler scraper: fetch by set code + Scryfall enrichment (2026-03-30)
+- [x] Format legality table: Standard rotation, Pioneer (RTR+), Modern (8ED+), warnings (2026-03-30)
+- [x] Set code dropdown with 20 known sets, manual paste fallback (2026-03-30)
 
 ### Team Collaboration
 - [ ] Export/import gauntlet results as JSON (share on Discord)

@@ -267,7 +267,14 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
   - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
   - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
-  - **Set Analysis tab** (optional, API-key-gated): New Set Break Protocol — paste spoilers, Claude classifies each card into competitive buckets (Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade Card), shows impact per archetype + top 10 ranked list; injects live meta context from local DB
+  - **Set Analysis tab** (optional, API-key-gated): New Set Break Protocol
+    - "Fetch from Mythic Spoiler" button: enter set code (TDM, FDN, etc.) → scrapes card list from mythicspoiler.com → enriches from local Scryfall bulk JSON → auto-populates card list
+    - Manual paste fallback for unreleased/partial spoilers
+    - Format legality awareness: set code dropdown shows known sets, legality label warns if set isn't legal in selected format
+    - Known set legality table in `scrapers/mythicspoiler_scraper.py`: Standard rotation, Pioneer (RTR+), Modern (8ED+), Legacy/Pauper (all)
+    - Claude classifies each card into competitive buckets (Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade Card)
+    - Format-specific system prompt: "Analyze for [FORMAT] only, current meta: [top 10 archetypes]"
+    - Shows impact per archetype + top 10 ranked list; injects live meta context from local DB
   - **Tournament Prep tab** (2 sub-tabs):
     - **Event Optimizer**: event type selector (RCQ/RC/PTQ/Custom) auto-sets player range + rounds; enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown; "Use Meta Distribution" button; shows X-loss cutoff + day-2 conversion probability for 2-day events; player max 5000
     - **Breaker Math**: real-time W/L/D tracker, ID calculator, draw equity, pair-down warning, seeding impact, breaker education
@@ -355,6 +362,7 @@ scrapers/backfill.py            Historical backfill (year-by-year, stops at cuto
 scrapers/scryfall.py            Scryfall local card database + enrichment
 scrapers/guides.py              Imports Skill Issue Magic Google Sheet → guides table
 scrapers/matchup_scraper.py     Scrapes MTGDecks.net /winrates table → win-rate matrix dict
+scrapers/mythicspoiler_scraper.py  Mythic Spoiler set card list + Scryfall enrichment + format legality
 
 db/saved_decks.py               saved_decks + saved_sb_plans tables; save/get/delete helpers
 db/matches_queries.py           matches table: save_matches / get_matches / get_stored_event_ids / get_match_counts

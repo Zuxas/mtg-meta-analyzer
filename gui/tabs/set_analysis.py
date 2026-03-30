@@ -1,9 +1,9 @@
 """
 Tab — New Set Break Protocol
 
-Paste spoilers from a new set → Claude classifies each card's competitive
-impact against the current meta. Outputs a ranked breakdown of which cards
-matter, which archetypes gain tools, and what sideboard tech to watch.
+Fetch spoilers from Mythic Spoiler or paste manually → Claude classifies
+each card's competitive impact against the current meta with format
+legality awareness.
 
 Requires an Anthropic API key (same one used by Ask Claude tab).
 """
@@ -22,10 +22,11 @@ import gui.theme as theme
 
 
 # ---------------------------------------------------------------------------
-# Streaming worker (reuses Ask Claude pattern)
+# Workers
 # ---------------------------------------------------------------------------
 
 class _AnalysisWorker(QThread):
+    """Streams Claude API response for set analysis."""
     chunk = pyqtSignal(str)
     done  = pyqtSignal()
     error = pyqtSignal(str)
@@ -54,6 +55,24 @@ class _AnalysisWorker(QThread):
             self.error.emit(str(e))
 
 
+class _FetchWorker(QThread):
+    """Fetches card data from Mythic Spoiler + Scryfall in background."""
+    finished = pyqtSignal(list)   # list[dict]
+    error    = pyqtSignal(str)
+
+    def __init__(self, set_code: str):
+        super().__init__()
+        self._set_code = set_code
+
+    def run(self):
+        try:
+            from scrapers.mythicspoiler_scraper import fetch_set_cards
+            cards = fetch_set_cards(self._set_code)
+            self.finished.emit(cards)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 # ---------------------------------------------------------------------------
 # System prompt
 # ---------------------------------------------------------------------------
@@ -63,32 +82,38 @@ You are an elite Magic: The Gathering set analyst working inside a competitive \
 meta analysis tool. Your job is to evaluate new card spoilers against the \
 current competitive meta and identify which cards will see play.
 
-For EACH card that has competitive potential, classify it into one or more buckets:
+IMPORTANT: You are analyzing cards for {format} format ONLY. Only recommend \
+cards that are legal in {format}. If a card is not legal in this format, \
+skip it entirely.
 
-**🔴 Rate Outlier** — raw power level above the current bar (efficient stats, \
+For EACH card that has competitive potential in {format}, classify it into \
+one or more buckets:
+
+**Rate Outlier** — raw power level above the current bar (efficient stats, \
 undercosted effect, immediate board impact)
-**⚙️ Engine Piece** — enables a new strategy or significantly upgrades an \
+**Engine Piece** — enables a new strategy or significantly upgrades an \
 existing engine (combo enabler, card advantage loop, mana engine)
-**🔗 Enabler** — makes an existing archetype more consistent or unlocks a \
+**Enabler** — makes an existing archetype more consistent or unlocks a \
 card that was previously too weak (fixing mana, tutoring, redundancy)
-**🛡️ SB Breaker** — answers a specific meta problem (hate card, silver \
+**SB Breaker** — answers a specific meta problem (hate card, silver \
 bullet, new angle of attack against a dominant deck)
-**⬆️ Upgrade Card** — strictly or functionally better than a card already \
+**Upgrade Card** — strictly or functionally better than a card already \
 seeing play in a known archetype
 
 After classifying individual cards, provide TWO summary sections:
 
 ## Impact by Archetype
-For each top meta archetype, list which new cards slot in (main or side), \
-what they replace, and why.
+For each top {format} meta archetype, list which new cards slot in \
+(main or side), what they replace, and why.
 
 ## Top 10 Most Likely to Matter
-Ranked list of the cards most likely to see competitive play, with a \
-one-line reason for each.
+Ranked list of the cards most likely to see competitive play in {format}, \
+with a one-line reason for each.
 
-Be specific. Reference actual meta decks and real card names. If a card \
-is unplayable in the current meta, skip it — don't waste time on limited-only \
-cards or casual inclusions. Focus on Constructed impact.
+Be specific. Reference actual {format} meta decks and real card names. \
+If a card is unplayable in the current {format} meta, skip it — don't \
+waste time on limited-only cards or casual inclusions. Focus on \
+Constructed impact.
 
 When uncertain, say "speculative" rather than guessing confidently."""
 
@@ -98,7 +123,7 @@ When uncertain, say "speculative" rather than guessing confidently."""
 # ---------------------------------------------------------------------------
 
 def _build_meta_context(fmt: str) -> str:
-    """Fetch top archetypes + key cards for the selected format."""
+    """Fetch top archetypes for the selected format."""
     try:
         from db.database import get_combined_connection
         since = (datetime.now() - timedelta(weeks=4)).strftime("%Y%m%d")
@@ -116,7 +141,7 @@ def _build_meta_context(fmt: str) -> str:
                   AND ({_dk}) >= ?
                   AND d.archetype IS NOT NULL
                   AND d.archetype != ''
-                GROUP BY d.archetype ORDER BY apps DESC LIMIT 15
+                GROUP BY d.archetype ORDER BY apps DESC LIMIT 10
             """, [fmt, since]).fetchall()
         finally:
             conn.close()
@@ -134,34 +159,6 @@ def _build_meta_context(fmt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Lightweight markdown → HTML (same as ask_claude.py)
-# ---------------------------------------------------------------------------
-
-_RESULT_STYLE = ("background:#1a2235; border-left:3px solid #3cb44b; "
-                 "padding:10px 12px; margin:4px 0; border-radius:3px;")
-_ERR_STYLE = ("background:#3a1515; border-left:3px solid #e6194b; "
-              "padding:8px 10px; margin:4px 0; border-radius:3px;")
-
-
-def _md_to_html(text: str) -> str:
-    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    text = re.sub(r"\*(.+?)\*", r"<i>\1</i>", text)
-    text = re.sub(r"`(.+?)`", r'<code style="background:#2a3045;">\1</code>', text)
-    lines, out = text.split("\n"), []
-    for line in lines:
-        if line.startswith(("• ", "- ")):
-            out.append(f"&nbsp;&nbsp;• {line[2:]}")
-        elif line.startswith("## "):
-            out.append(f"<b style='font-size:13px;'>{line[3:]}</b>")
-        elif line.startswith("# "):
-            out.append(f"<b style='font-size:14px;'>{line[2:]}</b>")
-        else:
-            out.append(line)
-    return "<br>".join(out)
-
-
-# ---------------------------------------------------------------------------
 # Tab widget
 # ---------------------------------------------------------------------------
 
@@ -169,16 +166,20 @@ class SetAnalysisTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._worker = None
+        self._fetch_worker = None
         self._streaming_buf = ""
+        self._fetched_cards: list[dict] = []
         self._build_ui()
 
     def cleanup(self):
-        if self._worker is not None:
-            try:
-                self._worker.blockSignals(True)
-            except RuntimeError:
-                pass
-            self._worker = None
+        for attr in ("_worker", "_fetch_worker"):
+            w = getattr(self, attr, None)
+            if w is not None:
+                try:
+                    w.blockSignals(True)
+                except RuntimeError:
+                    pass
+                setattr(self, attr, None)
 
     # ------------------------------------------------------------------
     # UI
@@ -196,43 +197,68 @@ class SetAnalysisTab(QWidget):
         layout.addWidget(header)
 
         desc = QLabel(
-            "Paste new set spoilers below. Claude will classify each card's "
-            "competitive impact against the current meta and identify which "
-            "archetypes gain new tools."
+            "Fetch card data from Mythic Spoiler or paste spoilers manually. "
+            "Claude classifies each card's competitive impact against the "
+            "current meta for the selected format."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px; margin-bottom: 4px;")
         layout.addWidget(desc)
 
-        # Controls row
-        ctrl = QHBoxLayout()
-        ctrl.addWidget(QLabel("Format:"))
+        # Row 1: Format + Set code + Fetch button
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "pauper"])
         self._fmt.setFixedWidth(110)
-        ctrl.addWidget(self._fmt)
+        row1.addWidget(self._fmt)
 
-        ctrl.addWidget(QLabel("Set name:"))
-        self._set_name = QComboBox()
-        self._set_name.setEditable(True)
-        self._set_name.setFixedWidth(200)
-        self._set_name.setPlaceholderText("e.g. Tarkir: Dragonstorm")
-        ctrl.addWidget(self._set_name)
+        row1.addWidget(QLabel("Set code:"))
+        self._set_code = QComboBox()
+        self._set_code.setEditable(True)
+        self._set_code.setFixedWidth(120)
+        self._set_code.setToolTip("3-letter WotC set code (e.g. TDM, FDN, EOE)")
+        # Populate with known sets
+        from scrapers.mythicspoiler_scraper import KNOWN_SETS
+        for code, (name, _date) in sorted(KNOWN_SETS.items(),
+                                           key=lambda x: x[1][1], reverse=True):
+            self._set_code.addItem(f"{code} — {name}", code)
+        row1.addWidget(self._set_code)
 
-        ctrl.addStretch()
+        self._fetch_btn = QPushButton("Fetch from Mythic Spoiler")
+        self._fetch_btn.setStyleSheet(theme.btn_primary())
+        self._fetch_btn.setToolTip("Download card list from mythicspoiler.com + enrich from Scryfall")
+        self._fetch_btn.clicked.connect(self._fetch_cards)
+        row1.addWidget(self._fetch_btn)
 
+        row1.addStretch()
+
+        self._legality_lbl = QLabel("")
+        self._legality_lbl.setStyleSheet(f"font-size: 11px;")
+        row1.addWidget(self._legality_lbl)
+
+        layout.addLayout(row1)
+
+        # Row 2: Analyze + Clear
+        row2 = QHBoxLayout()
         self._analyze_btn = QPushButton("Analyze Set")
         self._analyze_btn.setStyleSheet(theme.btn_primary())
         self._analyze_btn.setFixedWidth(120)
         self._analyze_btn.clicked.connect(self._analyze)
-        ctrl.addWidget(self._analyze_btn)
+        row2.addWidget(self._analyze_btn)
 
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.setStyleSheet(theme.btn_secondary())
         self._clear_btn.clicked.connect(self._clear)
-        ctrl.addWidget(self._clear_btn)
+        row2.addWidget(self._clear_btn)
 
-        layout.addLayout(ctrl)
+        row2.addStretch()
+
+        self._card_count_lbl = QLabel("")
+        self._card_count_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        row2.addWidget(self._card_count_lbl)
+
+        layout.addLayout(row2)
 
         # Splitter: input (left) / results (right)
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -241,19 +267,23 @@ class SetAnalysisTab(QWidget):
         left = QFrame()
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
-        left_lbl = QLabel("Card List (one per line: Name or Name — Rules Text)")
+        left_lbl = QLabel(
+            "Card List — fetched from Mythic Spoiler or paste manually "
+            "(Name ManaCost — Type [rules text])"
+        )
         left_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
+        left_lbl.setWordWrap(True)
         left_lay.addWidget(left_lbl)
 
         self._input = QTextEdit()
         self._input.setPlaceholderText(
-            "Paste card spoilers here, one per line.\n\n"
+            "Click 'Fetch from Mythic Spoiler' to auto-populate,\n"
+            "or paste card spoilers here manually.\n\n"
             "Accepted formats:\n"
             "  Card Name\n"
             "  Card Name {2}{W}{W} — Creature text here\n"
             "  Card Name | 3WW | Creature — Human | text\n\n"
-            "More detail = better analysis. Include mana cost,\n"
-            "type line, and rules text when available."
+            "More detail = better analysis."
         )
         self._input.setFont(QFont("Consolas", 10))
         self._input.setStyleSheet(
@@ -290,8 +320,95 @@ class SetAnalysisTab(QWidget):
         self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
         layout.addWidget(self._status)
 
+        # Wire format change to legality check
+        self._fmt.currentIndexChanged.connect(self._update_legality)
+        self._set_code.currentIndexChanged.connect(self._update_legality)
+        self._set_code.editTextChanged.connect(self._update_legality)
+
     # ------------------------------------------------------------------
-    # Actions
+    # Legality check
+    # ------------------------------------------------------------------
+
+    def _get_set_code(self) -> str:
+        """Extract the set code from the combo (handles 'TDM — Name' format)."""
+        text = self._set_code.currentText().strip()
+        # If it contains ' — ', take the code before it
+        if " — " in text:
+            text = text.split(" — ")[0].strip()
+        # Also try userData
+        data = self._set_code.currentData()
+        if data:
+            return data.upper()
+        return text.upper()
+
+    def _update_legality(self):
+        code = self._get_set_code()
+        fmt = self._fmt.currentText()
+        if not code or len(code) < 2:
+            self._legality_lbl.setText("")
+            return
+
+        from scrapers.mythicspoiler_scraper import is_set_legal_in_format
+        is_legal, reason = is_set_legal_in_format(code, fmt)
+
+        if is_legal:
+            self._legality_lbl.setText(f"<span style='color:#3cb44b;'>{reason}</span>")
+        else:
+            self._legality_lbl.setText(
+                f"<span style='color:#f58231;'>Warning: {reason} "
+                f"Cards may not be legal in {fmt.capitalize()}.</span>"
+            )
+
+    # ------------------------------------------------------------------
+    # Fetch from Mythic Spoiler
+    # ------------------------------------------------------------------
+
+    def _fetch_cards(self):
+        if self._fetch_worker and self._fetch_worker.isRunning():
+            return
+
+        code = self._get_set_code()
+        if not code or len(code) < 2:
+            QMessageBox.warning(self, "No Set Code", "Enter a set code (e.g. TDM, FDN, EOE).")
+            return
+
+        self._status.setText(f"Fetching {code} from Mythic Spoiler...")
+        self._fetch_btn.setEnabled(False)
+
+        self._fetch_worker = _FetchWorker(code)
+        self._fetch_worker.finished.connect(self._on_fetch_done)
+        self._fetch_worker.error.connect(self._on_fetch_error)
+        self._fetch_worker.finished.connect(self._fetch_worker.deleteLater)
+        self._fetch_worker.finished.connect(lambda: setattr(self, "_fetch_worker", None))
+        self._fetch_worker.error.connect(self._fetch_worker.deleteLater)
+        self._fetch_worker.error.connect(lambda _: setattr(self, "_fetch_worker", None))
+        self._fetch_worker.start()
+
+    def _on_fetch_done(self, cards: list):
+        self._fetch_btn.setEnabled(True)
+        self._fetched_cards = cards
+
+        if not cards:
+            self._status.setText("No cards found. Check the set code or paste manually.")
+            return
+
+        # Format cards for the text area
+        from scrapers.mythicspoiler_scraper import format_cards_for_analysis
+        text = format_cards_for_analysis(cards)
+        self._input.setPlainText(text)
+        self._card_count_lbl.setText(f"{len(cards)} cards loaded")
+        self._status.setText(
+            f"Loaded {len(cards)} cards from Mythic Spoiler + Scryfall"
+        )
+        self._update_legality()
+
+    def _on_fetch_error(self, msg: str):
+        self._fetch_btn.setEnabled(True)
+        self._status.setText(f"Fetch failed: {msg}")
+        QMessageBox.warning(self, "Fetch Error", f"Could not fetch cards:\n{msg}")
+
+    # ------------------------------------------------------------------
+    # Analysis
     # ------------------------------------------------------------------
 
     def _get_api_key(self) -> str:
@@ -303,6 +420,7 @@ class SetAnalysisTab(QWidget):
         self._results.clear()
         self._streaming_buf = ""
         self._status.setText("")
+        self._card_count_lbl.setText("")
 
     def _analyze(self):
         api_key = self._get_api_key()
@@ -315,36 +433,56 @@ class SetAnalysisTab(QWidget):
 
         card_text = self._input.toPlainText().strip()
         if not card_text:
-            QMessageBox.warning(self, "No Cards", "Paste card spoilers in the left panel first.")
+            QMessageBox.warning(self, "No Cards",
+                                "Fetch cards or paste spoilers in the left panel first.")
             return
 
         if self._worker and self._worker.isRunning():
             return
 
-        # Count cards (rough: non-empty lines)
         card_count = len([l for l in card_text.split("\n") if l.strip()])
         fmt = self._fmt.currentText()
-        set_name = self._set_name.currentText().strip() or "New Set"
+        code = self._get_set_code()
+
+        from scrapers.mythicspoiler_scraper import KNOWN_SETS
+        set_info = KNOWN_SETS.get(code, (code, ""))
+        set_name = set_info[0] if isinstance(set_info, tuple) else code
+
+        # Check legality and build warning
+        from scrapers.mythicspoiler_scraper import is_set_legal_in_format
+        is_legal, reason = is_set_legal_in_format(code, fmt)
+
+        legality_note = ""
+        if not is_legal:
+            legality_note = (
+                f"\n\nIMPORTANT: {reason} Nevertheless, analyze these cards "
+                f"for potential {fmt.capitalize()} impact if they were legal, "
+                f"but clearly note that legality is uncertain."
+            )
 
         # Build meta context
         meta_ctx = _build_meta_context(fmt)
 
+        # Build system prompt with format inserted
+        system = _SYSTEM.format(format=fmt.capitalize()) + meta_ctx
+
         # Build user message
         user_msg = (
-            f"## Set: {set_name}\n"
+            f"## Set: {set_name} ({code})\n"
             f"## Format: {fmt.capitalize()}\n"
             f"## Cards ({card_count} total):\n\n"
             f"{card_text}"
+            f"{legality_note}"
         )
-
-        system = _SYSTEM + meta_ctx
 
         # Start analysis
         self._results.clear()
         self._streaming_buf = ""
-        self._status.setText(f"Analyzing {card_count} cards against {fmt.capitalize()} meta...")
+        self._status.setText(f"Analyzing {card_count} cards for {fmt.capitalize()}...")
         self._analyze_btn.setEnabled(False)
-        self._result_lbl.setText(f"Analysis Results — {set_name} for {fmt.capitalize()}")
+        self._result_lbl.setText(
+            f"Analysis Results — {set_name} for {fmt.capitalize()}"
+        )
 
         # Clean up previous worker
         if getattr(self, "_worker", None) is not None:

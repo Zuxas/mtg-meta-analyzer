@@ -10,8 +10,11 @@ Last updated: 2026-03-30
 - [x] SET ANALYSIS tab — paste spoilers → Claude classifies competitive impact
 - [x] Card buckets: Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade
 - [x] Impact by Archetype + Top 10 Most Likely to Matter output
-- [x] Meta context injection (top 15 archetypes from local DB)
+- [x] Meta context injection (top 10 archetypes from local DB)
 - [x] API-key-gated (same as Ask Claude)
+- [x] Mythic Spoiler scraper: fetch set card list by code, enrich from Scryfall bulk
+- [x] Format legality awareness: known set table, legality warnings, format-specific prompts
+- [x] Set code dropdown with 20 known sets, manual paste fallback
 
 ### 2. Team Collaboration (MEDIUM — RC prep workflow)
 - [x] Export/import SB plans + decklist as JSON (Share JSON / Import JSON buttons in My Decks)
