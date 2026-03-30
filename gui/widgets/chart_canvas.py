@@ -682,6 +682,81 @@ class ChartCanvas(QWidget):
     # Matchup heatmap — NxN grid
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Meta Positioning — scatter plot: meta share vs win rate
+    # ------------------------------------------------------------------
+
+    def plot_scatter(self, format_name="standard", top=20, weeks=8,
+                     since=None, until=None):
+        """Scatter plot: X=meta share, Y=win rate, size=match count."""
+        self.show_message("Loading meta positioning\u2026", "#65bcd5")
+
+        def _load():
+            from analysis.win_rates import get_meta_standings
+            return get_meta_standings(format_name, top=top, since=since, until=until)
+
+        w_ref = type('W', (QThread,), {
+            'done': pyqtSignal(object),
+            'error': pyqtSignal(str),
+            'run': lambda self_w: (
+                self_w.done.emit(_load()) if True else None
+            ),
+        })
+        # Use DataLoadWorker pattern instead
+        from gui.worker_threads import DataLoadWorker
+        worker = DataLoadWorker(_load)
+        worker.result.connect(lambda data: self._draw_scatter(data, format_name))
+        worker.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        self._start_worker(worker)
+
+    def _draw_scatter(self, standings, format_name):
+        if not standings:
+            self.show_message("No meta data available.")
+            return
+
+        # Filter to archetypes with enough data
+        data = [s for s in standings
+                if s.get("est_match_winpct") is not None and s["appearances"] >= 15]
+        if not data:
+            self.show_message("Not enough data for scatter plot.")
+            return
+
+        shares = [s.get("meta_share", 0) * 100 for s in data]
+        wrs    = [s["est_match_winpct"] * 100 for s in data]
+        sizes  = [max(20, min(300, s["appearances"] / 5)) for s in data]
+        names  = [s["archetype"] for s in data]
+        colors = ["#3cb44b" if wr >= 52 else ("#e6194b" if wr <= 48 else "#888888")
+                  for wr in wrs]
+
+        self._fig.clear()
+        self._overlay.setVisible(False)
+        ax = self._fig.add_subplot(111)
+        _style_ax(ax, self._fig)
+
+        ax.scatter(shares, wrs, s=sizes, c=colors, alpha=0.7, edgecolors="white", linewidth=0.5)
+
+        # Label each point
+        for i, name in enumerate(names):
+            short = name[:18] + "\u2026" if len(name) > 18 else name
+            ax.annotate(short, (shares[i], wrs[i]),
+                        fontsize=6, color="white", alpha=0.8,
+                        xytext=(4, 4), textcoords="offset points")
+
+        # 50% WR reference line
+        ax.axhline(y=50, color="#f58231", linestyle="--", linewidth=1, alpha=0.5)
+        ax.text(max(shares) * 0.95, 50.3, "50% WR", color="#f58231",
+                fontsize=7, ha="right", alpha=0.7)
+
+        ax.set_title(f"Meta Positioning \u2014 {format_name.upper()}",
+                     color="white", fontsize=13, pad=10)
+        ax.set_xlabel("Meta Share %", color="white", fontsize=9)
+        ax.set_ylabel("Win Rate %", color="white", fontsize=9)
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.1f}%"))
+        ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
+
+        self._fig.tight_layout()
+        self._canvas.draw()
+
     def plot_heatmap(self, format_name="standard", top=10, min_appearances=3,
                      since=None, until=None):
         self.show_message("Loading matchup data\u2026", "#65bcd5")

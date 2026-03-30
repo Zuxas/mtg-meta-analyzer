@@ -63,7 +63,7 @@ class ChartsTab(QWidget):
         # Chart type
         cv.addWidget(QLabel("Chart Type:"))
         self._type = QComboBox()
-        self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Matchup Heatmap"])
+        self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Meta Positioning", "Matchup Heatmap"])
         self._type.currentTextChanged.connect(self._on_type_changed)
         cv.addWidget(self._type)
 
@@ -221,6 +221,8 @@ class ChartsTab(QWidget):
                     self._status.setText("Add at least 2 archetypes to compare.")
                     return
                 self._canvas.plot_compare(archetypes, fmt, weeks, since, until)
+            elif chart_type == "Meta Positioning":
+                self._canvas.plot_scatter(fmt, top, weeks, since, until)
             elif chart_type == "Matchup Heatmap":
                 self._canvas.plot_heatmap(fmt, top, 3, since, until)
             self._status.setText("Done.")
