@@ -797,8 +797,11 @@ class MyDecksTab(QWidget):
         def _do():
             from analysis.sb_advisor import suggest_all_plans
             from analysis.win_rates import get_meta_standings
-            standings = get_meta_standings(fmt, top=15)
-            meta_names = [s["archetype"] for s in standings if s["archetype"] not in existing]
+            from datetime import datetime, timedelta
+            since_4w = datetime.now() - timedelta(weeks=4)
+            standings = get_meta_standings(fmt, top=15, since=since_4w)
+            meta_names = [s["archetype"] for s in standings
+                          if s["archetype"] not in existing and s["appearances"] >= 15]
             return suggest_all_plans(sideboard, meta_names, fmt)
 
         def _done(suggestions):
