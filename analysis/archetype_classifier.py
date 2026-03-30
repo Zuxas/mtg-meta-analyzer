@@ -126,7 +126,8 @@ def classify_by_cards(card_list: dict, format_name: str) -> str | None:
         if not constraints:
             continue
 
-        matched = 0
+        positive_matched = 0
+        positive_total = 0
         failed = False
 
         for c in constraints:
@@ -134,30 +135,29 @@ def classify_by_cards(card_list: dict, format_name: str) -> str | None:
             qty = cards_lower.get(card_lower, 0)
 
             if c["exactCopies"] is not None:
-                # Must have exactly N copies (usually 0 = must NOT have)
+                # Pass/fail gate only — does NOT count toward score
                 if qty != c["exactCopies"]:
                     failed = True
                     break
-                matched += 1
             elif c["minCopies"] is not None:
+                positive_total += 1
                 if qty >= c["minCopies"]:
-                    matched += 1
+                    positive_matched += 1
                 elif arch.get("strictMode"):
                     failed = True
                     break
-                # Non-strict: missing a minCopies card just reduces score
 
         if failed:
             continue
 
-        # Score: fraction of constraints matched
-        score = matched / len(constraints) if constraints else 0
+        # Score: fraction of POSITIVE constraints matched (negatives are gates only)
+        score = positive_matched / positive_total if positive_total else 0
 
         if score > best_score:
             best_score = score
             best_name = arch["name"]
 
-    # Require at least 50% of signature cards to match
-    if best_score >= 0.5:
+    # Require at least 60% of positive signature cards to match
+    if best_score >= 0.6:
         return best_name
     return None
