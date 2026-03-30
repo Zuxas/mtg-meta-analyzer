@@ -1,0 +1,402 @@
+format: Standard
+date: "2026-03-08"
+archetypes:
+  - name: Izzet Lessons
+    signatureCards:
+      - name: Gran-Gran
+        minCopies: 4
+      - name: Firebending Lesson
+        minCopies: 4
+      - name: Accumulate Wisdom
+        minCopies: 4
+
+  - name: Mono-Green Landfall
+    signatureCards:
+      - name: Mightform Harmonizer
+        minCopies: 3
+      - name: "Sazh's Chocobo"
+        minCopies: 4
+      - name: Fabled Passage
+        minCopies: 4
+      - name: Earthbender Ascension
+        minCopies: 3
+      - name: Stomping Ground
+        exactCopies: 0
+      - name: Temple Garden
+        exactCopies: 0
+      - name: Breeding Pool
+        exactCopies: 0
+      - name: Overgrown Tomb
+        exactCopies: 0
+
+  - name: Gruul Landfall
+    signatureCards:
+      - name: Mightform Harmonizer
+        minCopies: 3
+      - name: "Sazh's Chocobo"
+        minCopies: 4
+      - name: Fabled Passage
+        minCopies: 4
+      - name: Earthbender Ascension
+        minCopies: 3
+      - name: Stomping Ground
+        minCopies: 4
+
+  - name: Selesnya Landfall
+    signatureCards:
+      - name: Mightform Harmonizer
+        minCopies: 3
+      - name: "Sazh's Chocobo"
+        minCopies: 4
+      - name: Fabled Passage
+        minCopies: 4
+      - name: Earthbender Ascension
+        minCopies: 3
+      - name: Temple Garden
+        minCopies: 4
+
+  - name: Dimir Excruciator
+    signatureCards:
+      - name: Doomsday Excruciator
+        minCopies: 1
+      - name: Superior Spider-Man
+        minCopies: 3
+      - name: Deceit
+        minCopies: 3
+
+  - name: Simic Rhythm
+    signatureCards:
+      - name: Badgermole Cub
+        minCopies: 4
+      - name: "Nature's Rhythm"
+        minCopies: 4
+      - name: Gene Pollinator
+        minCopies: 3
+      - name: Llanowar Elves
+        minCopies: 4
+      - name: Blooming Marsh
+        exactCopies: 0
+
+  - name: Bant Rhythm
+    signatureCards:
+      - name: Brightglass Gearhulk
+        minCopies: 1
+      - name: Badgermole Cub
+        minCopies: 4
+      - name: "Nature's Rhythm"
+        minCopies: 3
+      - name: Gene Pollinator
+        minCopies: 3
+      - name: Llanowar Elves
+        minCopies: 4
+      - name: Seam Rip
+        minCopies: 1
+
+  - name: Dimir Midrange
+    signatureCards:
+      - name: Kaito, Bane of Nightmares
+        minCopies: 2
+      - name: Enduring Curiosity
+        minCopies: 2
+      - name: Watery Grave
+        minCopies: 4
+      - name: Soulstone Sanctuary
+        minCopies: 1
+
+  - name: Azorius Tempo
+    signatureCards:
+      - name: "Aang, Swift Savior"
+        minCopies: 3
+      - name: High Noon
+        minCopies: 3
+
+  - name: Izzet Spellementals
+    signatureCards:
+      - name: Eddymurk Crab
+        minCopies: 4
+      - name: Sunderflock
+        minCopies: 4
+      - name: Hearth Elemental
+        minCopies: 4
+
+  - name: Izzet Elementals
+    signatureCards:
+      - name: "Ashling, Rekindled"
+        minCopies: 4
+      - name: Sunderflock
+        minCopies: 2
+      - name: Vibrance
+        minCopies: 4
+      - name: Superior Spider-Man
+        exactCopies: 0
+      - name: Restless Reef
+        exactCopies: 0
+
+  - name: Grixis Elementals
+    signatureCards:
+      - name: Superior Spider-Man
+        minCopies: 1
+      - name: "Ashling, Rekindled"
+        minCopies: 4
+      - name: Sunderflock
+        minCopies: 2
+      - name: Vibrance
+        minCopies: 2
+
+  - name: Jeskai Control
+    signatureCards:
+      - name: Jeskai Revelation
+        minCopies: 1
+      - name: No More Lies
+        minCopies: 2
+      - name: Stock Up
+        minCopies: 2
+
+  - name: 4-Color Control
+    signatureCards:
+      - name: Inevitable Defeat
+        minCopies: 2
+      - name: Jeskai Revelation
+        minCopies: 1
+      - name: No More Lies
+        minCopies: 2
+      - name: Stock Up
+        minCopies: 1
+
+  - name: Boros Dragons
+    signatureCards:
+      - name: Nova Hellkite
+        minCopies: 3
+      - name: "Sarkhan, Dragon Ascendant"
+        minCopies: 3
+      - name: "Momo, Friendly Flier"
+        minCopies: 3
+
+  - name: Boros Tremors
+    signatureCards:
+      - name: Warleader's Call
+        minCopies: 1
+      - name: "Ojer Axonil, Deepest Might"
+        minCopies: 1
+      - name: "Voice of Victory"
+        minCopies: 2
+
+  - name: Izzet Prowess
+    signatureCards:
+      - name: Slickshot Show-Off
+        minCopies: 4
+      - name: "Stormchaser's Talent"
+        minCopies: 4
+      - name: Elusive Otter
+        minCopies: 3
+
+  - name: Bant Airbending
+    signatureCards:
+      - name: "Aang, at the Crossroads"
+        minCopies: 2
+      - name: "Appa, Steadfast Guardian"
+        minCopies: 3
+      - name: Doc Aurlock, Grizzled Genius
+        minCopies: 3
+
+  - name: Temur Harmonizer
+    signatureCards:
+      - name: Mightform Harmonizer
+        minCopies: 3
+      - name: Full Bore
+        minCopies: 3
+
+  - name: Mono-Red Aggro
+    signatureCards:
+      - name: Hired Claw
+        minCopies: 3
+      - name: Burst Lightning
+        minCopies: 3
+      - name: Mountain
+        minCopies: 12
+
+  - name: Rakdos Discard
+    signatureCards:
+      - name: Moonshadow
+        minCopies: 3
+      - name: Marauding Mako
+        minCopies: 3
+      - name: Bloodghast
+        minCopies: 1
+      - name: Quantum Riddler
+        exactCopies: 0
+
+  - name: Grixis Discard
+    signatureCards:
+      - name: Marauding Mako
+        minCopies: 3
+      - name: Moonshadow
+        minCopies: 3
+      - name: Quantum Riddler
+        minCopies: 2
+
+  - name: Izzet Blink
+    signatureCards:
+      - name: Splash Portal
+        minCopies: 2
+      - name: Thundertrap Trainer
+        minCopies: 4
+      - name: Quantum Riddler
+        minCopies: 4
+
+  - name: Sultai Reanimator
+    signatureCards:
+      - name: "Bringer of the Last Gift"
+        minCopies: 3
+      - name: "Superior Spider-Man"
+        minCopies: 4
+      - name: "Ardyn, the Usurper"
+        minCopies: 2
+
+  - name: Esper Pixie
+    signatureCards:
+      - name: "Nurturing Pixie"
+        minCopies: 4
+      - name: "Stormchaser's Talent"
+        minCopies: 4
+      - name: "Kaito, Bane of Nightmares"
+        minCopies: 1
+
+  - name: Simic Kona
+    signatureCards:
+      - name: "Kona, Rescue Beastie"
+        minCopies: 4
+      - name: "Omniscience"
+        minCopies: 4
+      - name: "Uthros, Titanic Godcore"
+        minCopies: 3
+
+  - name: Dimir Control
+    signatureCards:
+      - name: "Deadly Cover-Up"
+        minCopies: 2
+      - name: "Demolition Field"
+        minCopies: 2
+      - name: "Three Steps Ahead"
+        minCopies: 2
+      - name: "Consult the Star Charts"
+        minCopies: 3
+
+  - name: Azorius Control
+    signatureCards:
+      - name: No More Lies
+        minCopies: 3
+      - name: "Seam Rip"
+        minCopies: 3
+      - name: "Get Lost"
+        minCopies: 3
+      - name: "Consult the Star Charts"
+        minCopies: 3
+      - name: "Jeskai Revelation"
+        exactCopies: 0
+
+  - name: Momo-White
+    signatureCards:
+      - name: Momo, Friendly Flier
+        minCopies: 3
+      - name: Sage of the Skies
+        minCopies: 3
+      - name: Springleaf Drum
+        minCopies: 3
+
+  - name: Azorius Otters
+    signatureCards:
+      - name: "Valley Floodcaller"
+        minCopies: 3
+      - name: "Firdoch Core"
+        minCopies: 2
+      - name: "Hallowed Fountain"
+        minCopies: 4
+
+  - name: Golgari Rythm
+    signatureCards:
+      - name: "Blooming Marsh"
+        minCopies: 4
+      - name: "Badgermole Cub"
+        minCopies: 4
+      - name: "Nature's Rhythm"
+        minCopies: 2
+
+  - name: Boros Burn
+    signatureCards:
+      - name: "Boros Charm"
+        minCopies: 3
+      - name: "Lightning Helix"
+        minCopies: 1
+      - name: "Emberheart Challenger"
+        minCopies: 3
+
+  - name: Simic Jackal
+    signatureCards:
+      - name: "Jackal, Genius Geneticist"
+        minCopies: 3
+      - name: "Pawpatch Recruit"
+        minCopies: 3
+      - name: "Llanowar Elves"
+        minCopies: 4
+
+  - name: Temur Battlecrier
+    signatureCards:
+      - name: "Temur Battlecrier"
+        minCopies: 4
+      - name: "Outcaster Trailblazer"
+        minCopies: 4
+
+  - name: Izzet Looting
+    signatureCards:
+      - name: "Tiger-Seal"
+        minCopies: 4
+      - name: "Duelist of the Mind"
+        minCopies: 4
+      - name: "Fear of Missing Out"
+        minCopies: 3
+
+  - name: Jeskai Artifacts
+    signatureCards:
+      - name: "Simulacrum Synthesizer"
+        minCopies: 3
+      - name: "Repurposing Bay"
+        minCopies: 3
+      - name: "United Battlefront"
+        minCopies: 3
+
+  - name: Leyline Aggro
+    signatureCards:
+      - name: "Leyline of Resonance"
+        minCopies: 4
+      - name: "Callous Sell-Sword"
+        minCopies: 3
+      - name: "Might of the Meek"
+        minCopies: 4
+
+  - name: 4-Color Allies
+    signatureCards:
+      - name: "Earth King's Lieutenant"
+        minCopies: 4
+      - name: "Cavern of Souls"
+        minCopies: 4
+      - name: "Jasmine Dragon Tea Shop"
+        minCopies: 3
+
+  - name: Temur Otters
+    signatureCards:
+      - name: "Enduring Vitality"
+        minCopies: 4
+      - name: "Stormchaser's Talent"
+        minCopies: 4
+      - name: "Breeding Pool"
+        minCopies: 4
+
+  - name: Mono-Black Demons
+    signatureCards:
+      - name: "Bloodletter of Aclazotz"
+        minCopies: 2
+      - name: "Unholy Annex"
+        minCopies: 4
+      - name: "Swamp"
+        minCopies: 10
