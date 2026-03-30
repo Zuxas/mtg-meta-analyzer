@@ -693,6 +693,12 @@ class _EventWidget(QWidget):
         self._prep_btn.clicked.connect(self._generate_prep_package)
         lv.addWidget(self._prep_btn)
 
+        self._gauntlet_btn = QPushButton("Export Gauntlet CSV")
+        self._gauntlet_btn.setStyleSheet(theme.btn_secondary())
+        self._gauntlet_btn.setToolTip("Export top meta decks as CSV for Team Resolve gauntlet pipeline")
+        self._gauntlet_btn.clicked.connect(self._export_gauntlet)
+        lv.addWidget(self._gauntlet_btn)
+
         self._status = QLabel("")
         self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         self._status.setWordWrap(True)
@@ -937,6 +943,85 @@ class _EventWidget(QWidget):
         w.error.connect(lambda e: (
             self._status.setText(f"Could not load meta: {e}"),
             self._analyze_btn.setEnabled(True),
+        ))
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
+    def _export_gauntlet(self):
+        """Export top N meta decks as CSV for Team Resolve gauntlet pipeline."""
+        fmt = self._fmt.currentText()
+        since = self._since_dt()
+        tf_label = theme.TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+        self._gauntlet_btn.setEnabled(False)
+        self._status.setText("Building gauntlet CSV\u2026")
+
+        def _do():
+            from analysis.win_rates import get_meta_standings
+            from analysis.deck_analysis import get_average_deck
+            standings = get_meta_standings(fmt, top=12, since=since)
+
+            rows = []
+            letters = "ABCDEFGHIJKL"
+            for i, s in enumerate(standings[:12]):
+                arch = s["archetype"]
+                deck_id = letters[i] if i < 12 else str(i + 1)
+
+                # Get average decklist
+                try:
+                    avg = get_average_deck(arch, format_name=fmt, min_inclusion=0.25)
+                except Exception:
+                    avg = None
+
+                main_parts = []
+                side_parts = []
+                if avg:
+                    for c in avg.get("mainboard", []):
+                        qty = max(1, round(c["avg_qty"] * c.get("inclusion_rate", 1.0)))
+                        if qty > 0:
+                            main_parts.append(f"{qty} {c['name']}")
+                    for c in avg.get("sideboard", []):
+                        qty = max(1, round(c["avg_qty"] * c.get("inclusion_rate", 1.0)))
+                        if qty > 0:
+                            side_parts.append(f"{qty} {c['name']}")
+
+                rows.append({
+                    "Deck_ID (A-L)": deck_id,
+                    "Deck_Name": arch,
+                    "Archetype (optional)": "",
+                    "Source_Link (Moxfield/Goldfish/URL)": "",
+                    "Mainboard (format: '4 Card Name; 3 Card Name; ...')": "; ".join(main_parts),
+                    "Sideboard (format: '2 Card Name; 1 Card Name; ...')": "; ".join(side_parts),
+                    "Notes (optional)": f"apps={s['appearances']} wr={s.get('est_match_winpct',0)*100:.0f}%",
+                })
+            return rows
+
+        def _done(rows):
+            import csv, os
+            from datetime import datetime
+            from PyQt6.QtGui import QDesktopServices
+            from PyQt6.QtCore import QUrl
+
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            exports = os.path.join(root, "exports")
+            os.makedirs(exports, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            path = os.path.join(exports, f"gauntlet_{fmt}_{ts}.csv")
+
+            with open(path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+
+            self._gauntlet_btn.setEnabled(True)
+            self._status.setText(f"Gauntlet CSV saved: {os.path.basename(path)} ({len(rows)} decks)")
+            QDesktopServices.openUrl(QUrl.fromLocalFile(exports))
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(lambda e: (
+            self._status.setText(f"Error: {e}"),
+            self._gauntlet_btn.setEnabled(True),
         ))
         w.finished.connect(w.deleteLater)
         w.start()
