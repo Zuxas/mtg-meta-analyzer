@@ -191,6 +191,10 @@ class MatchLogTab(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(8, 8, 8, 8)
 
+        from gui.widgets.summary_bar import SummaryBar
+        self._summary_bar = SummaryBar()
+        outer.addWidget(self._summary_bar)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # ── Left: match log table ─────────────────────────────────────
@@ -370,8 +374,20 @@ class MatchLogTab(QWidget):
             self._summary_lbl.setText(
                 f"{ov['wins']}W-{ov['losses']}L-{ov['draws']}D  "
                 f"({ov['wr']*100:.0f}% WR, {ov['total']} matches)")
+            stats = [
+                f"{ov['total']} matches logged",
+                f"{ov['wins']}W-{ov['losses']}L-{ov['draws']}D",
+                f"{ov['wr']*100:.0f}% win rate",
+            ]
+            best = data.get("stats", [])
+            if best:
+                top = max(best, key=lambda s: s.get("wr", 0)) if best else None
+                if top and top.get("total", 0) >= 3:
+                    stats.append(f"Best: vs {top['opponent']} {top['wr']*100:.0f}%")
+            self._summary_bar.update("MATCH LOG", stats)
         else:
             self._summary_lbl.setText("No matches logged yet")
+            self._summary_bar.update("MATCH LOG", ["No matches logged yet"])
 
         # Event type breakdown
         ev = data.get("event_types", {})

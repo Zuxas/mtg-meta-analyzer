@@ -35,10 +35,22 @@ Last updated: 2026-03-30
 - [x] Card detail panel: image, oracle text, legalities, meta usage
 - [x] Hover card tooltips via existing CardTooltip widget
 
-### 5. Remaining Polish
+### 5. Quick-Glance Summary Bars (DONE)
+- [x] Reusable SummaryBar widget (gui/widgets/summary_bar.py)
+- [x] Dashboard: format, total appearances, top deck + share%, real data count
+- [x] Match Log: total matches, W-L-D record, win rate, best matchup
+- [x] My Decks: deck count, formats in use
+- [x] Matchup Data: archetype count, matchup cells, real match data count
+
+### 6. Hypergeometric Encounter Probability (DONE)
+- [x] encounter_probability() + encounter_summary() in analysis/tournament.py
+- [x] "Encounter %" column in Event Optimizer matchup table
+- [x] Tooltip shows full distribution: P(0x), P(1x), P(2x)... with bar chart
+- [x] Color-coded: red if high encounter + unfavored, green if high + favored
+
+### 7. Remaining Polish
 - Standard archetype config: 5,391 still unclassified (need more definitions)
 - PyInstaller .exe packaging
-- Quick-glance summary bar per tab
 
 ---
 

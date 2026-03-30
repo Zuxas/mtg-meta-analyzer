@@ -741,13 +741,13 @@ class _EventWidget(QWidget):
 
         # Matchup breakdown table
         rv.addWidget(QLabel("Matchup breakdown:"))
-        self._table = QTableWidget(0, 7)
+        self._table = QTableWidget(0, 8)
         self._table.setHorizontalHeaderLabels(
-            ["Archetype", "Count", "Exp. Rds", "G1 WR%", "G2/G3 WR%", "Guides", "Verdict"]
+            ["Archetype", "Count", "Encounter %", "G1 WR%", "G2/G3 WR%", "Exp. Rds", "Guides", "Verdict"]
         )
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for i in range(1, 7):
+        for i in range(1, 8):
             hh.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setAlternatingRowColors(True)
@@ -1232,13 +1232,41 @@ class _EventWidget(QWidget):
             else:
                 verdict, vc = "Even", None
 
+            # Encounter probability
+            enc = m.get("encounter", {})
+            p1_plus = enc.get("p_at_least_1", 0)
+            enc_text = f"{p1_plus*100:.0f}%"
+            # Build tooltip with full distribution
+            enc_probs = enc.get("probs", [])
+            tip_lines = [f"P(face {m['archetype']} exactly k times):"]
+            for k, p in enumerate(enc_probs):
+                if p >= 0.005:
+                    bar = "\u2588" * int(p * 20)
+                    tip_lines.append(f"  {k}x: {p*100:5.1f}%  {bar}")
+            tip_lines.append(f"\nExpected: {enc.get('expected', 0):.1f} rounds")
+            tip_lines.append(f"P(never face): {enc.get('p_zero', 0)*100:.0f}%")
+            tip_lines.append(f"P(face 2+): {enc.get('p_at_least_2', 0)*100:.0f}%")
+            enc_tooltip = "\n".join(tip_lines)
+
+            # Color: red if high encounter + unfavored, green if high + favored
+            enc_color = None
+            if p1_plus >= 0.6 and m["unfavored"]:
+                enc_color = "#e6194b"
+            elif p1_plus >= 0.6 and m["favored"]:
+                enc_color = "#3cb44b"
+
             self._table.setItem(row, 0, _item(m["archetype"], align=Qt.AlignmentFlag.AlignLeft))
             self._table.setItem(row, 1, _item(m["count"]))
-            self._table.setItem(row, 2, _item(f"{m['exp_rounds']:.1f}"))
+
+            enc_item = _item(enc_text, enc_color)
+            enc_item.setToolTip(enc_tooltip)
+            self._table.setItem(row, 2, enc_item)
+
             self._table.setItem(row, 3, _item(f"{g1_wr*100:.0f}%", g1_color))
             self._table.setItem(row, 4, _item(g23_txt, g23_color))
-            self._table.setItem(row, 5, _item(guide_txt, guide_color))
-            self._table.setItem(row, 6, _item(verdict, vc))
+            self._table.setItem(row, 5, _item(f"{m['exp_rounds']:.1f}"))
+            self._table.setItem(row, 6, _item(guide_txt, guide_color))
+            self._table.setItem(row, 7, _item(verdict, vc))
 
         # Store result and render the full recommendations panel
         self._last_result = r

@@ -378,6 +378,10 @@ class HeatmapTab(QWidget):
 
         outer.addWidget(toolbar)
 
+        from gui.widgets.summary_bar import SummaryBar
+        self._summary_bar = SummaryBar()
+        outer.addWidget(self._summary_bar)
+
         # ── Status label ──────────────────────────────────────────────
         self._status = QLabel(
             "Click \u2018Real Match Data (DB)\u2019 for heatmap from actual match results, "
@@ -674,6 +678,15 @@ class HeatmapTab(QWidget):
         # Use the format the data was loaded for, NOT the current combo value
         filtered, ordered = self._filter_to_meta(matrix, fmt)
         self._draw_grid(filtered, ordered, total_archetypes=len(matrix), fmt=fmt)
+
+        # Summary bar
+        n_archetypes = len(ordered)
+        total_cells = sum(len(v) for v in filtered.values())
+        stats = [f"{n_archetypes} archetypes", f"{total_cells} matchup cells"]
+        real_ct = sum(1 for v in getattr(self, '_source_map', {}).values() if v == "real")
+        if real_ct:
+            stats.append(f"{real_ct} from real matches")
+        self._summary_bar.update(fmt.upper() + " MATCHUPS", stats)
 
         # Update last-updated label
         if self._load_source == "combined":

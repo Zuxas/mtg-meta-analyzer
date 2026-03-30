@@ -44,7 +44,7 @@
 - [ ] Meta clustering by playstyle
 - [ ] Meta-based deck recommendation engine
 - [ ] "Why this card?" slot analysis
-- [ ] Hypergeometric encounter probability in Event Optimizer
+- [x] Hypergeometric encounter probability in Event Optimizer (2026-03-30) — P(face X exactly k times), full distribution tooltip, color-coded encounter % column
 - [x] Event type presets (RCQ/RC/PTQ/Custom), x-loss cutoff, day-2 conversion math (2026-03-26)
 
 ---
@@ -91,7 +91,7 @@
 - [x] URL import in Deck Analyzer — Moxfield, Archidekt, MTGGoldfish, MTGTop8 (2026-03-26)
 - [x] Knowledge Base filters — format/archetype dropdowns, comment text search (2026-03-26)
 - [x] Archetype normalization — 250+ aliases across all 5 formats, junk exclusion (2026-03-26)
-- [ ] Quick-glance summary bar at top of each tab
+- [x] Quick-glance summary bars on Dashboard, Match Log, My Decks, Matchup Data (2026-03-30) — reusable SummaryBar widget
 - [ ] Chart readability (always show sample size + timeframe)
 - [ ] Interaction speed (filters update in place)
 

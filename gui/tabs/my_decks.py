@@ -287,8 +287,16 @@ class MyDecksTab(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        outer = QHBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(4)
+
+        from gui.widgets.summary_bar import SummaryBar
+        self._summary_bar = SummaryBar()
+        root.addWidget(self._summary_bar)
+
+        outer = QHBoxLayout()
+        root.addLayout(outer, 1)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
@@ -535,6 +543,14 @@ class MyDecksTab(QWidget):
             ct_item = QTableWidgetItem(str(total))
             ct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 3, ct_item)
+
+        # Summary bar
+        n = len(decks)
+        formats = set(d.get("format", "") for d in decks if d.get("format"))
+        stats = [f"{n} saved deck{'s' if n != 1 else ''}"]
+        if formats:
+            stats.append(f"Formats: {', '.join(sorted(formats))}")
+        self._summary_bar.update("MY DECKS", stats)
 
         # Clear detail panel if selected deck was deleted
         if self._current_deck:

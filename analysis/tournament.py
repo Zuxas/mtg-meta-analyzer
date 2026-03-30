@@ -20,6 +20,7 @@ Public functions:
     rcq_equity(my_archetype, field, format_name, ...) -> dict
 """
 import math
+from functools import lru_cache
 
 # ---------------------------------------------------------------------------
 # RCQ constants (official WPN rules)
@@ -67,6 +68,73 @@ def cut_threshold(rounds: int) -> int:
         return known[rounds]
     # Large events: X-2 or X-3 typically makes top 8
     return max(known.get(8, 21), rounds * 3 - 6)
+
+
+# ---------------------------------------------------------------------------
+# Hypergeometric encounter probability
+# ---------------------------------------------------------------------------
+
+def encounter_probability(total_opponents: int, archetype_count: int,
+                          rounds: int) -> list[float]:
+    """
+    Probability of facing an archetype exactly k times in `rounds` rounds,
+    given `archetype_count` copies in a field of `total_opponents`.
+
+    Uses the hypergeometric distribution:
+        P(X=k) = C(K,k) * C(N-K, n-k) / C(N, n)
+
+    where N = total_opponents, K = archetype_count, n = rounds.
+
+    Returns list of length (rounds+1): [P(0), P(1), P(2), ..., P(rounds)]
+    """
+    N = total_opponents
+    K = min(archetype_count, N)
+    n = min(rounds, N)
+
+    probs = []
+    for k in range(n + 1):
+        if k > K or (n - k) > (N - K):
+            probs.append(0.0)
+        else:
+            p = (math.comb(K, k) * math.comb(N - K, n - k)
+                 / math.comb(N, n))
+            probs.append(p)
+
+    return probs
+
+
+def encounter_summary(total_opponents: int, archetype_count: int,
+                      rounds: int) -> dict:
+    """
+    Summarized encounter probability for display.
+
+    Returns dict with:
+        probs:        full probability list [P(0), P(1), ...]
+        expected:     expected number of times you face this archetype
+        p_zero:       probability of never facing it
+        p_at_least_1: probability of facing it at least once
+        p_at_least_2: probability of facing it 2+ times
+        mode:         most likely encounter count
+        mode_pct:     probability of the mode
+    """
+    probs = encounter_probability(total_opponents, archetype_count, rounds)
+    expected = sum(k * p for k, p in enumerate(probs))
+    p_zero = probs[0] if probs else 1.0
+    p_at_least_1 = 1.0 - p_zero
+    p_at_least_2 = 1.0 - p_zero - (probs[1] if len(probs) > 1 else 0.0)
+
+    mode = max(range(len(probs)), key=lambda k: probs[k]) if probs else 0
+    mode_pct = probs[mode] if probs else 0.0
+
+    return {
+        "probs": probs,
+        "expected": round(expected, 2),
+        "p_zero": round(p_zero, 3),
+        "p_at_least_1": round(p_at_least_1, 3),
+        "p_at_least_2": round(max(p_at_least_2, 0.0), 3),
+        "mode": mode,
+        "mode_pct": round(mode_pct, 3),
+    }
 
 
 def tournament_structure(players: int) -> dict:
@@ -339,6 +407,8 @@ def rcq_equity(
         g23_wr     = estimate_postboard_wr(mu_wr, my_sb_in, opp_sb_in) if has_data else mu_wr
         flip       = flip_analysis(mu_wr, g23_wr, has_guide_data=has_data)
 
+        enc = encounter_summary(total_opp, count, rounds)
+
         matchups.append({
             "archetype":  arch,
             "count":      count,
@@ -351,6 +421,7 @@ def rcq_equity(
             "unfavored":  mu_wr <= 0.48,
             "guide_data": guide_data,
             "flip":       flip,
+            "encounter":  enc,
         })
 
     matchups.sort(key=lambda m: m["exp_rounds"], reverse=True)

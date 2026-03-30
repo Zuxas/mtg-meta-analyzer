@@ -231,6 +231,11 @@ class DashboardTab(QWidget):
         root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
 
+        # ── Summary bar ─────────────────────────────────────────────
+        from gui.widgets.summary_bar import SummaryBar
+        self._summary_bar = SummaryBar()
+        root.addWidget(self._summary_bar)
+
         # ── Controls bar ──────────────────────────────────────────────
         ctrl = QHBoxLayout()
         ctrl.setSpacing(8)
@@ -668,6 +673,22 @@ class DashboardTab(QWidget):
         self._populate_winrate(self._standings, prior_map, data.get("real_wrs", {}))
         self._populate_popularity(self._standings, prior_map)
         self._populate_recent(data["recent"])
+
+        # Summary bar
+        fmt = self._fmt.currentText().upper()
+        stats = []
+        total_apps = sum(s.get("appearances", 0) for s in self._standings)
+        if total_apps:
+            stats.append(f"{total_apps:,} appearances")
+        if self._standings:
+            top = self._standings[0]
+            top_name = top.get("archetype", "?")
+            top_share = top.get("appearances", 0) / max(total_apps, 1) * 100
+            stats.append(f"Top: {top_name} {top_share:.1f}%")
+        real_wrs = data.get("real_wrs", {})
+        if real_wrs:
+            stats.append(f"{len(real_wrs)} archetypes with real W/L data")
+        self._summary_bar.update(fmt, stats)
 
         # Meta Impact bar
         impact = _compute_impact(self._standings, data.get("raw_standings"))
