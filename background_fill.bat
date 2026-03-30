@@ -39,6 +39,11 @@ echo ============================================================ >> "%LOG_FILE%
 REM Delegate to Python script that reads preferences.json for format list
 %PYTHON% scripts\run_fill_from_prefs.py >> "%LOG_FILE%" 2>&1
 
+REM Archetype sync (quick — identifies unclassified archetypes)
+echo. >> "%LOG_FILE%"
+echo [+] Archetype sync >> "%LOG_FILE%"
+%PYTHON% scripts\sync_archetypes.py >> "%LOG_FILE%" 2>&1
+
 echo. >> "%LOG_FILE%"
 echo  Done: %DATE% %TIME% >> "%LOG_FILE%"
 echo ============================================================ >> "%LOG_FILE%"
