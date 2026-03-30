@@ -4,6 +4,36 @@ Last updated: 2026-03-27
 
 ---
 
+## Session 2026-03-29 — Match Log, Prep Package, Meta Shift, bug fixes
+
+### Features built
+1. **Match Log tab** — personal tournament match tracker with event/round/opponent/result/play-draw/game-by-game logging, matchup stats with play/draw WR splits, auto-incrementing rounds
+2. **Generate Prep Package** — Event Optimizer button creates printable HTML with 75 + field matchups + personal records + SB plan status + gap warnings
+3. **Meta Shift dialog** — Dashboard button comparing current vs prior period: rising/falling/new/gone archetypes sorted by biggest change
+4. **60-second query cache** — 33x speedup on dashboard loads (1.3s → 39ms on cache hit)
+
+### Bug fixes
+- Dashboard auto-refresh on format/timeframe change (was requiring manual Refresh click)
+- Charts tab worker crash (CompareLoader deleted) — safe deleteLater pattern
+- Heatmap empty archetypes filtered from Charts tab heatmap
+- Predictions NoneType crash when top8_rate is None from matches fallback
+- Moxfield URL import 403 — switched to cloudscraper + v2 API
+- MTGTop8 URL import — proper HTML parsing of deck_line divs
+- SB plan opponent dropdown now uses deck's format, excludes existing plans
+- Print SB Guide button on Sideboard Plans tab (compact 2-column layout)
+- All Time chart capped to 52 weeks for performance
+- Heatmap auto-reload on format change
+- Tooltip "Matches logged" wording
+- Knowledge Base last synced label
+- Breaker Math top cut selector (8/16/32/64)
+- Event Optimizer meta distribution timeframe tooltip
+
+### Normalization
+- Remaining archetype counts: Modern 705, Standard 1,113, Pioneer 293
+- Long tail is genuine niche decks — min_arch_appearances=10 filter handles them
+
+---
+
 ## Session 2026-03-27 — User Preferences System wired end-to-end
 
 ### What was built
@@ -550,46 +580,24 @@ Key things to verify when ready:
 - `analysis/charts.py` sets `matplotlib.use("Agg")` — must not import before `run_gui.py` sets `QtAgg`
 - Test on clean machine without Python
 
-### Apr+ roadmap
-- Cowork audit (card images, KB improvements)
-- Card image hover preview in deck analyzer / search tabs
+### Lower-priority features (all others complete)
+- Rate guides thumbs up/down in Knowledge Base
+- Match logging personal tracker (opponent arch, result, play/draw, notes)
+- Card adoption & progression tracking over time
 - Game simulation engine integration
 
 ---
 
-## Remaining Features (Lower Priority)
+## Data status (as of 2026-03-27)
 
-### A — User Preferences System (partially done)
-
-Full spec in CLAUDE.md.
-
-Still TODO:
-1. **Format selection in setup wizard** — add page 0 before Scryfall download
-   - Checkboxes: Standard (default on) / Pioneer / Modern / Legacy
-   - Saves `preferences.json` immediately on Next
-2. **`user_preferences` table in `db/database.py`** (or just keep using preferences.json)
-3. **Wire scrapers** — `background_fill.bat` and `fill_database.py` skip unselected formats
-
-### B — Charts Compare Mode
-
-Overlay multiple archetype trend lines on one chart (multi-select archetype combo).
-
-### C — Knowledge Base Improvements
-
-- Filter guides by archetype/format/author
-- Full-text search across guide comments
-- Rate guides (thumbs up/down)
-
----
-
-## Data status (as of 2026-03-21)
-
-| Format | Events | Decks | Notes |
+| Format | Decks (MTGTop8/MTGDecks) | Matches (MTGMelee) | Notes |
 |---|---|---|---|
-| Standard | 2,043+ | ~24,289+ | Nov 2024 – Mar 2026, daily 6 AM task active |
-| Pioneer | 109 | 3,125 | MTGDecks 20-page scrape completed |
-| Modern | scraping | TBD | Background scrape may still be running |
-| Guides | 331 | — | Skill Issue Magic sheet, last synced 2026-03-21 |
+| Standard | 37,186 decks / 3,834 events | 108,648 matches / 250 tournaments | Daily 6 AM task active |
+| Modern | 6,770 decks / 233 events | 92,420 matches / 347 tournaments | All available scraped |
+| Pioneer | 5,657 decks / 210 events | 20,095 matches / 58 tournaments | All available scraped |
+| Legacy | 115 decks / 10 events | 25,304 matches / 86 tournaments | Active |
+| Pauper | — | 16,174 matches / ~130 tournaments | Active |
+| Guides | 331 guides | — | Skill Issue Magic sheet, last synced 2026-03-21 |
 
 ---
 
@@ -604,4 +612,5 @@ Overlay multiple archetype trend lines on one chart (multi-select archetype comb
 - `exports/` folder is gitignored — created automatically on first export.
 - `data/preferences.json` is gitignored — contains API key and user prefs.
 - Guide archetype matching is fuzzy (substring both ways) — if guides aren't showing for a matchup, check that the archetype names in guides table roughly match the archetype names in the meta standings.
-- `estimate_postboard_wr` clamps output to [0.18, 0.84] — extreme WR values (very favored/unfavored matchups) will appear slightly less extreme post-board than they really are. This is intentional conservatism.
+- `estimate_postboard_wr` clamps output to [0.18, 0.84] — extreme WR values will appear slightly less extreme post-board than they really are. This is intentional conservatism.
+- `scripts/run_fill_from_prefs.py` is the canonical place to add new scraper steps — do NOT edit background_fill.bat directly for format changes.
