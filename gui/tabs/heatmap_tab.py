@@ -350,12 +350,11 @@ class HeatmapTab(QWidget):
         self._cache_btn.clicked.connect(self._load_cached)
         tl.addWidget(self._cache_btn)
 
-        self._gauntlet_btn = QPushButton("TR Gauntlet")
+        self._gauntlet_btn = QPushButton("Gauntlet")
         self._gauntlet_btn.setStyleSheet(theme.btn_secondary())
         self._gauntlet_btn.setToolTip(
-            "Team Resolve Houston RC gauntlet (Modern only)\n"
-            "12 decks, 500 Bo3 sims per pairing\n"
-            "Shows averaged play/draw WR per matchup"
+            "Build a live gauntlet from the top 12 meta decks\n"
+            "Uses real match data to populate the matchup grid"
         )
         self._gauntlet_btn.clicked.connect(self._load_gauntlet)
         tl.addWidget(self._gauntlet_btn)
@@ -544,89 +543,84 @@ class HeatmapTab(QWidget):
         self._wire_worker(worker)
 
     def _load_gauntlet(self):
-        """Load Team Resolve gauntlet play/draw matrices."""
-        import csv, os
+        """Build a live gauntlet: top 12 meta decks with real matchup data."""
+        fmt = self._fmt.currentText()
         self._prepare_load("gauntlet")
-        self._status.setText("Loading Team Resolve gauntlet data\u2026")
+        gen = self._load_gen
+        self._status.setText(f"Building {fmt} gauntlet from top 12 meta decks\u2026")
 
         def _do():
-            base = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                "config", "gauntlet")
-            rankings_path = os.path.join(base, "gauntlet_deck_rankings.csv")
-            play_path = os.path.join(base, "gauntlet_play_matrix.csv")
-            draw_path = os.path.join(base, "gauntlet_draw_matrix.csv")
+            from analysis.win_rates import get_meta_standings, get_real_matchup_winrates
+            from analysis.archetypes import normalize as norm_arch
 
-            if not os.path.exists(play_path):
+            # Get top 12 by appearances
+            standings = get_meta_standings(fmt, top=12)
+            if not standings:
                 return None, {}
 
-            # Read rankings for name mapping (letter → name)
-            id_to_name = {}
-            with open(rankings_path, encoding="utf-8") as f:
-                for row in csv.DictReader(f):
-                    id_to_name[row["Deck_A_ID"].strip()] = row["Deck_A_Name"].strip().title()
+            top_names = [s["archetype"] for s in standings]
 
-            def read_matrix(path):
-                with open(path, encoding="utf-8") as f:
-                    reader = csv.reader(f)
-                    header = next(reader)
-                    letters = [h.strip() for h in header[1:] if h.strip()]
-                    matrix = {}
-                    for row_data in reader:
-                        if not row_data or not row_data[0].strip():
-                            continue
-                        row_letter = row_data[0].strip()
-                        row_name = id_to_name.get(row_letter, row_letter)
-                        matrix[row_name] = {}
-                        for ci, letter in enumerate(letters):
-                            col_name = id_to_name.get(letter, letter)
-                            try:
-                                val = float(row_data[ci + 1])
-                                matrix[row_name][col_name] = {
-                                    "winrate": val / 100.0, "matches": 500,
-                                }
-                            except (ValueError, IndexError):
-                                pass
-                    return matrix
+            # Get real matchup data
+            _MIN = {"pioneer": 10, "modern": 5}.get(fmt, 20)
+            real_raw = get_real_matchup_winrates(fmt, min_matches=_MIN)
 
-            play = read_matrix(play_path)
-            draw = read_matrix(draw_path)
-
-            # Merge: average play + draw for combined view
-            combined = {}
+            # Build bidirectional matrix for just these 12 decks
+            matrix = {}
             source = {}
-            all_archs = set(play) | set(draw)
-            for a in all_archs:
-                combined[a] = {}
-                for b in all_archs:
+            for a in top_names:
+                matrix[a] = {}
+                na = norm_arch(a).lower()
+                for b in top_names:
                     if a == b:
                         continue
-                    p_val = play.get(a, {}).get(b, {}).get("winrate")
-                    d_val = draw.get(a, {}).get(b, {}).get("winrate")
-                    if p_val is not None and d_val is not None:
-                        avg = (p_val + d_val) / 2
-                        combined[a][b] = {"winrate": avg, "matches": 500}
-                        source[(a, b)] = "real"  # use star for gauntlet sim data
-                    elif p_val is not None:
-                        combined[a][b] = {"winrate": p_val, "matches": 250}
-                    elif d_val is not None:
-                        combined[a][b] = {"winrate": d_val, "matches": 250}
+                    nb = norm_arch(b).lower()
+                    # Search real data (canonical ordering: a<b)
+                    found = False
+                    for ra, opps in real_raw.items():
+                        if norm_arch(ra).lower() == na:
+                            for rb, stats in opps.items():
+                                if norm_arch(rb).lower() == nb:
+                                    matrix[a][b] = {
+                                        "winrate": stats["win_rate"],
+                                        "matches": stats["total"],
+                                    }
+                                    source[(a, b)] = "real"
+                                    found = True
+                                    break
+                        if found:
+                            break
+                    if not found:
+                        # Try reverse lookup
+                        for ra, opps in real_raw.items():
+                            if norm_arch(ra).lower() == nb:
+                                for rb, stats in opps.items():
+                                    if norm_arch(rb).lower() == na:
+                                        matrix[a][b] = {
+                                            "winrate": round(1.0 - stats["win_rate"], 4),
+                                            "matches": stats["total"],
+                                        }
+                                        source[(a, b)] = "real"
+                                        found = True
+                                        break
+                            if found:
+                                break
 
-            return combined, source
+            return matrix, source
 
         def _done(result):
             if result is None:
-                self._on_error("Gauntlet CSV files not found in config/gauntlet/")
+                self._on_error("No meta data available for gauntlet", gen)
                 return
-            matrix, source = result
-            self._source_map = source
-            fmt = "modern"  # gauntlet is always Modern
+            matrix, src = result
+            self._source_map = src
+            filled = sum(1 for a in matrix for b in matrix[a] if matrix[a].get(b))
+            total_possible = len(matrix) * (len(matrix) - 1)
             self._updated_lbl.setText(
-                "MODERN  \u2022  TR Gauntlet (500 Bo3 sims/pairing, play+draw averaged)")
-            self._on_data(fmt, matrix, self._load_gen)
+                f"{fmt.upper()}  \u2022  Gauntlet: top {len(matrix)} decks, "
+                f"{filled}/{total_possible} matchup cells filled from real data")
+            self._on_data(fmt, matrix, gen)
 
         from gui.worker_threads import DataLoadWorker
-        gen = self._load_gen
         w = DataLoadWorker(_do)
         w.result.connect(_done)
         w.error.connect(lambda e: self._on_error(e, gen))
