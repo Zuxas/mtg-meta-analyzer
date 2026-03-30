@@ -29,6 +29,7 @@ from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.tabs.heatmap_tab       import HeatmapTab
 from gui.tabs.my_decks          import MyDecksTab
 from gui.tabs.match_log         import MatchLogTab
+from gui.tabs.card_browser      import CardBrowserTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -78,19 +79,21 @@ class MainWindow(QMainWindow):
         self._match_log = MatchLogTab()
         self._claude    = AskClaudeTab()
         self._set_analysis = SetAnalysisTab()
+        self._card_browser = CardBrowserTab()
         self._settings  = SettingsTab()
 
-        self._tabs.addTab(self._dash,      "DASHBOARD")
-        self._tabs.addTab(self._deck,      "DECK ANALYZER")
-        self._tabs.addTab(self._my_decks,  "MY DECKS")
-        self._tabs.addTab(self._match_log, "MATCH LOG")
-        self._tabs.addTab(self._search,    "SEARCH")
-        self._tabs.addTab(self._tourney,   "TOURNAMENT PREP")
-        self._tabs.addTab(self._heatmap,   "MATCHUP DATA")
-        self._tabs.addTab(self._kb,        "KNOWLEDGE BASE")
-        self._tabs.addTab(self._preds,     "PREDICTIONS")
-        self._tabs.addTab(self._charts,    "CHARTS")
-        self._tabs.addTab(self._settings,  "SETTINGS")
+        self._tabs.addTab(self._dash,         "DASHBOARD")
+        self._tabs.addTab(self._deck,         "DECK ANALYZER")
+        self._tabs.addTab(self._my_decks,     "MY DECKS")
+        self._tabs.addTab(self._match_log,    "MATCH LOG")
+        self._tabs.addTab(self._search,       "SEARCH")
+        self._tabs.addTab(self._card_browser, "CARD BROWSER")
+        self._tabs.addTab(self._tourney,      "TOURNAMENT PREP")
+        self._tabs.addTab(self._heatmap,      "MATCHUP DATA")
+        self._tabs.addTab(self._kb,           "KNOWLEDGE BASE")
+        self._tabs.addTab(self._preds,        "PREDICTIONS")
+        self._tabs.addTab(self._charts,       "CHARTS")
+        self._tabs.addTab(self._settings,     "SETTINGS")
 
         # Wire "Open in Event Optimizer" from My Decks → Tournament Prep
         self._my_decks.open_in_rcq.connect(self._on_open_in_rcq)
@@ -290,7 +293,7 @@ class MainWindow(QMainWindow):
                 pass
             self._scrape_worker = None
         # Delegate cleanup to tabs that hold their own workers
-        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._set_analysis, self._my_decks, self._match_log):
+        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._set_analysis, self._card_browser, self._my_decks, self._match_log):
             if hasattr(tab, "cleanup"):
                 try:
                     tab.cleanup()

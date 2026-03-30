@@ -27,7 +27,15 @@ Last updated: 2026-03-30
 - Track by event type (RCQ/Open/RC)
 - Personal trend analysis over time
 
-### 4. Remaining Polish
+### 4. Card Browser (DONE)
+- [x] CARD BROWSER tab — full Scryfall-style local card database
+- [x] Scryfall query syntax: t: o: c: ci: cmc f: r: is: k: pow tou s:
+- [x] Dropdown filters: format, color, type, rarity, CMC
+- [x] "Cards in Meta only" toggle
+- [x] Card detail panel: image, oracle text, legalities, meta usage
+- [x] Hover card tooltips via existing CardTooltip widget
+
+### 5. Remaining Polish
 - Standard archetype config: 5,391 still unclassified (need more definitions)
 - PyInstaller .exe packaging
 - Quick-glance summary bar per tab

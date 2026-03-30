@@ -27,6 +27,7 @@
 
 ## 2. QUERY & DISCOVERY ENGINE (Priority: Near-term)
 
+- [x] Card Browser tab — full Scryfall-style local card database with query syntax, filters, meta usage, card detail panel (2026-03-30)
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
 - [ ] Global "All Formats" option everywhere
 - [x] URL import in Deck Analyzer (Moxfield, Archidekt, MTGGoldfish, MTGTop8) (2026-03-26)
