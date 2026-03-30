@@ -458,6 +458,15 @@ class MyDecksTab(QWidget):
         self._sb_guide_btn.setToolTip("Print-friendly sideboard guide (plans only, no decklist)")
         self._sb_guide_btn.clicked.connect(self._export_sb_only)
         sb_btn_row.addWidget(self._sb_guide_btn)
+
+        self._suggest_btn = QPushButton("Suggest Plans")
+        self._suggest_btn.setEnabled(False)
+        self._suggest_btn.setStyleSheet(theme.btn_secondary())
+        self._suggest_btn.setToolTip(
+            "Auto-generate SB plans from your actual sideboard cards\n"
+            "Uses community guides + card role analysis")
+        self._suggest_btn.clicked.connect(self._suggest_sb_plans)
+        sb_btn_row.addWidget(self._suggest_btn)
         sb_btn_row.addStretch()
         sb_layout.addLayout(sb_btn_row)
 
@@ -534,6 +543,7 @@ class MyDecksTab(QWidget):
         self._add_plan_btn.setEnabled(True)
         self._del_plan_btn.setEnabled(True)
         self._sb_guide_btn.setEnabled(True)
+        self._suggest_btn.setEnabled(True)
 
     def _show_deck(self, deck):
         name = deck.get("name", "Unnamed")
@@ -627,6 +637,7 @@ class MyDecksTab(QWidget):
         self._add_plan_btn.setEnabled(False)
         self._del_plan_btn.setEnabled(False)
         self._sb_guide_btn.setEnabled(False)
+        self._suggest_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
     # CRUD actions
@@ -760,6 +771,112 @@ class MyDecksTab(QWidget):
     # ------------------------------------------------------------------
     # Export & RCQ
     # ------------------------------------------------------------------
+
+    def _suggest_sb_plans(self):
+        """Auto-generate SB plans from sideboard cards using guides + role analysis."""
+        if not self._current_deck:
+            return
+        deck = self._current_deck
+        sideboard = deck.get("sideboard", {})
+        if not sideboard:
+            QMessageBox.warning(self, "No Sideboard",
+                                "This deck has no sideboard cards. Add your 15 first.")
+            return
+
+        fmt = deck.get("format", "modern")
+        deck_id = deck.get("id")
+        self._suggest_btn.setEnabled(False)
+
+        # Get existing plans to skip
+        existing = set()
+        for row in range(self._sb_table.rowCount()):
+            item = self._sb_table.item(row, 0)
+            if item:
+                existing.add(item.text())
+
+        def _do():
+            from analysis.sb_advisor import suggest_all_plans
+            from analysis.win_rates import get_meta_standings
+            standings = get_meta_standings(fmt, top=15)
+            meta_names = [s["archetype"] for s in standings if s["archetype"] not in existing]
+            return suggest_all_plans(sideboard, meta_names, fmt)
+
+        def _done(suggestions):
+            self._suggest_btn.setEnabled(True)
+            if not suggestions:
+                QMessageBox.information(self, "No Suggestions",
+                                        "No SB suggestions found. Add guides to Knowledge Base "
+                                        "or the advisor needs more card data.")
+                return
+
+            # Show suggestions in a dialog for review before saving
+            dlg = QDialog(self)
+            dlg.setWindowTitle("SB Plan Suggestions")
+            dlg.setMinimumSize(600, 450)
+            dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+            layout = QVBoxLayout(dlg)
+
+            layout.addWidget(QLabel(
+                f"Suggested SB plans for {len(suggestions)} matchups based on your 15 sideboard cards.\n"
+                f"Review and click Save to create plans."))
+
+            tbl = QTableWidget(len(suggestions), 4)
+            tbl.setHorizontalHeaderLabels(["Opponent", "Bring In", "Confidence", "# Cards"])
+            tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            tbl.verticalHeader().setVisible(False)
+
+            for ri, s in enumerate(suggestions):
+                tbl.setItem(ri, 0, QTableWidgetItem(s["opponent"]))
+                cards = ", ".join(f"+{b['qty']} {b['card']}" for b in s["bring_in"])
+                tbl.setItem(ri, 1, QTableWidgetItem(cards))
+                tbl.setItem(ri, 2, QTableWidgetItem(s["coverage"]))
+                total = sum(b["qty"] for b in s["bring_in"])
+                tbl.setItem(ri, 3, QTableWidgetItem(str(total)))
+
+            layout.addWidget(tbl, 1)
+
+            btns = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+            btns.accepted.connect(dlg.accept)
+            btns.rejected.connect(dlg.reject)
+            layout.addWidget(btns)
+
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+
+            # Save all suggested plans
+            from db.saved_decks import save_sb_plan
+            saved = 0
+            for s in suggestions:
+                in_cards = [b["card"] for b in s["bring_in"]]
+                if in_cards:
+                    save_sb_plan(
+                        deck_id=deck_id,
+                        opponent_archetype=s["opponent"],
+                        play_in=in_cards, play_out=[],
+                        draw_in=in_cards, draw_out=[],
+                        notes=f"Auto-suggested: {s['coverage']}",
+                        difficulty="Medium",
+                    )
+                    saved += 1
+
+            self._load_sb_plans(deck_id)
+            QMessageBox.information(self, "Plans Saved",
+                                    f"Created {saved} SB plans. Edit them to add OUT cards.")
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(lambda e: (
+            QMessageBox.warning(self, "Error", str(e)),
+            self._suggest_btn.setEnabled(True),
+        ))
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
 
     def _export_sb_only(self):
         """Print-friendly SB guide: plans only, no decklist, two-column layout."""
