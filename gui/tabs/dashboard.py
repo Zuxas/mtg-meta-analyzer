@@ -888,8 +888,8 @@ class DashboardTab(QWidget):
                 rec_text = "\u2014"
             rec_item = QTableWidgetItem(rec_text)
             rec_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
-            rec_item.setStyleSheet(f"font-size: 10px;")
             rec_item.setForeground(QColor(theme.TEXT_DIM))
+            f = rec_item.font(); f.setPointSize(9); rec_item.setFont(f)
             if bg:
                 rec_item.setBackground(bg)
             tbl.setItem(ri, 3, rec_item)
