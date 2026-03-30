@@ -33,6 +33,23 @@ EXCLUDE_ARCHETYPES = frozenset({
     "Other",
 })
 
+# Simple TTL cache for expensive queries (60-second expiry)
+_query_cache: dict = {}  # key → (timestamp, result)
+_CACHE_TTL = 60  # seconds
+
+
+def _cached(key, fn):
+    """Return cached result if <60s old, otherwise call fn() and cache."""
+    import time
+    now = time.time()
+    if key in _query_cache:
+        ts, result = _query_cache[key]
+        if now - ts < _CACHE_TTL:
+            return result
+    result = fn()
+    _query_cache[key] = (now, result)
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Natural language date range parsing
@@ -1022,6 +1039,13 @@ def get_real_matchup_winrates(format_name: str = "standard",
         rate_a_vs_b = result[a][b]["win_rate"]       # a's win rate vs b
         rate_b_vs_a = 1.0 - result[a][b]["win_rate"] # b's win rate vs a
     """
+    since_key = since.isoformat() if hasattr(since, "isoformat") else str(since)
+    cache_key = f"real_mu_wr:{format_name}:{since_key}:{min_matches}:{min_arch_appearances}"
+    return _cached(cache_key, lambda: _get_real_matchup_winrates_impl(
+        format_name, since, min_matches, min_arch_appearances))
+
+
+def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_appearances):
     try:
         from db.matches_queries import _ensure_table
         _ensure_table()
@@ -1116,6 +1140,13 @@ def get_real_archetype_winrates(format_name: str = "standard",
                       "draws": int, "total": int, "source": "real"}}
     Only archetypes with at least ``min_matches`` total games are included.
     """
+    since_key = since.isoformat() if hasattr(since, "isoformat") else str(since)
+    cache_key = f"real_arch_wr:{format_name}:{since_key}:{min_matches}"
+    return _cached(cache_key, lambda: _get_real_archetype_winrates_impl(
+        format_name, since, min_matches))
+
+
+def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     try:
         from db.matches_queries import _ensure_table
         _ensure_table()
