@@ -687,6 +687,12 @@ class _EventWidget(QWidget):
         self._analyze_btn.clicked.connect(self._run)
         lv.addWidget(self._analyze_btn)
 
+        self._prep_btn = QPushButton("Generate Prep Package")
+        self._prep_btn.setStyleSheet(theme.btn_secondary())
+        self._prep_btn.setToolTip("Printable HTML: your 75 + field analysis + SB plans + gap warnings")
+        self._prep_btn.clicked.connect(self._generate_prep_package)
+        lv.addWidget(self._prep_btn)
+
         self._status = QLabel("")
         self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         self._status.setWordWrap(True)
@@ -931,6 +937,75 @@ class _EventWidget(QWidget):
         w.error.connect(lambda e: (
             self._status.setText(f"Could not load meta: {e}"),
             self._analyze_btn.setEnabled(True),
+        ))
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
+    def _generate_prep_package(self):
+        """Generate a full printable prep package HTML."""
+        archetype = self._my_arch.currentText().strip()
+        field = self._parse_field()
+        if not archetype:
+            self._status.setText("Enter your archetype first.")
+            return
+        if not field:
+            self._status.setText("Populate the field first (Use Meta Distribution or enter manually).")
+            return
+
+        fmt = self._fmt.currentText()
+        since = self._since_dt()
+        tf_label = theme.TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+        loaded_deck = self._loaded_deck
+        self._prep_btn.setEnabled(False)
+        self._status.setText("Generating prep package\u2026")
+
+        def _do():
+            from analysis.tournament import rcq_equity
+            result = rcq_equity(archetype, field, fmt, since=since)
+
+            # Get saved SB plans if a deck is loaded
+            sb_plans = []
+            if loaded_deck and loaded_deck.get("id"):
+                from db.saved_decks import get_sb_plans
+                sb_plans = get_sb_plans(loaded_deck["id"])
+
+            # Get personal match stats
+            from db.match_log import get_matchup_stats
+            personal = get_matchup_stats(archetype, format_name=fmt)
+
+            return {
+                "result": result, "sb_plans": sb_plans, "personal": personal,
+                "deck": loaded_deck, "fmt": fmt, "tf_label": tf_label,
+            }
+
+        def _done(pkg):
+            self._prep_btn.setEnabled(True)
+            if "error" in pkg["result"]:
+                self._status.setText(f"Error: {pkg['result']['error']}")
+                return
+            html = _build_prep_html(pkg)
+            # Save and open
+            import os
+            from datetime import datetime
+            from PyQt6.QtGui import QDesktopServices
+            from PyQt6.QtCore import QUrl
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            exports = os.path.join(root, "exports")
+            os.makedirs(exports, exist_ok=True)
+            safe = archetype.replace("/", "_").replace(":", "_")
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            path = os.path.join(exports, f"prep_{safe}_{ts}.html")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(html)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+            self._status.setText(f"Prep package saved to exports/")
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(lambda e: (
+            self._status.setText(f"Error: {e}"),
+            self._prep_btn.setEnabled(True),
         ))
         w.finished.connect(w.deleteLater)
         w.start()
@@ -1273,6 +1348,143 @@ class _EventWidget(QWidget):
         self._recs.setHtml(
             f'<div style="{BASE}">' + "".join(parts) + '</div>'
         )
+
+
+# ---------------------------------------------------------------------------
+# Prep package HTML generator
+# ---------------------------------------------------------------------------
+
+def _build_prep_html(pkg: dict) -> str:
+    r = pkg["result"]
+    sb_plans = pkg["sb_plans"]
+    personal = pkg["personal"]
+    deck = pkg["deck"]
+    fmt = pkg["fmt"]
+    tf = pkg["tf_label"]
+    my_arch = r["my_archetype"]
+    struct = r["struct"]
+
+    # Build SB plan lookup
+    sb_lookup = {p["opponent_archetype"]: p for p in sb_plans}
+
+    parts = [f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>{my_arch} — Event Prep</title>
+<style>
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; max-width: 900px; margin: 16px auto; color: #222; font-size: 12px; }}
+  h1 {{ font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 4px; margin-bottom: 8px; }}
+  h2 {{ font-size: 14px; margin: 14px 0 6px 0; color: #333; }}
+  .meta {{ color: #666; font-size: 11px; margin-bottom: 12px; }}
+  .grade {{ font-size: 28px; font-weight: bold; display: inline-block; margin-right: 12px; }}
+  .summary {{ margin-bottom: 12px; }}
+  table {{ border-collapse: collapse; width: 100%; margin-bottom: 12px; }}
+  th {{ background: #eee; text-align: left; padding: 4px 8px; font-size: 11px; border: 1px solid #ccc; }}
+  td {{ padding: 4px 8px; border: 1px solid #ddd; font-size: 11px; }}
+  .win {{ color: #2a7a2a; font-weight: bold; }}
+  .loss {{ color: #c22; font-weight: bold; }}
+  .even {{ color: #666; }}
+  .flip {{ background: #fee; }}
+  .gap {{ background: #fff3cd; }}
+  .sb {{ font-size: 10px; }}
+  .in {{ color: #2a7a2a; }} .out {{ color: #c22; }}
+  .notes {{ color: #666; font-style: italic; }}
+  .decklist {{ background: #f5f5f5; padding: 8px; border-radius: 4px; font-family: Consolas, monospace; font-size: 11px; white-space: pre-wrap; column-count: 2; }}
+  @media print {{ body {{ margin: 0; font-size: 11px; }} .decklist {{ column-count: 2; }} }}
+</style>
+</head><body>
+<h1>{my_arch} — Event Prep Package</h1>
+<div class="meta">{fmt.capitalize()} &bull; {tf} data &bull; {struct['rounds']} rounds &bull; {r['players']} players &bull; Top {struct['top_cut']}</div>
+"""]
+
+    # Grade + summary
+    parts.append(f'<div class="summary">')
+    parts.append(f'<span class="grade">{r["grade"]}</span> {r["grade_label"]}<br>')
+    parts.append(f'Weighted WR vs field: <b>{r["weighted_wr"]*100:.1f}%</b> &bull; '
+                 f'Top-{struct["top_cut"]} probability: <b>{r["top_prob"]*100:.1f}%</b>')
+    parts.append(f'</div>')
+
+    # Decklist (if loaded)
+    if deck and deck.get("mainboard"):
+        main = deck["mainboard"]
+        side = deck.get("sideboard", {})
+        parts.append('<h2>Decklist</h2>')
+        parts.append('<div class="decklist">')
+        for card, qty in sorted(main.items()):
+            parts.append(f'{qty} {card}\n')
+        if side:
+            parts.append('\nSideboard\n')
+            for card, qty in sorted(side.items()):
+                parts.append(f'{qty} {card}\n')
+        parts.append('</div>')
+
+    # Matchup table
+    parts.append('<h2>Expected Field Matchups</h2>')
+    parts.append('<table><tr><th>Opponent</th><th>Count</th><th>Exp Rds</th>'
+                 '<th>G1 WR</th><th>G2/G3</th><th>Your Record</th><th>SB Plan</th></tr>')
+
+    gaps = []
+    for m in r["matchups"]:
+        opp = m["archetype"]
+        g1 = m["g1_wr"]
+        g23 = m.get("g23_wr", g1)
+        flip = m.get("flip", {})
+        has_sb = opp in sb_lookup
+        pers = personal.get(opp)
+
+        # Color
+        cls = "win" if g1 >= 0.52 else ("loss" if g1 <= 0.48 else "even")
+        row_cls = ' class="flip"' if flip.get("flipped") and flip.get("delta", 0) < 0 else ""
+        row_cls = ' class="gap"' if not has_sb else row_cls
+
+        # Personal record
+        if pers:
+            rec_text = f'{pers["wins"]}-{pers["losses"]}-{pers["draws"]} ({pers["wr"]*100:.0f}%)'
+        else:
+            rec_text = '<span class="notes">no data</span>'
+
+        # SB plan summary
+        if has_sb:
+            sp = sb_lookup[opp]
+            play_in = sp.get("play_in", [])
+            play_out = sp.get("play_out", [])
+            sb_text = ""
+            if play_in:
+                sb_text += f'<span class="in">+{", +".join(play_in[:3])}</span> '
+            if play_out:
+                sb_text += f'<span class="out">-{", -".join(play_out[:3])}</span>'
+            if not sb_text:
+                sb_text = '<span class="notes">plan saved (no cards)</span>'
+        else:
+            sb_text = '<b style="color:#c22;">NO PLAN</b>'
+            gaps.append(opp)
+
+        parts.append(
+            f'<tr{row_cls}><td>{opp}</td><td>{m["count"]}</td>'
+            f'<td>{m["exp_rounds"]:.1f}</td>'
+            f'<td class="{cls}">{g1*100:.0f}%</td>'
+            f'<td>{g23*100:.0f}%</td>'
+            f'<td>{rec_text}</td>'
+            f'<td class="sb">{sb_text}</td></tr>')
+
+    parts.append('</table>')
+
+    # Gap warnings
+    if gaps:
+        parts.append('<h2 style="color:#c22;">Missing SB Plans</h2>')
+        parts.append('<p>You have no sideboard plan saved for these matchups:</p><ul>')
+        for opp in gaps:
+            m = next((x for x in r["matchups"] if x["archetype"] == opp), None)
+            pct = f" ({m['frac']*100:.0f}% of field)" if m else ""
+            parts.append(f'<li><b>{opp}</b>{pct}</li>')
+        parts.append('</ul>')
+
+    # Recommendations
+    parts.append('<h2>Sideboard Recommendations</h2>')
+    for rec in r.get("recs", []):
+        parts.append(f'<p>{rec}</p>')
+
+    parts.append('</body></html>')
+    return "".join(parts)
 
 
 # ---------------------------------------------------------------------------
