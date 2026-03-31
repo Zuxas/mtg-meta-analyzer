@@ -167,6 +167,12 @@ class KnowledgeBaseTab(QWidget):
         self._run_scraper_btn.clicked.connect(self._run_guides_scraper)
         hdr.addWidget(self._run_scraper_btn)
 
+        self._import_btn = QPushButton("Import JSON")
+        self._import_btn.setStyleSheet(theme.btn_secondary())
+        self._import_btn.setToolTip("Import guides from ALL_GUIDES_EXPORT.json")
+        self._import_btn.clicked.connect(self._import_guides_json)
+        hdr.addWidget(self._import_btn)
+
         self._del_btn = QPushButton("Delete Selected")
         self._del_btn.setStyleSheet(theme.btn_secondary())
         self._del_btn.clicked.connect(self._delete_selected)
@@ -456,3 +462,90 @@ class KnowledgeBaseTab(QWidget):
         ))
         w.start()
         self._workers.append(w)
+
+    def _import_guides_json(self):
+        """Import guides from ALL_GUIDES_EXPORT.json (Skill Issue Magic format)."""
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Guides JSON", "", "JSON files (*.json)")
+        if not path:
+            return
+
+        self._import_btn.setEnabled(False)
+        self._table_status.setText("Importing guides...")
+
+        def _do():
+            import json as _json
+            with open(path, encoding="utf-8") as f:
+                data = _json.load(f)
+
+            # Support both flat list and by_format nested structure
+            guides = []
+            if "by_format" in data:
+                for fmt, archetypes in data["by_format"].items():
+                    for arch, entries in archetypes.items():
+                        for g in entries:
+                            g["_format"] = fmt
+                            g["_archetype"] = arch
+                            guides.append(g)
+            elif isinstance(data, list):
+                guides = data
+            else:
+                raise ValueError("Unrecognized JSON format")
+
+            from db.database import get_connection, init_db
+            init_db()
+            conn = get_connection()
+            imported = 0
+            skipped = 0
+            try:
+                for g in guides:
+                    url = g.get("url", "").strip()
+                    if not url:
+                        skipped += 1
+                        continue
+                    # Check if URL already exists
+                    exists = conn.execute(
+                        "SELECT 1 FROM guides WHERE url = ?", [url]).fetchone()
+                    if exists:
+                        skipped += 1
+                        continue
+                    conn.execute(
+                        """INSERT INTO guides
+                           (date, url, format, archetype, type, author, source, comment, added_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            g.get("date", ""),
+                            url,
+                            g.get("_format", g.get("format", "")),
+                            g.get("_archetype", g.get("archetype", "")),
+                            g.get("type", "Guide"),
+                            g.get("author", ""),
+                            g.get("source", ""),
+                            g.get("comment", ""),
+                            g.get("added_at", ""),
+                        ),
+                    )
+                    imported += 1
+                conn.commit()
+            finally:
+                conn.close()
+            return {"imported": imported, "skipped": skipped, "total": len(guides)}
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_import_done)
+        w.error.connect(lambda e: (
+            self._table_status.setText(f"Import failed: {e}"),
+            self._import_btn.setEnabled(True),
+        ))
+        w.start()
+        self._workers.append(w)
+
+    def _on_import_done(self, result):
+        self._import_btn.setEnabled(True)
+        n = result.get("imported", 0)
+        t = result.get("total", 0)
+        s = result.get("skipped", 0)
+        self._table_status.setText(
+            f"Imported {n} new guides ({s} already existed) from {t} total entries.")
+        self._load_all()
