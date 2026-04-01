@@ -101,9 +101,9 @@ class EventPeersDialog(QDialog):
                 SELECT d.id, d.archetype, d.player, d.placement,
                        d.url,
                        (SELECT SUM(dc.quantity) FROM deck_cards dc
-                        WHERE dc.deck_id = d.id AND dc.board = 'main') AS main_ct,
+                        WHERE dc.deck_id = d.id AND dc.is_sideboard = 0) AS main_ct,
                        (SELECT SUM(dc.quantity) FROM deck_cards dc
-                        WHERE dc.deck_id = d.id AND dc.board = 'side') AS side_ct
+                        WHERE dc.deck_id = d.id AND dc.is_sideboard = 1) AS side_ct
                 FROM decks d
                 WHERE d.event_id = ?
                 ORDER BY d.placement ASC
