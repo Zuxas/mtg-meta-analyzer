@@ -407,7 +407,8 @@ class SearchTab(QWidget):
             try:
                 sql = f"""
                     SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
-                           e.name AS event_name, e.date,
+                           e.id AS event_id, e.name AS event_name, e.date,
+                           e.url AS event_url,
                            ({_DATE_KEY}) AS sort_date
                     FROM decks d
                     JOIN events e ON e.id = d.event_id
@@ -462,7 +463,15 @@ class SearchTab(QWidget):
                 elif place_val <= 8:
                     place_item.setForeground(QColor("#65bcd5"))
                 self._deck_table.setItem(r, 2, place_item)
-                self._deck_table.setItem(r, 3, QTableWidgetItem(row["event_name"] or ""))
+                ev_item = QTableWidgetItem(row["event_name"] or "")
+                ev_item.setForeground(QColor(theme.ACCENT))
+                ev_item.setToolTip("Click to see all decks from this event")
+                ev_item.setData(Qt.ItemDataRole.UserRole, {
+                    "event_id": row.get("event_id"),
+                    "event_name": row.get("event_name", ""),
+                    "event_url": row.get("event_url", ""),
+                })
+                self._deck_table.setItem(r, 3, ev_item)
                 raw_date = row["date"] or ""
                 self._deck_table.setItem(r, 4, _DateItem(raw_date, _date_sort_key(raw_date)))
 
@@ -480,6 +489,24 @@ class SearchTab(QWidget):
 
     def _on_deck_row_click(self, item):
         row = self._deck_table.currentRow()
+        col = self._deck_table.currentColumn()
+
+        # Event column click → show all decks from that event
+        if col == 3:
+            ev_item = self._deck_table.item(row, 3)
+            if ev_item:
+                ev_data = ev_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(ev_data, dict) and ev_data.get("event_id"):
+                    from gui.widgets.event_peers import EventPeersDialog
+                    dlg = EventPeersDialog(
+                        event_id=ev_data["event_id"],
+                        event_name=ev_data.get("event_name", ""),
+                        event_url=ev_data.get("event_url", ""),
+                        parent=self,
+                    )
+                    dlg.exec()
+                    return
+
         arch_item = self._deck_table.item(row, 0)
         if not arch_item:
             return

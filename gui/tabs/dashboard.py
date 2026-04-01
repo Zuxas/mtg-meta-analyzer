@@ -111,7 +111,7 @@ def _load_panel_data(format_name: str, since_dt, top: int,
         )
         q = """
             SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
-                   e.name AS event_name, e.date
+                   e.id AS event_id, e.name AS event_name, e.date, e.url AS event_url
             FROM decks d JOIN events e ON e.id = d.event_id
             WHERE lower(e.format) = lower(?) AND d.placement <= 4
         """
@@ -729,13 +729,36 @@ class DashboardTab(QWidget):
                 return
 
     def _on_recent_dblclick(self, item):
-        arch_item = self._recent_tbl.item(self._recent_tbl.currentRow(), 2)
+        row = self._recent_tbl.currentRow()
+        col = self._recent_tbl.currentColumn()
+
+        # Event column click → show all decks from that event
+        if col == 4:
+            ev_item = self._recent_tbl.item(row, 4)
+            if ev_item:
+                ev_data = ev_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(ev_data, dict) and ev_data.get("event_id"):
+                    self._open_event_peers(ev_data)
+                    return
+
+        # Archetype click → show deck detail
+        arch_item = self._recent_tbl.item(row, 2)
         if arch_item:
             raw = arch_item.data(Qt.ItemDataRole.UserRole)
             if isinstance(raw, dict):
                 self._open_detail(raw["archetype"], deck_id=raw.get("deck_id"))
             else:
                 self._open_detail(raw or arch_item.text())
+
+    def _open_event_peers(self, ev_data: dict):
+        from gui.widgets.event_peers import EventPeersDialog
+        dlg = EventPeersDialog(
+            event_id=ev_data["event_id"],
+            event_name=ev_data.get("event_name", ""),
+            event_url=ev_data.get("event_url", ""),
+            parent=self,
+        )
+        dlg.exec()
 
     def _open_detail(self, archetype: str, deck_id: int = None):
         from gui.widgets.archetype_detail import ArchetypeDetailDialog
@@ -1023,7 +1046,16 @@ class DashboardTab(QWidget):
             player = r.get("player", "") or ""
             _set_cell(tbl, ri, 3, player)
             event = r.get("event_name", "") or ""
-            _set_cell(tbl, ri, 4, event[:28])
+            ev_item = QTableWidgetItem(event[:28])
+            ev_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            ev_item.setForeground(QColor(theme.ACCENT))
+            ev_item.setToolTip(f"Click to see all decks from this event\n{event}")
+            ev_item.setData(Qt.ItemDataRole.UserRole, {
+                "event_id": r.get("event_id"),
+                "event_name": event,
+                "event_url": r.get("event_url", ""),
+            })
+            tbl.setItem(ri, 4, ev_item)
 
             raw_date = r.get("date", "") or ""
             date_item = _SortItem(_fmt_date(raw_date))
