@@ -24,11 +24,14 @@ class EventPeersDialog(QDialog):
         self._event_url = event_url
         self._decks = []
 
+        self._format = ""
         self.setWindowTitle(f"Event: {event_name}" if event_name else "Event Decks")
         self.resize(700, 500)
         self.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
         self._build_ui()
-        self._load_decks()
+        # Load in background to avoid blocking UI on large events
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(50, self._load_decks)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -58,15 +61,14 @@ class EventPeersDialog(QDialog):
         layout.addWidget(self._info_lbl)
 
         # Table
-        self._table = QTableWidget(0, 5)
+        self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(
-            ["Place", "Archetype", "Player", "Main", "Side"]
+            ["Place", "Archetype", "Player"]
         )
         hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        for col in (0, 3, 4):
-            hh.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -74,14 +76,6 @@ class EventPeersDialog(QDialog):
         self._table.verticalHeader().setVisible(False)
         self._table.setAlternatingRowColors(True)
         self._table.itemDoubleClicked.connect(self._on_row_click)
-
-        # Card tooltip on archetype column
-        try:
-            from gui.widgets.card_tooltip import install_card_tooltip
-            install_card_tooltip(self._table, card_name_column=1)
-        except Exception:
-            pass
-
         layout.addWidget(self._table, 1)
 
         # Close button
@@ -94,25 +88,30 @@ class EventPeersDialog(QDialog):
         layout.addLayout(btn_row)
 
     def _load_decks(self):
-        from db.database import get_connection
-        conn = get_connection()
         try:
-            rows = conn.execute("""
-                SELECT d.id, d.archetype, d.player, d.placement,
-                       d.url,
-                       (SELECT SUM(dc.quantity) FROM deck_cards dc
-                        WHERE dc.deck_id = d.id AND dc.is_sideboard = 0) AS main_ct,
-                       (SELECT SUM(dc.quantity) FROM deck_cards dc
-                        WHERE dc.deck_id = d.id AND dc.is_sideboard = 1) AS side_ct
-                FROM decks d
-                WHERE d.event_id = ?
-                ORDER BY d.placement ASC
-            """, [self._event_id]).fetchall()
-        finally:
-            conn.close()
+            from db.database import get_connection
+            conn = get_connection()
+            try:
+                # Get event format
+                ev_row = conn.execute(
+                    "SELECT format FROM events WHERE id = ?", [self._event_id]
+                ).fetchone()
+                self._format = ev_row[0] if ev_row else ""
 
-        self._decks = [dict(r) for r in rows]
-        self._populate(self._decks)
+                # Simpler query without card count subqueries for speed
+                rows = conn.execute("""
+                    SELECT d.id, d.archetype, d.player, d.placement, d.url
+                    FROM decks d
+                    WHERE d.event_id = ?
+                    ORDER BY d.placement ASC
+                """, [self._event_id]).fetchall()
+            finally:
+                conn.close()
+
+            self._decks = [dict(r) for r in rows]
+            self._populate(self._decks)
+        except Exception as e:
+            self._info_lbl.setText(f"Error loading decks: {e}")
 
     def _populate(self, decks: list):
         self._table.setSortingEnabled(False)
@@ -139,25 +138,13 @@ class EventPeersDialog(QDialog):
             player = d.get("player", "") or ""
             self._table.setItem(ri, 2, QTableWidgetItem(player))
 
-            main_ct = d.get("main_ct") or 0
-            main_item = QTableWidgetItem()
-            main_item.setData(Qt.ItemDataRole.DisplayRole, int(main_ct))
-            main_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(ri, 3, main_item)
-
-            side_ct = d.get("side_ct") or 0
-            side_item = QTableWidgetItem()
-            side_item.setData(Qt.ItemDataRole.DisplayRole, int(side_ct))
-            side_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(ri, 4, side_item)
-
         self._table.setSortingEnabled(True)
 
-        # Info label
         n = len(decks)
         archetypes = len({d.get("archetype", "") for d in decks if d.get("archetype")})
+        fmt_label = f" ({self._format})" if self._format else ""
         self._info_lbl.setText(
-            f"{n} decks from {archetypes} archetypes"
+            f"{n} decks from {archetypes} archetypes{fmt_label}"
         )
 
     def _on_row_click(self, item):
@@ -168,13 +155,15 @@ class EventPeersDialog(QDialog):
         d = arch_item.data(Qt.ItemDataRole.UserRole)
         if not d:
             return
-        # Open archetype detail for this specific deck
-        from gui.widgets.archetype_detail import ArchetypeDetailDialog
-        dlg = ArchetypeDetailDialog(
-            archetype=d.get("archetype", ""),
-            format_name="",  # will detect from event
-            initial_weeks=None,
-            parent=self,
-            deck_id=d.get("id"),
-        )
-        dlg.exec()
+        try:
+            from gui.widgets.archetype_detail import ArchetypeDetailDialog
+            dlg = ArchetypeDetailDialog(
+                archetype=d.get("archetype", ""),
+                format_name=getattr(self, "_format", "") or "standard",
+                initial_weeks=None,
+                parent=self,
+                deck_id=d.get("id"),
+            )
+            dlg.exec()
+        except Exception:
+            pass
