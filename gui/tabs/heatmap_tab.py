@@ -105,9 +105,10 @@ class _CombinedWorker(QThread):
     done  = pyqtSignal(str, dict, dict)  # (format_name, combined_matrix, source_map)
     error = pyqtSignal(str)
 
-    def __init__(self, format_name: str):
+    def __init__(self, format_name: str, since=None):
         super().__init__()
         self.format_name = format_name
+        self.since = since
 
     def run(self):
         try:
@@ -118,7 +119,8 @@ class _CombinedWorker(QThread):
             from analysis.win_rates import get_real_matchup_winrates
             _MIN_MATCHES = {"pioneer": 10, "modern": 5}
             min_m = _MIN_MATCHES.get(self.format_name, 20)
-            real_raw = get_real_matchup_winrates(self.format_name, min_matches=min_m)
+            real_raw = get_real_matchup_winrates(
+                self.format_name, since=self.since, min_matches=min_m)
 
             # Convert canonical (a<b) to full bidirectional matrix
             # Normalize archetype names so they match meta standings
@@ -329,6 +331,20 @@ class HeatmapTab(QWidget):
         self._fmt.currentIndexChanged.connect(lambda _: self._load_combined())
         tl.addWidget(self._fmt)
 
+        tl.addWidget(QLabel("Timeframe:"))
+        self._tf = QComboBox()
+        self._TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
+        for label, _ in self._TIMEFRAME_OPTIONS:
+            self._tf.addItem(label)
+        # Default to "8 weeks"
+        for i, (label, _) in enumerate(self._TIMEFRAME_OPTIONS):
+            if label == "8 weeks":
+                self._tf.setCurrentIndex(i)
+                break
+        self._tf.setFixedWidth(100)
+        self._tf.currentIndexChanged.connect(lambda _: self._load_combined())
+        tl.addWidget(self._tf)
+
         self._combined_btn = QPushButton("Real Match Data (DB)")
         self._combined_btn.setStyleSheet(theme.btn_primary())
         self._combined_btn.setToolTip(
@@ -367,6 +383,16 @@ class HeatmapTab(QWidget):
         )
         self._paste_btn.clicked.connect(self._open_paste_dialog)
         tl.addWidget(self._paste_btn)
+
+        self._eq_btn = QPushButton("Equilibrium")
+        self._eq_btn.setStyleSheet(theme.btn_secondary())
+        self._eq_btn.setToolTip(
+            "Nash Equilibrium + RPS Cycles\n"
+            "Shows optimal meta shares vs actual, and detects\n"
+            "Rock-Paper-Scissors cycles in the matchup data."
+        )
+        self._eq_btn.clicked.connect(self._show_equilibrium)
+        tl.addWidget(self._eq_btn)
 
         tl.addStretch()
 
@@ -446,13 +472,21 @@ class HeatmapTab(QWidget):
     # Worker lifecycle — safe start / cancel
     # ------------------------------------------------------------------
 
+    def _since_dt(self):
+        """Return a datetime for the selected timeframe, or None for All Time."""
+        from datetime import datetime, timedelta
+        weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
+        return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
+
     def _set_busy(self, busy: bool):
         self._combined_btn.setEnabled(not busy)
         self._fetch_btn.setEnabled(not busy)
         self._cache_btn.setEnabled(not busy)
         self._gauntlet_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
+        self._eq_btn.setEnabled(not busy)
         self._fmt.setEnabled(not busy)
+        self._tf.setEnabled(not busy)
 
     def cleanup(self):
         """Stop running worker. Called by MainWindow on app exit."""
@@ -510,11 +544,13 @@ class HeatmapTab(QWidget):
     def _load_combined(self):
         """Default action: real match data + scraped fills gaps."""
         fmt = self._fmt.currentText()
+        since = self._since_dt()
         self._prepare_load("combined")
         gen = self._load_gen
-        self._status.setText(f"Loading real match data + cached scrapes for {fmt}\u2026")
+        tf_label = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+        self._status.setText(f"Loading {fmt} match data ({tf_label})\u2026")
 
-        worker = _CombinedWorker(fmt)
+        worker = _CombinedWorker(fmt, since=since)
         worker.done.connect(
             lambda f, m, s: self._on_combined_data(f, m, s, gen))
         self._wire_worker(worker)
@@ -549,6 +585,7 @@ class HeatmapTab(QWidget):
     def _load_gauntlet(self):
         """Build a live gauntlet: top 12 meta decks with real matchup data."""
         fmt = self._fmt.currentText()
+        since = self._since_dt()
         self._prepare_load("gauntlet")
         gen = self._load_gen
         self._status.setText(f"Building {fmt} gauntlet from top 12 meta decks\u2026")
@@ -558,7 +595,7 @@ class HeatmapTab(QWidget):
             from analysis.archetypes import normalize as norm_arch
 
             # Get top 12 by appearances
-            standings = get_meta_standings(fmt, top=12)
+            standings = get_meta_standings(fmt, top=12, since=since)
             if not standings:
                 return None, {}
 
@@ -566,7 +603,7 @@ class HeatmapTab(QWidget):
 
             # Get real matchup data
             _MIN = {"pioneer": 10, "modern": 5}.get(fmt, 20)
-            real_raw = get_real_matchup_winrates(fmt, min_matches=_MIN)
+            real_raw = get_real_matchup_winrates(fmt, since=since, min_matches=_MIN)
 
             # Build bidirectional matrix for just these 12 decks
             matrix = {}
@@ -927,3 +964,171 @@ class HeatmapTab(QWidget):
 
         self._status.setVisible(False)
         self._grid_container.setVisible(True)
+
+    # ------------------------------------------------------------------
+    # Meta Equilibrium dialog
+    # ------------------------------------------------------------------
+
+    def _show_equilibrium(self):
+        """Open a dialog showing Nash equilibrium and RPS cycles."""
+        fmt = self._fmt.currentText()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Meta Equilibrium \u2014 {fmt.capitalize()}")
+        dlg.setMinimumSize(750, 550)
+        dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+
+        layout = QVBoxLayout(dlg)
+
+        status = QLabel("Computing equilibrium\u2026")
+        status.setStyleSheet(f"color: {theme.TEXT_DIM};")
+        layout.addWidget(status)
+
+        # Run analysis in this thread (it's fast — cached data, numpy math)
+        try:
+            from analysis.equilibrium import analyze_metagame
+            result = analyze_metagame(fmt, since=self._since_dt(), top=15, method="nash")
+        except Exception as e:
+            status.setText(f"Error: {e}")
+            dlg.exec()
+            return
+
+        eq = result.get("equilibrium")
+        cycles = result.get("cycles", [])
+
+        if not eq or not eq.archetypes:
+            status.setText(
+                f"Not enough matchup data for {fmt}. "
+                f"Load the heatmap first with \u2018Real Match Data (DB)\u2019."
+            )
+            dlg.exec()
+            return
+
+        status.setText(
+            f"Nash equilibrium for {fmt.upper()} \u2014 "
+            f"{len(eq.archetypes)} archetypes analyzed"
+            + ("" if eq.converged else " (did not fully converge)")
+        )
+
+        # ── Equilibrium table ────────────────────────────────────────
+        layout.addWidget(QLabel("Optimal vs Actual Meta Shares:"))
+
+        tbl = QTableWidget()
+        tbl.setColumnCount(5)
+        tbl.setHorizontalHeaderLabels(
+            ["Archetype", "Current", "Optimal", "Delta", "Status"])
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for c in range(1, 5):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+
+        # Sort by absolute delta (biggest mismatch first)
+        sorted_archs = sorted(
+            eq.archetypes,
+            key=lambda a: -abs(eq.deltas[a])
+        )
+        tbl.setRowCount(len(sorted_archs))
+
+        for ri, a in enumerate(sorted_archs):
+            cur = eq.current_shares[a] * 100
+            opt = eq.optimal_shares[a] * 100
+            d = eq.deltas[a] * 100
+            st = eq.statuses[a]
+
+            tbl.setItem(ri, 0, QTableWidgetItem(a))
+
+            cur_item = QTableWidgetItem(f"{cur:.1f}%")
+            cur_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 1, cur_item)
+
+            opt_item = QTableWidgetItem(f"{opt:.1f}%")
+            opt_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if opt > 0.5:
+                opt_item.setForeground(QColor(theme.OK))
+            tbl.setItem(ri, 2, opt_item)
+
+            sign = "+" if d > 0 else ""
+            d_item = QTableWidgetItem(f"{sign}{d:.1f}%")
+            d_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            d_clr = (QColor(theme.OK) if d > 2 else
+                     QColor(theme.ERR) if d < -2 else
+                     QColor(theme.TEXT_DIM))
+            d_item.setForeground(d_clr)
+            tbl.setItem(ri, 3, d_item)
+
+            st_item = QTableWidgetItem(st)
+            st_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            st_clr = {"Underplayed": QColor("#f0c040"),
+                       "Overplayed": QColor(theme.ERR),
+                       "Balanced": QColor(theme.TEXT_DIM)}.get(st, QColor(theme.TEXT))
+            st_item.setForeground(st_clr)
+            f = st_item.font(); f.setBold(True); st_item.setFont(f)
+            tbl.setItem(ri, 4, st_item)
+
+        layout.addWidget(tbl, 1)
+
+        # ── RPS Cycles ───────────────────────────────────────────────
+        if cycles:
+            layout.addWidget(QLabel(
+                f"Rock-Paper-Scissors Cycles ({len(cycles)} found):"
+            ))
+
+            cycle_tbl = QTableWidget()
+            cycle_tbl.setColumnCount(4)
+            cycle_tbl.setHorizontalHeaderLabels(
+                ["A beats B", "B beats C", "C beats A", "Strength"])
+            ch = cycle_tbl.horizontalHeader()
+            for c in range(4):
+                ch.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch)
+            cycle_tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            cycle_tbl.setRowCount(min(len(cycles), 10))
+
+            for ri, cyc in enumerate(cycles[:10]):
+                a, b, cc = cyc.archetypes
+                w1, w2, w3 = cyc.win_rates
+
+                tbl_items = [
+                    f"{a} > {b} ({w1*100:.0f}%)",
+                    f"{b} > {cc} ({w2*100:.0f}%)",
+                    f"{cc} > {a} ({w3*100:.0f}%)",
+                    f"{cyc.strength*100:.1f}%",
+                ]
+                for ci, text in enumerate(tbl_items):
+                    item = QTableWidgetItem(text)
+                    if ci == 3:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                        strength_clr = (QColor(theme.ERR) if cyc.strength > 0.58 else
+                                        QColor(theme.WARN) if cyc.strength > 0.55 else
+                                        QColor(theme.TEXT_DIM))
+                        item.setForeground(strength_clr)
+                    cycle_tbl.setItem(ri, ci, item)
+
+            layout.addWidget(cycle_tbl)
+        else:
+            layout.addWidget(QLabel(
+                "No Rock-Paper-Scissors cycles detected (need WR \u226553% on all edges)."
+            ))
+
+        # ── Interpretation ───────────────────────────────────────────
+        underplayed = [a for a in eq.archetypes if eq.statuses[a] == "Underplayed"
+                       and eq.optimal_shares[a] > 0.01]
+        overplayed = [a for a in eq.archetypes if eq.statuses[a] == "Overplayed"
+                      and eq.current_shares[a] > 0.03]
+        if underplayed or overplayed:
+            tip_parts = []
+            if underplayed:
+                names = ", ".join(underplayed[:3])
+                tip_parts.append(f"Underplayed (exploit opportunity): {names}")
+            if overplayed:
+                names = ", ".join(overplayed[:3])
+                tip_parts.append(f"Overplayed (bring a counter): {names}")
+            tip = QLabel("\n".join(tip_parts))
+            tip.setWordWrap(True)
+            tip.setStyleSheet(
+                f"color: {theme.ACCENT}; font-size: 11px; padding: 6px; "
+                f"background: {theme.PANEL}; border-radius: 4px;"
+            )
+            layout.addWidget(tip)
+
+        dlg.exec()

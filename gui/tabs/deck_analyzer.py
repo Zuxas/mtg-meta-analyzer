@@ -537,6 +537,12 @@ class DeckAnalyzerTab(QWidget):
         self._overall_lbl.setWordWrap(True)
         rv.addWidget(self._overall_lbl)
 
+        # Deck similarity section
+        self._sim_lbl = QLabel("")
+        self._sim_lbl.setWordWrap(True)
+        self._sim_lbl.setStyleSheet(f"color: {theme.TEXT}; font-size: 10px;")
+        rv.addWidget(self._sim_lbl)
+
         # Divider
         div2 = QFrame()
         div2.setFrameShape(QFrame.Shape.HLine)
@@ -911,12 +917,15 @@ class DeckAnalyzerTab(QWidget):
         self._worker.finished.connect(lambda: self._analyze_btn.setEnabled(True))
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker.finished.connect(lambda: setattr(self, "_worker", None))
+        self._worker.finished.connect(lambda: self._run_deck_similarity(main, fmt))
+        self._worker.finished.connect(lambda: self._run_auto_classify(main, fmt))
         self._worker.start()
 
     def _clear_results(self):
         self._blunder_table.setRowCount(0)
         self._score_lbl.setText("\u2014")
         self._overall_lbl.setText("")
+        self._sim_lbl.setText("")
         for lbl, bar, score_lbl in self._chapin_bars.values():
             bar.setValue(0)
             score_lbl.setText("\u2014")
@@ -976,6 +985,72 @@ class DeckAnalyzerTab(QWidget):
     def _on_error(self, msg):
         self._status.setText(f"Error: {msg}")
         self._analyze_btn.setEnabled(True)
+
+    # ------------------------------------------------------------------
+    # Deck similarity (card embeddings)
+    # ------------------------------------------------------------------
+
+    def _run_deck_similarity(self, card_list: dict, format_name: str):
+        """Find which meta archetypes the pasted deck is most similar to."""
+        try:
+            from analysis.card_embeddings import is_available, find_closest_archetype
+            if not is_available():
+                self._sim_lbl.setText("")
+                return
+
+            from gui.worker_threads import DataLoadWorker
+            def _do():
+                return find_closest_archetype(card_list, format_name, top_n=5)
+
+            w = DataLoadWorker(_do)
+            def _done(results):
+                if not results:
+                    self._sim_lbl.setText("")
+                    return
+                lines = ["Deck Similarity (vs meta archetypes):"]
+                for r in results:
+                    pct = r["similarity"] * 100
+                    lines.append(f"  {r['archetype']:30s} {pct:.0f}%")
+                self._sim_lbl.setText("\n".join(lines))
+            w.result.connect(_done)
+            w.error.connect(lambda _: self._sim_lbl.setText(""))
+            w.finished.connect(w.deleteLater)
+            w.start()
+            # Keep reference to prevent GC
+            self._sim_worker = w
+        except Exception:
+            self._sim_lbl.setText("")
+
+    # ------------------------------------------------------------------
+    # Auto-classify archetype (KNN)
+    # ------------------------------------------------------------------
+
+    def _run_auto_classify(self, card_list: dict, format_name: str):
+        """Auto-detect archetype and fill the label if empty."""
+        if self._arch.text().strip():
+            return  # user already provided a label
+
+        try:
+            from analysis.knn_classifier import hybrid_classify
+            from gui.worker_threads import DataLoadWorker
+
+            def _do():
+                return hybrid_classify(card_list, format_name, min_confidence=0.5)
+
+            w = DataLoadWorker(_do)
+            def _done(result):
+                if result and not self._arch.text().strip():
+                    self._arch.setText(result)
+                    self._arch.setStyleSheet(
+                        f"color: {theme.ACCENT}; font-style: italic;"
+                    )
+            w.result.connect(_done)
+            w.error.connect(lambda _: None)
+            w.finished.connect(w.deleteLater)
+            w.start()
+            self._classify_worker = w
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Legality checker

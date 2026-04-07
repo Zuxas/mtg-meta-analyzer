@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-03-27
+> Last updated: 2026-04-06
 
 ---
 
@@ -106,7 +106,39 @@
 
 ---
 
-## 8. ADVANCED FEATURES (Phase 4)
+## 8. ADVANCED ANALYTICS (Phase 4 — Active Sprint 2026-04-06)
+
+### Meta Scoring & Prep Priority
+- [x] `analysis/meta_scoring.py` — prep_priority (0-100), classify_status (Pillar/Trap/Underplayed/Fringe) (2026-04-06)
+- [x] Dashboard Win Rate panel: Prep + Status columns (2026-04-06)
+
+### Glicko-2 Power Ratings
+- [x] `analysis/ratings.py` — pure Python Glicko-2, weekly rating periods, 262k+ matches (2026-04-06)
+- [x] Dashboard Win Rate panel: Rating column with confidence interval tooltip (2026-04-06)
+
+### Nash Equilibrium & Evolutionary Game Theory
+- [x] `analysis/equilibrium.py` — replicator dynamics, Nash LP solver, RPS cycle detection, Monte Carlo sim (2026-04-06)
+- [x] Heatmap tab: "Equilibrium" button → dialog with Optimal vs Actual shares + RPS cycle table (2026-04-06)
+
+### Card Embeddings & Similarity
+- [x] `analysis/card_embeddings.py` — ModernBERT 768-dim embeddings, 32k cards from HuggingFace (2026-04-06)
+- [x] `analysis/cooccurrence_embeddings.py` — Card2Vec trained on 33k+ local decklists (2026-04-06)
+- [x] Card Browser: "Similar Cards" (text) + "Functional Substitutes" (usage) in card detail (2026-04-06)
+- [x] Deck Analyzer: "Deck Similarity" section comparing vs meta archetypes (2026-04-06)
+
+### ML Archetype Classification
+- [x] `analysis/knn_classifier.py` — KNN on 768-dim deck embeddings, hybrid_classify() (2026-04-06)
+- [x] Deck Analyzer: auto-detect archetype when label is empty (cyan italic) (2026-04-06)
+- [x] Models trained: Standard (116 archetypes), Modern (115 archetypes) (2026-04-06)
+
+### Dashboard Enhancements
+- [x] Popular panel: Change column (% delta vs prior period) replacing sparklines (2026-04-06)
+- [x] Win Rate panel: Change column (WR% delta vs prior period) (2026-04-06)
+- [x] Removed dead _make_sparkline() code (2026-04-06)
+
+---
+
+## 9. PREVIOUSLY COMPLETED FEATURES
 
 ### Match Logging (personal results)
 - [x] Basic match logging — opponent deck, W/L/D, play/draw, game-by-game, notes (2026-03-29)

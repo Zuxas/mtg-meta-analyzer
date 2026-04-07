@@ -412,6 +412,51 @@ class _MetaUsageWorker(QThread):
             self.error.emit(str(e))
 
 
+class _SimilarCardsWorker(QThread):
+    """Find cards with similar text/mechanics via embeddings."""
+    results = pyqtSignal(list)  # list of {"name": str, "similarity": float}
+
+    def __init__(self, card_name: str, fmt: str = None):
+        super().__init__()
+        self._name = card_name
+        self._fmt = fmt
+
+    def run(self):
+        try:
+            from analysis.card_embeddings import find_similar_cards, is_available
+            if not is_available():
+                self.results.emit([])
+                return
+            similar = find_similar_cards(self._name, top_n=8,
+                                          format_filter=self._fmt)
+            self.results.emit(similar)
+        except Exception:
+            self.results.emit([])
+
+
+class _SubstitutesWorker(QThread):
+    """Find functional substitutes via Card2Vec co-occurrence embeddings."""
+    results = pyqtSignal(list)
+
+    def __init__(self, card_name: str, fmt: str = None):
+        super().__init__()
+        self._name = card_name
+        self._fmt = fmt
+
+    def run(self):
+        try:
+            from analysis.cooccurrence_embeddings import (
+                find_functional_substitutes, is_trained
+            )
+            if not is_trained(self._fmt):
+                self.results.emit([])
+                return
+            subs = find_functional_substitutes(self._name, self._fmt, top_n=8)
+            self.results.emit(subs)
+        except Exception:
+            self.results.emit([])
+
+
 # ---------------------------------------------------------------------------
 # Color/rarity helpers
 # ---------------------------------------------------------------------------
@@ -811,6 +856,22 @@ class CardBrowserTab(QWidget):
         usage_worker.start()
         self._workers.append(usage_worker)
 
+        # Fetch similar cards (embeddings)
+        sim_worker = _SimilarCardsWorker(name, fmt)
+        sim_worker.results.connect(
+            lambda rows, _name=name: self._on_similar_cards(rows, _name))
+        sim_worker.finished.connect(sim_worker.deleteLater)
+        sim_worker.start()
+        self._workers.append(sim_worker)
+
+        # Fetch functional substitutes (Card2Vec)
+        sub_worker = _SubstitutesWorker(name, fmt)
+        sub_worker.results.connect(
+            lambda rows, _name=name: self._on_substitutes(rows, _name))
+        sub_worker.finished.connect(sub_worker.deleteLater)
+        sub_worker.start()
+        self._workers.append(sub_worker)
+
     def _build_detail_html(self, card: dict) -> str:
         name = card.get("name", "")
         mana = card.get("mana_cost", "")
@@ -875,6 +936,15 @@ class CardBrowserTab(QWidget):
         parts.append(f"<div id='meta-usage'><i style='color:{theme.TEXT_DIM};'>"
                       "Loading meta usage...</i></div>")
 
+        # Similar cards placeholder
+        parts.append("<hr style='border-color:#555;'>")
+        parts.append(f"<div id='similar-cards'><i style='color:{theme.TEXT_DIM};'>"
+                      "Loading similar cards...</i></div>")
+
+        # Functional substitutes placeholder
+        parts.append(f"<div id='substitutes'><i style='color:{theme.TEXT_DIM};'>"
+                      "Loading functional substitutes...</i></div>")
+
         return "".join(parts)
 
     def _on_meta_usage(self, rows: list, card_name: str):
@@ -910,6 +980,69 @@ class CardBrowserTab(QWidget):
             "Loading meta usage...",
             usage_html
         )
+        self._detail_info.setHtml(html)
+
+
+    def _on_similar_cards(self, similar: list, card_name: str):
+        """Append similar cards data to the detail panel."""
+        current_row = self._table.currentRow()
+        if current_row >= 0:
+            item = self._table.item(current_row, 0)
+            if item and item.text() != card_name:
+                return
+
+        html = self._detail_info.toHtml()
+        if similar:
+            sim_html = f"<b>Similar Cards (by text/mechanics):</b><br>"
+            sim_html += ("<table cellpadding='2' style='font-size:11px;'>"
+                         "<tr><th align='left'>Card</th>"
+                         "<th>Similarity</th></tr>")
+            for s in similar:
+                pct = s["similarity"] * 100
+                color = (theme.OK if pct >= 85 else
+                         theme.ACCENT if pct >= 75 else
+                         theme.TEXT_DIM)
+                sim_html += (f"<tr><td>{_esc(s['name'])}</td>"
+                             f"<td align='center' style='color:{color};'>"
+                             f"{pct:.0f}%</td></tr>")
+            sim_html += "</table>"
+        else:
+            sim_html = (f"<i style='color:{theme.TEXT_DIM};'>"
+                        "No embedding data available. Download card embeddings "
+                        "in Settings.</i>")
+
+        html = html.replace("Loading similar cards...", sim_html)
+        self._detail_info.setHtml(html)
+
+    def _on_substitutes(self, subs: list, card_name: str):
+        """Append functional substitutes to the detail panel."""
+        current_row = self._table.currentRow()
+        if current_row >= 0:
+            item = self._table.item(current_row, 0)
+            if item and item.text() != card_name:
+                return
+
+        html = self._detail_info.toHtml()
+        if subs:
+            sub_html = f"<b>Functional Substitutes (by deck usage):</b><br>"
+            sub_html += ("<table cellpadding='2' style='font-size:11px;'>"
+                         "<tr><th align='left'>Card</th>"
+                         "<th>Match</th></tr>")
+            for s in subs:
+                pct = s["similarity"] * 100
+                color = (theme.OK if pct >= 70 else
+                         theme.ACCENT if pct >= 50 else
+                         theme.TEXT_DIM)
+                sub_html += (f"<tr><td>{_esc(s['name'])}</td>"
+                             f"<td align='center' style='color:{color};'>"
+                             f"{pct:.0f}%</td></tr>")
+            sub_html += "</table>"
+        else:
+            sub_html = (f"<i style='color:{theme.TEXT_DIM};'>"
+                        "No Card2Vec model trained yet. "
+                        "Train in Settings.</i>")
+
+        html = html.replace("Loading functional substitutes...", sub_html)
         self._detail_info.setHtml(html)
 
 

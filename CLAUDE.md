@@ -232,6 +232,16 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Mana color pips**: `theme.make_pip_widget()` uses `QPainter.drawEllipse()` with antialiasing — guaranteed true circles regardless of Qt stylesheet limitations
   - **Trend color-coding**: Win Rate and Popular panel rows tinted dark green (rising) / dark red (falling) vs the prior equivalent period
   - **Meta tier badges**: Win Rate panel has a "Tier" column — S (gold, >55% WR + >8% share), A (green, >52% WR or >5% share), B (cyan, top N rest), C (red, declining trend)
+  - **Change columns**: Both Win Rate and Popular panels show % change vs prior equivalent period (green/red/dim). "NEW" entries get tooltip with apps + share.
+  - **Prep Priority** (`analysis/meta_scoring.py`): Win Rate panel "Prep" column (0-100) blends meta share (60%) + win rate (40%). Red ≥70, orange ≥40, dim below.
+  - **Meta Status**: Win Rate panel "Status" column — Pillar (green, high share + high WR), Trap (red, popular but loses), Underplayed (gold, low share + high WR), Fringe (grey).
+  - **Glicko-2 Ratings** (`analysis/ratings.py`): Win Rate panel "Rating" column. Pure Python Glicko-2 implementation processing 262k+ real matches in weekly rating periods. Tooltip shows 95% confidence interval + match count. Green ≥1600, orange ≥1500, red below; dimmed if high deviation (>100). 120s TTL cache.
+  - **Win Rate panel columns (L→R)**: Pips | Archetype | Win% | Change | Rating | Prep | Status | Tier
+  - **Nash Equilibrium** (`analysis/equilibrium.py`): Heatmap tab "Equilibrium" button opens dialog showing optimal vs actual meta shares, Overplayed/Underplayed/Balanced status per archetype, RPS cycle detection (A>B>C>A with WR≥53%), Monte Carlo tournament simulation. Uses scipy linprog for Nash LP, replicator dynamics as fallback. 120s TTL cache.
+  - **Card Embeddings** (`analysis/card_embeddings.py`): 768-dim ModernBERT vectors for 32k cards from HuggingFace parquet. Card Browser shows "Similar Cards" section. Deck Analyzer shows "Deck Similarity" vs meta archetypes. File: `data/mtg_embeddings.parquet` (~90 MB, gitignored).
+  - **Card2Vec** (`analysis/cooccurrence_embeddings.py`): Word2Vec trained on local decklists. Card Browser shows "Functional Substitutes" section. Models: `data/models/card2vec_{format}.model` (gitignored).
+  - **KNN Classifier** (`analysis/knn_classifier.py`): Deck Analyzer auto-fills archetype label (cyan italic) using KNN on deck embeddings. hybrid_classify() tries signature cards first, falls back to KNN. Models: `data/models/knn_{format}.pkl` (gitignored).
+  - **Heatmap Timeframe Selector**: Matchup Data tab has a Timeframe dropdown (same TIMEFRAME_OPTIONS as Dashboard). Filters real match data, gauntlet, and equilibrium analysis by date. Default: 8 weeks. Prevents stale pre-ban/rotation data from polluting matchup analysis.
   - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer + My Decks → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
   - **My Decks tab** (`gui/tabs/my_decks.py`): split-panel CRUD for saved decks
     - Left panel: format-filtered deck list with Add/Edit/Delete buttons
@@ -379,7 +389,15 @@ analysis/blunders.py            Deck scoring & blunder detection (weighted sever
 analysis/chapin.py              Chapin Principles Evaluation (6 principles, 0-10 scored)
 analysis/tournament.py          Event equity, standing analysis, ID recommendation, EVENT_PRESETS, x_loss_cutoff, day2_conversion_probability
 analysis/sideboard_guides.py    Guide parsing, post-board WR model, flip detection
+analysis/meta_scoring.py        Prep priority (0-100) + trap deck detection (Pillar/Trap/Underplayed/Fringe)
+analysis/ratings.py             Glicko-2 archetype power ratings (pure Python, weekly rating periods)
+analysis/equilibrium.py         Nash equilibrium, replicator dynamics, RPS cycle detection, Monte Carlo sim
+analysis/card_embeddings.py     ModernBERT 768-dim card embeddings — similarity search, deck vectors
+analysis/cooccurrence_embeddings.py  Card2Vec — Word2Vec trained on decklists for functional substitutes
+analysis/knn_classifier.py      KNN archetype classifier — deck embedding → archetype prediction
 analysis/query.py               CLI query interface (all subcommands)
+
+scripts/download_embeddings.py  Download card embeddings parquet from HuggingFace (~90 MB)
 
 gui/theme.py                    Single source of truth: colors, fonts, stylesheets, TIMEFRAME_OPTIONS
 gui/fonts/Orbitron.ttf          Bundled heading font (personal website match)
@@ -654,4 +672,4 @@ Installed via: `npx skills@latest add mattpocock/skills/<name> -a claude-code -y
 **These steps are NON-NEGOTIABLE. See the rules section at the top of this file.**
 
 ---
-*Last documentation update: 2026-03-27 — User Preferences System fully wired; setup_wizard page 0 added; fill_database.py and background_fill.bat now driven by preferences.json via scripts/run_fill_from_prefs.py*
+*Last documentation update: 2026-04-06 — Advanced Analytics sprint ALL 6 PHASES COMPLETE. New modules: meta_scoring.py, ratings.py, equilibrium.py, card_embeddings.py, cooccurrence_embeddings.py, knn_classifier.py. Dashboard Win Rate panel: 8 columns (Pips/Archetype/Win%/Change/Rating/Prep/Status/Tier). Popular panel: Change column replaces sparklines. Heatmap tab: Equilibrium button. Card Browser: Similar Cards + Functional Substitutes. Deck Analyzer: Deck Similarity + auto-classify archetype. New deps: scipy, pyarrow, gensim, scikit-learn.*

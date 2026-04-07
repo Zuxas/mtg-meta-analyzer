@@ -124,9 +124,17 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     finally:
         conn.close()
 
+    # Glicko-2 archetype power ratings
+    ratings_map: dict = {}
+    try:
+        from analysis.ratings import get_ratings_map
+        ratings_map = get_ratings_map(format_name, since=since_dt, min_matches=10)
+    except Exception:
+        pass
+
     return {"standings": standings, "prior_standings": prior_standings,
             "recent": recent, "real_wrs": real_wrs,
-            "raw_standings": raw_standings}
+            "raw_standings": raw_standings, "ratings": ratings_map}
 
 
 # ---------------------------------------------------------------------------
@@ -324,8 +332,26 @@ class DashboardTab(QWidget):
 
         self._recent_tbl  = self._build_recent_panel(top_layout)
         self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
-            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Record", "Tier"])
+            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Change", "Rating", "Prep", "Status", "Tier"])
         self._winrate_tbl.horizontalHeaderItem(4).setToolTip(
+            "Glicko-2 Power Rating\n"
+            "Skill estimate from real match results.\n"
+            "1500 = average · Higher = stronger · ±N = uncertainty"
+        )
+        self._winrate_tbl.horizontalHeaderItem(5).setToolTip(
+            "Prep Priority (0-100)\n"
+            "How important it is to have a plan vs this deck.\n"
+            "Blends meta share (60%) + win rate (40%)."
+        )
+        self._winrate_tbl.horizontalHeaderItem(6).setToolTip(
+            "Meta Status\n"
+            "──────────────\n"
+            "Pillar       (green)  High share + high win rate — the decks to beat\n"
+            "Trap         (red)    Popular but losing — avoid or exploit\n"
+            "Underplayed  (gold)   Low share + high win rate — sleeper pick\n"
+            "Fringe       (grey)   Low share, middling win rate"
+        )
+        self._winrate_tbl.horizontalHeaderItem(7).setToolTip(
             "Tier badge key\n"
             "──────────────\n"
             "S  (gold)   Win% >55% AND meta share >8%\n"
@@ -336,7 +362,7 @@ class DashboardTab(QWidget):
             "   (no star = estimated from placement tier)"
         )
         self._pop_tbl, self._pop_hdr = self._build_ranked_panel(
-            top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%", "Trend"])
+            top_layout, "POPULAR THIS WEEK", ["", "Archetype", "Apps", "Meta%", "Change"])
         self._vsplit.addWidget(top_widget)
 
         # -- Bottom: chart + checkbox sidebar --------------------------
@@ -669,8 +695,14 @@ class DashboardTab(QWidget):
         self._winrate_hdr.setText(f"  WIN RATE — {tf_label.upper()}")
         self._pop_hdr.setText(f"  POPULAR — {tf_label.upper()}")
 
+        # Enrich standings with prep priority + status labels
+        from analysis.meta_scoring import score_standings
+        real_wrs = data.get("real_wrs", {})
+        score_standings(self._standings, real_wrs)
+
         prior_map = {s["archetype"]: s for s in data.get("prior_standings", [])}
-        self._populate_winrate(self._standings, prior_map, data.get("real_wrs", {}))
+        self._populate_winrate(self._standings, prior_map, real_wrs,
+                               data.get("ratings", {}))
         self._populate_popularity(self._standings, prior_map)
         self._populate_recent(data["recent"])
 
@@ -856,7 +888,7 @@ class DashboardTab(QWidget):
         return None
 
     def _populate_winrate(self, standings: list, prior_map: dict = None,
-                          real_wrs: dict = None):
+                          real_wrs: dict = None, ratings: dict = None):
         tbl = self._winrate_tbl
         tbl.setSortingEnabled(False)
         top_n = int(self._top_n.currentText())
@@ -918,25 +950,94 @@ class DashboardTab(QWidget):
                 pct_item.setBackground(bg)
             tbl.setItem(ri, 2, pct_item)
 
-            # Tier badge
+            # Win rate % change vs prior period
             meta_share  = s["appearances"] / total_apps
             prior_apps  = (prior_map[s["archetype"]].get("appearances", 0)
                            if prior_map and s["archetype"] in prior_map else 0)
             prior_share = prior_apps / prior_total if prior_map else meta_share
             is_declining = prior_map is not None and (meta_share - prior_share) < -0.005
-            # Record column (W-L-D from real match data)
-            real = (real_wrs or {}).get(s["archetype"])
-            if real:
-                rec_text = f"{real['wins']}-{real['losses']}-{real['draws']}"
+
+            if prior_map and s["archetype"] in prior_map:
+                prior_wr = prior_map[s["archetype"]].get("est_match_winpct")
+                if prior_wr is not None:
+                    wr_delta = (pct) - (prior_wr * 100)
+                    wr_sign = "+" if wr_delta > 0 else ""
+                    wr_chg_text = f"{wr_sign}{wr_delta:.1f}%"
+                    wr_chg_clr = (QColor(theme.OK) if wr_delta > 1.0 else
+                                  QColor(theme.ERR) if wr_delta < -1.0 else
+                                  QColor(theme.TEXT_DIM))
+                else:
+                    wr_delta = 0
+                    wr_chg_text = "\u2014"
+                    wr_chg_clr = QColor(theme.TEXT_DIM)
             else:
-                rec_text = "\u2014"
-            rec_item = QTableWidgetItem(rec_text)
-            rec_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
-            rec_item.setForeground(QColor(theme.TEXT_DIM))
-            f = rec_item.font(); f.setPointSize(9); rec_item.setFont(f)
+                wr_delta = 0
+                wr_chg_text = "NEW"
+                wr_chg_clr = QColor(theme.ACCENT)
+            wr_chg_item = _SortItem(wr_chg_text)
+            wr_chg_item.setData(_SORT_ROLE, wr_delta)
+            wr_chg_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            wr_chg_item.setForeground(wr_chg_clr)
+            wr_chg_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             if bg:
-                rec_item.setBackground(bg)
-            tbl.setItem(ri, 3, rec_item)
+                wr_chg_item.setBackground(bg)
+            tbl.setItem(ri, 3, wr_chg_item)
+
+            # Glicko-2 rating column
+            r = (ratings or {}).get(s["archetype"])
+            if r:
+                rat_text = f"{r.rating:.0f}"
+                rat_tip = (f"Glicko-2: {r.display}\n"
+                           f"95% CI: {r.confidence_interval[0]:.0f} – "
+                           f"{r.confidence_interval[1]:.0f}\n"
+                           f"Based on {r.matches} matches")
+                rat_val = r.rating
+                rat_clr = (QColor(theme.OK) if r.rating >= 1600 else
+                           QColor(theme.WARN) if r.rating >= 1500 else
+                           QColor(theme.ERR))
+                # Dim if high uncertainty
+                if r.deviation > 100:
+                    rat_clr = rat_clr.darker(130)
+            else:
+                rat_text = "\u2014"
+                rat_tip = "No real match data for rating"
+                rat_val = 0
+                rat_clr = QColor(theme.TEXT_DIM)
+            rat_item = _SortItem(rat_text)
+            rat_item.setData(_SORT_ROLE, rat_val)
+            rat_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            rat_item.setForeground(rat_clr)
+            rat_item.setToolTip(rat_tip)
+            rat_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            if bg:
+                rat_item.setBackground(bg)
+            tbl.setItem(ri, 4, rat_item)
+
+            # Prep priority column (0-100)
+            pp = s.get("prep_priority", 0)
+            pp_item = _SortItem(str(int(pp)))
+            pp_item.setData(_SORT_ROLE, pp)
+            pp_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            pp_clr = (QColor(theme.ERR) if pp >= 70 else
+                      QColor(theme.WARN) if pp >= 40 else
+                      QColor(theme.TEXT_DIM))
+            pp_item.setForeground(pp_clr)
+            pp_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            if bg:
+                pp_item.setBackground(bg)
+            tbl.setItem(ri, 5, pp_item)
+
+            # Status column (Pillar / Trap / Underplayed / Fringe)
+            status = s.get("status", "")
+            status_color = s.get("status_color", theme.TEXT_DIM)
+            st_item = QTableWidgetItem(status)
+            st_item.setForeground(QColor(status_color))
+            st_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            st_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            f = st_item.font(); f.setBold(True); st_item.setFont(f)
+            if bg:
+                st_item.setBackground(bg)
+            tbl.setItem(ri, 6, st_item)
 
             tier, tier_color = self._tier_badge(s["est_match_winpct"], meta_share, is_declining)
             tier_item = QTableWidgetItem(tier)
@@ -946,7 +1047,7 @@ class DashboardTab(QWidget):
             f = tier_item.font(); f.setBold(True); tier_item.setFont(f)
             if bg:
                 tier_item.setBackground(bg)
-            tbl.setItem(ri, 4, tier_item)
+            tbl.setItem(ri, 7, tier_item)
 
         tbl.resizeRowsToContents()
         tbl.setSortingEnabled(True)
@@ -1000,19 +1101,29 @@ class DashboardTab(QWidget):
                 pct_item.setBackground(bg)
             tbl.setItem(ri, 3, pct_item)
 
-            # Sparkline: 4-week trend from chart data if available
-            chart = getattr(self, "_chart_data", None)
-            if chart and chart.get("meta_data", {}).get(s["archetype"]):
-                weeks_sorted = sorted(chart["all_weeks"])
-                vals = [chart["meta_data"][s["archetype"]].get(w, 0) for w in weeks_sorted]
-                # Use last 4 data points
-                vals = vals[-4:] if len(vals) >= 4 else vals
-                if len(vals) >= 2:
-                    pix = _make_sparkline(vals)
-                    lbl = QLabel()
-                    lbl.setPixmap(pix)
-                    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    tbl.setCellWidget(ri, 4, lbl)
+            # % change in meta share vs prior period
+            if prior_map and s["archetype"] in prior_map:
+                delta_pct = (cur_share - prior_share) * 100
+                sign = "+" if delta_pct > 0 else ""
+                chg_text = f"{sign}{delta_pct:.1f}%"
+                chg_clr = (QColor(theme.OK) if delta_pct > 0.5 else
+                           QColor(theme.ERR) if delta_pct < -0.5 else
+                           QColor(theme.TEXT_DIM))
+            else:
+                chg_text = "NEW"
+                chg_clr = QColor(theme.ACCENT)
+                delta_pct = 0
+                new_tip = f"New in this period: {s['appearances']} apps, {cur_share*100:.1f}% meta share"
+            chg_item = _SortItem(chg_text)
+            chg_item.setData(_SORT_ROLE, delta_pct)
+            chg_item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+            chg_item.setForeground(chg_clr)
+            chg_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            if chg_text == "NEW":
+                chg_item.setToolTip(new_tip)
+            if bg:
+                chg_item.setBackground(bg)
+            tbl.setItem(ri, 4, chg_item)
 
         tbl.resizeRowsToContents()
         tbl.setSortingEnabled(True)
@@ -1274,42 +1385,6 @@ class DashboardTab(QWidget):
         layout.addWidget(tbl)
         dlg.exec()
 
-
-def _make_sparkline(values: list[float], width: int = 64, height: int = 24) -> "QPixmap":
-    """Draw a tiny trend line as a QPixmap. values = list of floats (e.g. meta shares)."""
-    from PyQt6.QtGui import QPixmap, QPainter, QPen, QPainterPath
-    pix = QPixmap(width, height)
-    pix.fill(QColor(0, 0, 0, 0))  # transparent
-    if not values or len(values) < 2:
-        return pix
-    p = QPainter(pix)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    mn, mx = min(values), max(values)
-    rng = mx - mn if mx != mn else 1.0
-    pad = 3
-    w = width - pad * 2
-    h = height - pad * 2
-    # Determine trend color: bright green if rising, bright red if falling, grey if flat
-    delta = values[-1] - values[0]
-    if delta > 0.002:
-        color = QColor("#00ff88")
-    elif delta < -0.002:
-        color = QColor("#ff4444")
-    else:
-        color = QColor(theme.TEXT_DIM)
-    pen = QPen(color, 2.0)
-    p.setPen(pen)
-    path = QPainterPath()
-    for i, v in enumerate(values):
-        x = pad + (i / (len(values) - 1)) * w
-        y = pad + h - ((v - mn) / rng) * h
-        if i == 0:
-            path.moveTo(x, y)
-        else:
-            path.lineTo(x, y)
-    p.drawPath(path)
-    p.end()
-    return pix
 
 
 def _shorten_arch(name: str, max_len: int = 22) -> str:

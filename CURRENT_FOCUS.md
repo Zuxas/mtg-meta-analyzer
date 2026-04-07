@@ -2,14 +2,14 @@
 
 > Tracks which system is actively being developed.
 > Update this at the start of each session.
-> Last updated: 2026-03-27
+> Last updated: 2026-04-06
 
 ---
 
-## Current Status: APP STABLE — NO ACTIVE DEVELOPMENT SPRINT
+## Current Status: ACTIVE SPRINT — Advanced Analytics Integration
 
-The MTG Meta Analyzer is feature-complete for the current scope.
-All major systems are built and working. Daily scrapers are running.
+Integrating external algorithms and data sources from the MTG GitHub ecosystem
+into the existing app. Six-phase plan, building in dependency order.
 
 ---
 
@@ -27,7 +27,20 @@ All major systems are built and working. Daily scrapers are running.
 
 ---
 
-## Only remaining item
+## Advanced Analytics Sprint: ALL 6 PHASES COMPLETE
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| 1 | Prep Priority + Trap Detection | DONE — `analysis/meta_scoring.py`, Dashboard Prep/Status columns |
+| 2 | Glicko-2 Power Ratings | DONE — `analysis/ratings.py`, Dashboard Rating column with tooltips |
+| 3 | Nash Equilibrium + RPS Cycles | DONE — `analysis/equilibrium.py`, Heatmap Equilibrium button/dialog |
+| 4 | Card Text Embeddings | DONE — `analysis/card_embeddings.py`, Card Browser "Similar Cards" |
+| 5 | Co-occurrence Embeddings (Card2Vec) | DONE — `analysis/cooccurrence_embeddings.py`, Card Browser "Functional Substitutes" |
+| 6 | KNN Archetype Classifier | DONE — `analysis/knn_classifier.py`, Deck Analyzer auto-detect archetype |
+
+---
+
+## Also deferred
 
 **PyInstaller .exe packaging** — intentionally deferred until app stabilizes further.
 Do NOT start this until explicitly requested.

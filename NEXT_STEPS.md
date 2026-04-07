@@ -1,56 +1,109 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-03-30
+Last updated: 2026-04-06
 
 ---
 
-## TOP PRIORITIES — Next Session
+## TOP PRIORITIES — Active Sprint: Advanced Analytics Integration
 
-### 1. New Set Break Protocol (DONE)
-- [x] SET ANALYSIS tab — paste spoilers → Claude classifies competitive impact
-- [x] Card buckets: Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade
-- [x] Impact by Archetype + Top 10 Most Likely to Matter output
-- [x] Meta context injection (top 10 archetypes from local DB)
-- [x] API-key-gated (same as Ask Claude)
-- [x] Mythic Spoiler scraper: fetch set card list by code, enrich from Scryfall bulk
-- [x] Format legality awareness: known set table, legality warnings, format-specific prompts
-- [x] Set code dropdown with 20 known sets, manual paste fallback
+### Phase 1. Prep Priority + Trap Detection (DONE)
+- [x] `analysis/meta_scoring.py` — prep_priority() score 0-100, classify_status() labels
+- [x] Statuses: Pillar (green), Trap (red), Underplayed (gold), Fringe (grey)
+- [x] Dashboard Win Rate panel: Prep column (0-100, color-coded) + Status column
+- [x] Scoring blends meta share (60%) + win rate (40%)
 
-### 2. Team Collaboration (MEDIUM — RC prep workflow)
-- [x] Export/import SB plans + decklist as JSON (Share JSON / Import JSON buttons in My Decks)
-- [ ] Export/import gauntlet results
-- [ ] Team notes field on matchup heatmap cells
-- File-based, no server
+### Phase 2. Glicko-2 Power Ratings (DONE)
+- [x] `analysis/ratings.py` — pure Python Glicko-2 implementation (no external deps)
+- [x] Processes 262k+ real matches grouped into weekly rating periods
+- [x] RatingResult: rating (µ), deviation (φ), volatility (σ), confidence interval
+- [x] Dashboard Win Rate panel: Rating column with tooltip (CI, match count)
+- [x] Color-coded: green ≥1600, orange ≥1500, red below avg; dimmed if high uncertainty
+- [x] 120s TTL cache for performance
 
-### 3. Match Logging Enhancements (MEDIUM — long-term data)
-- Compare personal WR vs meta expected WR
-- Track by event type (RCQ/Open/RC)
-- Personal trend analysis over time
+### Phase 3. Nash Equilibrium + RPS Cycles (DONE)
+- [x] `analysis/equilibrium.py` — replicator dynamics, Nash LP solver, RPS cycle detection
+- [x] Monte Carlo tournament simulation (simulate_tournament)
+- [x] Heatmap tab: "Equilibrium" button → dialog with Optimal vs Actual + RPS cycles
+- [x] Installed scipy 1.17.1
 
-### 4. Card Browser (DONE)
-- [x] CARD BROWSER tab — full Scryfall-style local card database
-- [x] Scryfall query syntax: t: o: c: ci: cmc f: r: is: k: pow tou s:
-- [x] Dropdown filters: format, color, type, rarity, CMC
-- [x] "Cards in Meta only" toggle
-- [x] Card detail panel: image, oracle text, legalities, meta usage
-- [x] Hover card tooltips via existing CardTooltip widget
+### Phase 4. Card Text Embeddings (DONE)
+- [x] `analysis/card_embeddings.py` — 768-dim ModernBERT embeddings (32k cards)
+- [x] `scripts/download_embeddings.py` — HuggingFace parquet download (90 MB)
+- [x] Card Browser: "Similar Cards" section in card detail panel
+- [x] Deck Analyzer: "Deck Similarity" section (vs meta archetypes)
+- [x] Installed pyarrow 23.0.1
 
-### 5. Quick-Glance Summary Bars (DONE)
-- [x] Reusable SummaryBar widget (gui/widgets/summary_bar.py)
-- [x] Dashboard: format, total appearances, top deck + share%, real data count
-- [x] Match Log: total matches, W-L-D record, win rate, best matchup
-- [x] My Decks: deck count, formats in use
-- [x] Matchup Data: archetype count, matchup cells, real match data count
+### Phase 5. Co-occurrence Embeddings / Card2Vec (DONE)
+- [x] `analysis/cooccurrence_embeddings.py` — Word2Vec trained on 33k+ decklists
+- [x] Card Browser: "Functional Substitutes" section in card detail panel
+- [x] Models trained: Standard (33k decks), Modern (9k decks)
+- [x] Installed gensim 4.4.0
 
-### 6. Hypergeometric Encounter Probability (DONE)
-- [x] encounter_probability() + encounter_summary() in analysis/tournament.py
-- [x] "Encounter %" column in Event Optimizer matchup table
-- [x] Tooltip shows full distribution: P(0x), P(1x), P(2x)... with bar chart
-- [x] Color-coded: red if high encounter + unfavored, green if high + favored
+### Phase 6. KNN Archetype Classifier (DONE)
+- [x] `analysis/knn_classifier.py` — KNN on deck embeddings, hybrid_classify()
+- [x] Deck Analyzer: auto-detect archetype (fills label in cyan italic)
+- [x] Models trained: Standard (116 archetypes), Modern (115 archetypes)
+- [x] Installed scikit-learn 1.8.0
 
-### 7. Remaining Polish
-- Standard archetype config: 5,391 still unclassified (need more definitions)
+---
+
+### Dashboard Improvements (DONE — this session)
+- [x] Popular panel: "Change" column replacing sparklines (% change vs prior period)
+- [x] Win Rate panel: "Change" column (WR% delta vs prior period)
+- [x] "NEW" entries get tooltip with apps count + meta share
+- [x] Removed dead `_make_sparkline()` function
+
+### Heatmap Improvements (DONE — this session)
+- [x] Timeframe selector on Matchup Data tab (filters real match data by date)
+- [x] Default 8 weeks — prevents stale pre-ban/rotation data
+
+### Lower Priority (unchanged)
+- Consolidate .bat scripts into single launcher
+- Team Collaboration: gauntlet export/import, team notes on heatmap
+- Match Logging Enhancements: personal WR vs meta, event type tracking, trends
+- Settings buttons for "Download Embeddings" / "Train Card2Vec" (currently CLI-only)
+- Monte Carlo simulation surfaced in Equilibrium dialog
+- Standard archetype config: 5,391 still unclassified
 - PyInstaller .exe packaging
+
+---
+
+## Session 2026-04-06 — Advanced Analytics Integration (all 6 phases)
+
+### New files created
+1. `analysis/meta_scoring.py` — prep priority (0-100) + trap detection (Pillar/Trap/Underplayed/Fringe)
+2. `analysis/ratings.py` — pure Python Glicko-2 implementation, weekly rating periods, 262k+ matches
+3. `analysis/equilibrium.py` — Nash equilibrium (LP), replicator dynamics, RPS cycle detection, Monte Carlo sim
+4. `analysis/card_embeddings.py` — 768-dim ModernBERT embeddings, similarity search, deck vectors
+5. `analysis/cooccurrence_embeddings.py` — Card2Vec Word2Vec trained on local decklists
+6. `analysis/knn_classifier.py` — KNN archetype classifier with hybrid_classify() fallback
+7. `scripts/download_embeddings.py` — HuggingFace parquet downloader (90 MB)
+8. `docs/AI_DEVELOPMENT_PROCESS.md` — process log for sharing with other devs
+
+### Dashboard changes
+- Win Rate panel: 8 columns (Pips/Archetype/Win%/Change/Rating/Prep/Status/Tier)
+- Popular panel: Change column replacing sparklines
+- Removed dead _make_sparkline() code
+
+### Matchup Data changes
+- Equilibrium button → Nash optimal vs actual shares, RPS cycles dialog
+- Timeframe selector (1w to All Time, default 8w)
+
+### Card Browser changes
+- "Similar Cards" section (text-based embeddings)
+- "Functional Substitutes" section (Card2Vec co-occurrence)
+
+### Deck Analyzer changes
+- "Deck Similarity" section (vs meta archetypes)
+- Auto-detect archetype via KNN (cyan italic label)
+
+### New dependencies
+- scipy 1.17.1, pyarrow 23.0.1, gensim 4.4.0, scikit-learn 1.8.0
+
+### Models trained
+- Card2Vec: Standard (33k decks), Modern (9k decks)
+- KNN: Standard (116 archetypes), Modern (115 archetypes)
+- Embeddings: 32k cards downloaded from HuggingFace
 
 ---
 
