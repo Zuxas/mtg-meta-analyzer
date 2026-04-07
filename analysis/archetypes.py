@@ -5,7 +5,7 @@ MTGTop8 uses inconsistent naming: "UR Prowess", "Izzet Prowess", "Jeskai Prowess
 "Blue-Red Aggro" etc. may all refer to the same deck. This module maps raw scraper
 names to canonical names so analysis is consistent across events and time.
 
-Three layers:
+Four layers:
   1. Format pre-normalizer: fixes spacing/hyphen/case differences so
      "Mono-Green Landfall", "MonoGreen Landfall", "monogreen landfall"
      all reduce to the same string before alias lookup.
@@ -13,6 +13,9 @@ Three layers:
   3. Fuzzy match fallback: uses thefuzz against the canonical name list
      (configurable threshold). Off by default for scraping; opt-in for
      analysis queries.
+  4. KNN embedding classifier: uses deck card list → 768-dim embedding →
+     K-Nearest Neighbors against known tournament decklists. Opt-in via
+     card_list parameter. Requires card embeddings + trained KNN model.
 
 Card-similarity detection (find_card_based_duplicates):
   Scans the DB for archetype pairs that share both a similar name AND
@@ -580,7 +583,8 @@ def register_alias(raw_name, canonical_name):
     _CANONICAL_NAMES.add(canonical_name)
 
 
-def normalize(raw_name, fuzzy=False, fuzzy_threshold=85):
+def normalize(raw_name, fuzzy=False, fuzzy_threshold=85,
+              card_list=None, format_name=None, knn_confidence=0.6):
     """
     Return the canonical archetype name for raw_name.
 
@@ -590,28 +594,35 @@ def normalize(raw_name, fuzzy=False, fuzzy_threshold=85):
       3. Check the ALIASES table (case-insensitive exact match).
       4. If fuzzy=True, try fuzzy matching against canonical names
          (only if score >= fuzzy_threshold).
-      5. Otherwise return the pre-normalized name.
+      5. If card_list is provided, try KNN embedding classifier (Layer 4).
+      6. Otherwise return the pre-normalized name.
 
     fuzzy=False by default — fuzzy matching is only for analysis queries
     where you want to resolve user input, not for the scraper (where
     false positives would silently corrupt data).
+
+    card_list : dict {card_name: quantity} — enables KNN Layer 4 fallback.
+                Only used when Layers 1-3 all fail to resolve. Requires
+                card embeddings to be downloaded and KNN model to be trained.
+    format_name : str — required for KNN (e.g. "modern", "standard").
+    knn_confidence : float — minimum KNN prediction confidence (0-1).
     """
     if not raw_name:
         return raw_name
 
     stripped = pre_normalize(raw_name.strip())
 
-    # Already canonical
+    # Layer 1+2: Already canonical or pre-normalizer resolved it
     if stripped in _CANONICAL_NAMES:
         return stripped
 
-    # Exact alias match (case-insensitive)
+    # Layer 3a: Exact alias match (case-insensitive)
     key = stripped.lower()
     if key in ALIASES:
         mapped = ALIASES[key]
         return mapped if mapped else stripped  # empty alias = keep original (junk label)
 
-    # Fuzzy match (opt-in)
+    # Layer 3b: Fuzzy match (opt-in)
     if fuzzy and _CANONICAL_NAMES:
         result = fuzz_process.extractOne(
             stripped,
@@ -620,6 +631,18 @@ def normalize(raw_name, fuzzy=False, fuzzy_threshold=85):
         )
         if result:
             return result[0]
+
+    # Layer 4: KNN embedding classifier (opt-in, requires card_list)
+    if card_list and format_name:
+        try:
+            from analysis.knn_classifier import classify_deck
+            knn_result = classify_deck(card_list, format_name)
+            if knn_result:
+                predicted, confidence = knn_result
+                if confidence >= knn_confidence:
+                    return predicted
+        except Exception:
+            pass  # KNN unavailable or not trained — silent fallback
 
     return stripped
 
@@ -702,6 +725,140 @@ def apply_normalization(dry_run=False, fuzzy=False, fuzzy_threshold=85):
         "skipped": skipped,
         "total": len(rows),
         "changes": changes,
+    }
+
+
+def classify_unknown_decks(format_name: str = None, dry_run: bool = True,
+                           min_confidence: float = 0.6, limit: int = 500):
+    """
+    Layer 4 batch: find decks with unrecognized archetype names and
+    reclassify them via KNN on card embeddings.
+
+    Only targets decks whose archetype is NOT in the canonical name set
+    and was not resolved by Layers 1-3. Requires trained KNN model and
+    downloaded card embeddings.
+
+    Args:
+        format_name:    restrict to one format (None = all)
+        dry_run:        print proposed changes without modifying DB
+        min_confidence: minimum KNN confidence to apply (0-1)
+        limit:          max decks to process per run
+
+    Returns:
+        dict with 'classified', 'skipped', 'total' keys.
+    """
+    from analysis.card_embeddings import is_available
+    if not is_available():
+        print("  Card embeddings not downloaded. Run: python -m scripts.download_embeddings")
+        return {"classified": 0, "skipped": 0, "total": 0}
+
+    from analysis.knn_classifier import classify_deck
+    from db.database import get_connection
+
+    # Find decks with unrecognized archetypes
+    build_canonical_list()
+    conn = get_connection()
+    try:
+        q = """
+            SELECT d.id, d.archetype, c.name AS card_name, dc.quantity,
+                   e.format
+            FROM decks d
+            JOIN deck_cards dc ON dc.deck_id = d.id
+            JOIN cards c ON c.id = dc.card_id
+            JOIN events e ON e.id = d.event_id
+            WHERE d.archetype IS NOT NULL AND d.archetype != ''
+              AND dc.is_sideboard = 0
+        """
+        params = []
+        if format_name:
+            q += " AND lower(e.format) = lower(?)"
+            params.append(format_name)
+        q += " ORDER BY d.id LIMIT ?"
+        params.append(limit * 60)  # ~60 cards per deck
+
+        rows = conn.execute(q, params).fetchall()
+    finally:
+        conn.close()
+
+    # Group into decklists, filter to unrecognized archetypes
+    from collections import defaultdict
+    deck_cards: dict[int, dict] = defaultdict(dict)
+    deck_info: dict[int, dict] = {}
+    for r in rows:
+        did = r["id"]
+        deck_cards[did][r["card_name"]] = r["quantity"]
+        if did not in deck_info:
+            arch = r["archetype"]
+            # Skip if already canonical
+            if arch in _CANONICAL_NAMES or pre_normalize(arch) in _CANONICAL_NAMES:
+                continue
+            # Skip if alias resolves it
+            if arch.lower() in ALIASES:
+                continue
+            deck_info[did] = {"archetype": arch, "format": r["format"]}
+
+    # Classify unrecognized decks
+    changes = []
+    skipped = 0
+    seen_archs: dict[str, str] = {}  # cache: old_name → new_name
+
+    for did, info in list(deck_info.items())[:limit]:
+        old_arch = info["archetype"]
+        fmt = info["format"]
+
+        # Cache: if we already classified this archetype name, reuse
+        if old_arch in seen_archs:
+            if seen_archs[old_arch]:
+                changes.append((did, old_arch, seen_archs[old_arch]))
+            else:
+                skipped += 1
+            continue
+
+        cards = deck_cards.get(did, {})
+        if not cards:
+            skipped += 1
+            seen_archs[old_arch] = None
+            continue
+
+        result = classify_deck(cards, fmt)
+        if result:
+            predicted, confidence = result
+            if confidence >= min_confidence and predicted != old_arch:
+                changes.append((did, old_arch, predicted))
+                seen_archs[old_arch] = predicted
+                continue
+
+        skipped += 1
+        seen_archs[old_arch] = None
+
+    if not changes:
+        print("  No reclassifications found.")
+        return {"classified": 0, "skipped": skipped, "total": len(deck_info)}
+
+    # Deduplicate: group by old archetype name
+    arch_changes: dict[str, str] = {}
+    for _, old, new in changes:
+        arch_changes[old] = new
+
+    print(f"\n  {'DRY RUN — ' if dry_run else ''}KNN Reclassification: "
+          f"{len(arch_changes)} archetype names to remap\n")
+    for old, new in sorted(arch_changes.items()):
+        count = sum(1 for _, o, _ in changes if o == old)
+        print(f"  {old!r:<40} -> {new!r}  ({count} decks)")
+
+    if not dry_run:
+        with get_connection() as conn:
+            for old, new in arch_changes.items():
+                conn.execute(
+                    "UPDATE decks SET archetype=? WHERE archetype=?",
+                    (new, old)
+                )
+        print(f"\n  Applied {len(arch_changes)} reclassifications.")
+
+    return {
+        "classified": len(arch_changes),
+        "skipped": skipped,
+        "total": len(deck_info),
     }
 
 

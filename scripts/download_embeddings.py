@@ -1,50 +1,57 @@
 """
-Download pre-computed MTG card embeddings from HuggingFace.
+scripts/download_embeddings.py
 
-Source: minimaxir/mtg-embeddings (ModernBERT 768-dim, 32k cards)
-Saves to: data/mtg_embeddings.parquet (~94 MB)
+Downloads pre-computed ModernBERT card embeddings from HuggingFace.
+Source: minimaxir/mtg-embeddings (parquet file, ~150MB)
+
+Usage:
+    python -m scripts.download_embeddings
 """
 
 import os
 import sys
+import urllib.request
 
-_URL = (
-    "https://huggingface.co/api/datasets/minimaxir/mtg-embeddings"
-    "/parquet/cards/train/0.parquet"
+PARQUET_URL = (
+    "https://huggingface.co/datasets/minimaxir/mtg-embeddings"
+    "/resolve/main/mtg_embeddings.parquet"
 )
-_DEST = os.path.join(os.path.dirname(__file__), "..", "data", "mtg_embeddings.parquet")
+OUT_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "data", "mtg_embeddings.parquet"
+)
 
 
-def download(dest: str = _DEST, force: bool = False) -> str:
-    """Download the embeddings parquet file. Returns the file path."""
-    dest = os.path.abspath(dest)
-    if os.path.exists(dest) and not force:
-        size_mb = os.path.getsize(dest) / (1024 * 1024)
-        print(f"Already exists: {dest} ({size_mb:.1f} MB)")
-        return dest
+def download(progress_cb=None):
+    out = os.path.abspath(OUT_PATH)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
 
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    print(f"Downloading card embeddings (~94 MB)...")
+    if progress_cb:
+        progress_cb("Connecting to HuggingFace…")
 
-    import requests
-    resp = requests.get(_URL, stream=True, timeout=120)
-    resp.raise_for_status()
+    def _reporthook(block_num, block_size, total_size):
+        if total_size <= 0:
+            return
+        downloaded = block_num * block_size
+        pct = min(100, downloaded * 100 // total_size)
+        mb_done = downloaded / 1_048_576
+        mb_total = total_size / 1_048_576
+        msg = f"Downloading embeddings: {pct}% ({mb_done:.1f} / {mb_total:.1f} MB)"
+        if progress_cb:
+            progress_cb(msg)
+        else:
+            print(f"\r{msg}", end="", flush=True)
 
-    total = int(resp.headers.get("content-length", 0))
-    downloaded = 0
+    urllib.request.urlretrieve(PARQUET_URL, out, reporthook=_reporthook)
 
-    with open(dest, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=1024 * 256):
-            f.write(chunk)
-            downloaded += len(chunk)
-            if total:
-                pct = downloaded / total * 100
-                print(f"\r  {downloaded / 1024 / 1024:.1f} / {total / 1024 / 1024:.1f} MB ({pct:.0f}%)", end="", flush=True)
-
-    print(f"\nSaved to {dest}")
-    return dest
+    if not progress_cb:
+        print()
+    size_mb = os.path.getsize(out) / 1_048_576
+    msg = f"Saved to {out} ({size_mb:.1f} MB)"
+    if progress_cb:
+        progress_cb(msg)
+    else:
+        print(msg)
 
 
 if __name__ == "__main__":
-    force = "--force" in sys.argv
-    download(force=force)
+    download()

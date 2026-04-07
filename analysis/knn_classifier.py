@@ -158,7 +158,7 @@ def classify_deck(
     vec = vec.reshape(1, -1)
 
     # Get prediction and confidence via predict_proba
-    prediction = clf.predict(vec)[0]
+    prediction = str(clf.predict(vec)[0])
     proba = clf.predict_proba(vec)[0]
     confidence = float(proba.max())
 
