@@ -293,6 +293,12 @@ class MatchLogTab(QWidget):
         self._event_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         rv.addWidget(self._event_lbl)
 
+        # Win rate trend chart
+        rv.addWidget(QLabel("Win Rate Trend:"))
+        from gui.widgets.chart_canvas import ChartCanvas
+        self._trend_canvas = ChartCanvas(width=4, height=2)
+        rv.addWidget(self._trend_canvas)
+
         splitter.addWidget(right)
         splitter.setSizes([550, 350])
         outer.addWidget(splitter)
@@ -356,8 +362,13 @@ class MatchLogTab(QWidget):
                 else:
                     event_types["Other"] += 1
 
+            # Win rate trend over time
+            from db.match_log import get_trend_data
+            trend = get_trend_data(my_deck=active_deck, format_name=fmt_arg)
+
             return {"matches": matches, "stats": stats, "overall": overall,
-                    "meta_wrs": meta_wrs, "event_types": dict(event_types)}
+                    "meta_wrs": meta_wrs, "event_types": dict(event_types),
+                    "trend": trend}
 
         w = DataLoadWorker(_do)
         w.result.connect(self._on_data)
@@ -396,6 +407,10 @@ class MatchLogTab(QWidget):
             self._event_lbl.setText("Events: " + " \u2022 ".join(parts))
         else:
             self._event_lbl.setText("")
+
+        # Win rate trend chart
+        trend = data.get("trend", [])
+        self._draw_trend(trend)
 
     def _populate_table(self, matches):
         self._table.setRowCount(len(matches))
@@ -490,6 +505,56 @@ class MatchLogTab(QWidget):
             ct_item = QTableWidgetItem(str(s["total"]))
             ct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._stats_table.setItem(ri, 7, ct_item)
+
+    # ------------------------------------------------------------------
+    # Trend chart
+    # ------------------------------------------------------------------
+
+    def _draw_trend(self, trend: list):
+        """Draw win rate trend on the embedded chart canvas."""
+        fig = self._trend_canvas.figure
+        fig.clear()
+        if len(trend) < 2:
+            ax = fig.add_subplot(111)
+            ax.set_facecolor("#2b2b3d")
+            fig.patch.set_facecolor("#2b2b3d")
+            ax.text(0.5, 0.5, "Need 2+ events to show trend",
+                    ha="center", va="center", color="#888", fontsize=9,
+                    transform=ax.transAxes)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            self._trend_canvas.draw()
+            return
+
+        dates = [t["date"] for t in trend]
+        daily_wr = [t["wr"] * 100 for t in trend]
+        cum_wr = [t["cumulative_wr"] * 100 for t in trend]
+
+        ax = fig.add_subplot(111)
+        fig.patch.set_facecolor("#2b2b3d")
+        ax.set_facecolor("#2b2b3d")
+
+        x = range(len(dates))
+        ax.bar(x, daily_wr, color="#65bcd5", alpha=0.4, label="Event WR")
+        ax.plot(x, cum_wr, color="#3cb44b", linewidth=2, marker="o",
+                markersize=3, label="Cumulative WR")
+        ax.axhline(y=50, color="#888", linestyle="--", linewidth=0.8, alpha=0.5)
+
+        ax.set_xticks(list(x))
+        ax.set_xticklabels([d[5:] for d in dates], rotation=45,
+                           fontsize=7, color="#aaa")
+        ax.set_ylabel("Win %", fontsize=8, color="#aaa")
+        ax.tick_params(axis="y", labelsize=7, colors="#aaa")
+        ax.set_ylim(0, 100)
+        ax.legend(fontsize=7, loc="upper left",
+                  facecolor="#2b2b3d", edgecolor="#555", labelcolor="#ccc")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_color("#555")
+        ax.spines["left"].set_color("#555")
+
+        fig.tight_layout()
+        self._trend_canvas.draw()
 
     # ------------------------------------------------------------------
     # CRUD

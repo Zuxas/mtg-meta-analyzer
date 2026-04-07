@@ -394,6 +394,12 @@ class HeatmapTab(QWidget):
         self._eq_btn.clicked.connect(self._show_equilibrium)
         tl.addWidget(self._eq_btn)
 
+        self._export_btn = QPushButton("Export")
+        self._export_btn.setStyleSheet(theme.btn_secondary())
+        self._export_btn.setToolTip("Export current matchup data as JSON for team sharing")
+        self._export_btn.clicked.connect(self._export_gauntlet)
+        tl.addWidget(self._export_btn)
+
         tl.addStretch()
 
         self._updated_lbl = QLabel("")
@@ -485,6 +491,7 @@ class HeatmapTab(QWidget):
         self._gauntlet_btn.setEnabled(not busy)
         self._paste_btn.setEnabled(not busy)
         self._eq_btn.setEnabled(not busy)
+        self._export_btn.setEnabled(not busy)
         self._fmt.setEnabled(not busy)
         self._tf.setEnabled(not busy)
 
@@ -1248,6 +1255,60 @@ class HeatmapTab(QWidget):
         run_mc_btn.clicked.connect(_run_monte_carlo)
 
         dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Gauntlet export / import
+    # ------------------------------------------------------------------
+
+    def _export_gauntlet(self):
+        """Export current matchup matrix as a shareable JSON file."""
+        import json, os
+        from datetime import datetime
+        from PyQt6.QtWidgets import QFileDialog
+
+        if not self._current_matrix:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Export", "No matchup data loaded. Load data first.")
+            return
+
+        fmt = self._loaded_format or self._fmt.currentText()
+        tf_label = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+
+        export_data = {
+            "type": "mtg_meta_gauntlet",
+            "format": fmt,
+            "timeframe": tf_label,
+            "exported_at": datetime.now().isoformat(),
+            "archetypes": sorted(self._current_matrix.keys()),
+            "matchups": {},
+            "sources": {},
+        }
+
+        for a, opps in self._current_matrix.items():
+            export_data["matchups"][a] = {}
+            for b, stats in opps.items():
+                export_data["matchups"][a][b] = {
+                    "winrate": stats.get("winrate", 0.5),
+                    "matches": stats.get("matches", 0),
+                }
+                src = self._source_map.get((a, b), "unknown")
+                export_data["sources"][f"{a} vs {b}"] = src
+
+        exports_dir = os.path.join(os.path.dirname(__file__), "..", "..", "exports")
+        os.makedirs(exports_dir, exist_ok=True)
+        default_name = f"gauntlet_{fmt}_{datetime.now().strftime('%Y%m%d')}.json"
+        default_path = os.path.join(exports_dir, default_name)
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Gauntlet", default_path,
+            "JSON Files (*.json);;All Files (*)")
+        if not path:
+            return
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+        self._updated_lbl.setText(f"Exported to {os.path.basename(path)}")
 
 
 # ======================================================================

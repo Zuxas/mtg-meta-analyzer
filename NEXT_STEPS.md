@@ -57,13 +57,14 @@ Last updated: 2026-04-06
 - [x] Timeframe selector on Matchup Data tab (filters real match data by date)
 - [x] Default 8 weeks — prevents stale pre-ban/rotation data
 
-### Lower Priority (unchanged)
+### Lower Priority
 - ~~Consolidate .bat scripts into single launcher~~ DONE — `mtg.bat`
-- Team Collaboration: gauntlet export/import, team notes on heatmap
-- Match Logging Enhancements: personal WR vs meta, event type tracking, trends
+- ~~Match Logging Enhancements~~ DONE — personal WR vs meta (was already there), trend chart added
 - ~~Settings buttons for "Download Embeddings" / "Train Card2Vec"~~ DONE
-- Monte Carlo simulation surfaced in Equilibrium dialog
-- Standard archetype config: 5,391 still unclassified
+- ~~Monte Carlo simulation in Equilibrium dialog~~ DONE (was already wired)
+- ~~Batch reclassify unknown archetypes~~ DONE — Standard 2, Pioneer 22, Legacy 24 reclassified
+- ~~Team Collaboration: gauntlet export~~ DONE — Export button on Heatmap tab, import via Paste Data
+- Team notes field on matchup heatmap cells
 - PyInstaller .exe packaging
 
 ---

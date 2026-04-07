@@ -213,3 +213,56 @@ def get_overall_stats(my_deck: str = None, format_name: str = None,
     decisive = totals["wins"] + totals["losses"]
     totals["wr"] = round(totals["wins"] / decisive, 3) if decisive else 0.0
     return totals
+
+
+def get_trend_data(my_deck: str = None, format_name: str = None) -> list[dict]:
+    """Win rate trend grouped by event date.
+
+    Returns list of {"date": str, "wins": int, "losses": int, "draws": int,
+                      "total": int, "wr": float, "cumulative_wr": float}
+    sorted by date ascending.
+    """
+    _ensure_table()
+    q = """
+        SELECT event_date, result, COUNT(*) AS n
+        FROM match_log WHERE event_date IS NOT NULL AND event_date != ''
+    """
+    params = []
+    if my_deck:
+        q += " AND my_deck = ?"
+        params.append(my_deck)
+    if format_name:
+        q += " AND lower(format) = lower(?)"
+        params.append(format_name)
+    q += " GROUP BY event_date, result ORDER BY event_date ASC"
+
+    with get_connection() as conn:
+        rows = conn.execute(q, params).fetchall()
+
+    # Group by date
+    from collections import OrderedDict
+    dates: OrderedDict = OrderedDict()
+    for r in rows:
+        d = r["event_date"][:10]
+        if d not in dates:
+            dates[d] = {"date": d, "wins": 0, "losses": 0, "draws": 0}
+        if r["result"] == "win":
+            dates[d]["wins"] = r["n"]
+        elif r["result"] == "loss":
+            dates[d]["losses"] = r["n"]
+        elif r["result"] == "draw":
+            dates[d]["draws"] = r["n"]
+
+    result = []
+    cum_w, cum_l = 0, 0
+    for d in dates.values():
+        d["total"] = d["wins"] + d["losses"] + d["draws"]
+        decisive = d["wins"] + d["losses"]
+        d["wr"] = round(d["wins"] / decisive, 3) if decisive else 0.0
+        cum_w += d["wins"]
+        cum_l += d["losses"]
+        cum_decisive = cum_w + cum_l
+        d["cumulative_wr"] = round(cum_w / cum_decisive, 3) if cum_decisive else 0.0
+        result.append(d)
+
+    return result
