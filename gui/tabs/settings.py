@@ -144,7 +144,58 @@ class SettingsTab(QWidget):
         store_btns.addWidget(self._backfill_status)
         sv.addLayout(store_btns)
 
-        outer.addWidget(store_box)
+        # ── ML Models ─────────────────────────────────────────────
+        ml_box = QGroupBox("ML Models (Advanced Analytics)")
+        ml_layout = QVBoxLayout(ml_box)
+        ml_layout.setSpacing(6)
+
+        ml_info = QLabel(
+            "Card embeddings power Similar Cards, Functional Substitutes, and "
+            "auto-archetype classification. Download once; models train in minutes."
+        )
+        ml_info.setWordWrap(True)
+        ml_info.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        ml_layout.addWidget(ml_info)
+
+        ml_btns = QHBoxLayout()
+
+        self._dl_embeddings_btn = QPushButton("Download Card Embeddings")
+        self._dl_embeddings_btn.setStyleSheet(theme.btn_primary())
+        self._dl_embeddings_btn.setToolTip(
+            "Download ModernBERT 768-dim card embeddings from HuggingFace (~150 MB)\n"
+            "Required for: Similar Cards, deck similarity, KNN classifier"
+        )
+        self._dl_embeddings_btn.clicked.connect(self._download_embeddings)
+        ml_btns.addWidget(self._dl_embeddings_btn)
+
+        self._train_card2vec_btn = QPushButton("Train Card2Vec")
+        self._train_card2vec_btn.setStyleSheet(theme.btn_secondary())
+        self._train_card2vec_btn.setToolTip(
+            "Train Word2Vec on your local decklists (~2-5 min)\n"
+            "Required for: Functional Substitutes panel"
+        )
+        self._train_card2vec_btn.clicked.connect(self._train_card2vec)
+        ml_btns.addWidget(self._train_card2vec_btn)
+
+        self._train_knn_btn = QPushButton("Train KNN Classifier")
+        self._train_knn_btn.setStyleSheet(theme.btn_secondary())
+        self._train_knn_btn.setToolTip(
+            "Train KNN archetype classifier on your decklists\n"
+            "Required for: auto-classify unrecognized archetypes during scraping"
+        )
+        self._train_knn_btn.clicked.connect(self._train_knn)
+        ml_btns.addWidget(self._train_knn_btn)
+
+        ml_btns.addStretch()
+        ml_layout.addLayout(ml_btns)
+
+        self._ml_status_lbl = QLabel("")
+        self._ml_status_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
+        self._ml_status_lbl.setWordWrap(True)
+        ml_layout.addWidget(self._ml_status_lbl)
+
+        self._refresh_ml_status()
+        outer.addWidget(ml_box)
 
         # ── Archetype Manager ─────────────────────────────────────
         arch_box = QGroupBox("Archetype Manager")
@@ -493,6 +544,89 @@ class SettingsTab(QWidget):
         self._backfill_btn.setEnabled(True)
         self._backfill_status.setText(f"Error: {msg}")
 
+    # ------------------------------------------------------------------
+    # ML Models
+    # ------------------------------------------------------------------
+
+    def _refresh_ml_status(self):
+        try:
+            from analysis.card_embeddings import is_available
+            emb_ok = is_available()
+        except Exception:
+            emb_ok = False
+        try:
+            from analysis.cooccurrence_embeddings import is_trained
+            c2v_ok = is_trained()
+        except Exception:
+            c2v_ok = False
+        parts = [
+            f"Embeddings: {'✓ Ready' if emb_ok else '✗ Not downloaded'}",
+            f"Card2Vec: {'✓ Trained' if c2v_ok else '✗ Not trained'}",
+        ]
+        self._ml_status_lbl.setText("  |  ".join(parts))
+
+    def _download_embeddings(self):
+        self._ml_status_lbl.setText("Downloading…")
+        self._dl_embeddings_btn.setEnabled(False)
+        self._ml_worker = _MLWorker("download", [])
+        self._ml_worker.progress.connect(self._ml_status_lbl.setText)
+        self._ml_worker.finished_ok.connect(lambda m: [
+            self._ml_status_lbl.setText(m),
+            self._dl_embeddings_btn.setEnabled(True),
+            self._refresh_ml_status(),
+        ])
+        self._ml_worker.error.connect(lambda e: [
+            self._ml_status_lbl.setText(f"Error: {e}"),
+            self._dl_embeddings_btn.setEnabled(True),
+        ])
+        self._ml_worker.start()
+
+    def _train_card2vec(self):
+        self._ml_status_lbl.setText("Training Card2Vec…")
+        self._train_card2vec_btn.setEnabled(False)
+        import json, os
+        prefs_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "preferences.json")
+        try:
+            with open(prefs_path) as f:
+                formats = json.load(f).get("formats", ["standard", "modern"])
+        except Exception:
+            formats = ["standard", "modern"]
+        self._ml_worker = _MLWorker("card2vec", formats)
+        self._ml_worker.progress.connect(self._ml_status_lbl.setText)
+        self._ml_worker.finished_ok.connect(lambda m: [
+            self._ml_status_lbl.setText(m),
+            self._train_card2vec_btn.setEnabled(True),
+            self._refresh_ml_status(),
+        ])
+        self._ml_worker.error.connect(lambda e: [
+            self._ml_status_lbl.setText(f"Error: {e}"),
+            self._train_card2vec_btn.setEnabled(True),
+        ])
+        self._ml_worker.start()
+
+    def _train_knn(self):
+        self._ml_status_lbl.setText("Training KNN classifier…")
+        self._train_knn_btn.setEnabled(False)
+        import json, os
+        prefs_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "preferences.json")
+        try:
+            with open(prefs_path) as f:
+                formats = json.load(f).get("formats", ["standard", "modern"])
+        except Exception:
+            formats = ["standard", "modern"]
+        self._ml_worker = _MLWorker("knn", formats)
+        self._ml_worker.progress.connect(self._ml_status_lbl.setText)
+        self._ml_worker.finished_ok.connect(lambda m: [
+            self._ml_status_lbl.setText(m),
+            self._train_knn_btn.setEnabled(True),
+            self._refresh_ml_status(),
+        ])
+        self._ml_worker.error.connect(lambda e: [
+            self._ml_status_lbl.setText(f"Error: {e}"),
+            self._train_knn_btn.setEnabled(True),
+        ])
+        self._ml_worker.start()
+
 
 # ======================================================================
 # Backfill dialog
@@ -566,6 +700,148 @@ class _BackfillDialog(QDialog):
     def page_count(self) -> int:
         text = self._pages_spin.currentText()
         return int(text.split(" ")[0])
+
+
+# ======================================================================
+# ML model workers + SettingsTab ML methods (injected at class level)
+# ======================================================================
+
+class _MLWorker(QThread):
+    progress    = pyqtSignal(str)
+    finished_ok = pyqtSignal(str)
+    error       = pyqtSignal(str)
+
+    def __init__(self, task: str, formats: list):
+        super().__init__()
+        self._task    = task
+        self._formats = formats
+
+    def run(self):
+        try:
+            if self._task == "download":
+                from scripts.download_embeddings import download
+                download(progress_cb=lambda m: self.progress.emit(m))
+                self.finished_ok.emit("Card embeddings downloaded.")
+
+            elif self._task == "card2vec":
+                from analysis.cooccurrence_embeddings import train_card2vec
+                for fmt in self._formats:
+                    self.progress.emit(f"Training Card2Vec for {fmt}…")
+                    model = train_card2vec(fmt)
+                    self.progress.emit(f"{fmt}: {len(model.wv)} card vectors")
+                self.finished_ok.emit("Card2Vec training complete.")
+
+            elif self._task == "knn":
+                from analysis.knn_classifier import train_knn
+                for fmt in self._formats:
+                    self.progress.emit(f"Training KNN for {fmt}…")
+                    clf = train_knn(fmt)
+                    msg = "trained" if clf else "insufficient data"
+                    self.progress.emit(f"{fmt}: {msg}")
+                self.finished_ok.emit("KNN training complete.")
+
+            elif self._task == "backfill_classify":
+                self._run_backfill_classify()
+                self.finished_ok.emit("Backfill classification complete.")
+
+        except Exception as e:
+            self.error.emit(str(e))
+
+    def _run_backfill_classify(self):
+        """Retroactively classify unrecognized archetypes using KNN."""
+        from db.database import get_connection
+        from analysis.knn_classifier import classify_deck, load_knn
+
+        _JUNK = {"", "Decklist", "All Other Decklists", "Rogue Decklists",
+                 "Others", "Other", "Unclassified"}
+
+        with get_connection() as conn:
+            rows = conn.execute("""
+                SELECT d.id, d.archetype, e.format,
+                       GROUP_CONCAT(c.name || ':' || dc.quantity, '|') AS cards
+                FROM decks d
+                JOIN events e ON e.id = d.event_id
+                LEFT JOIN deck_cards dc ON dc.deck_id = d.id AND dc.is_sideboard = 0
+                LEFT JOIN cards c ON c.id = dc.card_id
+                WHERE d.archetype IN ({})
+                GROUP BY d.id
+                LIMIT 10000
+            """.format(",".join("?" * len(_JUNK))),
+            list(_JUNK)).fetchall()
+
+        classified = 0
+        for row in rows:
+            if not row["cards"]:
+                continue
+            fmt = (row["format"] or "").lower()
+            if not load_knn(fmt):
+                continue
+            card_list = {}
+            for entry in row["cards"].split("|"):
+                parts = entry.rsplit(":", 1)
+                if len(parts) == 2:
+                    card_list[parts[0]] = int(parts[1])
+            if not card_list:
+                continue
+            result = classify_deck(card_list, fmt)
+            if result:
+                predicted, confidence = result
+                if confidence >= 0.6:
+                    with get_connection() as conn:
+                        conn.execute("UPDATE decks SET archetype=? WHERE id=?",
+                                     (predicted, row["id"]))
+                    classified += 1
+            if classified % 100 == 0 and classified > 0:
+                self.progress.emit(f"Classified {classified} decks so far…")
+
+        self.progress.emit(f"Done — classified {classified} previously unrecognized decks.")
+
+
+
+# ======================================================================
+# ML worker
+# ======================================================================
+
+class _MLWorker(QThread):
+    progress    = pyqtSignal(str)
+    finished_ok = pyqtSignal(str)
+    error       = pyqtSignal(str)
+
+    def __init__(self, task: str, formats: list):
+        super().__init__()
+        self._task    = task
+        self._formats = formats
+
+    def run(self):
+        try:
+            if self._task == "download":
+                import subprocess, sys
+                result = subprocess.run(
+                    [sys.executable, "-m", "scripts.download_embeddings"],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(result.stderr[-500:])
+                self.finished_ok.emit("Card embeddings downloaded successfully.")
+
+            elif self._task == "card2vec":
+                from analysis.cooccurrence_embeddings import train_card2vec
+                for fmt in self._formats:
+                    self.progress.emit(f"Training Card2Vec for {fmt}…")
+                    model = train_card2vec(fmt)
+                    self.progress.emit(f"{fmt}: {len(model.wv)} card vectors")
+                self.finished_ok.emit("Card2Vec training complete.")
+
+            elif self._task == "knn":
+                from analysis.knn_classifier import train_knn
+                for fmt in self._formats:
+                    self.progress.emit(f"Training KNN for {fmt}…")
+                    clf = train_knn(fmt)
+                    self.progress.emit(f"{fmt}: {'trained' if clf else 'insufficient data'}")
+                self.finished_ok.emit("KNN training complete.")
+
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 # ======================================================================

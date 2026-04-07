@@ -242,6 +242,8 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Card2Vec** (`analysis/cooccurrence_embeddings.py`): Word2Vec trained on local decklists. Card Browser shows "Functional Substitutes" section. Models: `data/models/card2vec_{format}.model` (gitignored).
   - **KNN Classifier** (`analysis/knn_classifier.py`): Deck Analyzer auto-fills archetype label (cyan italic) using KNN on deck embeddings. hybrid_classify() tries signature cards first, falls back to KNN. Models: `data/models/knn_{format}.pkl` (gitignored).
   - **Heatmap Timeframe Selector**: Matchup Data tab has a Timeframe dropdown (same TIMEFRAME_OPTIONS as Dashboard). Filters real match data, gauntlet, and equilibrium analysis by date. Default: 8 weeks. Prevents stale pre-ban/rotation data from polluting matchup analysis.
+  - **ML Models section in Settings**: Download Card Embeddings, Train Card2Vec, Train KNN buttons with status display. All models are local files in `data/models/` (gitignored).
+  - **Trained models**: Card2Vec + KNN for Standard (116 arch), Modern (115), Pioneer (78), Legacy (105). All formats covered.
   - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer + My Decks → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
   - **My Decks tab** (`gui/tabs/my_decks.py`): split-panel CRUD for saved decks
     - Left panel: format-filtered deck list with Add/Edit/Delete buttons

@@ -257,6 +257,22 @@ def run(format_name="standard", pages=1, max_events=10):
                             dk["archetype"] = classified
                     except Exception:
                         pass
+
+                    # Layer 4: KNN embedding fallback (if card-based classifier failed)
+                    if dk["archetype"] in _JUNK:
+                        try:
+                            from analysis.knn_classifier import classify_deck
+                            knn_result = classify_deck(mainboard, format_name)
+                            if knn_result:
+                                predicted, confidence = knn_result
+                                if confidence >= 0.6:
+                                    from db.database import get_connection
+                                    with get_connection() as conn:
+                                        conn.execute("UPDATE decks SET archetype=? WHERE id=?",
+                                                     (predicted, deck_db_id))
+                                    dk["archetype"] = predicted
+                        except Exception:
+                            pass
                 insert_deck_cards(deck_db_id, mainboard, sideboard)
                 print(f"      [{dk['placement']}] {dk['archetype'][:30]:<30} "
                       f"{dk['player']:<15} "

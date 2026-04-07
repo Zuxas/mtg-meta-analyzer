@@ -61,7 +61,7 @@ Last updated: 2026-04-06
 - Consolidate .bat scripts into single launcher
 - Team Collaboration: gauntlet export/import, team notes on heatmap
 - Match Logging Enhancements: personal WR vs meta, event type tracking, trends
-- Settings buttons for "Download Embeddings" / "Train Card2Vec" (currently CLI-only)
+- ~~Settings buttons for "Download Embeddings" / "Train Card2Vec"~~ DONE
 - Monte Carlo simulation surfaced in Equilibrium dialog
 - Standard archetype config: 5,391 still unclassified
 - PyInstaller .exe packaging

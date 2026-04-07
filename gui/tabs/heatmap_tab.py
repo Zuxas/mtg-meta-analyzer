@@ -1131,4 +1131,179 @@ class HeatmapTab(QWidget):
             )
             layout.addWidget(tip)
 
+        # ── Monte Carlo Simulation ───────────────────────────────────
+        mc_bar = QWidget()
+        mc_bar.setStyleSheet(f"background: {theme.PANEL}; border-radius: 4px;")
+        mc_layout = QVBoxLayout(mc_bar)
+        mc_layout.setContentsMargins(8, 8, 8, 8)
+        mc_layout.setSpacing(6)
+
+        mc_header = QLabel("Monte Carlo Tournament Simulation")
+        mc_header.setStyleSheet(f"color: {theme.ACCENT}; font-weight: bold;")
+        mc_layout.addWidget(mc_header)
+
+        mc_controls = QHBoxLayout()
+
+        from PyQt6.QtWidgets import QSpinBox
+        players_lbl = QLabel("Players:")
+        players_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        mc_controls.addWidget(players_lbl)
+        players_spin = QSpinBox()
+        players_spin.setRange(32, 2000)
+        players_spin.setValue(128)
+        players_spin.setSingleStep(32)
+        mc_controls.addWidget(players_spin)
+
+        rounds_lbl = QLabel("Rounds:")
+        rounds_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        mc_controls.addWidget(rounds_lbl)
+        rounds_spin = QSpinBox()
+        rounds_spin.setRange(4, 15)
+        rounds_spin.setValue(7)
+        mc_controls.addWidget(rounds_spin)
+
+        sims_lbl = QLabel("Simulations:")
+        sims_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        mc_controls.addWidget(sims_lbl)
+        sims_spin = QSpinBox()
+        sims_spin.setRange(1000, 100000)
+        sims_spin.setValue(10000)
+        sims_spin.setSingleStep(1000)
+        mc_controls.addWidget(sims_spin)
+
+        run_mc_btn = QPushButton("Run Simulation")
+        run_mc_btn.setStyleSheet(theme.btn_primary())
+        mc_controls.addWidget(run_mc_btn)
+        mc_controls.addStretch()
+        mc_layout.addLayout(mc_controls)
+
+        mc_status = QLabel("Configure parameters and click Run Simulation.")
+        mc_status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        mc_layout.addWidget(mc_status)
+
+        mc_result_tbl = QTableWidget()
+        mc_result_tbl.setColumnCount(3)
+        mc_result_tbl.setHorizontalHeaderLabels(["Archetype", "Top-8 Rate", "Sim Win Rate"])
+        mc_result_tbl.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch)
+        for c in (1, 2):
+            mc_result_tbl.horizontalHeader().setSectionResizeMode(
+                c, QHeaderView.ResizeMode.ResizeToContents)
+        mc_result_tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        mc_result_tbl.setVisible(False)
+        mc_layout.addWidget(mc_result_tbl)
+        layout.addWidget(mc_bar)
+
+        # Wire Run button
+        _mc_worker_ref = [None]
+
+        def _run_monte_carlo():
+            run_mc_btn.setEnabled(False)
+            mc_status.setText("Running simulation…")
+            mc_result_tbl.setVisible(False)
+
+            worker = _MonteCarloWorker(
+                result=result,
+                players=players_spin.value(),
+                rounds=rounds_spin.value(),
+                simulations=sims_spin.value(),
+            )
+            _mc_worker_ref[0] = worker
+
+            def _on_done(sim_result):
+                mc_result_tbl.setRowCount(len(sim_result.top8_rates))
+                for ri, (arch, rate) in enumerate(sim_result.top8_rates.items()):
+                    mc_result_tbl.setItem(ri, 0, QTableWidgetItem(arch))
+
+                    rate_item = QTableWidgetItem(f"{rate*100:.2f}%")
+                    rate_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    clr = (QColor(theme.OK) if rate > 0.10 else
+                           QColor(theme.WARN) if rate > 0.06 else
+                           QColor(theme.TEXT))
+                    rate_item.setForeground(clr)
+                    mc_result_tbl.setItem(ri, 1, rate_item)
+
+                    wr = sim_result.win_rates.get(arch, 0)
+                    wr_item = QTableWidgetItem(f"{wr*100:.1f}%")
+                    wr_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    mc_result_tbl.setItem(ri, 2, wr_item)
+
+                mc_result_tbl.setVisible(True)
+                mc_status.setText(
+                    f"Done — {sim_result.simulations:,} tournaments simulated. "
+                    f"Top-8 rate = appearances / (simulations × top_cut)."
+                )
+                run_mc_btn.setEnabled(True)
+                worker.deleteLater()
+
+            def _on_error(msg):
+                mc_status.setText(f"Error: {msg}")
+                run_mc_btn.setEnabled(True)
+                worker.deleteLater()
+
+            worker.finished_ok.connect(_on_done)
+            worker.error.connect(_on_error)
+            worker.start()
+
+        run_mc_btn.clicked.connect(_run_monte_carlo)
+
         dlg.exec()
+
+
+# ======================================================================
+# Monte Carlo simulation worker
+# ======================================================================
+
+class _MonteCarloWorker(QThread):
+    finished_ok = pyqtSignal(object)   # SimulationResult
+    error       = pyqtSignal(str)
+
+    def __init__(self, result: dict, players: int, rounds: int, simulations: int):
+        super().__init__()
+        self._result      = result
+        self._players     = players
+        self._rounds      = rounds
+        self._simulations = simulations
+
+    def run(self):
+        try:
+            from analysis.equilibrium import simulate_tournament
+            import numpy as np
+
+            eq = self._result.get("equilibrium")
+            raw_matrix = self._result.get("matrix")  # may be None
+
+            if not eq or not eq.archetypes:
+                self.error.emit("No equilibrium data — load the heatmap first.")
+                return
+
+            # Build payoff matrix from equilibrium data if raw matrix not stored
+            archs = eq.archetypes
+            n = len(archs)
+            idx = {a: i for i, a in enumerate(archs)}
+
+            if raw_matrix is not None and hasattr(raw_matrix, "shape"):
+                matrix = raw_matrix
+            else:
+                # Reconstruct from win_rates stored on eq object (if available)
+                matrix = np.full((n, n), 0.5)
+                if hasattr(eq, "win_rates"):
+                    for a in archs:
+                        for b in archs:
+                            if a != b and (a, b) in eq.win_rates:
+                                matrix[idx[a]][idx[b]] = eq.win_rates[(a, b)]
+
+            sim_result = simulate_tournament(
+                matrix=matrix,
+                arch_list=archs,
+                field_shares=eq.current_shares,
+                players=self._players,
+                rounds=self._rounds,
+                top_cut=min(8, self._players // 8),
+                simulations=self._simulations,
+            )
+            self.finished_ok.emit(sim_result)
+
+        except Exception as e:
+            import traceback
+            self.error.emit(f"{e}\n{traceback.format_exc()[-300:]}")

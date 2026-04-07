@@ -468,6 +468,35 @@ def _process_event(ev, format_name):
         side_dict = {c["name"]: c["quantity"] for c in side_list}
         if main_dict:
             insert_deck_cards(deck_db_id, main_dict, side_dict)
+
+            # Layer 3+4 classification for junk/empty archetype names
+            _JUNK = {"", "Decklist", "All Other Decklists", "Rogue Decklists",
+                     "Others", "Other", "Unclassified"}
+            if dk["archetype"] in _JUNK:
+                classified = None
+                # Layer 3: signature card classifier
+                try:
+                    from analysis.archetype_classifier import classify_by_cards
+                    classified = classify_by_cards(main_dict, format_name)
+                except Exception:
+                    pass
+                # Layer 4: KNN embedding fallback
+                if not classified:
+                    try:
+                        from analysis.knn_classifier import classify_deck
+                        knn_result = classify_deck(main_dict, format_name)
+                        if knn_result:
+                            predicted, confidence = knn_result
+                            if confidence >= 0.6:
+                                classified = predicted
+                    except Exception:
+                        pass
+                if classified:
+                    with get_connection() as conn:
+                        conn.execute("UPDATE decks SET archetype=? WHERE id=?",
+                                     (classified, deck_db_id))
+                    dk["archetype"] = classified
+
             stored += 1
 
     return len(decks), stored
