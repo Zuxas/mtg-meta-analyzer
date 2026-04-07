@@ -244,6 +244,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - **Heatmap Timeframe Selector**: Matchup Data tab has a Timeframe dropdown (same TIMEFRAME_OPTIONS as Dashboard). Filters real match data, gauntlet, and equilibrium analysis by date. Default: 8 weeks. Prevents stale pre-ban/rotation data from polluting matchup analysis.
   - **ML Models section in Settings**: Download Card Embeddings, Train Card2Vec, Train KNN buttons with status display. All models are local files in `data/models/` (gitignored).
   - **Trained models**: Card2Vec + KNN for Standard (116 arch), Modern (115), Pioneer (78), Legacy (105). All formats covered.
+  - **Consolidated launcher** (`mtg.bat`): single menu-driven script replacing 7 individual .bat files. Options: Launch App, Build Database, Run Background Fill, Register Scheduled Tasks, Create Shortcut, Refresh Scryfall, Update Claude Code. The 3 scheduled task scripts (background_fill.bat, run_daily.bat, run_scryfall_weekly.bat) remain separate because Task Scheduler has hardcoded paths to them.
   - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer + My Decks → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
   - **My Decks tab** (`gui/tabs/my_decks.py`): split-panel CRUD for saved decks
     - Left panel: format-filtered deck list with Add/Edit/Delete buttons

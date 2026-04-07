@@ -58,7 +58,7 @@ Last updated: 2026-04-06
 - [x] Default 8 weeks — prevents stale pre-ban/rotation data
 
 ### Lower Priority (unchanged)
-- Consolidate .bat scripts into single launcher
+- ~~Consolidate .bat scripts into single launcher~~ DONE — `mtg.bat`
 - Team Collaboration: gauntlet export/import, team notes on heatmap
 - Match Logging Enhancements: personal WR vs meta, event type tracking, trends
 - ~~Settings buttons for "Download Embeddings" / "Train Card2Vec"~~ DONE
