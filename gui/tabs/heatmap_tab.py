@@ -40,14 +40,14 @@ def _wr_color(winrate: float) -> QColor:
     """Background QColor for a given win-rate (0.0–1.0)."""
     pct = winrate * 100
     if pct >= 60:
-        return QColor(20, 80, 35)
+        return QColor(15, 110, 45)       # strong green
     if pct >= 55:
-        return QColor(30, 65, 30)
+        return QColor(25, 85, 40)        # green
     if pct >= 45:
-        return QColor(55, 55, 65)
+        return QColor(40, 42, 55)        # neutral grey-blue
     if pct >= 40:
-        return QColor(80, 35, 30)
-    return QColor(100, 20, 20)
+        return QColor(120, 35, 30)       # red
+    return QColor(150, 25, 25)           # strong red
 
 
 def _wr_label(winrate: float) -> str:
@@ -461,11 +461,11 @@ class HeatmapTab(QWidget):
         hl.setSpacing(12)
         hl.addWidget(QLabel("Legend:"))
         for label, color in [
-            ("\u226560% (Strong Fav)", QColor(20, 80, 35)),
-            ("55\u201359% (Favored)",  QColor(30, 65, 30)),
-            ("45\u201354% (Even)",     QColor(55, 55, 65)),
-            ("40\u201344% (Unfav)",    QColor(80, 35, 30)),
-            ("\u226439% (Bad)",        QColor(100, 20, 20)),
+            ("\u226560% (Strong Fav)", QColor(15, 110, 45)),
+            ("55\u201359% (Favored)",  QColor(25, 85, 40)),
+            ("45\u201354% (Even)",     QColor(40, 42, 55)),
+            ("40\u201344% (Unfav)",    QColor(120, 35, 30)),
+            ("\u226439% (Bad)",        QColor(150, 25, 25)),
         ]:
             swatch = QLabel()
             swatch.setFixedSize(14, 14)

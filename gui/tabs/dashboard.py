@@ -838,8 +838,8 @@ class DashboardTab(QWidget):
         QDesktopServices.openUrl(QUrl.fromLocalFile(exports_dir))
 
     # Subtle row tint colors for rising / falling archetypes
-    _ROW_RISING  = QColor(18, 48, 22)   # dark green
-    _ROW_FALLING = QColor(52, 18, 18)   # dark red
+    _ROW_RISING  = QColor(20, 55, 28)   # subtle green tint
+    _ROW_FALLING = QColor(60, 20, 20)   # subtle red tint
 
     @staticmethod
     def _tier_badge(winrate: float, meta_share: float, is_declining: bool):
