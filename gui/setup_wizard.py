@@ -46,13 +46,13 @@ def _save_format_prefs(formats: list):
         json.dump(prefs, f, indent=2)
 
 
-def _btn_style(color="#65bcd5", hover="#7acee0"):
-    text = "#0a0e14" if color in ("#65bcd5", "#3cb44b") or color.startswith("#6") or color.startswith("#3c") else "white"
+def _btn_style(color="#5eb5cf", hover="#7acee0"):
+    text = "#0a0e14" if color in ("#5eb5cf", "#3cb44b") or color.startswith("#6") or color.startswith("#3c") else "white"
     return (
         f"QPushButton {{ background: {color}; color: {text}; border: none; "
-        f"padding: 6px 20px; border-radius: 3px; font-weight: bold; }}"
+        f"padding: 6px 20px; border-radius: 6px; font-weight: bold; }}"
         f"QPushButton:hover {{ background: {hover}; }}"
-        f"QPushButton:disabled {{ background: #39465c; color: #5a7080; border: 1px solid #4a5a6e; }}"
+        f"QPushButton:disabled {{ background: #1a1b27; color: #4a5060; border: 1px solid #2d2e3f; }}"
     )
 
 
@@ -88,16 +88,16 @@ class SetupWizard(QDialog):
         header = QFrame()
         header.setFixedHeight(64)
         header.setStyleSheet(
-            "background-color: #39465c; border-bottom: 2px solid #65bcd5;"
+            "background-color: #1a1b27; border-bottom: 2px solid #5eb5cf;"
         )
         hl = QHBoxLayout(header)
         hl.setContentsMargins(24, 0, 24, 0)
         title = QLabel("MTG META ANALYZER")
         title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title.setStyleSheet("color: #65bcd5; letter-spacing: 2px;")
+        title.setStyleSheet("color: #5eb5cf; letter-spacing: 2px;")
         sub = QLabel("// FIRST-TIME SETUP")
         sub.setStyleSheet(
-            "color: #6c8c94; font-size: 11px; letter-spacing: 1px;"
+            "color: #7c8da4; font-size: 11px; letter-spacing: 1px;"
         )
         hl.addWidget(title)
         hl.addSpacing(12)
@@ -116,16 +116,16 @@ class SetupWizard(QDialog):
         # Bottom button bar
         btn_bar = QFrame()
         btn_bar.setFixedHeight(62)
-        btn_bar.setStyleSheet("border-top: 1px solid #3a4a5c;")
+        btn_bar.setStyleSheet("border-top: 1px solid #242536;")
         bl = QHBoxLayout(btn_bar)
         bl.setContentsMargins(20, 10, 20, 10)
         bl.setSpacing(10)
 
         self._btn_skip = QPushButton("Skip Setup")
         self._btn_skip.setStyleSheet(
-            "QPushButton { background: transparent; color: #6c8c94; "
-            "border: 1px solid #4a5a6e; padding: 6px 16px; border-radius: 3px; }"
-            "QPushButton:hover { color: #65bcd5; border-color: #65bcd5; }"
+            "QPushButton { background: transparent; color: #7c8da4; "
+            "border: 1px solid #2d2e3f; padding: 6px 16px; border-radius: 6px; }"
+            "QPushButton:hover { color: #5eb5cf; border-color: #5eb5cf; }"
         )
         self._btn_skip.clicked.connect(self._skip)
 
@@ -174,7 +174,7 @@ class SetupWizard(QDialog):
             v.addWidget(cb)
 
         note = QLabel("Standard is required for core app functionality.")
-        note.setStyleSheet("color: #6c8c94; font-size: 11px; font-style: italic;")
+        note.setStyleSheet("color: #7c8da4; font-size: 11px; font-style: italic;")
         v.addWidget(note)
         v.addStretch()
         return w
@@ -226,7 +226,7 @@ class SetupWizard(QDialog):
         v.addWidget(desc)
 
         self._scryfall_status = QLabel("Starting download\u2026")
-        self._scryfall_status.setStyleSheet("color: #65bcd5; font-size: 12px;")
+        self._scryfall_status.setStyleSheet("color: #5eb5cf; font-size: 12px;")
         v.addWidget(self._scryfall_status)
 
         self._scryfall_bar = QProgressBar()
@@ -263,7 +263,7 @@ class SetupWizard(QDialog):
         # Big event counter
         self._event_counter = QLabel("0")
         self._event_counter.setFont(QFont("Arial", 48, QFont.Weight.Bold))
-        self._event_counter.setStyleSheet("color: #65bcd5;")
+        self._event_counter.setStyleSheet("color: #5eb5cf;")
         self._event_counter.setAlignment(Qt.AlignmentFlag.AlignCenter)
         v.addWidget(self._event_counter)
 

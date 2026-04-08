@@ -1223,14 +1223,14 @@ def _generate_guide_html(deck: dict, plans: list[dict]) -> str:
 <style>
   body {{ font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 20px auto;
          background: #1a1a2e; color: #e0e0e0; padding: 20px; }}
-  h1 {{ color: #65bcd5; border-bottom: 2px solid #65bcd5; padding-bottom: 8px; }}
-  h2 {{ color: #65bcd5; margin-top: 24px; }}
+  h1 {{ color: #5eb5cf; border-bottom: 2px solid #5eb5cf; padding-bottom: 8px; }}
+  h2 {{ color: #5eb5cf; margin-top: 24px; }}
   h3 {{ color: #bfef45; margin-top: 16px; margin-bottom: 4px; }}
   .meta {{ color: #8a9aaa; font-size: 13px; margin-bottom: 16px; }}
-  .decklist {{ background: #2e3848; padding: 12px; border-radius: 6px;
+  .decklist {{ background: #1f2133; padding: 12px; border-radius: 6px;
                font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap; }}
-  .matchup {{ background: #2e3848; padding: 10px 14px; border-radius: 6px;
-              margin-bottom: 12px; border-left: 4px solid #65bcd5; }}
+  .matchup {{ background: #1f2133; padding: 10px 14px; border-radius: 6px;
+              margin-bottom: 12px; border-left: 4px solid #5eb5cf; }}
   .diff {{ font-weight: bold; font-size: 11px; padding: 2px 8px; border-radius: 3px; }}
   .notes {{ color: #8a9aaa; font-style: italic; font-size: 12px; }}
   @media print {{

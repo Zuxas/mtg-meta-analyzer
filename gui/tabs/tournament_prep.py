@@ -92,9 +92,9 @@ def _make_rcq_banner() -> QWidget:
     info_btn = QToolButton()
     info_btn.setText("Comp REL ?")
     info_btn.setStyleSheet(
-        "QToolButton { color: #65bcd5; font-size: 10px; border: 1px solid #4a5a6e; "
+        "QToolButton { color: #5eb5cf; font-size: 10px; border: 1px solid #2d2e3f; "
         "border-radius: 3px; padding: 2px 6px; background: transparent; }"
-        "QToolButton:hover { border-color: #65bcd5; }"
+        "QToolButton:hover { border-color: #5eb5cf; }"
     )
     info_btn.clicked.connect(lambda: QMessageBox.information(
         None, "Competitive REL — What It Means", _COMP_REL_DETAIL
@@ -117,8 +117,8 @@ def _make_rcq_banner() -> QWidget:
 # ---------------------------------------------------------------------------
 
 _WORKED_EXAMPLE_HTML = """
-<hr style="border: 1px solid #4a5a6e; margin: 14px 0;">
-<h3 style="color: #65bcd5; margin: 0 0 8px 0;">Worked Example — 5-Round RCQ</h3>
+<hr style="border: 1px solid #2d2e3f; margin: 14px 0;">
+<h3 style="color: #5eb5cf; margin: 0 0 8px 0;">Worked Example — 5-Round RCQ</h3>
 <table style="border-collapse: collapse; width: 100%;">
 <tr style="color: #8a9aaa;">
   <th style="text-align:left; padding-right:12px;">Round</th>
@@ -175,8 +175,8 @@ _WORKED_EXAMPLE_HTML = """
 """
 
 _EDU_HTML = """
-<hr style="border: 1px solid #4a5a6e; margin: 14px 0;">
-<h3 style="color: #65bcd5; margin: 0 0 8px 0;">How Tiebreakers Work in Magic Tournaments</h3>
+<hr style="border: 1px solid #2d2e3f; margin: 14px 0;">
+<h3 style="color: #5eb5cf; margin: 0 0 8px 0;">How Tiebreakers Work in Magic Tournaments</h3>
 <p style="margin: 4px 0;">When players tie on points after Swiss, three tiebreakers decide who makes top cut:</p>
 
 <p style="margin: 8px 0;">
@@ -245,12 +245,12 @@ def _seeding_html(top_cut: int) -> str:
         pairings = [("1st vs 2nd", "Finals only")]
 
     rows = "".join(
-        f'<tr><td style="padding-right:16px; color:#65bcd5;">{p}</td>'
+        f'<tr><td style="padding-right:16px; color:#5eb5cf;">{p}</td>'
         f'<td style="color:#8a9aaa;">{note}</td></tr>'
         for p, note in pairings
     )
     return (
-        f'<h3 style="color: #65bcd5; margin: 12px 0 6px 0;">Seeding Impact</h3>'
+        f'<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">Seeding Impact</h3>'
         f'<p style="margin: 4px 0;">Top-{top_cut} bracket pairings (higher seed = better):</p>'
         f'<table style="border-collapse: collapse; margin: 6px 0 0 8px;">{rows}</table>'
         f'<p style="margin: 6px 0; color: #8a9aaa; font-size: 10px;">'
@@ -302,7 +302,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
 
     # --- ID Calculator ---
     lines.append(
-        '<h3 style="color: #65bcd5; margin: 12px 0 6px 0;">ID Calculator</h3>'
+        '<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">ID Calculator</h3>'
     )
 
     if s["remaining"] == 0:
@@ -348,7 +348,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
 
     # --- Points Tracker / Alive Records ---
     lines.append(
-        '<h3 style="color: #65bcd5; margin: 12px 0 6px 0;">Points Tracker</h3>'
+        '<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">Points Tracker</h3>'
     )
     lines.append(
         f'<p style="margin: 4px 0;">'
@@ -375,7 +375,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
     # --- Draw Equity Calculator ---
     if id_data:
         lines.append(
-            '<h3 style="color: #65bcd5; margin: 12px 0 6px 0;">Draw Equity Calculator</h3>'
+            '<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">Draw Equity Calculator</h3>'
         )
         rc  = id_data["rec_color"]
         opp = id_data["opponent"]
@@ -1140,7 +1140,7 @@ class _EventWidget(QWidget):
         struct = r["struct"]
 
         grade_colors = {
-            "A+": "#3cb44b", "A": "#3cb44b", "B": "#65bcd5",
+            "A+": "#3cb44b", "A": "#3cb44b", "B": "#5eb5cf",
             "C": "#f0c020", "D": "#f58231", "F": "#e6194b",
         }
         gc = grade_colors.get(grade, theme.TEXT)
@@ -1219,7 +1219,7 @@ class _EventWidget(QWidget):
                 guide_color = "#8a9aaa"
             else:
                 guide_txt   = f"↑{my_cnt} ↓{opp_cnt}"
-                guide_color = "#65bcd5"
+                guide_color = "#5eb5cf"
 
             if flipped and delta < 0:
                 verdict, vc = "⚠ FLIP", "#e6194b"
@@ -1368,7 +1368,7 @@ class _EventWidget(QWidget):
 
             # Guide detail
             parts.append(
-                f'<div style="border-top:1px solid #4a5a6e; margin:8px 0; padding-top:8px;">'
+                f'<div style="border-top:1px solid #2d2e3f; margin:8px 0; padding-top:8px;">'
             )
             parts.append(render_guide_html(gd, my_arch, m["archetype"]))
             parts.append('</div>')

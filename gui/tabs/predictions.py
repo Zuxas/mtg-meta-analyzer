@@ -99,7 +99,7 @@ class PredictionsTab(QWidget):
         summary = QFrame()
         summary.setFixedHeight(60)
         summary.setStyleSheet(
-            "border: 1px solid #4a5a6e; border-radius: 4px; padding: 6px;"
+            "border: 1px solid #2d2e3f; border-radius: 4px; padding: 6px;"
         )
         sv = QHBoxLayout(summary)
         self._accuracy_lbl = QLabel("Accuracy: \u2014 (no validated predictions yet)")

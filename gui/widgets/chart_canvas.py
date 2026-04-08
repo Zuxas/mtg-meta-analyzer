@@ -510,7 +510,7 @@ class ChartCanvas(QWidget):
     def plot_meta_share(self, format_name="standard", top=10, weeks=12,
                         since=None, until=None, standings=None):
         """standings: pass pre-loaded list from get_meta_standings() to skip that DB call."""
-        self.show_message("Loading meta data\u2026", "#65bcd5")
+        self.show_message("Loading meta data\u2026", "#5eb5cf")
         w = _MetaShareLoader(format_name, top, weeks, since, until, standings)
         w.done.connect(self._draw_meta_share)
         w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
@@ -561,7 +561,7 @@ class ChartCanvas(QWidget):
 
     def plot_trend(self, archetype, format_name="standard", weeks=12,
                    since=None, until=None):
-        self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#65bcd5")
+        self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#5eb5cf")
         w = _TrendLoader(archetype, format_name, weeks, since, until)
         w.done.connect(lambda data: self._draw_trend(data, archetype, format_name))
         w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
@@ -592,7 +592,7 @@ class ChartCanvas(QWidget):
         _style_ax(ax1, self._fig)
         ax2 = ax1.twinx()
 
-        bar_color = "#65bcd5"
+        bar_color = "#5eb5cf"
         ax1.bar(x_labels, appearances, color=bar_color, alpha=0.4,
                 label="Appearances", zorder=2)
         ax1.set_ylabel("Appearances", color=bar_color, fontsize=9)
@@ -657,7 +657,7 @@ class ChartCanvas(QWidget):
         names = ", ".join(_shorten(a) for a in archetypes[:3])
         if len(archetypes) > 3:
             names += f" +{len(archetypes) - 3}"
-        self.show_message(f"Loading {names}\u2026", "#65bcd5")
+        self.show_message(f"Loading {names}\u2026", "#5eb5cf")
         w = _CompareLoader(archetypes, format_name, weeks, since, until)
         w.done.connect(self._draw_compare)
         w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
@@ -715,7 +715,7 @@ class ChartCanvas(QWidget):
     def plot_scatter(self, format_name="standard", top=20, weeks=8,
                      since=None, until=None):
         """Scatter plot: X=meta share, Y=win rate, with card art bubbles."""
-        self.show_message("Loading meta positioning + card art\u2026", "#65bcd5")
+        self.show_message("Loading meta positioning + card art\u2026", "#5eb5cf")
 
         def _load():
             import time
@@ -864,7 +864,7 @@ class ChartCanvas(QWidget):
 
     def plot_heatmap(self, format_name="standard", top=10, min_appearances=3,
                      since=None, until=None):
-        self.show_message("Loading matchup data\u2026", "#65bcd5")
+        self.show_message("Loading matchup data\u2026", "#5eb5cf")
         w = _HeatmapLoader(format_name, top, min_appearances, since, until)
         w.done.connect(lambda data: self._draw_heatmap(data, format_name))
         w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))

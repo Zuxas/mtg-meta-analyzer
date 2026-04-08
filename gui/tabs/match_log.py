@@ -516,8 +516,8 @@ class MatchLogTab(QWidget):
         fig.clear()
         if len(trend) < 2:
             ax = fig.add_subplot(111)
-            ax.set_facecolor("#2b2b3d")
-            fig.patch.set_facecolor("#2b2b3d")
+            ax.set_facecolor("#111219")
+            fig.patch.set_facecolor("#111219")
             ax.text(0.5, 0.5, "Need 2+ events to show trend",
                     ha="center", va="center", color="#888", fontsize=9,
                     transform=ax.transAxes)
@@ -531,11 +531,11 @@ class MatchLogTab(QWidget):
         cum_wr = [t["cumulative_wr"] * 100 for t in trend]
 
         ax = fig.add_subplot(111)
-        fig.patch.set_facecolor("#2b2b3d")
-        ax.set_facecolor("#2b2b3d")
+        fig.patch.set_facecolor("#111219")
+        ax.set_facecolor("#111219")
 
         x = range(len(dates))
-        ax.bar(x, daily_wr, color="#65bcd5", alpha=0.4, label="Event WR")
+        ax.bar(x, daily_wr, color="#5eb5cf", alpha=0.4, label="Event WR")
         ax.plot(x, cum_wr, color="#3cb44b", linewidth=2, marker="o",
                 markersize=3, label="Cumulative WR")
         ax.axhline(y=50, color="#888", linestyle="--", linewidth=0.8, alpha=0.5)
@@ -547,7 +547,7 @@ class MatchLogTab(QWidget):
         ax.tick_params(axis="y", labelsize=7, colors="#aaa")
         ax.set_ylim(0, 100)
         ax.legend(fontsize=7, loc="upper left",
-                  facecolor="#2b2b3d", edgecolor="#555", labelcolor="#ccc")
+                  facecolor="#111219", edgecolor="#555", labelcolor="#ccc")
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.spines["bottom"].set_color("#555")

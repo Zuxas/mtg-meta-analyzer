@@ -461,7 +461,7 @@ class SearchTab(QWidget):
                 elif place_val <= 4:
                     place_item.setForeground(QColor("#3cb44b"))
                 elif place_val <= 8:
-                    place_item.setForeground(QColor("#65bcd5"))
+                    place_item.setForeground(QColor("#5eb5cf"))
                 self._deck_table.setItem(r, 2, place_item)
                 ev_item = QTableWidgetItem(row["event_name"] or "")
                 ev_item.setForeground(QColor(theme.ACCENT))

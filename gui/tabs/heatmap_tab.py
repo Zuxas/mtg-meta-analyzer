@@ -977,7 +977,7 @@ class HeatmapTab(QWidget):
             warn.setWordWrap(True)
             warn.setStyleSheet(
                 f"color: {theme.WARN}; font-size: 10px; padding: 4px; "
-                f"background: #2a1a0a; border-radius: 3px;"
+                f"background: #1a1510; border-radius: 3px;"
             )
             vl.addWidget(warn)
 

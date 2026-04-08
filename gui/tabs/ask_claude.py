@@ -112,7 +112,7 @@ def _fetch_meta_context(fmt: str) -> str:
 # Lightweight markdown → HTML
 # ---------------------------------------------------------------------------
 
-_USER_STYLE = ("background:#1e3a52; border-left:3px solid #65bcd5; "
+_USER_STYLE = ("background:#1a2535; border-left:3px solid #5eb5cf; "
                "padding:8px 10px; margin:4px 0; border-radius:3px;")
 _ASST_STYLE = ("background:#1a2235; border-left:3px solid #3cb44b; "
                "padding:8px 10px; margin:4px 0; border-radius:3px;")
@@ -279,7 +279,7 @@ class AskClaudeTab(QWidget):
 
         # Show user message
         self._append_html(
-            f'<div style="{_USER_STYLE}"><b style="color:#65bcd5;">You</b><br>'
+            f'<div style="{_USER_STYLE}"><b style="color:#5eb5cf;">You</b><br>'
             f'{_md_to_html(text)}</div><br>'
         )
         self._messages.append({"role": "user", "content": text})
