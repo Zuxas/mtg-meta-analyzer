@@ -42,11 +42,17 @@ def main():
         return
 
     from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QIcon
     from gui.main_window import MainWindow
 
     app = QApplication(sys.argv)
     app.setApplicationName("MTG Meta Analyzer")
     app.setOrganizationName("MTGMeta")
+
+    # Application icon — shown in taskbar, title bar, alt-tab
+    _icon_path = os.path.join(_root, "gui", "icons", "app.ico")
+    if os.path.exists(_icon_path):
+        app.setWindowIcon(QIcon(_icon_path))
 
     # Keep process alive when the main window is hidden (tray mode)
     app.setQuitOnLastWindowClosed(False)

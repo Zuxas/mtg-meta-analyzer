@@ -88,19 +88,34 @@ class SetupWizard(QDialog):
         header = QFrame()
         header.setFixedHeight(64)
         header.setStyleSheet(
-            "background-color: #1a1b27; border-bottom: 2px solid #5eb5cf;"
+            "background-color: #1a1b27; border-bottom: 1px solid #2d2e3f;"
         )
         hl = QHBoxLayout(header)
         hl.setContentsMargins(24, 0, 24, 0)
+        hl.setSpacing(12)
+
+        # Logo
+        import os as _os
+        _icon_dir = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "icons")
+        _logo_path = _os.path.join(_icon_dir, "icon_48.png")
+        if _os.path.exists(_logo_path):
+            from PyQt6.QtGui import QPixmap
+            logo_lbl = QLabel()
+            logo_lbl.setPixmap(
+                QPixmap(_logo_path).scaled(
+                    38, 38, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation))
+            logo_lbl.setStyleSheet("background: transparent;")
+            hl.addWidget(logo_lbl)
+
         title = QLabel("MTG META ANALYZER")
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title.setStyleSheet("color: #5eb5cf; letter-spacing: 2px;")
-        sub = QLabel("// FIRST-TIME SETUP")
+        title.setFont(QFont("Inter", 15, QFont.Weight.DemiBold))
+        title.setStyleSheet("color: #e4e6ed; letter-spacing: 1.5px;")
+        sub = QLabel("FIRST-TIME SETUP")
         sub.setStyleSheet(
-            "color: #7c8da4; font-size: 11px; letter-spacing: 1px;"
+            "color: #4a5060; font-size: 10px; letter-spacing: 1px;"
         )
         hl.addWidget(title)
-        hl.addSpacing(12)
         hl.addWidget(sub)
         hl.addStretch()
         layout.addWidget(header)

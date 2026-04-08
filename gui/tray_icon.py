@@ -104,41 +104,46 @@ def _next_run_label() -> str:
 # Icon drawing
 # ---------------------------------------------------------------------------
 
-def _make_icon(status: str) -> QIcon:
-    """Draw a 64×64 tray icon: dark card-back square + 'M' + status dot."""
-    size = 64
-    pix  = QPixmap(size, size)
-    pix.fill(Qt.GlobalColor.transparent)
+_ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 
+
+def _make_icon(status: str) -> QIcon:
+    """Load the Team Resolve logo and overlay a status dot in the corner."""
+    size = 64
+
+    # Try to use the real logo
+    logo_path = os.path.join(_ICON_DIR, "icon_64.png")
+    if os.path.exists(logo_path):
+        pix = QPixmap(logo_path).scaled(
+            size, size, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+    else:
+        # Fallback: draw "M" programmatically
+        pix = QPixmap(size, size)
+        pix.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QBrush(QColor(theme.PANEL)))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(2, 2, size - 4, size - 4, 10, 10)
+        p.setPen(QColor(theme.ACCENT))
+        p.setFont(QFont("Arial", 30, QFont.Weight.Bold))
+        p.drawText(QRect(0, -4, size, size), Qt.AlignmentFlag.AlignCenter, "M")
+        p.end()
+
+    # Overlay status dot — bottom-right corner
     p = QPainter(pix)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    # Background rounded square
-    p.setBrush(QBrush(QColor(theme.PANEL)))
-    p.setPen(Qt.PenStyle.NoPen)
-    p.drawRoundedRect(2, 2, size - 4, size - 4, 10, 10)
-
-    # Accent border
-    from PyQt6.QtGui import QPen
-    p.setPen(QPen(QColor(theme.ACCENT), 2))
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawRoundedRect(3, 3, size - 6, size - 6, 9, 9)
-
-    # "M" glyph
-    p.setPen(QColor(theme.ACCENT))
-    font = QFont("Arial", 30, QFont.Weight.Bold)
-    p.setFont(font)
-    p.drawText(QRect(0, -4, size, size), Qt.AlignmentFlag.AlignCenter, "M")
-
-    # Status dot — bottom-right corner
     dot_r = 14
-    dot_x = size - dot_r - 3
-    dot_y = size - dot_r - 3
+    dot_x = size - dot_r - 2
+    dot_y = size - dot_r - 2
     dot_color = QColor(_DOT_COLORS.get(status, _DOT_COLORS[STATUS_IDLE]))
 
-    # Shadow ring
+    from PyQt6.QtGui import QPen
+    # Dark outline ring for visibility
     p.setPen(Qt.PenStyle.NoPen)
-    p.setBrush(QBrush(QColor(theme.BG)))
+    p.setBrush(QBrush(QColor(0, 0, 0, 180)))
     p.drawEllipse(dot_x - 2, dot_y - 2, dot_r + 4, dot_r + 4)
 
     # Dot fill

@@ -13,8 +13,10 @@ import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QLabel, QApplication,
+    QVBoxLayout, QHBoxLayout, QFrame, QWidget,
 )
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QPixmap
 
 from gui.tabs.dashboard         import DashboardTab
 from gui.tabs.deck_analyzer     import DeckAnalyzerTab
@@ -63,8 +65,52 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+
+        # ── Branded header bar ───────────────────────────────────
+        header = QFrame()
+        header.setFixedHeight(44)
+        header.setStyleSheet(
+            f"background: {theme.PANEL}; border-bottom: 1px solid {theme.BORDER};"
+        )
+        hl = QHBoxLayout(header)
+        hl.setContentsMargins(14, 0, 14, 0)
+        hl.setSpacing(10)
+
+        # Logo
+        _icon_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+        logo_path = os.path.join(_icon_dir, "icon_32.png")
+        if os.path.exists(logo_path):
+            logo_lbl = QLabel()
+            logo_lbl.setPixmap(
+                QPixmap(logo_path).scaled(
+                    28, 28, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation))
+            logo_lbl.setStyleSheet("background: transparent;")
+            hl.addWidget(logo_lbl)
+
+        app_title = QLabel("MTG META ANALYZER")
+        app_title.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 13px; font-weight: 600; "
+            f"letter-spacing: 1.5px; background: transparent;"
+        )
+        hl.addWidget(app_title)
+
+        team_label = QLabel("by Team Resolve")
+        team_label.setStyleSheet(
+            f"color: {theme.TEXT_OFF}; font-size: 10px; background: transparent;"
+        )
+        hl.addWidget(team_label)
+        hl.addStretch()
+
+        central_layout.addWidget(header)
+
         self._tabs = QTabWidget()
         self._tabs.setTabPosition(QTabWidget.TabPosition.North)
+        central_layout.addWidget(self._tabs, 1)
 
         self._dash      = DashboardTab()
         self._deck      = DeckAnalyzerTab()
@@ -105,7 +151,7 @@ class MainWindow(QMainWindow):
             self._add_claude_tab()
             self._add_set_analysis_tab()
 
-        self.setCentralWidget(self._tabs)
+        self.setCentralWidget(central)
 
         # Status bar
         sb = QStatusBar()
