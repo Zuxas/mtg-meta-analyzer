@@ -1,24 +1,15 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-04-07
+> Last updated: 2026-04-08
 
 ---
 
-## OPEN — Data Engine
-- [ ] Cross-source duplicate detection with confidence scoring
-- [ ] Meta change detection (compare two time periods)
+## OPEN — Deck Intelligence
+- [ ] Meta clustering by playstyle
 
 ## OPEN — Query & Discovery
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
 - [ ] Global "All Formats" option everywhere
-
-## OPEN — Deck Intelligence
-- [ ] Card adoption & progression tracking over time
-- [ ] Baseline vs deviation comparison (user list vs stock)
-- [ ] Deck role classification (proactive/reactive/combo/tempo)
-- [ ] Meta clustering by playstyle
-- [ ] Meta-based deck recommendation engine
-- [ ] "Why this card?" slot analysis
 
 ## OPEN — Testing & Iteration
 - [ ] Card swap rationale tracker (why you changed cards)
@@ -28,7 +19,6 @@
 - [ ] Testing insights from logged matches
 
 ## OPEN — Match Logging Enhancements
-- [ ] Compare personal WR vs meta expected WR per matchup
 - [ ] Track record by event type (RCQ vs Open vs RC)
 - [ ] Trend analysis: personal WR over time, improving/declining matchups
 - [ ] Integration with SB advisor: "your WR is low vs X, adjust your plan"
@@ -56,6 +46,20 @@
 ---
 
 ## COMPLETED
+
+### 2026-04-08 — Deck Intelligence + Codebase Consolidation + UX
+- [x] Card adoption tracking (analysis/card_adoption.py) — week-by-week inclusion rates per archetype
+- [x] Baseline vs deviation — Deck Analyzer compares pasted list vs average deck
+- [x] Slot analysis (analysis/slot_analysis.py) — role, trend, substitutes, competitors
+- [x] Deck recommendation engine (analysis/deck_recommender.py) — "Best Deck" button on Dashboard
+- [x] Deck role classification (analysis/deck_roles.py) — Aggro/Midrange/Control/Combo/Tempo column
+- [x] Meta change detection (analysis/meta_change.py) — Dashboard "Meta Shift" with share + WR deltas
+- [x] Cross-source duplicate detection (analysis/cross_source_dedup.py) — Settings "Scan Duplicates"
+- [x] Codebase Phase 1: shared utilities (scrapers/constants, db/helpers, gui/worker_utils, table_helpers)
+- [x] Codebase Phase 2: split tournament_prep (1,626→3 files), split win_rates (1,407→3 files)
+- [x] Tab consolidation: 13→7 (Meta, Decks, Tournament, Resources merge related tabs)
+- [x] UX: tab tooltips, empty states, friendly_error() on 30+ sites, progress bars
+- [x] Docs reorganized: CLAUDE.md 680→330, NEXT_STEPS 725→53, ROADMAP 165→101
 
 ### 2026-04-07 — Quick Wins + UI/UX Overhaul
 - [x] UI/UX overhaul: Inter font, near-black dark theme, Team Resolve branding

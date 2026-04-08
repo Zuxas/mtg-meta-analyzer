@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-04-07
+Last updated: 2026-04-08
 
 ---
 
@@ -136,11 +136,13 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 ## 6. GUI
 
 **Entry point:** `run_gui.py` | **Theme:** `gui/theme.py` — modern dark theme, Inter font, Team Resolve branding
-**13 tabs:** Dashboard, Deck Analyzer, My Decks, Match Log, Search, Tournament Prep, Matchup Data, Knowledge Base, Predictions, Charts, Ask Claude (API-gated), Set Analysis (API-gated), Settings
+**7 top-level tabs** (consolidated from 13): Dashboard, Meta (Charts/Matchup Data/Predictions), Decks (Analyze/My Decks), Search, Tournament (Event Optimizer/Match Log), Resources (Guides/Ask Claude/Set Analysis), Settings
 
 ### Dashboard (Untapped.gg-inspired)
 - Three-column top: Recent Top Finishes / Win Rate / Popular
-- Win Rate panel columns: Pips | Archetype | Win% | Change | Rating | Prep | Status | Tier
+- Win Rate panel columns: Pips | Archetype | Win% | Change | Rating | Prep | Status | Tier | Role
+- "Meta Shift" button: compare current vs prior period (rising/falling/new/gone)
+- "Best Deck" button: meta-based deck recommendation with composite scoring
 - Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes
 - Dynamic panel titles update with timeframe selector
 - Dedup-aware Meta Impact bar shows filter effects
@@ -152,7 +154,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
 - **Matchup Data:** Three sources merged (real★ + scraped + paste), team notes via right-click, equilibrium button
 - **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON
-- **Deck Analyzer:** Arena/URL paste → Blunder + Chapin + Legality + auto-classify archetype (KNN)
+- **Deck Analyzer:** Arena/URL paste → Blunder + Chapin + Legality + auto-classify (KNN) + baseline comparison vs average deck
 - **Card Browser:** Scryfall query syntax, Similar Cards + Functional Substitutes
 - **Tournament Prep:** Event Optimizer (binomial top-cut, matchup breakdown, SB recommendations) + Breaker Math
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
@@ -184,6 +186,7 @@ scrapers/mtgmelee_scraper.py    Real match W/L from melee.gg
 scrapers/matchup_scraper.py     MTGDecks.net win-rate matrix
 scrapers/mythicspoiler_scraper.py  Set spoiler scraper
 scrapers/guides.py              Skill Issue Magic sheet sync
+scrapers/constants.py           Shared headers, format maps, delays, base URLs
 
 # ── Database ───────────────────────────────────────────────
 db/database.py                  Schema, connections, active + archive
@@ -191,6 +194,7 @@ db/maintenance.py               Archive maintenance + orphan cleanup
 db/saved_decks.py               Saved decks + SB plans (CASCADE delete, upsert)
 db/matches_queries.py           Match records CRUD
 db/matchup_queries.py           Matchup matrix + team notes
+db/helpers.py                   Shared DB helpers (ensure_table, utc_now, JSON)
 
 # ── Analysis ──────────────────────────────────────────────
 analysis/win_rates.py           Performance tracking, matchup matrix, field optimizer
@@ -207,6 +211,14 @@ analysis/equilibrium.py         Nash equilibrium, RPS cycles, Monte Carlo
 analysis/card_embeddings.py     ModernBERT embeddings
 analysis/cooccurrence_embeddings.py  Card2Vec (Word2Vec on decklists)
 analysis/knn_classifier.py      KNN archetype classifier
+analysis/meta_change.py         Compare two time periods (rising/falling/new/gone)
+analysis/deck_roles.py          Classify archetypes as Aggro/Midrange/Control/Combo/Tempo
+analysis/deck_recommender.py    Meta-based deck recommendation engine
+analysis/card_adoption.py       Card inclusion rate tracking over time
+analysis/slot_analysis.py       "Why this card?" — role, trend, substitutes, competitors
+analysis/cross_source_dedup.py  Cross-source duplicate event detection + confidence scoring
+analysis/date_parsing.py        Natural language date range parsing
+analysis/field_optimizer.py     Weighted WR vs expected field
 analysis/query.py               CLI query interface
 
 # ── GUI ────────────────────────────────────────────────────
@@ -216,6 +228,8 @@ gui/setup_wizard.py             First-time setup wizard
 gui/tray_icon.py                System tray (Team Resolve logo + status dot)
 gui/first_run_setup.py          UAC dialog + task registration
 gui/worker_threads.py           QThread workers
+gui/worker_utils.py             Shared cancel_worker() pattern
+gui/widgets/table_helpers.py    SortItem, NumItem, DateItem, make_table()
 gui/widgets/chart_canvas.py     Matplotlib FigureCanvasQTAgg
 gui/widgets/archetype_detail.py Archetype detail (6 tabs + View Event)
 gui/widgets/event_peers.py      Event peers dialog
@@ -226,7 +240,9 @@ gui/tabs/deck_analyzer.py       Deck Analyzer
 gui/tabs/my_decks.py            My Decks CRUD
 gui/tabs/match_log.py           Match Log (personal results)
 gui/tabs/search.py              Card Browser / Deck Search / H2H
-gui/tabs/tournament_prep.py     Event Optimizer + Breaker Math
+gui/tabs/tournament_prep.py     Tournament Prep wrapper (composes sub-tabs)
+gui/tabs/event_optimizer.py     Event Optimizer sub-tab
+gui/tabs/breaker_math.py        Breaker Math sub-tab
 gui/tabs/heatmap_tab.py         Matchup Data grid + team notes
 gui/tabs/charts.py              Interactive chart controls
 gui/tabs/card_browser.py        Scryfall-style card search
@@ -323,4 +339,4 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
 | `grill-me` | Stress-test a plan or design decision |
 
 ---
-*Last documentation update: 2026-04-07 — Full reorganization: 20 sections → 10, eliminated duplicates. UI/UX overhaul (Inter font, dark theme, Team Resolve branding). Quick wins: chart subtitles, event peers, flex slots, team notes.*
+*Last documentation update: 2026-04-08 — Deck Intelligence system (card adoption, baseline comparison, slot analysis, deck recommender). Meta change detection, deck role classification, cross-source dedup. Codebase consolidation (shared utilities, file splits). Tab consolidation 13→7. UX improvements (tooltips, empty states, friendly errors, progress bars). UI/UX overhaul (Inter font, dark theme, Team Resolve branding).*
