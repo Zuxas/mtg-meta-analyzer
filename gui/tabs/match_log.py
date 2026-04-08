@@ -512,7 +512,7 @@ class MatchLogTab(QWidget):
 
     def _draw_trend(self, trend: list):
         """Draw win rate trend on the embedded chart canvas."""
-        fig = self._trend_canvas.figure
+        fig = self._trend_canvas._fig
         fig.clear()
         if len(trend) < 2:
             ax = fig.add_subplot(111)
@@ -523,7 +523,7 @@ class MatchLogTab(QWidget):
                     transform=ax.transAxes)
             ax.set_xticks([])
             ax.set_yticks([])
-            self._trend_canvas.draw()
+            self._trend_canvas._canvas.draw()
             return
 
         dates = [t["date"] for t in trend]
@@ -554,7 +554,7 @@ class MatchLogTab(QWidget):
         ax.spines["left"].set_color("#555")
 
         fig.tight_layout()
-        self._trend_canvas.draw()
+        self._trend_canvas._canvas.draw()
 
     # ------------------------------------------------------------------
     # CRUD
