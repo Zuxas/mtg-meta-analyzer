@@ -139,6 +139,15 @@ class EventWidget(QWidget):
         self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         self._status.setWordWrap(True)
         lv.addWidget(self._status)
+
+        from PyQt6.QtWidgets import QProgressBar
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 0)  # indeterminate
+        self._progress.setFixedHeight(3)
+        self._progress.setTextVisible(False)
+        self._progress.setVisible(False)
+        lv.addWidget(self._progress)
+
         lv.addStretch()
 
         splitter.addWidget(left)
@@ -355,6 +364,7 @@ class EventWidget(QWidget):
         player_ct = self._players.value()
         self._analyze_btn.setEnabled(False)
         self._status.setText("Loading meta distribution\u2026")
+        self._progress.setVisible(True)
 
         def _auto():
             from analysis.win_rates import get_meta_standings
@@ -374,12 +384,14 @@ class EventWidget(QWidget):
             self._status.setText(f"Field loaded from {tf_label} meta standings.")
             self._meta_btn.setToolTip(f"Data from {tf_label} meta share for {fmt.capitalize()}")
             self._analyze_btn.setEnabled(True)
+            self._progress.setVisible(False)
 
         w = DataLoadWorker(_auto)
         w.result.connect(_done)
         w.error.connect(lambda e: (
-            self._status.setText(f"Could not load meta: {e}"),
+            self._status.setText(f"Could not load meta: {theme.friendly_error(e)}"),
             self._analyze_btn.setEnabled(True),
+            self._progress.setVisible(False),
         ))
         w.finished.connect(w.deleteLater)
         w.start()
@@ -457,7 +469,7 @@ class EventWidget(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(_done)
         w.error.connect(lambda e: (
-            self._status.setText(f"Error: {e}"),
+            self._status.setText(theme.friendly_error(e)),
             self._gauntlet_btn.setEnabled(True),
         ))
         w.finished.connect(w.deleteLater)
@@ -526,7 +538,7 @@ class EventWidget(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(_done)
         w.error.connect(lambda e: (
-            self._status.setText(f"Error: {e}"),
+            self._status.setText(theme.friendly_error(e)),
             self._prep_btn.setEnabled(True),
         ))
         w.finished.connect(w.deleteLater)
@@ -563,7 +575,7 @@ class EventWidget(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(_done)
         w.error.connect(lambda e: (
-            self._status.setText(f"Error: {e}"),
+            self._status.setText(theme.friendly_error(e)),
             self._analyze_btn.setEnabled(True),
         ))
         w.start()

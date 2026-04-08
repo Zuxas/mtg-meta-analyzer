@@ -131,7 +131,7 @@ class PredictionsTab(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(_done)
         w.error.connect(lambda e: (
-            self._status.setText(f"Error: {e}"),
+            self._status.setText(theme.friendly_error(e)),
             self._gen_btn.setEnabled(True),
         ))
         w.start()
@@ -155,7 +155,7 @@ class PredictionsTab(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(_done)
         w.error.connect(lambda e: (
-            self._status.setText(f"Error: {e}"),
+            self._status.setText(theme.friendly_error(e)),
             self._val_btn.setEnabled(True),
         ))
         w.start()

@@ -212,7 +212,7 @@ class _DeckDetailDialog(QDialog):
 
         w = DataLoadWorker(_do)
         w.result.connect(_show)
-        w.error.connect(lambda e: self._main_browser.setPlainText(f"Error: {e}"))
+        w.error.connect(lambda e: self._main_browser.setPlainText(theme.friendly_error(e)))
         w.start()
         self._workers.append(w)
 
@@ -452,7 +452,7 @@ class SearchTab(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(_show)
         w.error.connect(lambda e: (
-            self._deck_status.setText(f"Error: {e}"),
+            self._deck_status.setText(theme.friendly_error(e)),
         ))
         w.start()
         self._workers.append(w)
@@ -587,7 +587,7 @@ class SearchTab(QWidget):
 
         w = DataLoadWorker(_do)
         w.result.connect(_show)
-        w.error.connect(lambda e: self._h2h_result.setPlainText(f"Error: {e}"))
+        w.error.connect(lambda e: self._h2h_result.setPlainText(theme.friendly_error(e)))
         w.start()
         self._workers.append(w)
 
@@ -752,7 +752,7 @@ class SearchTab(QWidget):
 
         dw = DataLoadWorker(_do)
         dw.result.connect(_done)
-        dw.error.connect(lambda e: self._vsf_status.setText(f"Error: {e}"))
+        dw.error.connect(lambda e: self._vsf_status.setText(theme.friendly_error(e)))
         dw.start()
         self._workers.append(dw)
 
@@ -812,7 +812,7 @@ class SearchTab(QWidget):
 
         dw = DataLoadWorker(_do)
         dw.result.connect(_show)
-        dw.error.connect(lambda e: self._vsf_status.setText(f"Error: {e}"))
+        dw.error.connect(lambda e: self._vsf_status.setText(theme.friendly_error(e)))
         dw.start()
         self._workers.append(dw)
 

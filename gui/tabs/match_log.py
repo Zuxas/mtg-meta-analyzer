@@ -397,8 +397,12 @@ class MatchLogTab(QWidget):
                     stats.append(f"Best: vs {top['opponent']} {top['wr']*100:.0f}%")
             self._summary_bar.update("MATCH LOG", stats)
         else:
-            self._summary_lbl.setText("No matches logged yet")
-            self._summary_bar.update("MATCH LOG", ["No matches logged yet"])
+            self._summary_lbl.setText(
+                "No matches logged yet \u2014 click 'Log Match' to record your first tournament result"
+            )
+            self._summary_bar.update("MATCH LOG", [
+                "Track your results to see personal win rates vs each archetype",
+            ])
 
         # Event type breakdown
         ev = data.get("event_types", {})

@@ -389,7 +389,7 @@ class KnowledgeBaseTab(QWidget):
         w = DataLoadWorker(_do)
         w.result.connect(self._on_saved)
         w.error.connect(lambda e: (
-            self._form_status.setText(f"Error: {e}"),
+            self._form_status.setText(theme.friendly_error(e)),
             self._add_btn.setEnabled(True),
         ))
         w.start()

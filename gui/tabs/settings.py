@@ -379,7 +379,7 @@ class SettingsTab(QWidget):
             else:
                 self._arch_status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         except Exception as e:
-            self._arch_status_lbl.setText(f"Error: {e}")
+            self._arch_status_lbl.setText(theme.friendly_error(e))
 
     def _view_unclassified(self):
         try:
@@ -542,7 +542,7 @@ class SettingsTab(QWidget):
 
     def _on_backfill_error(self, msg: str):
         self._backfill_btn.setEnabled(True)
-        self._backfill_status.setText(f"Error: {msg}")
+        self._backfill_status.setText(theme.friendly_error(msg))
 
     # ------------------------------------------------------------------
     # ML Models
@@ -576,7 +576,7 @@ class SettingsTab(QWidget):
             self._refresh_ml_status(),
         ])
         self._ml_worker.error.connect(lambda e: [
-            self._ml_status_lbl.setText(f"Error: {e}"),
+            self._ml_status_lbl.setText(theme.friendly_error(e)),
             self._dl_embeddings_btn.setEnabled(True),
         ])
         self._ml_worker.start()
@@ -599,7 +599,7 @@ class SettingsTab(QWidget):
             self._refresh_ml_status(),
         ])
         self._ml_worker.error.connect(lambda e: [
-            self._ml_status_lbl.setText(f"Error: {e}"),
+            self._ml_status_lbl.setText(theme.friendly_error(e)),
             self._train_card2vec_btn.setEnabled(True),
         ])
         self._ml_worker.start()
@@ -622,7 +622,7 @@ class SettingsTab(QWidget):
             self._refresh_ml_status(),
         ])
         self._ml_worker.error.connect(lambda e: [
-            self._ml_status_lbl.setText(f"Error: {e}"),
+            self._ml_status_lbl.setText(theme.friendly_error(e)),
             self._train_knn_btn.setEnabled(True),
         ])
         self._ml_worker.start()

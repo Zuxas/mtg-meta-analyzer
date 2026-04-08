@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 
+import gui.theme as theme
 from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
 
 # ---------------------------------------------------------------------------
@@ -513,7 +514,7 @@ class ChartCanvas(QWidget):
         self.show_message("Loading meta data\u2026", "#5eb5cf")
         w = _MetaShareLoader(format_name, top, weeks, since, until, standings)
         w.done.connect(self._draw_meta_share)
-        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        w.error.connect(lambda e: self.show_message(theme.friendly_error(e), "#e6194b"))
         self._start_worker(w)
 
     def _draw_meta_share(self, data):
@@ -564,7 +565,7 @@ class ChartCanvas(QWidget):
         self.show_message(f"Loading trend for {_shorten(archetype)}\u2026", "#5eb5cf")
         w = _TrendLoader(archetype, format_name, weeks, since, until)
         w.done.connect(lambda data: self._draw_trend(data, archetype, format_name))
-        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        w.error.connect(lambda e: self.show_message(theme.friendly_error(e), "#e6194b"))
         self._start_worker(w)
 
     def _draw_trend(self, weekly, archetype, format_name):
@@ -660,7 +661,7 @@ class ChartCanvas(QWidget):
         self.show_message(f"Loading {names}\u2026", "#5eb5cf")
         w = _CompareLoader(archetypes, format_name, weeks, since, until)
         w.done.connect(self._draw_compare)
-        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        w.error.connect(lambda e: self.show_message(theme.friendly_error(e), "#e6194b"))
         self._start_worker(w)
 
     def _draw_compare(self, data):
@@ -766,7 +767,7 @@ class ChartCanvas(QWidget):
         from gui.worker_threads import DataLoadWorker
         worker = DataLoadWorker(_load)
         worker.result.connect(lambda data: self._draw_scatter(data, format_name))
-        worker.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        worker.error.connect(lambda e: self.show_message(theme.friendly_error(e), "#e6194b"))
         self._start_worker(worker)
 
     def _draw_scatter(self, result, format_name):
@@ -867,7 +868,7 @@ class ChartCanvas(QWidget):
         self.show_message("Loading matchup data\u2026", "#5eb5cf")
         w = _HeatmapLoader(format_name, top, min_appearances, since, until)
         w.done.connect(lambda data: self._draw_heatmap(data, format_name))
-        w.error.connect(lambda e: self.show_message(f"Error: {e}", "#e6194b"))
+        w.error.connect(lambda e: self.show_message(theme.friendly_error(e), "#e6194b"))
         self._start_worker(w)
 
     def _draw_heatmap(self, matrix_data, format_name):

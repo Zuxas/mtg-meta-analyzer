@@ -691,7 +691,7 @@ class DeckAnalyzerTab(QWidget):
         })
         w.result.connect(self._on_avg_deck_loaded)
         w.error.connect(lambda e: (
-            self._status.setText(f"Error: {e}"),
+            self._status.setText(theme.friendly_error(e)),
             self._load_btn.setEnabled(True),
         ))
         w.finished.connect(lambda: self._load_btn.setEnabled(True))
@@ -983,7 +983,7 @@ class DeckAnalyzerTab(QWidget):
         self._status.setText("Analysis complete.")
 
     def _on_error(self, msg):
-        self._status.setText(f"Error: {msg}")
+        self._status.setText(theme.friendly_error(msg))
         self._analyze_btn.setEnabled(True)
 
     # ------------------------------------------------------------------
@@ -1163,7 +1163,7 @@ class DeckAnalyzerTab(QWidget):
         w = DataLoadWorker(_do, {"main": main, "side": side, "fmt": fmt})
         w.result.connect(self._show_legality)
         w.error.connect(lambda e: (
-            self._legality_summary.setText(f"Error: {e}"),
+            self._legality_summary.setText(theme.friendly_error(e)),
             self._legality_btn.setEnabled(True),
         ))
         w.finished.connect(lambda: self._legality_btn.setEnabled(True))

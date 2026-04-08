@@ -246,7 +246,10 @@ class _PasteDialog(QDialog):
             self._error_lbl.setText(f"Parse error: {exc}")
             return
         if not matrix:
-            self._error_lbl.setText("No data found. Check the format.")
+            self._error_lbl.setText(
+                "No matchup data found. Check the format is correct "
+                "and the pasted data follows CSV or JSON format."
+            )
             return
         self.result_matrix = matrix
         self.accept()
@@ -426,6 +429,15 @@ class HeatmapTab(QWidget):
         self._status.setWordWrap(True)
         outer.addWidget(self._status)
 
+        # Indeterminate progress bar (visible during loading)
+        from PyQt6.QtWidgets import QProgressBar
+        self._progress = QProgressBar()
+        self._progress.setRange(0, 0)  # indeterminate
+        self._progress.setFixedHeight(3)
+        self._progress.setTextVisible(False)
+        self._progress.setVisible(False)
+        outer.addWidget(self._progress)
+
         # ── Grid container (QTableWidget has its own scrolling with sticky headers)
         self._grid_container = QWidget()
         self._grid_container.setVisible(False)
@@ -485,6 +497,7 @@ class HeatmapTab(QWidget):
         return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
 
     def _set_busy(self, busy: bool):
+        self._progress.setVisible(busy)
         self._combined_btn.setEnabled(not busy)
         self._fetch_btn.setEnabled(not busy)
         self._cache_btn.setEnabled(not busy)
@@ -684,7 +697,7 @@ class HeatmapTab(QWidget):
             return  # stale error from a cancelled load
         self._grid_container.setVisible(False)
         self._status.setVisible(True)
-        self._status.setText(f"Error: {msg}")
+        self._status.setText(theme.friendly_error(msg))
 
     def _on_data(self, fmt: str, matrix: dict, gen: int = -1):
         if gen != -1 and gen != self._load_gen:
@@ -1093,7 +1106,7 @@ class HeatmapTab(QWidget):
             from analysis.equilibrium import analyze_metagame
             result = analyze_metagame(fmt, since=self._since_dt(), top=15, method="nash")
         except Exception as e:
-            status.setText(f"Error: {e}")
+            status.setText(theme.friendly_error(e))
             dlg.exec()
             return
 
@@ -1342,7 +1355,7 @@ class HeatmapTab(QWidget):
                 worker.deleteLater()
 
             def _on_error(msg):
-                mc_status.setText(f"Error: {msg}")
+                mc_status.setText(theme.friendly_error(msg))
                 run_mc_btn.setEnabled(True)
                 worker.deleteLater()
 

@@ -536,3 +536,29 @@ def section_header_style() -> str:
         f"font-size: 13px; font-weight: 600; color: {TEXT}; "
         f"letter-spacing: 0.3px;"
     )
+
+
+def friendly_error(e) -> str:
+    """Convert a raw exception/message into a user-friendly error string."""
+    msg = str(e).strip()
+    lower = msg.lower()
+    if "no such table" in lower:
+        return "Database not set up yet. Run the setup wizard or fill_database.bat."
+    if "database is locked" in lower or "locked" in lower:
+        return "Database is busy. Try again in a few seconds."
+    if "connection" in lower and "refused" in lower:
+        return "Could not connect. Check your internet connection."
+    if "timeout" in lower or "timed out" in lower:
+        return "Request timed out. Try again or check your connection."
+    if "index out of range" in lower or "list index" in lower:
+        return "Unexpected data format. Check your input and try again."
+    if "no module" in lower or "import" in lower:
+        return "Missing dependency. Run: pip install -r requirements.txt"
+    if "403" in msg or "forbidden" in lower:
+        return "Access blocked by the website. Try again later."
+    if "404" in msg or "not found" in lower:
+        return "Data source not found. The URL may have changed."
+    # Truncate long messages
+    if len(msg) > 120:
+        msg = msg[:117] + "..."
+    return msg

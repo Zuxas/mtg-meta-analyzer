@@ -227,7 +227,7 @@ class ChartsTab(QWidget):
                 self._canvas.plot_heatmap(fmt, top, 3, since, until)
             self._status.setText("Done.")
         except Exception as e:
-            self._status.setText(f"Error: {e}")
+            self._status.setText(theme.friendly_error(e))
         finally:
             self._gen_btn.setEnabled(True)
 

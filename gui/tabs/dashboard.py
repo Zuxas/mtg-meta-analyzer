@@ -721,7 +721,13 @@ class DashboardTab(QWidget):
         self._canvas.draw_from_data(data, visible, mode=self._chart_mode, show_events=show_ev)
 
     def _on_error(self, msg: str):
-        self._status_lbl.setText(f"Error: {msg}")
+        # Show user-friendly error instead of raw exception
+        friendly = str(msg)
+        if "no such table" in friendly.lower():
+            friendly = "Database not initialized yet. Run the setup wizard or fill_database.bat first."
+        elif "connection" in friendly.lower() or "locked" in friendly.lower():
+            friendly = "Database is busy or locked. Try again in a few seconds."
+        self._status_lbl.setText(f"Could not load data: {friendly}")
 
     def _on_ranked_dblclick(self, item):
         """Double-click on win-rate or popularity table → open detail."""

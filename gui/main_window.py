@@ -126,17 +126,22 @@ class MainWindow(QMainWindow):
         self._set_analysis = SetAnalysisTab()
         self._settings  = SettingsTab()
 
-        self._tabs.addTab(self._dash,         "DASHBOARD")
-        self._tabs.addTab(self._deck,         "DECK ANALYZER")
-        self._tabs.addTab(self._my_decks,     "MY DECKS")
-        self._tabs.addTab(self._match_log,    "MATCH LOG")
-        self._tabs.addTab(self._search,       "SEARCH")
-        self._tabs.addTab(self._tourney,      "TOURNAMENT PREP")
-        self._tabs.addTab(self._heatmap,      "MATCHUP DATA")
-        self._tabs.addTab(self._kb,           "KNOWLEDGE BASE")
-        self._tabs.addTab(self._preds,        "PREDICTIONS")
-        self._tabs.addTab(self._charts,       "CHARTS")
-        self._tabs.addTab(self._settings,     "SETTINGS")
+        _tab_info = [
+            (self._dash,      "DASHBOARD",       "Current meta standings, win rates, and trending archetypes"),
+            (self._deck,      "DECK ANALYZER",   "Paste a decklist to check construction quality, legality, and archetype match"),
+            (self._my_decks,  "MY DECKS",        "Save your decklists and sideboard plans for each matchup"),
+            (self._match_log, "MATCH LOG",       "Track your tournament results and personal win rates over time"),
+            (self._search,    "SEARCH",          "Browse cards, search decklists, and compare head-to-head matchups"),
+            (self._tourney,   "TOURNAMENT PREP", "Calculate top-cut odds, ID equity, and matchup breakdown for events"),
+            (self._heatmap,   "MATCHUP DATA",    "Win-rate matrix showing how every archetype performs against each other"),
+            (self._kb,        "KNOWLEDGE BASE",  "Sideboard guides, bookmarks, and reference materials"),
+            (self._preds,     "PREDICTIONS",     "Auto-generated meta predictions and accuracy tracking"),
+            (self._charts,    "CHARTS",          "Interactive charts: meta share trends, archetype comparison, heatmaps"),
+            (self._settings,  "SETTINGS",        "Format preferences, data management, API keys, and ML models"),
+        ]
+        for i, (widget, label, tip) in enumerate(_tab_info):
+            self._tabs.addTab(widget, label)
+            self._tabs.setTabToolTip(i, tip)
 
         # Wire "Open in Event Optimizer" from My Decks → Tournament Prep
         self._my_decks.open_in_rcq.connect(self._on_open_in_rcq)
@@ -176,6 +181,8 @@ class MainWindow(QMainWindow):
         settings_idx = self._tabs.indexOf(self._settings)
         self._tabs.insertTab(settings_idx, self._claude, "ASK CLAUDE")
         self._claude_tab_index = self._tabs.indexOf(self._claude)
+        self._tabs.setTabToolTip(self._claude_tab_index,
+                                 "Chat with Claude AI about the meta, card choices, and strategy")
 
     def _remove_claude_tab(self):
         if self._claude_tab_index < 0:
@@ -189,6 +196,8 @@ class MainWindow(QMainWindow):
         settings_idx = self._tabs.indexOf(self._settings)
         self._tabs.insertTab(settings_idx, self._set_analysis, "SET ANALYSIS")
         self._set_analysis_tab_index = self._tabs.indexOf(self._set_analysis)
+        self._tabs.setTabToolTip(self._set_analysis_tab_index,
+                                 "Analyze new set spoilers for competitive impact by archetype")
 
     def _remove_set_analysis_tab(self):
         if self._set_analysis_tab_index < 0:
