@@ -392,6 +392,14 @@ class HeatmapTab(QWidget):
         self._gauntlet_btn.clicked.connect(self._load_gauntlet)
         tl.addWidget(self._gauntlet_btn)
 
+        self._build_gauntlet_btn = QPushButton("Export Decks")
+        self._build_gauntlet_btn.setStyleSheet(theme.btn_secondary())
+        self._build_gauntlet_btn.setToolTip(
+            "Export top meta decklists as .txt files for mtg-sim gauntlet testing"
+        )
+        self._build_gauntlet_btn.clicked.connect(self._export_gauntlet_decks)
+        tl.addWidget(self._build_gauntlet_btn)
+
         self._paste_btn = QPushButton("Paste Data")
         self._paste_btn.setStyleSheet(theme.btn_secondary())
         self._paste_btn.setToolTip(
@@ -1397,6 +1405,47 @@ class HeatmapTab(QWidget):
         dlg.exec()
 
     # ------------------------------------------------------------------
+    # Gauntlet deck export (for mtg-sim)
+    # ------------------------------------------------------------------
+
+    def _export_gauntlet_decks(self):
+        """Export top meta average decklists as .txt files for mtg-sim."""
+        import os
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+        fmt = self._fmt.currentText()
+        weeks_val = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1] or 8
+
+        # Pick export directory
+        sim_decks = os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "mtg-sim", "decks"
+        )
+        if not os.path.isdir(sim_decks):
+            sim_decks = os.path.join(os.path.dirname(__file__), "..", "..", "exports")
+
+        export_dir = QFileDialog.getExistingDirectory(
+            self, "Export Gauntlet Decks", sim_decks)
+        if not export_dir:
+            return
+
+        try:
+            from analysis.gauntlet_builder import build_gauntlet
+            result = build_gauntlet(
+                fmt, top=12, weeks=weeks_val, export_dir=export_dir,
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "Gauntlet Export", theme.friendly_error(e))
+            return
+
+        n = result["archetypes"]
+        out = result.get("exported_to", export_dir)
+        QMessageBox.information(
+            self, "Gauntlet Export",
+            f"Exported {n} average decklists + field.csv to:\n{out}\n\n"
+            f"Total lists analyzed: {result['total_decks_analyzed']:,}\n"
+            f"Format: mtg-sim compatible .txt files"
+        )
+
     # Gauntlet export / import
     # ------------------------------------------------------------------
 
