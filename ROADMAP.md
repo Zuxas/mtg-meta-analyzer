@@ -31,8 +31,8 @@
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
 - [ ] Global "All Formats" option everywhere
 - [x] URL import in Deck Analyzer (Moxfield, Archidekt, MTGGoldfish, MTGTop8) (2026-03-26)
-- [ ] Event peer navigation (all decks from same event)
-- [ ] Flex slot competition view (cards competing for same slot)
+- [x] Event peer navigation — "View Event" button in ArchetypeDetailDialog, Dashboard + Deck Search wired (2026-04-07)
+- [x] Flex slot competition view — Tech Choices tab grouped by role with color-coded labels (2026-04-07)
 
 ---
 
@@ -92,7 +92,7 @@
 - [x] Knowledge Base filters — format/archetype dropdowns, comment text search (2026-03-26)
 - [x] Archetype normalization — 250+ aliases across all 5 formats, junk exclusion (2026-03-26)
 - [x] Quick-glance summary bars on Dashboard, Match Log, My Decks, Matchup Data (2026-03-30) — reusable SummaryBar widget
-- [ ] Chart readability (always show sample size + timeframe)
+- [x] Chart readability — sample size + timeframe subtitles on all 6 chart types (2026-04-07)
 - [ ] Interaction speed (filters update in place)
 
 ---
@@ -160,5 +160,5 @@
 ### Team Collaboration
 - [ ] Export/import gauntlet results as JSON (share on Discord)
 - [x] Export/import SB plans + decklist as JSON — Share JSON / Import JSON buttons in My Decks (2026-03-30)
-- [ ] Team notes field on matchup heatmap cells
+- [x] Team notes field on matchup heatmap cells — right-click context menu, matchup_notes DB table (2026-04-07)
 - [ ] No server needed — file-based import/export only

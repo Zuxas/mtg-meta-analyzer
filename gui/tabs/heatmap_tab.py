@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QDialog, QPlainTextEdit, QDialogButtonBox,
-    QFrame, QSizePolicy,
+    QFrame, QSizePolicy, QMenu,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
@@ -843,6 +843,16 @@ class HeatmapTab(QWidget):
         source_map = self._source_map
         ncols = n + 1  # +1 for Overall column at index 0
 
+        # Load team notes for this format
+        try:
+            from db.matchup_queries import get_matchup_notes
+            notes = get_matchup_notes(fmt) if fmt else {}
+        except Exception:
+            notes = {}
+        self._grid_archetypes = archetypes
+        self._grid_format = fmt
+        self._grid_notes = notes
+
         tbl = QTableWidget(n, ncols)
         tbl.setHorizontalHeaderLabels(["Overall"] + archetypes)
         tbl.setVerticalHeaderLabels(archetypes)
@@ -919,6 +929,10 @@ class HeatmapTab(QWidget):
                         )
                         if matches:
                             tooltip += f"\nMatches logged: {matches:,}"
+                        cell_note = notes.get((arch_a, arch_b), "")
+                        if cell_note:
+                            tooltip += f"\n\nTeam Note:\n{cell_note}"
+                        tooltip += "\n\nRight-click to add/edit note"
                         item.setToolTip(tooltip)
                         if pct < 43 or pct > 57:
                             f = QFont()
@@ -967,10 +981,101 @@ class HeatmapTab(QWidget):
             )
             vl.addWidget(warn)
 
+        # Right-click context menu for team notes
+        tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tbl.customContextMenuRequested.connect(
+            lambda pos, t=tbl: self._show_note_menu(t, pos))
+
         vl.addWidget(tbl, 1)
 
         self._status.setVisible(False)
         self._grid_container.setVisible(True)
+
+    # ------------------------------------------------------------------
+    # Team notes (right-click on matchup cell)
+    # ------------------------------------------------------------------
+
+    def _show_note_menu(self, tbl: QTableWidget, pos):
+        item = tbl.itemAt(pos)
+        if not item:
+            return
+        row = tbl.row(item)
+        col = tbl.column(item)
+        archetypes = getattr(self, "_grid_archetypes", [])
+        fmt = getattr(self, "_grid_format", "")
+        if not archetypes or col < 1:
+            return  # skip Overall column
+        arch_a = archetypes[row] if row < len(archetypes) else None
+        arch_b = archetypes[col - 1] if (col - 1) < len(archetypes) else None
+        if not arch_a or not arch_b or arch_a == arch_b:
+            return
+
+        notes = getattr(self, "_grid_notes", {})
+        existing = notes.get((arch_a, arch_b), "")
+
+        menu = QMenu(self)
+        edit_action = menu.addAction("Add/Edit Note\u2026" if not existing else "Edit Note\u2026")
+        clear_action = None
+        if existing:
+            menu.addSeparator()
+            clear_action = menu.addAction("Clear Note")
+
+        action = menu.exec(tbl.viewport().mapToGlobal(pos))
+        if action is None:
+            return
+
+        if action == clear_action:
+            from db.matchup_queries import save_matchup_note
+            save_matchup_note(fmt, arch_a, arch_b, "")
+            self._grid_notes.pop((arch_a, arch_b), None)
+            # Update tooltip — strip note section
+            tip = item.toolTip()
+            if "\n\nTeam Note:" in tip:
+                tip = tip.split("\n\nTeam Note:")[0] + "\n\nRight-click to add/edit note"
+            item.setToolTip(tip)
+            return
+
+        if action == edit_action:
+            dlg = QDialog(self)
+            dlg.setWindowTitle(f"Note: {arch_a} vs {arch_b}")
+            dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+            layout = QVBoxLayout(dlg)
+
+            text_edit = QPlainTextEdit()
+            text_edit.setPlainText(existing)
+            text_edit.setMinimumSize(400, 180)
+            text_edit.setStyleSheet(
+                f"background: {theme.PANEL}; color: {theme.TEXT}; "
+                f"border: 1px solid {theme.ACCENT}; padding: 6px;"
+            )
+            layout.addWidget(text_edit)
+
+            btns = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Ok
+                | QDialogButtonBox.StandardButton.Cancel
+            )
+            btns.accepted.connect(dlg.accept)
+            btns.rejected.connect(dlg.reject)
+            layout.addWidget(btns)
+
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                note = text_edit.toPlainText().strip()
+                from db.matchup_queries import save_matchup_note
+                save_matchup_note(fmt, arch_a, arch_b, note)
+                if note:
+                    self._grid_notes[(arch_a, arch_b)] = note
+                else:
+                    self._grid_notes.pop((arch_a, arch_b), None)
+                # Update tooltip
+                tip = item.toolTip()
+                if "\n\nTeam Note:" in tip:
+                    tip = tip.split("\n\nTeam Note:")[0]
+                else:
+                    tip = tip.replace("\n\nRight-click to add/edit note", "")
+                if note:
+                    tip += f"\n\nTeam Note:\n{note}"
+                tip = tip.rstrip() + "\n\nRight-click to add/edit note"
+                item.setToolTip(tip)
 
     # ------------------------------------------------------------------
     # Meta Equilibrium dialog

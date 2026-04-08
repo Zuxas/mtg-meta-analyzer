@@ -64,7 +64,10 @@ Last updated: 2026-04-06
 - ~~Monte Carlo simulation in Equilibrium dialog~~ DONE (was already wired)
 - ~~Batch reclassify unknown archetypes~~ DONE — Standard 2, Pioneer 22, Legacy 24 reclassified
 - ~~Team Collaboration: gauntlet export~~ DONE — Export button on Heatmap tab, import via Paste Data
-- Team notes field on matchup heatmap cells
+- ~~Team notes field on matchup heatmap cells~~ DONE — right-click context menu, matchup_notes DB table
+- ~~Chart readability (sample size + timeframe)~~ DONE — subtitles on all 6 chart types
+- ~~Event peer navigation~~ DONE — was already wired; added "View Event" button to ArchetypeDetailDialog
+- ~~Flex slot competition view~~ DONE — Tech Choices tab grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
 - PyInstaller .exe packaging
 
 ---

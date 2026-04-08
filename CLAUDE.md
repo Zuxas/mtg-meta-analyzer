@@ -205,6 +205,7 @@ https://github.com/Zuxas/mtg-meta-analyzer (private repo)
   - Per-format min_matches: Standard=20, Pioneer=10, Modern=5 (786 unique archetypes in 92k matches)
   - Low-coverage warning for <8 archetypes on non-Standard formats
   - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
+  - **Team notes**: `matchup_notes` DB table (format, archetype_a, archetype_b, note, updated_at); right-click any matchup cell to add/edit/clear; notes persist across sessions and appear in cell tooltips
   - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
   - Fixed "Overall" column (index 0): weighted avg WR across all matchups, color-coded, with total match count in tooltip
   - Tooltip per cell: archetype names, win%, verdict, source (Real/Scraped), sample size n=X
@@ -381,7 +382,7 @@ scrapers/mythicspoiler_scraper.py  Mythic Spoiler set card list + Scryfall enric
 
 db/saved_decks.py               saved_decks + saved_sb_plans tables; save/get/delete helpers
 db/matches_queries.py           matches table: save_matches / get_matches / get_stored_event_ids / get_match_counts
-db/matchup_queries.py           matchup_matrix table: save/get/get_last_updated helpers
+db/matchup_queries.py           matchup_matrix + matchup_notes tables: save/get helpers + team notes
 db/database.py                  Schema, connections, active + archive DB helpers
 db/maintenance.py               Format-aware archive maintenance + orphan cleanup
 analysis/deck_analysis.py       Average deck + deck comparison functions
@@ -409,7 +410,7 @@ gui/setup_wizard.py             First-time setup (Scryfall + backfill + event co
 gui/worker_threads.py           QThread workers: scrape, download, load
 gui/widgets/chart_canvas.py     FigureCanvasQTAgg: plot_meta_share/trend/heatmap
 gui/widgets/meta_table.py       Meta standings table with click signal
-gui/widgets/archetype_detail.py 5 tabs: This List / Average Deck / Recent Lists / Tech Choices / Resources
+gui/widgets/archetype_detail.py 6 tabs: This List / Average Deck / Recent Lists / Tech Choices (role-grouped) / Card Trends / Resources; "View Event" button
 gui/widgets/card_tooltip.py     Card image tooltips (Scryfall API, in-memory cache, custom floating widget)
 gui/widgets/deck_export.py      MTGO/MTGA .txt export + decklist.org tournament sheet
 gui/tabs/dashboard.py           Table + chart, format/weeks/top-N controls, sparklines, event markers
@@ -675,4 +676,4 @@ Installed via: `npx skills@latest add mattpocock/skills/<name> -a claude-code -y
 **These steps are NON-NEGOTIABLE. See the rules section at the top of this file.**
 
 ---
-*Last documentation update: 2026-04-06 — Advanced Analytics sprint ALL 6 PHASES COMPLETE. New modules: meta_scoring.py, ratings.py, equilibrium.py, card_embeddings.py, cooccurrence_embeddings.py, knn_classifier.py. Dashboard Win Rate panel: 8 columns (Pips/Archetype/Win%/Change/Rating/Prep/Status/Tier). Popular panel: Change column replaces sparklines. Heatmap tab: Equilibrium button. Card Browser: Similar Cards + Functional Substitutes. Deck Analyzer: Deck Similarity + auto-classify archetype. New deps: scipy, pyarrow, gensim, scikit-learn.*
+*Last documentation update: 2026-04-07 — Quick wins sprint: chart readability (sample size + timeframe subtitles on all 6 chart types), event peer navigation ("View Event" button in ArchetypeDetailDialog), flex slot competition view (Tech Choices grouped by role: Threat/Removal/Card Advantage/Mana/Protection/Utility), team notes on heatmap cells (right-click context menu, matchup_notes DB table). Also downloaded MTG Comprehensive Rules + Scryfall rulings/oracle cards to data/rules_reference/.*

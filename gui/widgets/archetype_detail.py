@@ -39,7 +39,8 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
         # ── All decks for this archetype ──────────────────────────────
         q = """
             SELECT d.id, d.archetype, d.player, d.placement,
-                   e.date, e.name AS event_name, e.format
+                   e.date, e.name AS event_name, e.format,
+                   e.id AS event_id, e.url AS event_url
             FROM decks d
             JOIN events e ON e.id = d.event_id
             WHERE lower(d.archetype) LIKE lower(?)
@@ -120,6 +121,8 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
             "placement": meta["placement"],
             "event_name": meta["event_name"],
             "date": meta["date"],
+            "event_id": meta.get("event_id"),
+            "event_url": meta.get("event_url", ""),
             "mainboard": cards["main"],
             "sideboard": cards["side"],
         })
@@ -453,8 +456,86 @@ def _make_resources_tab(resources: list) -> QWidget:
     return container
 
 
+def _classify_card_role(type_line: str, oracle_text: str) -> str:
+    """Classify a card into a competitive role based on type line and oracle text."""
+    tl = (type_line or "").lower()
+    ot = (oracle_text or "").lower()
+
+    # Lands
+    if "land" in tl:
+        return "Mana"
+
+    # Removal / interaction
+    removal_keywords = [
+        "destroy target", "exile target", "deals damage to",
+        "counter target", "return target", "-x/-x", "gets -",
+        "sacrifice a", "destroy all", "exile all",
+    ]
+    if any(kw in ot for kw in removal_keywords):
+        return "Removal"
+
+    # Card advantage / selection
+    draw_keywords = [
+        "draw a card", "draw two", "draw cards", "scry",
+        "look at the top", "search your library", "surveil",
+    ]
+    if any(kw in ot for kw in draw_keywords):
+        # Creatures that also draw are threats
+        if "creature" in tl or "planeswalker" in tl:
+            return "Threat"
+        return "Card Advantage"
+
+    # Threats: creatures, planeswalkers, vehicles
+    if "creature" in tl or "planeswalker" in tl or "vehicle" in tl:
+        return "Threat"
+
+    # Protection / combat tricks
+    protect_keywords = [
+        "hexproof", "indestructible", "protection from",
+        "can't be countered", "ward",
+    ]
+    if any(kw in ot for kw in protect_keywords):
+        return "Protection"
+
+    # Enchantments / artifacts that buff or generate value
+    return "Utility"
+
+
+def _get_card_roles(card_names: list) -> dict:
+    """Look up card_data for a list of card names, return {name: role}."""
+    if not card_names:
+        return {}
+    try:
+        from db.database import get_connection
+        conn = get_connection()
+        try:
+            ph = ",".join("?" * len(card_names))
+            rows = conn.execute(f"""
+                SELECT name, type_line, oracle_text
+                FROM card_data WHERE name IN ({ph})
+            """, card_names).fetchall()
+        finally:
+            conn.close()
+        return {
+            r["name"]: _classify_card_role(r["type_line"], r["oracle_text"])
+            for r in rows
+        }
+    except Exception:
+        return {}
+
+
+_ROLE_COLORS = {
+    "Threat":         "#3cb44b",  # green
+    "Removal":        "#e6194b",  # red
+    "Card Advantage": "#42a5f5",  # blue
+    "Mana":           "#f58231",  # orange
+    "Protection":     "#ffe119",  # yellow
+    "Utility":        "#aaaaaa",  # grey
+}
+
+
 def _make_tech_table(mainboard: list) -> QWidget:
-    """Cards with 15–80 % inclusion — the flexible/situational slots."""
+    """Cards with 15–80 % inclusion — the flexible/situational slots, grouped by role."""
     tech = [c for c in mainboard if 0.15 <= c["inclusion_rate"] <= 0.80]
 
     container = QWidget()
@@ -468,38 +549,65 @@ def _make_tech_table(mainboard: list) -> QWidget:
         return container
 
     note = QLabel(
-        "Cards appearing in 15–80 % of lists. "
-        "These are the flexible slots that vary most between pilots."
+        "Flex slots (15\u201380% inclusion) grouped by role. "
+        "Cards in the same role group compete for the same slots."
     )
     note.setWordWrap(True)
     note.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
     vl.addWidget(note)
 
-    tbl = QTableWidget(len(tech), 3)
-    tbl.setHorizontalHeaderLabels(["Card", "Incl %", "Avg Copies"])
+    # Look up roles from card_data
+    card_names = [c["name"] for c in tech]
+    roles = _get_card_roles(card_names)
+
+    # Assign role to each tech card
+    for c in tech:
+        c["role"] = roles.get(c["name"], "Utility")
+
+    # Sort by role then inclusion
+    role_order = ["Threat", "Removal", "Card Advantage", "Mana", "Protection", "Utility"]
+    tech.sort(key=lambda c: (
+        role_order.index(c["role"]) if c["role"] in role_order else 99,
+        -c["inclusion_rate"],
+    ))
+
+    tbl = QTableWidget(len(tech), 4)
+    tbl.setHorizontalHeaderLabels(["Role", "Card", "Incl %", "Avg Copies"])
     tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
     tbl.setAlternatingRowColors(True)
     tbl.verticalHeader().setVisible(False)
     tbl.setSortingEnabled(True)
     hh = tbl.horizontalHeader()
-    hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-    hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+    hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+    hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
     hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+    hh.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 
     tbl.setSortingEnabled(False)
     for ri, c in enumerate(tech):
+        role = c["role"]
+        role_i = QTableWidgetItem(role)
+        role_color = _ROLE_COLORS.get(role, "#aaaaaa")
+        role_i.setForeground(QColor(role_color))
+        f = role_i.font()
+        f.setBold(True)
+        role_i.setFont(f)
+        tbl.setItem(ri, 0, role_i)
+
         name_i = QTableWidgetItem(c["name"])
-        pct_i  = _NumItem(f"{c['inclusion_rate']*100:.0f}%")
+        tbl.setItem(ri, 1, name_i)
+
+        pct_i = _NumItem(f"{c['inclusion_rate']*100:.0f}%")
         pct_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        qty_i  = _NumItem(f"{c['avg_qty']:.2f}")
+        tbl.setItem(ri, 2, pct_i)
+
+        qty_i = _NumItem(f"{c['avg_qty']:.2f}")
         qty_i.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        tbl.setItem(ri, 0, name_i)
-        tbl.setItem(ri, 1, pct_i)
-        tbl.setItem(ri, 2, qty_i)
+        tbl.setItem(ri, 3, qty_i)
 
     tbl.setSortingEnabled(True)
-    tbl.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+    tbl.sortByColumn(0, Qt.SortOrder.AscendingOrder)
     vl.addWidget(tbl, 1)
     return container
 
@@ -578,6 +686,14 @@ class ArchetypeDetailDialog(QDialog):
             f"color: {theme.TEXT_DIM}; font-size: 11px; margin-left: 16px;"
         )
         hl.addWidget(self._deck_count_lbl)
+
+        self._event_btn = QPushButton("View Event")
+        self._event_btn.setStyleSheet(theme.btn_secondary())
+        self._event_btn.setFixedHeight(26)
+        self._event_btn.setEnabled(False)
+        self._event_btn.setVisible(self._deck_id is not None)
+        self._event_btn.clicked.connect(self._on_view_event)
+        hl.addWidget(self._event_btn)
 
         self._export_btn = QPushButton("Export ▾")
         self._export_btn.setStyleSheet(theme.btn_secondary())
@@ -662,6 +778,19 @@ class ArchetypeDetailDialog(QDialog):
             deck_count=self._data["deck_count"],
         )
 
+    def _on_view_event(self):
+        info = getattr(self, "_event_info", None)
+        if not info:
+            return
+        from gui.widgets.event_peers import EventPeersDialog
+        dlg = EventPeersDialog(
+            event_id=info["event_id"],
+            event_name=info.get("event_name", ""),
+            event_url=info.get("event_url", ""),
+            parent=self,
+        )
+        dlg.exec()
+
     def _on_data(self, data):
         if data is None:
             self._status_lbl.setText(
@@ -671,6 +800,17 @@ class ArchetypeDetailDialog(QDialog):
 
         self._data = data
         self._export_btn.setEnabled(True)
+        # Enable "View Event" if we can find this deck's event
+        if self._deck_id is not None:
+            for rd in data.get("recent_decks", []):
+                if rd.get("id") == self._deck_id and rd.get("event_id"):
+                    self._event_info = {
+                        "event_id": rd["event_id"],
+                        "event_name": rd.get("event_name", ""),
+                        "event_url": rd.get("event_url", ""),
+                    }
+                    self._event_btn.setEnabled(True)
+                    break
         self._status_lbl.setVisible(False)
         self._deck_count_lbl.setText(f"{data['deck_count']:,} decks analysed")
 

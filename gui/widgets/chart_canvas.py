@@ -161,6 +161,21 @@ def _style_ax(ax, fig):
         spine.set_edgecolor(_GRID)
 
 
+def _subtitle(ax, text: str):
+    """Add a dim italic subtitle below the main title."""
+    ax.text(0.5, 1.01, text, transform=ax.transAxes,
+            ha="center", va="bottom", fontsize=8,
+            color="#888888", style="italic")
+
+
+def _timeframe_label(sorted_keys: list) -> str:
+    """Build a human-readable date range string from sorted bucket keys."""
+    if not sorted_keys:
+        return "All Time"
+    first, last = sorted_keys[0], sorted_keys[-1]
+    return f"{first} to {last}"
+
+
 # ---------------------------------------------------------------------------
 # Background data-loading workers
 # ---------------------------------------------------------------------------
@@ -467,7 +482,14 @@ class ChartCanvas(QWidget):
 
         fmt = data.get("format_name", "standard").upper()
         ax.set_title(f"{title_sfx} \u2014 {fmt}",
-                     color="white", fontsize=13, pad=10)
+                     color="white", fontsize=13, pad=14)
+        # Subtitle: sample size + date range
+        total_apps = sum(
+            sum(sample.get(a, {}).values()) for a in archetypes
+        )
+        tf_label = _timeframe_label(sorted_weeks)
+        gran = data.get("granularity", "weekly")
+        _subtitle(ax, f"{total_apps:,} appearances  \u00b7  {tf_label}  \u00b7  {gran}")
         ax.set_xlabel("Week", color="white", fontsize=9)
         ax.set_ylabel(y_label, color="white", fontsize=9)
         ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
@@ -516,7 +538,8 @@ class ChartCanvas(QWidget):
                     color=color, label=_shorten(arch), alpha=0.9)
 
         ax.set_title(f"Meta Share Over Time \u2014 {data.get('format_name', 'standard').upper()}",
-                     color="white", fontsize=13, pad=10)
+                     color="white", fontsize=13, pad=14)
+        _subtitle(ax, f"{len(archetypes)} archetypes  \u00b7  {_timeframe_label(sorted_weeks)}")
         ax.set_xlabel("Week", color="white", fontsize=9)
         ax.set_ylabel("Meta Share %", color="white", fontsize=9)
         ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
@@ -608,10 +631,12 @@ class ChartCanvas(QWidget):
         )
         ax2.set_facecolor(_MID)
 
+        total_apps = sum(appearances)
         ax1.set_title(
             f"{_shorten(archetype, 40)} \u2014 {format_name.upper()} Trend",
-            color="white", fontsize=12, pad=10,
+            color="white", fontsize=12, pad=14,
         )
+        _subtitle(ax1, f"{total_apps:,} appearances  \u00b7  {_timeframe_label(_trend_keys)}")
         bar_proxy = ax1.bar([], [], color=bar_color, alpha=0.4, label="Appearances")
         ax1.legend(
             [bar_proxy] + line_handles,
@@ -661,7 +686,8 @@ class ChartCanvas(QWidget):
 
         fmt = data.get("format_name", "standard").upper()
         ax.set_title(f"Compare Trends \u2014 {fmt}",
-                     color="white", fontsize=13, pad=10)
+                     color="white", fontsize=13, pad=14)
+        _subtitle(ax, f"{len(archetypes)} archetypes  \u00b7  {_timeframe_label(sorted_weeks)}")
         ax.set_xlabel("Week", color="white", fontsize=9)
         ax.set_ylabel("Meta Share %", color="white", fontsize=9)
         ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
@@ -824,8 +850,10 @@ class ChartCanvas(QWidget):
         ax.text(max(shares) * 0.95 if shares else 5, 50.3, "50% WR",
                 color="#f58231", fontsize=7, ha="right", alpha=0.7)
 
+        total_apps = sum(apps)
         ax.set_title(f"Meta Positioning \u2014 {format_name.upper()}",
-                     color="white", fontsize=13, pad=10)
+                     color="white", fontsize=13, pad=14)
+        _subtitle(ax, f"{len(data)} archetypes  \u00b7  {total_apps:,} appearances")
         ax.set_xlabel("Meta Share %", color="white", fontsize=9)
         ax.set_ylabel("Win Rate %", color="white", fontsize=9)
         ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.1f}%"))
@@ -906,9 +934,12 @@ class ChartCanvas(QWidget):
         cbar.ax.tick_params(colors="white", labelsize=7)
         cbar.set_label("Win % (row vs col)", color="white", fontsize=8)
 
+        # Count total matchup pairs with data
+        total_matchups = int(np.count_nonzero(~np.isnan(grid)) - n)  # exclude diagonal
         ax.set_title(
             f"Matchup Heatmap \u2014 {format_name.upper()}",
-            color="white", fontsize=12, pad=10,
+            color="white", fontsize=12, pad=14,
         )
+        _subtitle(ax, f"{n} archetypes  \u00b7  {total_matchups} matchup cells")
         self._fig.tight_layout()
         self._canvas.draw()
