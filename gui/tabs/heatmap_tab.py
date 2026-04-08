@@ -36,18 +36,32 @@ import gui.theme as theme
 # Colour helpers
 # ---------------------------------------------------------------------------
 
-def _wr_color(winrate: float) -> QColor:
-    """Background QColor for a given win-rate (0.0–1.0)."""
+def _wr_bg(winrate: float) -> QColor:
+    """Background QColor for a given win-rate (0.0–1.0). Subtle tint only."""
     pct = winrate * 100
     if pct >= 60:
-        return QColor(10, 140, 50)       # vivid green
+        return QColor(12, 50, 22)
     if pct >= 55:
-        return QColor(20, 100, 45)       # clear green
+        return QColor(14, 40, 20)
     if pct >= 45:
-        return QColor(35, 38, 50)        # neutral dark
+        return QColor(30, 30, 38)
     if pct >= 40:
-        return QColor(160, 40, 30)       # clear red
-    return QColor(190, 30, 25)           # vivid red
+        return QColor(55, 18, 16)
+    return QColor(65, 14, 14)
+
+
+def _wr_fg(winrate: float) -> QColor:
+    """Foreground (text) QColor for a given win-rate — matches legend colors."""
+    pct = winrate * 100
+    if pct >= 60:
+        return QColor(50, 220, 90)       # bright green
+    if pct >= 55:
+        return QColor(70, 190, 90)       # green
+    if pct >= 45:
+        return QColor(140, 145, 160)     # neutral grey
+    if pct >= 40:
+        return QColor(230, 90, 70)       # orange-red
+    return QColor(240, 60, 50)           # bright red
 
 
 def _wr_label(winrate: float) -> str:
@@ -461,11 +475,11 @@ class HeatmapTab(QWidget):
         hl.setSpacing(12)
         hl.addWidget(QLabel("Legend:"))
         for label, color in [
-            ("\u226560% (Strong Fav)", QColor(10, 140, 50)),
-            ("55\u201359% (Favored)",  QColor(20, 100, 45)),
-            ("45\u201354% (Even)",     QColor(35, 38, 50)),
-            ("40\u201344% (Unfav)",    QColor(160, 40, 30)),
-            ("\u226439% (Bad)",        QColor(190, 30, 25)),
+            ("\u226560% (Strong Fav)", QColor(50, 220, 90)),
+            ("55\u201359% (Favored)",  QColor(70, 190, 90)),
+            ("45\u201354% (Even)",     QColor(140, 145, 160)),
+            ("40\u201344% (Unfav)",    QColor(230, 90, 70)),
+            ("\u226439% (Bad)",        QColor(240, 60, 50)),
         ]:
             swatch = QLabel()
             swatch.setFixedSize(14, 14)
@@ -902,7 +916,8 @@ class HeatmapTab(QWidget):
                 overall_wr = total_w / total_n
                 pct = round(overall_wr * 100)
                 item = QTableWidgetItem(f"{pct}%")
-                item.setBackground(_wr_color(overall_wr))
+                item.setBackground(_wr_bg(overall_wr))
+                item.setForeground(_wr_fg(overall_wr))
                 bold = QFont(); bold.setBold(True); item.setFont(bold)
                 item.setToolTip(
                     f"{arch_a}\nOverall WR: {pct}% (weighted by sample size)\n"
@@ -937,7 +952,8 @@ class HeatmapTab(QWidget):
                         is_real = source_map.get((arch_a, arch_b)) == "real"
                         star = "\u2605" if is_real else ""
                         item = QTableWidgetItem(f"{pct}%{star}")
-                        item.setBackground(_wr_color(wr))
+                        item.setBackground(_wr_bg(wr))
+                        item.setForeground(_wr_fg(wr))
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         verdict = _wr_label(wr)
                         src_tag = "Real match data" if is_real else "Scraped (MTGDecks)"
