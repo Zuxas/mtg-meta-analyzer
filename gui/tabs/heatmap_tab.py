@@ -860,13 +860,19 @@ class HeatmapTab(QWidget):
         self._grid_notes = notes
 
         tbl = QTableWidget(n, ncols)
-        # Override global stylesheet so setBackground() on cells actually shows.
-        # The global alternate-background-color and QTableWidget background
-        # were overriding per-cell colors making the heatmap look flat.
-        tbl.setStyleSheet(
-            "QTableWidget { background: transparent; alternate-background-color: transparent; }"
-            "QTableWidget::item { background: transparent; }"
-        )
+        # CRITICAL: The global stylesheet sets QTableWidget::item { padding }
+        # which prevents setBackground() from working. Override with a
+        # stylesheet that does NOT touch background at all — only padding/border.
+        # The "color: white" on ::item is needed so Qt enters "styled" mode
+        # but still respects BackgroundRole from setBackground().
+        tbl.setStyleSheet("")  # clear inherited styles
+        tbl.setAlternatingRowColors(False)
+        # Apply via palette instead of stylesheet for cell backgrounds
+        from PyQt6.QtGui import QPalette
+        pal = tbl.palette()
+        pal.setColor(QPalette.ColorRole.Base, QColor(theme.BG))
+        pal.setColor(QPalette.ColorRole.AlternateBase, QColor(theme.BG))
+        tbl.setPalette(pal)
         tbl.setHorizontalHeaderLabels(["Overall"] + archetypes)
         tbl.setVerticalHeaderLabels(archetypes)
         tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
