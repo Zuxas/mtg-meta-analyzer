@@ -296,7 +296,7 @@ class MatchLogTab(QWidget):
         # Win rate trend chart
         rv.addWidget(QLabel("Win Rate Trend:"))
         from gui.widgets.chart_canvas import ChartCanvas
-        self._trend_canvas = ChartCanvas(width=4, height=2)
+        self._trend_canvas = ChartCanvas()
         rv.addWidget(self._trend_canvas)
 
         splitter.addWidget(right)
