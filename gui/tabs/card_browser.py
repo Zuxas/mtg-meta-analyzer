@@ -502,7 +502,7 @@ class CardBrowserTab(QWidget):
 
         # Header
         header = QLabel("CARD BROWSER")
-        header.setFont(QFont("Orbitron", 14, QFont.Weight.Bold))
+        header.setFont(QFont("Inter", 14, QFont.Weight.Bold))
         header.setStyleSheet(f"color: {theme.ACCENT};")
         layout.addWidget(header)
 

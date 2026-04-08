@@ -1,5 +1,5 @@
 """
-Tab 6 — Settings
+Tab — Settings
 User preferences: formats to track, data window, timezone, auto-update frequency.
 Persists to data/preferences.json.
 """

@@ -41,7 +41,7 @@ class EventPeersDialog(QDialog):
         # Header
         hdr = QHBoxLayout()
         title = QLabel(self._event_name or "Event")
-        title.setFont(QFont("Orbitron", 13, QFont.Weight.Bold))
+        title.setFont(QFont("Inter", 13, QFont.Weight.Bold))
         title.setStyleSheet(f"color: {theme.ACCENT};")
         title.setWordWrap(True)
         hdr.addWidget(title, 1)

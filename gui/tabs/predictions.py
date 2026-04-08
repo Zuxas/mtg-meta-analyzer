@@ -1,5 +1,5 @@
 """
-Tab 5 — Predictions
+Tab — Predictions
   Table of recent predictions with status (pending / correct / wrong)
   Generate Predictions button, Validate button, accuracy summary
 """

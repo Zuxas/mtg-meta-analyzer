@@ -1,5 +1,5 @@
 """
-Tab 4 — Charts
+Tab — Charts
 Interactive chart controls on the left, live embedded matplotlib canvas on the right.
 
 Supports: Meta Share | Archetype Trend | Matchup Heatmap

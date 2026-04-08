@@ -78,7 +78,7 @@ def generate_meta(conn):
             "decks":     cnt,
             "share":     share,
             "has_playbook": name in OUR_DECKS,
-            "color":     OUR_DECKS.get(name, "#65bcd5"),
+            "color":     OUR_DECKS.get(name, "#5eb5cf"),
         })
 
     return {

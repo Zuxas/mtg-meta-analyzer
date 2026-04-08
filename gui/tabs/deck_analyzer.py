@@ -1,5 +1,5 @@
 """
-Tab 2 — Deck Analyzer
+Tab — Deck Analyzer
 Paste any decklist in Arena export format, run Blunder Detection +
 Chapin Principles evaluation, see results side-by-side.
 

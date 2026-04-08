@@ -1,5 +1,5 @@
 """
-Tab 3 — Search
+Tab — Search
   Sub-tabs: Card Lookup | Deck Search | Head-to-Head
 """
 import os

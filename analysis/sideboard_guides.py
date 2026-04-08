@@ -412,7 +412,7 @@ def render_guide_html(guide_data: dict, my_archetype: str, opp_archetype: str) -
     # Your perspective
     if my_cnt > 0:
         parts.append(
-            f'<span style="color:#65bcd5;"><b>Your guides</b></span> '
+            f'<span style="color:#5eb5cf;"><b>Your guides</b></span> '
             f'<span style="color:#8a9aaa;">({my_cnt} guide{"s" if my_cnt > 1 else ""} '
             f'for {my_archetype})</span><br>'
         )

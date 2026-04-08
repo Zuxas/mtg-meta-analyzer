@@ -1,5 +1,5 @@
 """
-Tab 1 — Dashboard (Untapped.gg-inspired layout)
+Tab — Dashboard (Untapped.gg-inspired layout)
 
 Top section — three panels side by side:
   Left:   Recent Top Finishes  (placement 1-4, most recent first)
