@@ -1,679 +1,326 @@
-# CLAUDE.md - MTG Meta Analyzer Project Context
+# CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-03-27
+Last updated: 2026-04-07
 
 ---
 
 ## NON-NEGOTIABLE RULES
 
-1. **ALWAYS update CLAUDE.md, NEXT_STEPS.md, and ROADMAP.md before every commit — no exceptions**
+1. **ALWAYS update CLAUDE.md, NEXT_STEPS.md, and ROADMAP.md before every commit**
 2. **ALWAYS `git push` after every commit**
 3. **ALWAYS run `--counts` or verify output after any scrape**
 4. **Documentation must reflect actual current state, not planned state**
 
 ---
 
-## Workspace Context
+## 1. OVERVIEW
 
-This project is part of the Team Resolve competitive MTG workspace.
+**Project:** Automated competitive MTG tournament data analysis tool.
+**Goal:** Give Team Resolve a competitive edge for Pro Tour qualification — surface meta trends, identify rising archetypes, evaluate decklists against historical performance.
+**GitHub:** https://github.com/Zuxas/mtg-meta-analyzer (private repo)
+
+**User:** Jermey Wallace (Zuxas), team captain of Team Resolve.
+5x RC qualifier. Current format focus: Modern.
+Goal: Pro Tour qualification via RC conversion.
+
+**Workspace:**
 
 | Project | Path | Purpose |
 |---|---|---|
-| MTG Meta Analyzer | `E:/vscode ai project/mtg-meta-analyzer/` | This project — tournament data, meta analysis, GUI |
-| Team Resolve | `E:/vscode ai project/Team Resolve/` | Sideboard guides, gauntlet data, RC prep packages |
-| Road to Pro Tour site | `E:/vscode ai project/My-Website/` | Public-facing website documenting the journey |
+| MTG Meta Analyzer | `E:/vscode ai project/mtg-meta-analyzer/` | This project |
+| Team Resolve | `E:/vscode ai project/Team Resolve/` | Sideboard guides, gauntlet, RC prep |
+| Road to Pro Tour | `E:/vscode ai project/My-Website/` | Public-facing website |
 
-**Who uses this tool:** Jermey Wallace (Zuxas), team captain of Team Resolve.
-5x RC qualifier. Current format focus: Modern.
-Last season: 17 RCQ Top 8s (Boros Energy), 23 RCQ Top 8s prior Standard season (Dimir Midrange).
-Goal: Pro Tour qualification via RC conversion.
-
-**How it connects to Team Resolve workflow:**
-- Dashboard meta share data informs which archetypes go into the gauntlet
-- Field Optimizer tells us which deck has the best weighted win% vs the expected RC field
-- Matchup matrix data feeds into the sideboard guide builds in `Team Resolve/guides/`
-- Sideboard guides synced from Skill Issue Magic sheet are the same ones used in Team Resolve prep packages
-- The Event Optimizer's binomial top-cut probability is used for RC entry decisions
+**Team Resolve workflow integration:**
+- Dashboard meta share → gauntlet archetype selection
+- Field Optimizer → best deck vs expected RC field
+- Matchup matrix → sideboard guide builds in `Team Resolve/guides/`
+- Sideboard guides synced from Skill Issue Magic sheet
+- Event Optimizer binomial top-cut probability → RC entry decisions
 
 ---
 
-## Project Purpose
-Build an automated tool to analyze competitive Magic: The Gathering tournament
-data. Primary goal: give the user a competitive edge preparing for the Pro Tour
-by surfacing meta trends, identifying rising archetypes, and evaluating decklists
-against historical performance data.
+## 2. ENVIRONMENT & SETUP
 
-## GitHub
-https://github.com/Zuxas/mtg-meta-analyzer (private repo)
+- **OS:** Windows 11, VS Code, Python 3.13
+- **Shell:** cmd (Command Prompt) — set in .vscode/settings.json (avoids path space issues)
+- **Project root:** `E:\vscode ai project\mtg-meta-analyzer`
+- **User context:** Limited coding experience; AI assistants are primary dev support
 
-## Environment
-- Windows 11, VS Code
-- Python 3.13
-- Shell: **cmd (Command Prompt)** — default terminal set to cmd in .vscode/settings.json
-- Project root: `E:\vscode ai project\mtg-meta-analyzer`
-- Always open VS Code from the project folder so Claude Code registers the correct project path
-- User has limited coding experience; AI assistants are primary dev support
+### First-Run Setup
+1. `fill_database.bat` — builds local DB from scratch
+2. Setup wizard on first GUI launch: format selection → Scryfall download → backfill → 50-event unlock
+3. First-run UAC dialog (`gui/first_run_setup.py`) → registers 3 Task Scheduler tasks (one-time, never re-shown)
 
-## Current State (as of 2026-03-25)
+### User Preferences
+`data/preferences.json` (gitignored) — format selection, date window, auto-update, API key.
+Setup wizard page 0 saves formats immediately. `fill_database.py` and `scripts/run_fill_from_prefs.py` read at runtime.
 
-### Working
-- MTGTop8 scraper pulls events, decklists (main + sideboard), player names
-- MTGO Challenge-specific scraper (`scrapers/challenges.py`)
-- Historical backfill scraper (`scrapers/backfill.py`) — pages backwards
-  year-by-year using MTGTop8 year-specific meta filters
-- SQLite database storing events, decks, cards, deck_cards, card_data
-- Format-aware archive-based retention policy (not deletion)
-- Daily automated scraper via Windows Task Scheduler:
-  - `run_daily.bat` — 5 PM daily (Standard latest events + archive maintenance)
-  - `background_fill.bat` — 6 AM daily (Standard + Pioneer + Modern, both sources)
-- Average deck calculator and deck comparison (`analysis/deck_analysis.py`)
-- CLI query tool (`analysis/query.py`) with subcommands:
-    average, compare, search, top-cards, last-challenge
-    meta, trend, h2h, matchups, matrix, field-optimizer
-    card, enrich-stats, suggest-aliases, normalize
-    chart meta, chart trend, chart heatmap
-    predict, validate-predictions, prediction-report
-    blunder, chapin
-- Win rate / performance tracking (`analysis/win_rates.py`):
-  - Placement-based estimated match W/L per archetype
-  - Meta standings, weekly trend, head-to-head, full matchup breakdown
-  - NxN matchup matrix; Field Optimizer (weighted win% vs expected field)
-  - Natural language date range filtering ("last 30 days", "feb2-mar9")
-  - `get_archetype_trend()` handles `weeks=None` as "All Time" (no date filter)
-- Scryfall card enrichment (`scrapers/scryfall.py`):
-  - 3-tier lookup: SQLite → local bulk JSON → live API (last resort only)
-  - Bulk Oracle Cards downloaded to data/scryfall_oracle.json (~162 MB)
-  - Loaded into memory once per process; auto-refreshes weekly (Sunday midnight)
-  - Enriches card_data table: mana cost, CMC, colors, type, oracle text,
-    power/toughness, rarity, set, format legalities
-  - `get_card_data()`, `get_cards_data()`, `is_legal()` helpers
-  - `search_local(query)`: fuzzy + NL search in local file (no API calls)
-  - `get_deck_usage(name, format)`: tournament presence stats
-- Archetype name normalization (`analysis/archetypes.py`) — three-layer system:
-  - Layer 1: `pre_normalize()` — fixes spacing/hyphens/color abbreviations before alias lookup
-    ("Mono-Green Landfall", "MonoGreen Landfall", "monogreen landfall" → "Mono Green Landfall";
-    "UR Prowess" → "Izzet Prowess"; "UWR Control" → "Jeskai Control" — automatic, no alias needed)
-  - Layer 2: ALIASES table — 250+ hard-coded mappings; includes WUBRG codes, Five-Color→5C, apostrophe fixes, UR/UW expansions, Affinity/Neoform/Pixie/Cauldron/Overlords/Reanimator/Greasefang consolidation across all 5 formats
-  - Layer 3: optional fuzzy match via thefuzz
-  - `suggest_aliases()` scans DB for likely duplicate names
-  - `find_card_based_duplicates(format, name_threshold, card_overlap)` — finds pairs sharing
-    both similar names (fuzzy) AND similar mainboards (≥67% card overlap at 10% inclusion);
-    returns 125 pairs for Standard — use `--card-similarity --apply` for interactive merge
-  - `merge_archetypes(keep, remove)` — renames all decks from one name to another
-  - `apply_normalization(dry_run, fuzzy)` — retroactive DB migration
-  - CLI: `python -m analysis.archetypes --apply`
-  - CLI: `python -m analysis.archetypes --card-similarity --format standard --apply`
-  - CLI: `python -m analysis.archetypes --pre-normalize` (preview format-only fixes)
-- Self-Validation & Prediction Logging (`analysis/predictions.py`):
-  - Auto-generates top_meta / trending_up / trending_down predictions from meta data
-  - Stores in `predictions` SQLite table; validates after target week passes
-  - Accuracy tracked per prediction type (which signals are most reliable)
-  - Run: `python -m analysis.query predict`, `validate-predictions`, `prediction-report`
-- Deck Scoring & Blunder Detection (`analysis/blunders.py`):
-  - Checks: land count, mana curve, color consistency, interaction, threats, deck size, legality
-  - Severity tiers: Major (10pt), Moderate (4pt), Minor (1pt) → Construction Quality rating
-  - Run: `python -m analysis.query blunder "Izzet Prowess"`
-- Chapin Principles Evaluation (`analysis/chapin.py`):
-  - Six principles: Threats (20%), Answers (20%), Consistency (18%), Velocity (15%), Mana (17%), Clock (10%)
-  - Each scored 0-10 with bar display; overall weighted average + recommendation
-  - Run: `python -m analysis.query chapin "Izzet Prowess"`
-- Trend charts (`analysis/charts.py`) — wired into `chart` subcommand:
-  - `chart meta` — line chart, meta share % per week for top N archetypes
-  - `chart trend` — dual-axis: bars=appearances, lines=meta/win/top8 rates
-  - `chart heatmap` — NxN matchup heatmap with RdYlGn colormap
-  - Dark theme, saves PNG to `data/charts/`, auto-opens on Windows
-- VS Code workspace settings (`.vscode/settings.json`)
-  - Default terminal: Command Prompt (cmd) — NOT Git Bash
-- Claude Code project permissions (`.claude/settings.json`)
-  - Read-only query commands auto-approved (no confirmation prompt)
-- **Sideboard Guide Integration** (`analysis/sideboard_guides.py`):
-  - `parse_sb_plan(comment)`: parses free-text guides for IN/OUT card lists
-    using regex patterns for `+N Name`, `-N Name`, `IN:`, `OUT:`, `bring in`, etc.
-    Supports play/draw split via "On the play"/"On the draw"/OTP/OTD markers;
-    returns `play_in`, `play_out`, `draw_in`, `draw_out`, `has_play_draw`
-  - `get_matchup_guides(my_arch, opp_arch, fmt)`: queries DB for guides tagged
-    with either archetype, separates into my_guides/opp_guides, merges SB plans
-  - `estimate_postboard_wr(g1_wr, my_sb_in, opp_sb_in)`: models G2/G3 WR shift:
-    opp_impact = min(opp_sb_in × 0.013, 0.13), my_impact = min(my_sb_in × 0.010, 0.13)
-    g23_wr = clamp(g1_wr - opp_impact + my_impact, 0.18, 0.84)
-  - `flip_analysis(g1_wr, g23_wr, has_guide_data)`: detects FLIPPED matchups,
-    significant WR drops, favorable post-board swings
-  - `render_guide_html(guide_data, my_arch, opp_arch)`: HTML with IN/OUT for both sides
-- **Real Match W/L Pipeline** (`scrapers/mtgmelee_scraper.py` + `db/matches_queries.py`):
-  - Source: **melee.gg** (not mtgmelee.com — that domain doesn't resolve)
-  - Stores in `matches` table: (event_id, round, player1, player2, player1_arch, player2_arch, winner_arch, result, format, event_date, source)
-  - `source` values: 'mtgmelee' (live scrape), 'bracket_finals', 'bracket_sf' (inferred)
-  - Bracket inference: `--infer-brackets` flag derives finals + SF matches from existing top-8 placement data
-  - `get_real_matchup_winrates(format, since, min_matches=20)` in `analysis/win_rates.py`
-  - `get_real_archetype_winrates(format, since, min_matches=20)` in `analysis/win_rates.py`
-  - Dashboard WIN RATE panel uses real match W/L where n≥20; shows "54.3%★" (star = real data)
-    tooltip shows "Match W/L (n=142): 85W – 57L – 0D" vs "Estimated from placement tier"
-  - CLI: `python -m scrapers.mtgmelee_scraper --format standard --pages 9`
-  - CLI: `python -m scrapers.mtgmelee_scraper --test` (verify endpoints and print sample data)
-  - CLI: `python -m scrapers.mtgmelee_scraper --infer-brackets`
-  - CLI: `python -m scrapers.mtgmelee_scraper --counts`
-  - **Current endpoints (updated 2026-03-25 — scraper fully rewritten):**
-    - Tournament list: `POST https://melee.gg/Tournament/TournamentSearch`
-      body: `{ordering, mode, filters[]=["Standard","MagicTheGathering","Ended"], variables[draw/start/length/...]}`
-      response: `{recordsTotal, data: [{id, name, formatString, startDate, enrolledPlayerCount, gameDescription, ...}]}`
-    - Pairings (3-step flow):
-      1. `GET /Tournament/View/{tid}` — establishes session cookies
-      2. Parse `<button class="round-selector" data-id="{roundId}" data-is-started="True">` from HTML
-      3. `POST /Match/GetRoundMatches/{roundId}` with DataTables column payload
-         columns (exact order): TableNumber, PodNumber, Teams, Decklists, ResultString
-         headers: `X-Requested-With: XMLHttpRequest`, `Referer: /Tournament/View/{tid}`
-    - Match JSON: `Competitors[i].Team.Players[0].DisplayName` (player name),
-      `Competitors[i].Decklists[0].DecklistName` (deck), `Competitors[i].GameWins` (result)
-    - "No started rounds" warnings on bundle events are expected (bundles have no direct pairings)
-  - **Swagger API** at `https://melee.gg/swagger/ui/index` — all 21 endpoints require staff auth (401); not usable without credentials
+### Automated Tasks
+| Task | Script | Time |
+|---|---|---|
+| MTG-Meta-Analyzer-Background-6AM | `background_fill.bat` → `scripts/run_fill_from_prefs.py` | 6 AM daily |
+| MTG-Meta-Analyzer-Daily | `run_daily.bat` | 5 PM daily |
+| MTG-Meta-Analyzer-Scryfall-Weekly | `run_scryfall_weekly.bat` | Sunday midnight |
 
-- **Dashboard Meta Impact bar** (`gui/tabs/dashboard.py`):
-  - `_impact_bar` QFrame between mode selector and chart — shows dedup filter effect
-  - `_compute_impact(standings, raw_standings)` compares raw vs deduplicated appearance counts
-  - Displays: rows removed, % removed, top-3 most-affected archetypes (with delta), most stable archetype
-  - Hidden when dedup filters are off or remove zero rows
-- **Worker lifecycle & cleanup** (audited 2026-03-26):
-  - All worker threads now connect `finished → deleteLater()` and `finished → setattr(None)`
-  - All tabs with workers expose `cleanup()` — stops workers, blocks signals, clears refs
-  - `MainWindow.cleanup()` calls each tab's `cleanup()` + stops `_scrape_worker`
-  - `run_gui.py` wires `app.aboutToQuit.connect(window.cleanup)` for clean exit
-  - `_cancel_worker()` pattern: `blockSignals(True)` with `RuntimeError` guard for dead C++ objects
-  - DB connections in `analysis/predictions.py` and `scrapers/guides.py` wrapped in try/finally
-- **Trend denominator fix** (`analysis/win_rates.py`):
-  - `get_archetype_trend()` denominator uses `COUNT(DISTINCT COALESCE(d.deck_fingerprint || '|' || e.event_fingerprint_cs, CAST(d.id AS TEXT)))` when `dedup_cross_source=True`
-  - Mirrors Python dedup filter logic; NULL fingerprints fall back to `d.id`
-- **My Decks DB backend** (`db/saved_decks.py`):
-  - Tables: `saved_decks` (id, name, format, archetype, mainboard JSON, sideboard JSON, notes, created_at)
-            `saved_sb_plans` (id, deck_id, opponent_archetype, play_in/out/draw_in/out JSON, notes, difficulty, updated_at)
-  - CASCADE delete: removing a deck removes all its SB plans
-  - `ON CONFLICT ... DO UPDATE` for upsert on (deck_id, opponent_archetype)
-  - Functions: `save_deck`, `get_deck`, `get_decks`, `delete_deck`, `save_sb_plan`, `get_sb_plan`, `get_sb_plans`, `delete_sb_plan`
+---
 
-- **Matchup Data** (`scrapers/matchup_scraper.py` + `db/matchup_queries.py` + `gui/tabs/heatmap_tab.py`):
-  - **Three data sources merged** in combined view (★ = real data, no star = scraped):
-    1. Real Match Data (DB) — `get_real_matchup_winrates()` from 221k+ actual matches (min_matches=20), highest priority
-    2. MTGDecks Live — scrapes MTGDecks.net `/winrates` page, fills gaps where real data is thin
-    3. Paste Data — manual CSV / JSON (Frank Karsten format)
-  - `_CombinedWorker` builds bidirectional matrix from canonical (a<b) real data + cached scrapes
-  - Workers emit `(format_name, matrix)` tuples; `_on_data` uses loaded format, not current combo
-  - `_load_gen` monotonic counter: all callbacks check gen before processing — stale results silently discarded
-  - `_cancel_worker()` blocks signals only (no `wait()` — workers have no event loop so `quit()` is a no-op)
-  - `_on_worker_finished()` only re-enables UI if gen matches current; handles `deleteLater` safely
-  - `_prepare_load()` cancels old worker + clears state before each new load
-  - `_CombinedWorker` normalizes all archetype keys via `archetypes.normalize()` before merging
-  - `_filter_to_meta()` tries normalized name matching; if <40% overlap, falls back to data-density sort (top 30 by matchup cell count). Handles melee.gg vs MTGTop8 naming gap.
-  - Per-format min_matches: Standard=20, Pioneer=10, Modern=5 (786 unique archetypes in 92k matches)
-  - Low-coverage warning for <8 archetypes on non-Standard formats
-  - Stores scraped data in `matchup_matrix` SQLite table (format, archetype_a, archetype_b, winrate, matches, fetched_at)
-  - **Team notes**: `matchup_notes` DB table (format, archetype_a, archetype_b, note, updated_at); right-click any matchup cell to add/edit/clear; notes persist across sessions and appear in cell tooltips
-  - Color-coded QTableWidget grid: deep green ≥60%, light green 55-59%, grey ~even, red shades for unfavored
-  - Fixed "Overall" column (index 0): weighted avg WR across all matchups, color-coded, with total match count in tooltip
-  - Tooltip per cell: archetype names, win%, verdict, source (Real/Scraped), sample size n=X
-  - Legend shows ★ real / no-star scraped + color key
-  - CLI: `python -m scrapers.matchup_scraper --format standard --save`
+## 3. DATABASE
 
-- **PyQt6 GUI** — fully wired, personal website theme applied:
-  - Entry point: `run_gui.py`
-  - Theme: `gui/theme.py` — #3b3c4d bg, #65bcd5 cyan, Orbitron heading font
-  - **13 tabs**: Dashboard, Deck Analyzer, My Decks, Match Log, Search (Card Browser / Deck Search / H2H), Tournament Prep, Matchup Data, Knowledge Base, Predictions, Charts, Ask Claude (optional), Set Analysis (optional), Settings
-  - Setup wizard on first run (Scryfall download + backfill + 50-event unlock)
-  - Interactive embedded matplotlib charts (FigureCanvasQTAgg)
-  - Background QuickScrapeWorker on startup for returning users
-  - **System tray icon** (`gui/tray_icon.py`) — green/orange/red status dot, right-click menu, close-to-tray
-  - **One-time UAC first-run wizard** (`gui/first_run_setup.py`) — registers all 3 Task Scheduler tasks once, never asked again
-  - `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
-  - **Dashboard performance fix**: `get_meta_standings` uses single bulk SQL query (was 918 queries → 1); load time 9s → 0.07s
-  - Dashboard auto-populates on startup; Weeks filter applies to both table and chart
-  - **Untapped.gg-inspired layout**: three-column top panel (Recent Top Finishes / Win Rate / Popular), Popularity Over Time + Win Rate Over Time toggleable charts with Weekly|Daily granularity toggle, archetype checkboxes, "Show Events" toggle for format event markers (set releases=blue, B&R=red, rotations=orange dashed lines)
-  - Panel titles are **dynamic**: "WIN RATE — 2 WEEKS", "POPULAR — 4 WEEKS" etc. update with timeframe selector
-  - **Archetype detail dialog** (`gui/widgets/archetype_detail.py`): single-click any archetype → avg decklist (inclusion % + avg copies), recent 5 lists side-by-side, tech choices (15–80% inclusion); "This List" tab shows exact 75 when opened from Recent Top Finishes click
-  - **Date filter fix**: all panels use SQLite CASE expression (`_DATE_KEY`) to normalize `DD/MM/YY` (MTGTop8) and `YYYY-MM-DD` (MTGDecks) to `YYYYMMDD` for correct filtering/ordering everywhere
-  - **Click handler fix**: Recent Top Finishes archetype cell stores raw name in `UserRole`; color-identity prefix no longer breaks deck detail lookup
-  - **Player column**: Recent Top Finishes shows Place / Colors / Archetype / Player / Event / Date (6 columns)
-  - **Mana color pips**: `theme.make_pip_widget()` uses `QPainter.drawEllipse()` with antialiasing — guaranteed true circles regardless of Qt stylesheet limitations
-  - **Trend color-coding**: Win Rate and Popular panel rows tinted dark green (rising) / dark red (falling) vs the prior equivalent period
-  - **Meta tier badges**: Win Rate panel has a "Tier" column — S (gold, >55% WR + >8% share), A (green, >52% WR or >5% share), B (cyan, top N rest), C (red, declining trend)
-  - **Change columns**: Both Win Rate and Popular panels show % change vs prior equivalent period (green/red/dim). "NEW" entries get tooltip with apps + share.
-  - **Prep Priority** (`analysis/meta_scoring.py`): Win Rate panel "Prep" column (0-100) blends meta share (60%) + win rate (40%). Red ≥70, orange ≥40, dim below.
-  - **Meta Status**: Win Rate panel "Status" column — Pillar (green, high share + high WR), Trap (red, popular but loses), Underplayed (gold, low share + high WR), Fringe (grey).
-  - **Glicko-2 Ratings** (`analysis/ratings.py`): Win Rate panel "Rating" column. Pure Python Glicko-2 implementation processing 262k+ real matches in weekly rating periods. Tooltip shows 95% confidence interval + match count. Green ≥1600, orange ≥1500, red below; dimmed if high deviation (>100). 120s TTL cache.
-  - **Win Rate panel columns (L→R)**: Pips | Archetype | Win% | Change | Rating | Prep | Status | Tier
-  - **Nash Equilibrium** (`analysis/equilibrium.py`): Heatmap tab "Equilibrium" button opens dialog showing optimal vs actual meta shares, Overplayed/Underplayed/Balanced status per archetype, RPS cycle detection (A>B>C>A with WR≥53%), Monte Carlo tournament simulation. Uses scipy linprog for Nash LP, replicator dynamics as fallback. 120s TTL cache.
-  - **Card Embeddings** (`analysis/card_embeddings.py`): 768-dim ModernBERT vectors for 32k cards from HuggingFace parquet. Card Browser shows "Similar Cards" section. Deck Analyzer shows "Deck Similarity" vs meta archetypes. File: `data/mtg_embeddings.parquet` (~90 MB, gitignored).
-  - **Card2Vec** (`analysis/cooccurrence_embeddings.py`): Word2Vec trained on local decklists. Card Browser shows "Functional Substitutes" section. Models: `data/models/card2vec_{format}.model` (gitignored).
-  - **KNN Classifier** (`analysis/knn_classifier.py`): Deck Analyzer auto-fills archetype label (cyan italic) using KNN on deck embeddings. hybrid_classify() tries signature cards first, falls back to KNN. Models: `data/models/knn_{format}.pkl` (gitignored).
-  - **Heatmap Timeframe Selector**: Matchup Data tab has a Timeframe dropdown (same TIMEFRAME_OPTIONS as Dashboard). Filters real match data, gauntlet, and equilibrium analysis by date. Default: 8 weeks. Prevents stale pre-ban/rotation data from polluting matchup analysis.
-  - **ML Models section in Settings**: Download Card Embeddings, Train Card2Vec, Train KNN buttons with status display. All models are local files in `data/models/` (gitignored).
-  - **Trained models**: Card2Vec + KNN for Standard (116 arch), Modern (115), Pioneer (78), Legacy (105). All formats covered.
-  - **Consolidated launcher** (`mtg.bat`): single menu-driven script replacing 7 individual .bat files. Options: Launch App, Build Database, Run Background Fill, Register Scheduled Tasks, Create Shortcut, Refresh Scryfall, Update Claude Code. The 3 scheduled task scripts (background_fill.bat, run_daily.bat, run_scryfall_weekly.bat) remain separate because Task Scheduler has hardcoded paths to them.
-  - **Deck export** (`gui/widgets/deck_export.py`): Export button on archetype detail + Deck Analyzer + My Decks → MTGO .txt, MTGA .txt, or decklist.org tournament registration sheet (opens in browser)
-  - **My Decks tab** (`gui/tabs/my_decks.py`): split-panel CRUD for saved decks
-    - Left panel: format-filtered deck list with Add/Edit/Delete buttons
-    - Right panel: deck detail with Decklist and Sideboard Plans sub-tabs
-    - Add/Edit dialog: name, format, archetype, notes, Arena/MTGO paste
-    - Sideboard Plans: `+ Add Plan` dialog (opponent, difficulty, play/draw IN/OUT) + `Delete Plan`
-    - Export, "Export Guide" (printable HTML), and "Open in Event Optimizer" buttons on deck detail
-    - Guide export: deck name, full 75, per-matchup difficulty + ON PLAY/DRAW IN/OUT + notes; print-friendly CSS
-    - **Share JSON** / **Import JSON**: export deck + all SB plans as JSON file (saves to `exports/`), import from JSON file to create new deck + plans
-    - `open_in_rcq` signal wired to MainWindow → switches to Tournament Prep tab
-  - **Load Average Deck**: Deck Analyzer has archetype dropdown + weeks filter + Load button; populates text box with avg deck in Arena format, ready to analyze or export
-  - **Deck parser**: handles all sideboard formats — `Sideboard`, `SIDEBOARD:`, `SB:`, `// Sideboard`, `SB: 4 Card`, blank-line fallback
-  - **Decklist Legality Checker**: Deck Analyzer tab has a "Check Legality" button that:
-    - Parses the decklist textarea (main + side)
-    - Queries `card_data.legalities` (JSON column) for all cards in one `IN` query
-    - Falls back to `get_card_data()` for any missing cards
-    - Checks deck size (main=60, side≤15) and per-card legal status
-    - Color-coded table: red=banned, orange=restricted/not_legal, yellow=size issues
-    - Shows ✓ or ✗ summary label with issue count
-  - **User Preferences System** (`gui/tabs/settings.py` + `gui/setup_wizard.py` + `scripts/run_fill_from_prefs.py`):
-  - `data/preferences.json` — single source of truth for format selection, date window, auto-update, API key
-  - Setup wizard page 0: format checkboxes before Scryfall download — Standard always forced on
-  - `_save_format_prefs()` in setup_wizard.py writes preferences.json immediately on Next click
-  - `fill_database.py` reads `_load_formats()` at runtime — BACKFILL_FORMATS and MTGDECKS_FORMATS are no longer hardcoded
-  - `scripts/run_fill_from_prefs.py` — background fill script that reads preferences and runs scrapers for selected formats only; Legacy/Pauper always get MTGMelee scrapes
-  - `background_fill.bat` now delegates entirely to `scripts/run_fill_from_prefs.py`
-  - `gui/tabs/settings.py` — full UI for format checkboxes, data window, auto-update, API key; saves to preferences.json on Save click
+### Schema
+- **Active:** `data/mtg_meta.db` — events within retention window (gitignored)
+- **Archive:** `data/mtg_archive.db` — older data (moved, never deleted)
+- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes
+- **card_data:** keyed by card name (TEXT PK) — works across both DBs. Populated by `python -m scrapers.scryfall`
+- **Use** `get_combined_connection()` to query across both DBs
 
-- **Card image tooltips** (`gui/widgets/card_tooltip.py`): hovering card names shows Scryfall card images in a floating tooltip; in-memory session cache (no disk writes), background fetch with 100ms rate limit, handles double-faced cards
-  - **Search tab** has 3 sub-tabs: Card Browser, Deck Search, Head-to-Head
-    - **Card Browser** (`gui/tabs/card_browser.py`): full Scryfall-style local card database, Scryfall query syntax (`t:creature c:red cmc<=3 o:"draw a card" f:standard r:mythic is:legendary k:flying pow>=4 s:tdm ci:wub`), dropdown filters (format, color, type, rarity, CMC), "Cards in Meta only" toggle, card detail panel (image, oracle text, legalities, meta usage)
-  - **Deck search click-to-detail**: clicking any row in Deck Search opens ArchetypeDetailDialog
-  - **Charts autocomplete**: Archetype field is now an editable dropdown populated from DB, refreshes on format change
-  - **Charts Compare Mode**: "Compare Trends" chart type — select multiple archetypes, overlay meta share lines on one chart; `_CompareLoader` worker in chart_canvas.py
-  - **Desktop shortcut**: `launch_app.bat` (double-click launcher) + `create_shortcut.bat` (creates `MTG Meta Analyzer` shortcut on OneDrive Desktop)
-  - **Knowledge Base tab**: add/browse bookmarks + guides table, Sync Guides button
-  - **Ask Claude tab** (optional): hidden until API key set in Settings; streams meta-aware chat via `claude-opus-4-6` with adaptive thinking
-  - **Set Analysis tab** (optional, API-key-gated): New Set Break Protocol
-    - "Fetch from Mythic Spoiler" button: enter set code (TDM, FDN, etc.) → scrapes card list from mythicspoiler.com → enriches from local Scryfall bulk JSON → auto-populates card list
-    - Manual paste fallback for unreleased/partial spoilers
-    - Format legality awareness: set code dropdown shows known sets, legality label warns if set isn't legal in selected format
-    - Known set legality table in `scrapers/mythicspoiler_scraper.py`: Standard rotation, Pioneer (RTR+), Modern (8ED+), Legacy/Pauper (all)
-    - Claude classifies each card into competitive buckets (Rate Outlier / Engine Piece / Enabler / SB Breaker / Upgrade Card)
-    - Format-specific system prompt: "Analyze for [FORMAT] only, current meta: [top 10 archetypes]"
-    - Shows impact per archetype + top 10 ranked list; injects live meta context from local DB
-  - **Tournament Prep tab** (2 sub-tabs):
-    - **Event Optimizer**: event type selector (RCQ/RC/PTQ/Custom) auto-sets player range + rounds; enter format/player count/archetype/field → binomial top-cut probability, field grade, matchup breakdown with G1 WR%, G2/G3 WR%, guide-aware flip detection, sideboard recommendations; saved deck dropdown; "Use Meta Distribution" button; shows X-loss cutoff + day-2 conversion probability for 2-day events; player max 5000
-    - **Breaker Math**: real-time W/L/D tracker, ID calculator, draw equity, pair-down warning, seeding impact, breaker education
-
-### Centralized Timeframe Selector (all tabs)
-`gui/theme.py` exports `TIMEFRAME_OPTIONS` and `TIMEFRAME_DEFAULT`:
-```python
-TIMEFRAME_OPTIONS = [
-    ("1 week", 1), ("2 weeks", 2), ("4 weeks", 4), ("8 weeks", 8),
-    ("3 months", 13), ("6 months", 26), ("1 year", 52),
-    ("2 years", 104), ("All Time", None),
-]
-TIMEFRAME_DEFAULT = "2 weeks"
-```
-`None` = All Time = no date filter. All tabs that use a timeframe selector
-(Dashboard, Charts, Deck Analyzer load-avg, Deck Detail, Search H2H, Event Optimizer)
-read from this list and pass `since=None` when All Time is selected.
-All SQL query functions already handle `since=None` via `if since:` guards.
+### Retention Policy
+- All formats: 3-year rolling window (1095 days)
+- Standard + Foundations (FDN): 5-year window
+- Archive-based: old data → `mtg_archive.db`, never deleted
+- Configurable per-format in `config.ini`
 
 ### Primary Format
-Standard is the primary focus. Pioneer, Modern, Legacy, and Pauper actively scraped.
+Standard is primary. Pioneer, Modern, Legacy, and Pauper actively scraped.
 
-## Database
+---
 
-### Active DB
-`data/mtg_meta.db` — events within the retention window; used by all analysis.
+## 4. DATA COLLECTION
 
-### Archive DB
-`data/mtg_archive.db` — data older than retention window; moved here not deleted.
-Use `--include-archive` flag (via `get_combined_connection()`) to query across both.
+### Scrapers
+- **MTGTop8** (`scrapers/mtgtop8.py`) — events, decklists (main + sideboard), player names
+- **MTGO Challenges** (`scrapers/challenges.py`) — Challenge-specific scraper
+- **MTGDecks.net** (`scrapers/mtgdecks.py`) — uses `cloudscraper` for Cloudflare bypass; Arena export format
+- **Historical backfill** (`scrapers/backfill.py`) — pages backwards year-by-year
+- **Scryfall** (`scrapers/scryfall.py`) — 3-tier lookup: SQLite → local bulk JSON → live API. Weekly auto-refresh
+- **MTGMelee** (`scrapers/mtgmelee_scraper.py`) — real match W/L from melee.gg (not mtgmelee.com)
+- **Matchup scraper** (`scrapers/matchup_scraper.py`) — MTGDecks.net `/winrates` table
+- **Mythic Spoiler** (`scrapers/mythicspoiler_scraper.py`) — set card lists + Scryfall enrichment
+- **Guides** (`scrapers/guides.py`) — Skill Issue Magic Google Sheet → guides table
 
-Both DB files are gitignored. After cloning: run `fill_database.bat`
+### MTGMelee Endpoints (verified 2026-03-25)
+- Tournament list: `POST https://melee.gg/Tournament/TournamentSearch`
+- Pairings: `GET /Tournament/View/{tid}` → parse round buttons → `POST /Match/GetRoundMatches/{roundId}`
+- Match JSON: `Competitors[i].Team.Players[0].DisplayName`, `Competitors[i].Decklists[0].DecklistName`, `Competitors[i].GameWins`
+- Swagger API (`/swagger/ui/index`) requires staff auth — not usable
 
-### Current data (as of 2026-03-26)
-- **Decklists (MTGTop8/MTGDecks)**: Standard 37,186 decks (3,834 events), Pioneer 5,657 (210), Modern 6,770 (233), Legacy 115 (10)
-  - NOTE: MTGTop8 scraper had a Unicode crash (fixed 2026-03-26) — decklist data is stale for some formats. Recovers with daily scrapes.
-  - `get_meta_standings()` falls back to matches table when decks data is too sparse (top archetype <20 appearances)
-- **Matches (MTGMelee)**: 262,641 real match records across all formats
-  - Standard: 108,648 matches (250 tournaments)
-  - Modern:    92,420 matches (347 tournaments, all available)
-  - Legacy:    25,304 matches  (86 tournaments)
-  - Pioneer:   20,095 matches  (58 tournaments, all available)
-  - Pauper:    16,174 matches (~130 tournaments)
-- Daily 6 AM task registered — maintains all 5 formats going forward
-- Guides: 331 guides from Skill Issue Magic sheet (last synced 2026-03-21)
+### Archetype Normalization (`analysis/archetypes.py`)
+Three-layer system: (1) `pre_normalize()` for spacing/WUBRG codes, (2) 250+ ALIASES, (3) optional fuzzy match.
+Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes with ≥67% card overlap.
 
-### card_data table
-Keyed by card name (TEXT PRIMARY KEY) — not card_id — so it works seamlessly
-across both active and archive DBs. Populated by `python -m scrapers.scryfall`.
+---
 
-## Retention Policy
-- All formats: 3-year rolling window (1095 days) by default
-- Standard + Foundations (FDN): 5-year window for events with FDN cards
-- Archive-based: old data moves to mtg_archive.db, never deleted
-- Configurable per-format in config.ini (see config.example.ini)
+## 5. ANALYSIS ENGINES
 
-- MTGDecks.net second data source (`scrapers/mtgdecks.py`):
-  - Uses `cloudscraper` (Chrome TLS fingerprint) to bypass Cloudflare 403s
-  - Parses tournament lists, event detail pages, and deck card lists
-  - Card lists from `<textarea id="arena_deck">` (Arena export format — reliable)
-  - Filters: MTGO Challenges always included; others need 50+ players or signal keyword
-  - `source="mtgdecks"` in events table to separate from mtgtop8 data
+| Module | Purpose |
+|---|---|
+| `analysis/win_rates.py` | Meta standings, weekly trend, H2H, matchup matrix, field optimizer, real match WR |
+| `analysis/deck_analysis.py` | Average deck calculator, deck comparison |
+| `analysis/predictions.py` | Auto-generated predictions, validation, accuracy tracking |
+| `analysis/blunders.py` | Deck scoring: land count, curve, color consistency, interaction (Major/Moderate/Minor) |
+| `analysis/chapin.py` | 6-principle evaluation: Threats/Answers/Consistency/Velocity/Mana/Clock (0-10 each) |
+| `analysis/sideboard_guides.py` | Guide parsing (regex IN/OUT), post-board WR model, flip detection |
+| `analysis/tournament.py` | Event equity, standings, ID recommendation, EVENT_PRESETS, x-loss cutoff |
+| `analysis/meta_scoring.py` | Prep priority (0-100), status labels (Pillar/Trap/Underplayed/Fringe) |
+| `analysis/ratings.py` | Glicko-2 power ratings, weekly periods, 262k+ matches, 120s TTL cache |
+| `analysis/equilibrium.py` | Nash LP solver, replicator dynamics, RPS cycle detection, Monte Carlo sim |
+| `analysis/card_embeddings.py` | 768-dim ModernBERT vectors for 32k cards (HuggingFace parquet) |
+| `analysis/cooccurrence_embeddings.py` | Card2Vec — Word2Vec trained on local decklists |
+| `analysis/knn_classifier.py` | KNN archetype classifier using deck embeddings |
 
-## Key Files
+### Sideboard WR Model (calibration constants)
+`opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84]`
+
+---
+
+## 6. GUI
+
+**Entry point:** `run_gui.py` | **Theme:** `gui/theme.py` — modern dark theme, Inter font, Team Resolve branding
+**13 tabs:** Dashboard, Deck Analyzer, My Decks, Match Log, Search, Tournament Prep, Matchup Data, Knowledge Base, Predictions, Charts, Ask Claude (API-gated), Set Analysis (API-gated), Settings
+
+### Dashboard (Untapped.gg-inspired)
+- Three-column top: Recent Top Finishes / Win Rate / Popular
+- Win Rate panel columns: Pips | Archetype | Win% | Change | Rating | Prep | Status | Tier
+- Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes
+- Dynamic panel titles update with timeframe selector
+- Dedup-aware Meta Impact bar shows filter effects
+
+### Key GUI Features
+- **Archetype detail dialog:** 6 tabs (This List / Average Deck / Recent Lists / Tech Choices / Card Trends / Resources) + "View Event" + Export
+- **Tech Choices:** Flex slots (15-80% inclusion) grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
+- **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
+- **Card image tooltips:** Scryfall API, in-memory cache, floating widget
+- **Matchup Data:** Three sources merged (real★ + scraped + paste), team notes via right-click, equilibrium button
+- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON
+- **Deck Analyzer:** Arena/URL paste → Blunder + Chapin + Legality + auto-classify archetype (KNN)
+- **Card Browser:** Scryfall query syntax, Similar Cards + Functional Substitutes
+- **Tournament Prep:** Event Optimizer (binomial top-cut, matchup breakdown, SB recommendations) + Breaker Math
+- **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
+
+### Timeframe System
+`theme.TIMEFRAME_OPTIONS`: 1w/2w/4w/8w/3m/6m/1y/2y/All Time. `None` = All Time = no date filter.
+All query functions handle `since=None` via `if since:` guards.
+Special case: `get_archetype_trend()` uses `window_start = since or (window_end - timedelta(weeks=weeks or 520))`.
+
+---
+
+## 7. KEY FILES
 
 ```
-main.py                         CLI entry point (default: Standard, 1 page, 10 events)
-run_gui.py                      GUI entry point — also handles --register-tasks mode
-fill_database.py                Standalone full DB builder (reads preferences.json for format list)
-fill_database.bat               Double-click launcher for fill_database.py
-background_fill.bat             6 AM daily background scrape — delegates to scripts/run_fill_from_prefs.py
-scripts/run_fill_from_prefs.py  Reads preferences.json, runs scrapers for selected formats only
-schedule_background_fill.bat    One-time setup: register 6 AM Task Scheduler task
-register_tasks.py               Elevated task registration (called by first-run wizard)
-schedule_task.bat               One-time setup: register 5 PM daily task
-schedule_scryfall.bat           One-time setup: register weekly Scryfall refresh task
-run_daily.bat                   5 PM daily task (Standard latest events + maintenance)
-run_scryfall_weekly.bat         Weekly Scryfall refresh (Sunday midnight)
-update_claude_code.bat          Self-elevating helper: npm i -g @anthropic-ai/claude-code
+# ── Launchers ──────────────────────────────────────────────
+run_gui.py                      GUI entry point (--register-tasks mode)
+main.py                         CLI entry point
+fill_database.py                Standalone DB builder (reads preferences.json)
+mtg.bat                         Consolidated menu launcher (7 options)
+launch_app.bat                  Double-click GUI launcher
 
-scrapers/mtgtop8.py             Core MTGTop8 scraper
-scrapers/challenges.py          MTGO Challenge-specific scraper
-scrapers/mtgdecks.py            MTGDecks.net scraper (cloudscraper, Cloudflare bypass)
-scrapers/backfill.py            Historical backfill (year-by-year, stops at cutoff)
-scrapers/scryfall.py            Scryfall local card database + enrichment
-scrapers/guides.py              Imports Skill Issue Magic Google Sheet → guides table
-scrapers/matchup_scraper.py     Scrapes MTGDecks.net /winrates table → win-rate matrix dict
-scrapers/mythicspoiler_scraper.py  Mythic Spoiler set card list + Scryfall enrichment + format legality
+# ── Scrapers ───────────────────────────────────────────────
+scrapers/mtgtop8.py             MTGTop8 events + decklists
+scrapers/challenges.py          MTGO Challenge scraper
+scrapers/mtgdecks.py            MTGDecks.net (cloudscraper)
+scrapers/backfill.py            Historical backfill
+scrapers/scryfall.py            Card database + enrichment
+scrapers/mtgmelee_scraper.py    Real match W/L from melee.gg
+scrapers/matchup_scraper.py     MTGDecks.net win-rate matrix
+scrapers/mythicspoiler_scraper.py  Set spoiler scraper
+scrapers/guides.py              Skill Issue Magic sheet sync
 
-db/saved_decks.py               saved_decks + saved_sb_plans tables; save/get/delete helpers
-db/matches_queries.py           matches table: save_matches / get_matches / get_stored_event_ids / get_match_counts
-db/matchup_queries.py           matchup_matrix + matchup_notes tables: save/get helpers + team notes
-db/database.py                  Schema, connections, active + archive DB helpers
-db/maintenance.py               Format-aware archive maintenance + orphan cleanup
-analysis/deck_analysis.py       Average deck + deck comparison functions
+# ── Database ───────────────────────────────────────────────
+db/database.py                  Schema, connections, active + archive
+db/maintenance.py               Archive maintenance + orphan cleanup
+db/saved_decks.py               Saved decks + SB plans (CASCADE delete, upsert)
+db/matches_queries.py           Match records CRUD
+db/matchup_queries.py           Matchup matrix + team notes
+
+# ── Analysis ──────────────────────────────────────────────
 analysis/win_rates.py           Performance tracking, matchup matrix, field optimizer
-analysis/archetypes.py          Archetype name normalization + alias table + DB migration
-analysis/predictions.py         Self-validation & prediction logging system
-analysis/blunders.py            Deck scoring & blunder detection (weighted severity)
-analysis/chapin.py              Chapin Principles Evaluation (6 principles, 0-10 scored)
-analysis/tournament.py          Event equity, standing analysis, ID recommendation, EVENT_PRESETS, x_loss_cutoff, day2_conversion_probability
-analysis/sideboard_guides.py    Guide parsing, post-board WR model, flip detection
-analysis/meta_scoring.py        Prep priority (0-100) + trap deck detection (Pillar/Trap/Underplayed/Fringe)
-analysis/ratings.py             Glicko-2 archetype power ratings (pure Python, weekly rating periods)
-analysis/equilibrium.py         Nash equilibrium, replicator dynamics, RPS cycle detection, Monte Carlo sim
-analysis/card_embeddings.py     ModernBERT 768-dim card embeddings — similarity search, deck vectors
-analysis/cooccurrence_embeddings.py  Card2Vec — Word2Vec trained on decklists for functional substitutes
-analysis/knn_classifier.py      KNN archetype classifier — deck embedding → archetype prediction
-analysis/query.py               CLI query interface (all subcommands)
+analysis/archetypes.py          Name normalization + alias table + migration
+analysis/deck_analysis.py       Average deck + comparison
+analysis/predictions.py         Self-validation predictions
+analysis/blunders.py            Deck scoring / blunder detection
+analysis/chapin.py              Chapin Principles evaluation
+analysis/tournament.py          Event equity, ID recommendation, presets
+analysis/sideboard_guides.py    Guide parsing, post-board WR model
+analysis/meta_scoring.py        Prep priority + trap detection
+analysis/ratings.py             Glicko-2 power ratings
+analysis/equilibrium.py         Nash equilibrium, RPS cycles, Monte Carlo
+analysis/card_embeddings.py     ModernBERT embeddings
+analysis/cooccurrence_embeddings.py  Card2Vec (Word2Vec on decklists)
+analysis/knn_classifier.py      KNN archetype classifier
+analysis/query.py               CLI query interface
 
-scripts/download_embeddings.py  Download card embeddings parquet from HuggingFace (~90 MB)
+# ── GUI ────────────────────────────────────────────────────
+gui/theme.py                    Design system: colors, fonts, Inter, TIMEFRAME_OPTIONS
+gui/main_window.py              Main window, branded header, tab container
+gui/setup_wizard.py             First-time setup wizard
+gui/tray_icon.py                System tray (Team Resolve logo + status dot)
+gui/first_run_setup.py          UAC dialog + task registration
+gui/worker_threads.py           QThread workers
+gui/widgets/chart_canvas.py     Matplotlib FigureCanvasQTAgg
+gui/widgets/archetype_detail.py Archetype detail (6 tabs + View Event)
+gui/widgets/event_peers.py      Event peers dialog
+gui/widgets/card_tooltip.py     Card image tooltips
+gui/widgets/deck_export.py      MTGO/MTGA/decklist.org export
+gui/tabs/dashboard.py           Dashboard (3-panel + charts)
+gui/tabs/deck_analyzer.py       Deck Analyzer
+gui/tabs/my_decks.py            My Decks CRUD
+gui/tabs/match_log.py           Match Log (personal results)
+gui/tabs/search.py              Card Browser / Deck Search / H2H
+gui/tabs/tournament_prep.py     Event Optimizer + Breaker Math
+gui/tabs/heatmap_tab.py         Matchup Data grid + team notes
+gui/tabs/charts.py              Interactive chart controls
+gui/tabs/card_browser.py        Scryfall-style card search
+gui/tabs/knowledge_base.py      Bookmarks + guides
+gui/tabs/predictions.py         Prediction management
+gui/tabs/ask_claude.py          AI chat (API-gated)
+gui/tabs/set_analysis.py        New Set Break Protocol (API-gated)
+gui/tabs/settings.py            Preferences UI
+gui/icons/                      Team Resolve logo (16-256px + .ico)
+gui/fonts/                      Inter (Regular/Medium/SemiBold/Bold) + Orbitron
 
-gui/theme.py                    Single source of truth: colors, fonts, stylesheets, TIMEFRAME_OPTIONS
-gui/fonts/Orbitron.ttf          Bundled heading font (personal website match)
-gui/main_window.py              10-tab main window, startup wizard check
-gui/setup_wizard.py             First-time setup (Scryfall + backfill + event counter)
-gui/worker_threads.py           QThread workers: scrape, download, load
-gui/widgets/chart_canvas.py     FigureCanvasQTAgg: plot_meta_share/trend/heatmap
-gui/widgets/meta_table.py       Meta standings table with click signal
-gui/widgets/archetype_detail.py 6 tabs: This List / Average Deck / Recent Lists / Tech Choices (role-grouped) / Card Trends / Resources; "View Event" button
-gui/widgets/card_tooltip.py     Card image tooltips (Scryfall API, in-memory cache, custom floating widget)
-gui/widgets/deck_export.py      MTGO/MTGA .txt export + decklist.org tournament sheet
-gui/tabs/dashboard.py           Table + chart, format/weeks/top-N controls, sparklines, event markers
-gui/tabs/deck_analyzer.py       Arena paste + URL import → Blunder + Chapin analysis + Legality Checker
-gui/tabs/search.py              Card lookup, deck search, head-to-head (with timeframe)
-gui/tabs/charts.py              Interactive controls + live chart canvas (TIMEFRAME_OPTIONS)
-gui/tabs/predictions.py         Generate/validate/view predictions
-gui/tabs/knowledge_base.py      Add/browse bookmarks + guides table, Sync Guides button
-gui/tabs/ask_claude.py          Optional streaming chat (hidden until API key set in Settings)
-gui/tabs/set_analysis.py        New Set Break Protocol — AI card classification for spoiler season
-gui/tabs/card_browser.py        Card Browser — local Scryfall-style search with meta usage + filters
-gui/tabs/settings.py            Settings tab: formats, data window, auto-update, AI key
-gui/tabs/tournament_prep.py     Event Optimizer + Breaker Math sub-tabs (with timeframe)
-gui/tabs/my_decks.py            MY DECKS tab: saved decks CRUD, export, open in Event Optimizer
-gui/tabs/heatmap_tab.py         MATCHUP DATA tab: live scrape / cached / paste, colour-coded grid
-gui/tray_icon.py                System tray icon, status dots, right-click menu
-gui/first_run_setup.py          First-run UAC dialog + elevated task registration
-
+# ── Config ─────────────────────────────────────────────────
 config.example.ini              Committed config template
 config.ini                      Local config (gitignored)
-.claude/settings.json           Claude Code project permissions
-.vscode/settings.json           VS Code workspace settings (default terminal: cmd)
-logs/                           Daily log files (gitignored)
-data/                           Local DB + Scryfall bulk files (gitignored)
+data/preferences.json           User preferences (gitignored)
+data/rules_reference/           MTG Comprehensive Rules + Scryfall rulings/oracle cards
 ```
 
-## How to Run
+---
+
+## 8. HOW TO RUN
 
 ```bash
-# First-time database build (double-click or run in terminal)
-fill_database.bat
-
-# Launch the GUI
+# GUI
 python run_gui.py
 
-# Scrape latest Standard events (manual)
-python main.py
+# Build database from scratch
+fill_database.bat
 
-# Full historical backfill for a specific format
-python -m scrapers.backfill --format pioneer
+# Manual scrapes
+python main.py                                          # Standard latest
+python -m scrapers.backfill --format pioneer             # Historical backfill
+python -m scrapers.mtgmelee_scraper --format standard --pages 9
+python -m scrapers.scryfall --download                   # Refresh Scryfall bulk
 
-# Scryfall enrichment
-python -m scrapers.scryfall                        # enrich all unenriched cards
-python -m scrapers.scryfall --download             # force-refresh bulk file
-python -m scrapers.scryfall --stats                # coverage report
-
-# Meta analysis queries
+# Analysis queries
 python -m analysis.query meta --format standard
-python -m analysis.query meta --range "last 30 days"
 python -m analysis.query trend "Izzet Prowess" --weeks 8
 python -m analysis.query h2h "Izzet Prowess" "Azorius Control"
 python -m analysis.query matrix --top 12
 python -m analysis.query field-optimizer --field "Izzet Prowess x4, Mono Green x3"
 python -m analysis.query average "Izzet Prowess"
-
-# Card lookups
-python -m analysis.query card "Sheoldred, the Apocalypse"
-python -m analysis.query card "lightning bolt" --format standard
-
-# Archetype normalization
-python -m analysis.archetypes --apply
-
-# Predictions
-python -m analysis.query predict --format standard
-python -m analysis.query validate-predictions
-python -m analysis.query prediction-report
-
-# Deck analysis
 python -m analysis.query blunder "Izzet Prowess" --format standard
 python -m analysis.query chapin "Izzet Prowess" --format standard
+python -m analysis.query card "Sheoldred, the Apocalypse"
 
-# Sync guides from Skill Issue Magic sheet
+# Maintenance
+python -m analysis.archetypes --apply
 python -m scrapers.guides
-
-# Database maintenance
-python -m db.maintenance --dry-run
 python -m db.maintenance
 ```
 
-## Automated Tasks
-- **6 AM daily**: `background_fill.bat` — Standard + Pioneer + Modern from MTGTop8 + MTGDecks + MTGMelee (3 pages each), Scryfall enrich, normalize (7 steps total)
-  - Register: double-click `schedule_background_fill.bat` (self-elevates to Admin)
-  - Log: `logs/background_fill.log`
-- **5 PM daily**: `run_daily.bat` — Standard latest events + archive maintenance
-  - Register: double-click `schedule_task.bat`
-  - Log: `logs/YYYY-MM-DD.log`
-- **Sunday midnight**: `run_scryfall_weekly.bat` — refresh Scryfall bulk DB
-  - Register: double-click `schedule_scryfall.bat`
+---
 
-## Event Types Tracked
-- `mtgo_challenge_32` / `mtgo_challenge_64` — MTGO Challenge events
-- `mtgo_league` — MTGO League 5-0 results
-- `mtgo_preliminary` — MTGO Preliminary events
-- `paper` — in-store and regional paper events (RCQs, RCs, Pro Tours)
-
-## Critical Notes
+## 9. CRITICAL IMPLEMENTATION NOTES
 
 ### matplotlib backend
-`analysis/charts.py` calls `matplotlib.use("Agg")` at import time.
-**Never import `analysis.charts` inside GUI code** — use `gui/widgets/chart_canvas.py`
-which draws directly to FigureCanvasQTAgg. `run_gui.py` must call
-`matplotlib.use("QtAgg")` before all other imports.
+`analysis/charts.py` sets `matplotlib.use("Agg")` at import. **Never import it in GUI code.**
+GUI uses `gui/widgets/chart_canvas.py`. `run_gui.py` calls `matplotlib.use("QtAgg")` first.
 
-### Default terminal
-VS Code default terminal is set to **Command Prompt (cmd)**, not Git Bash.
-This prevents path issues with spaces in `E:\vscode ai project\`.
+### Worker lifecycle
+All workers: `finished → deleteLater()`. All tabs expose `cleanup()`. `_cancel_worker()` uses `blockSignals(True)` with `RuntimeError` guard.
 
-### Database location
-`data/mtg_meta.db` — gitignored, never pushed. Each machine builds its own copy.
-
-### TIMEFRAME_OPTIONS and None handling
-All timeframe combos read from `theme.TIMEFRAME_OPTIONS`. When the selected
-value is `None` (All Time), `_since_dt()` returns `None` and all downstream
-query functions skip the date filter via `if since:` guards. The one special
-case is `get_archetype_trend()` which uses `weeks` in arithmetic — fixed with:
-`window_start = since or (window_end - timedelta(weeks=weeks or 520))`
-
-### Sideboard guide parsing
-`analysis/sideboard_guides.py` uses regex patterns against free-form guide
-`comment` text. Archetype matching is fuzzy: substring both ways + first-two-words
-check handles "Dimir Midrange" matching "Big Dimir Midrange". When `has_guide_data`
-is False, `flip_analysis` returns a neutral "No data" verdict rather than a
-misleading 0-delta flip. The G2/G3 WR model is calibrated conservatively:
-opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84].
-
-## User Preferences System — FULLY IMPLEMENTED (2026-03-27)
-
-### Overview
-Users only download and maintain data for the formats they play.
-Preferences are stored in `data/preferences.json` (gitignored).
-
-### preferences.json schema
-```json
-{
-  "formats": ["standard"],
-  "date_window": "3years",
-  "timezone": "UTC",
-  "auto_update": "daily",
-  "anthropic_api_key": "sk-ant-...",
-  "updated_at": "2026-03-27T12:00:00"
-}
-```
-
-### Implementation status — ALL DONE
-- [x] `data/preferences.json` load/save helpers in `gui/tabs/settings.py`
-- [x] Format selection in setup wizard (page 0) — saves before Scryfall download
-- [x] `fill_database.py` reads formats via `_load_formats()` at runtime
-- [x] `scripts/run_fill_from_prefs.py` — background fill reads preferences
-- [x] `background_fill.bat` delegates to `run_fill_from_prefs.py`
-- [x] Settings tab GUI with format checkboxes, data window, auto-update, API key
-
-### Files involved
-```
-data/preferences.json               Local preferences (gitignored)
-gui/tabs/settings.py                Settings tab — full UI, load_preferences(), save_preferences()
-gui/setup_wizard.py                 Page 0: format selection before Scryfall download
-fill_database.py                    _load_formats() reads preferences at runtime
-scripts/run_fill_from_prefs.py      Background fill script driven by preferences
-background_fill.bat                 Delegates to scripts/run_fill_from_prefs.py
-```
-
----
-
-## Standalone .exe UX Requirements (CORE — do not skip)
-
-These are firm requirements for the PyInstaller packaging phase.
-They are partially implemented already — complete before packaging.
-
-### 1. One-time UAC elevation (IMPLEMENTED)
-- On first launch, `gui/first_run_setup.py` checks `config.ini [setup] tasks_registered`
-- If not set, shows `FirstRunSetupDialog` — explains the three background tasks
-- Single "Set Up Automatic Updates" button → PowerShell `Start-Process -Verb RunAs`
-  launches `register_tasks.py` (or `.exe --register-tasks`) elevated
-- `register_tasks.py` registers all three Task Scheduler tasks and writes the flag
-- Flag is checked at every launch via `is_setup_complete()` — wizard never re-shown
-
-### 2. Three auto-registered tasks
-| Task name | Script | Time |
-|---|---|---|
-| MTG-Meta-Analyzer-Background-6AM | background_fill.bat | 6:00 AM daily |
-| MTG-Meta-Analyzer-Daily | run_daily.bat | 5:00 PM daily |
-| MTG-Meta-Analyzer-Scryfall-Weekly | run_scryfall_weekly.bat | Sunday midnight |
-
-### 3. System tray icon (IMPLEMENTED)
-- `gui/tray_icon.py` — `TrayIcon(QSystemTrayIcon)` created in `run_gui.py`
-- `app.setQuitOnLastWindowClosed(False)` — app stays alive when window is closed
-- `MainWindow.closeEvent` hides window to tray + shows balloon notification (first time only — `balloon_shown` flag in `scrape_state.json`)
-- Status dot colors:
-  - Green (`#3cb44b`) — data current (STATUS_IDLE)
-  - Orange (`#f58231`) — update running (STATUS_RUNNING)
-  - Red (`#e6194b`) — last run failed (STATUS_ERROR)
-- Icon drawn programmatically: dark rounded square + "M" + colored dot
-- Right-click menu: Last updated | Next run | (separator) | Open App | Run Now | (separator) | Exit
-- Double-click → show/restore window
-- "Last updated" reads `data/scrape_state.json` written by `write_scrape_state()`
-- "Next run" calculates next 6 AM or 5 PM from current time
-- `MainWindow.set_tray(tray)` wires `_background_scrape` to "Run Now"
-- `write_scrape_state()` called in `_on_scrape_done` to persist timestamp
-
-### 4. Key files for tray/UAC system
-```
-register_tasks.py           Elevated task registration (run as Admin)
-gui/first_run_setup.py      First-run dialog + UAC launch helper
-gui/tray_icon.py            System tray icon, status dots, right-click menu
-run_gui.py                  Wires everything: --register-tasks mode, tray, first-run
-gui/main_window.py          set_tray(), closeEvent (hide-to-tray), scrape → tray status
-data/scrape_state.json      Persists last_updated timestamp for tray menu
-```
-
-### 5. PyInstaller packaging notes (when ready)
+### PyInstaller packaging (when ready)
 ```bash
-pip install pyinstaller
 pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
-  --add-data "gui/fonts;gui/fonts"
+  --add-data "gui/fonts;gui/fonts" --add-data "gui/icons;gui/icons"
 ```
-- The `--register-tasks` arg re-uses the same .exe elevated — no second binary needed
-- `data/` stays external; include `fill_database.bat` alongside the .exe
-- Test on a clean machine without Python installed
-- `anthropic` package should be optional (only needed if Ask Claude is used)
+`--register-tasks` reuses same .exe elevated. `data/` stays external. `anthropic` package optional.
+
+### Event types tracked
+`mtgo_challenge_32`, `mtgo_challenge_64`, `mtgo_league`, `mtgo_preliminary`, `paper`
 
 ---
 
-## Long-term Roadmap
+## 10. END-OF-SESSION PROTOCOL
 
-### v2 Feature — Card Image Preview (NOT a current priority)
-Mouseover/hover card image popup inside the GUI.
-Implementation approach when ready:
-- Download card images on demand from Scryfall image API (`/cards/named?exact=NAME&format=image`)
-- Cache to `data/card_images/` directory
-- Show as QLabel tooltip or small floating QDialog on hover in deck analyzer / search tabs
-- No images embedded in .exe — cache stays external like the DB
-
-### Game Simulation Engine Integration
-Integrate with XMage or a custom MTG rules engine for automated simulation
-of theoretical decklists against predicted meta fields.
-Phase order: meta analysis + deck building features complete first.
-
-### Charts Compare Mode
-Overlay multiple archetype trend lines on one chart (multi-select archetype combo in Charts tab).
-
-## Installed Skills (mattpocock/skills)
-
-Three skills are installed at `.claude/skills/` and available in every session.
-Invoke them by describing the intent — Claude Code will recognize the trigger.
-
-| Skill | Trigger | What it does |
-|---|---|---|
-| `triage-issue` | User reports a bug, says "triage", wants to file an issue, or wants to investigate and plan a fix | Explores the codebase to find root cause, then creates a GitHub issue with a TDD-based fix plan |
-| `improve-codebase-architecture` | User wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, or make the codebase more AI-navigable | Explores the codebase for architectural improvement opportunities, focusing on deeper/more testable modules |
-| `grill-me` | User wants to stress-test a plan, get grilled on a design decision, or says "grill me" | Interviews the user relentlessly about a plan or design until reaching shared understanding, resolving each branch of the decision tree |
-
-Installed via: `npx skills@latest add mattpocock/skills/<name> -a claude-code -y`
-
----
-
-## Always Do at End of Session
-1. Update CLAUDE.md — current state, new files, changed endpoints, design decisions
-2. Update NEXT_STEPS.md — accurate priorities, completed items marked done
+1. Update CLAUDE.md — current state, new files, design decisions
+2. Update NEXT_STEPS.md — accurate priorities
 3. Update ROADMAP.md — check off completed items
-4. `git add` all changed files, commit with a clear message, `git push`
-5. After any scrape: run `--counts` or equivalent to verify output before closing
+4. `git add`, commit with clear message, `git push`
+5. After any scrape: verify output with `--counts`
 
-**These steps are NON-NEGOTIABLE. See the rules section at the top of this file.**
+**These steps are NON-NEGOTIABLE.**
 
 ---
-*Last documentation update: 2026-04-07 — Quick wins sprint: chart readability (sample size + timeframe subtitles on all 6 chart types), event peer navigation ("View Event" button in ArchetypeDetailDialog), flex slot competition view (Tech Choices grouped by role: Threat/Removal/Card Advantage/Mana/Protection/Utility), team notes on heatmap cells (right-click context menu, matchup_notes DB table). Also downloaded MTG Comprehensive Rules + Scryfall rulings/oracle cards to data/rules_reference/.*
+
+## Installed Skills
+
+| Skill | Trigger |
+|---|---|
+| `triage-issue` | Bug reports, "triage", investigate and plan a fix |
+| `improve-codebase-architecture` | Architecture review, refactoring opportunities |
+| `grill-me` | Stress-test a plan or design decision |
+
+---
+*Last documentation update: 2026-04-07 — Full reorganization: 20 sections → 10, eliminated duplicates. UI/UX overhaul (Inter font, dark theme, Team Resolve branding). Quick wins: chart subtitles, event peers, flex slots, team notes.*
