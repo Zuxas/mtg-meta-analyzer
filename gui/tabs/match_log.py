@@ -287,6 +287,18 @@ class MatchLogTab(QWidget):
         self._stats_table.setAlternatingRowColors(True)
         rv.addWidget(self._stats_table, 1)
 
+        # SB Advice button
+        advice_row = QHBoxLayout()
+        self._advice_btn = QPushButton("SB Advice")
+        self._advice_btn.setStyleSheet(theme.btn_secondary())
+        self._advice_btn.setToolTip(
+            "Analyze your weak matchups and get sideboard recommendations"
+        )
+        self._advice_btn.clicked.connect(self._show_sb_advice)
+        advice_row.addWidget(self._advice_btn)
+        advice_row.addStretch()
+        rv.addLayout(advice_row)
+
         # Event type breakdown
         self._event_lbl = QLabel("")
         self._event_lbl.setWordWrap(True)
@@ -509,6 +521,108 @@ class MatchLogTab(QWidget):
             ct_item = QTableWidgetItem(str(s["total"]))
             ct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._stats_table.setItem(ri, 7, ct_item)
+
+    # ------------------------------------------------------------------
+    # Trend chart
+    # ------------------------------------------------------------------
+
+    def _show_sb_advice(self):
+        """Show SB advisor dialog for the user's most-played deck."""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
+        from PyQt6.QtGui import QColor
+
+        # Determine user's deck from most recent matches
+        deck = self._last_deck or ""
+        fmt = self._last_format or "standard"
+        if not deck:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "SB Advice", "Log some matches first so I know your deck.")
+            return
+
+        from analysis.matchup_advisor import get_advice
+        try:
+            advice = get_advice(deck, fmt)
+        except Exception as e:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "SB Advice", theme.friendly_error(e))
+            return
+
+        matchups = advice.get("matchups", [])
+        if not matchups:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "SB Advice", advice.get("summary", "No data."))
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"SB Advisor \u2014 {deck} ({fmt.capitalize()})")
+        dlg.setMinimumSize(800, 500)
+        dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+        layout = QVBoxLayout(dlg)
+
+        from PyQt6.QtWidgets import QLabel
+        summary = QLabel(advice.get("summary", ""))
+        summary.setWordWrap(True)
+        summary.setStyleSheet(f"color: {theme.TEXT}; font-size: 12px; padding: 6px;")
+        layout.addWidget(summary)
+
+        tbl = QTableWidget(len(matchups), 6)
+        tbl.setHorizontalHeaderLabels([
+            "Opponent", "Your WR", "Meta WR", "Delta", "Status", "Recommendation",
+        ])
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for c in range(1, 5):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setAlternatingRowColors(True)
+
+        _SEV_COLORS = {
+            "critical": theme.ERR, "warning": theme.WARN,
+            "ok": theme.TEXT_DIM, "strong": theme.OK,
+        }
+        _SEV_LABELS = {
+            "critical": "CRITICAL", "warning": "Warning",
+            "ok": "OK", "strong": "Strong",
+        }
+
+        for ri, m in enumerate(matchups):
+            tbl.setItem(ri, 0, QTableWidgetItem(m["opponent"]))
+
+            wr = QTableWidgetItem(f"{m['personal_wr']*100:.0f}%")
+            wr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 1, wr)
+
+            meta = m.get("meta_wr")
+            mi = QTableWidgetItem(f"{meta*100:.0f}%" if meta else "\u2014")
+            mi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 2, mi)
+
+            d = m.get("delta")
+            di = QTableWidgetItem(f"{d*100:+.0f}%" if d is not None else "\u2014")
+            di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if d and d <= -0.05:
+                di.setForeground(QColor(theme.ERR))
+            elif d and d >= 0.05:
+                di.setForeground(QColor(theme.OK))
+            tbl.setItem(ri, 3, di)
+
+            sev = m["severity"]
+            si = QTableWidgetItem(_SEV_LABELS.get(sev, sev))
+            si.setForeground(QColor(_SEV_COLORS.get(sev, theme.TEXT_DIM)))
+            f = si.font()
+            f.setBold(True)
+            si.setFont(f)
+            si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 4, si)
+
+            rec = QTableWidgetItem(m.get("suggestion", ""))
+            rec.setToolTip(m.get("suggestion", ""))
+            tbl.setItem(ri, 5, rec)
+
+        layout.addWidget(tbl, 1)
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Trend chart
