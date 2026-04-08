@@ -8,26 +8,12 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://www.mtgtop8.com"
-
-FORMATS = {
-    "standard":  "ST",
-    "pioneer":   "PI",
-    "modern":    "MO",
-    "legacy":    "LE",
-    "vintage":   "VI",
-    "pauper":    "PAU",
-}
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-}
-
-DELAY = 1.5
+from scrapers.constants import (
+    URL_MTGTOP8 as BASE_URL,
+    FORMATS_MTGTOP8 as FORMATS,
+    HEADERS_MINIMAL as HEADERS,
+    DELAY_DEFAULT as DELAY,
+)
 
 
 def _get(url, retries=3):

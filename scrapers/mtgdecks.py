@@ -27,17 +27,11 @@ from bs4 import BeautifulSoup
 from db.database import get_connection, upsert_event, upsert_deck, insert_deck_cards, init_db
 from scrapers.challenges import classify_event_type
 
-BASE_URL = "https://mtgdecks.net"
-
-# Format name -> MTGDecks.net URL segment
-FORMATS = {
-    "standard":  "Standard",
-    "pioneer":   "Pioneer",
-    "modern":    "Modern",
-    "legacy":    "Legacy",
-    "vintage":   "Vintage",
-    "pauper":    "Pauper",
-}
+from scrapers.constants import (
+    URL_MTGDECKS as BASE_URL,
+    FORMATS_DISPLAY as FORMATS,
+    HEADERS_FULL as HEADERS,
+)
 
 DELAY_MIN = 2.5
 DELAY_MAX = 5.0
@@ -47,22 +41,6 @@ HIGH_SIGNAL_KEYWORDS = [
     "challenge", "showcase", "qualifier", "rcq", "pro tour",
     "regional championship", "magic con", "grand prix", "open",
 ]
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": (
-        "text/html,application/xhtml+xml,application/xml;"
-        "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-}
 
 _session = None
 

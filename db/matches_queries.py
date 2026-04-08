@@ -10,8 +10,8 @@ result values: 'player1' | 'player2' | 'draw'
 source values: 'mtgmelee' | 'bracket_finals' | 'bracket_sf' | 'bracket_qf'
 """
 
-from datetime import datetime
 from db.database import get_connection
+from db.helpers import ensure_table as _do_ensure
 
 
 _CREATE_SQL = """
@@ -40,8 +40,7 @@ _CREATE_SQL = """
 
 
 def _ensure_table():
-    with get_connection() as conn:
-        conn.executescript(_CREATE_SQL)
+    _do_ensure(_CREATE_SQL)
 
 
 # ---------------------------------------------------------------------------

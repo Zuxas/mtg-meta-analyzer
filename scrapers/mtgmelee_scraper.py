@@ -46,13 +46,15 @@ from analysis.archetypes import normalize as normalize_arch
 
 log = logging.getLogger(__name__)
 
-_BASE            = "https://melee.gg"
+from scrapers.constants import (
+    URL_MELEE as _BASE,
+    FORMATS_DISPLAY as _FORMAT_MAP,
+    DELAY_DEFAULT as _SLEEP,
+)
+
 _SEARCH_URL      = f"{_BASE}/Tournament/TournamentSearch"
 _VIEW_URL        = f"{_BASE}/Tournament/View/{{tid}}"
 _ROUND_URL       = f"{_BASE}/Match/GetRoundMatches/{{rid}}"
-
-# Seconds between requests — be respectful
-_SLEEP = 1.5
 
 # Pairings DataTables column definitions (must match pairings-section.min.js exactly)
 _PAIRING_COLS = [
@@ -62,14 +64,6 @@ _PAIRING_COLS = [
     ("Decklists",    False, False),
     ("ResultString", False, False),
 ]
-
-_FORMAT_MAP = {
-    "standard": "Standard",
-    "pioneer":  "Pioneer",
-    "modern":   "Modern",
-    "legacy":   "Legacy",
-    "pauper":   "Pauper",
-}
 
 
 # ---------------------------------------------------------------------------

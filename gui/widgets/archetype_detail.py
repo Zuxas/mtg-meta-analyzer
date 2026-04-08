@@ -178,13 +178,7 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
 # Helpers
 # ---------------------------------------------------------------------------
 
-class _NumItem(QTableWidgetItem):
-    """QTableWidgetItem that sorts numerically (handles plain numbers and % strings)."""
-    def __lt__(self, other):
-        try:
-            return float(self.text().rstrip('%')) < float(other.text().rstrip('%'))
-        except (ValueError, TypeError):
-            return super().__lt__(other)
+from gui.widgets.table_helpers import NumItem as _NumItem
 
 
 def _inc_color(rate: float) -> QColor:

@@ -68,35 +68,7 @@ def _btn(text, style="primary"):
     return w
 
 
-class _NumItem(QTableWidgetItem):
-    """QTableWidgetItem that sorts numerically for placement/count columns."""
-    def __lt__(self, other):
-        try:
-            return float(self.text().rstrip('%')) < float(other.text().rstrip('%'))
-        except (ValueError, TypeError):
-            return super().__lt__(other)
-
-
-def _date_sort_key(raw: str) -> str:
-    """Normalize DD/MM/YY or YYYY-MM-DD to YYYYMMDD for sort."""
-    raw = raw or ""
-    if "/" in raw:
-        parts = raw.split("/")
-        if len(parts) == 3:
-            return f"20{parts[2]}{parts[1]}{parts[0]}"
-    return raw.replace("-", "")
-
-
-class _DateItem(QTableWidgetItem):
-    """QTableWidgetItem that sorts dates correctly regardless of display format."""
-    def __init__(self, display: str, sort_key: str = ""):
-        super().__init__(display)
-        self._sort_key = sort_key or display
-
-    def __lt__(self, other):
-        if isinstance(other, _DateItem):
-            return self._sort_key < other._sort_key
-        return super().__lt__(other)
+from gui.widgets.table_helpers import NumItem as _NumItem, DateItem as _DateItem, date_sort_key as _date_sort_key
 
 
 _DATE_KEY = (
@@ -269,11 +241,9 @@ class SearchTab(QWidget):
         self._build_ui()
 
     def cleanup(self):
+        from gui.worker_utils import cancel_worker
         for w in self._workers:
-            try:
-                w.blockSignals(True)
-            except RuntimeError:
-                pass
+            cancel_worker(w)
         self._workers.clear()
         if self._card_browser and hasattr(self._card_browser, "cleanup"):
             self._card_browser.cleanup()

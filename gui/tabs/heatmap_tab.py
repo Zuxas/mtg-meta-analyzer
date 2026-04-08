@@ -501,16 +501,9 @@ class HeatmapTab(QWidget):
 
     def _cancel_worker(self):
         """Block signals on any running worker so its callbacks are ignored."""
-        w = self._worker
+        from gui.worker_utils import cancel_worker
+        cancel_worker(self._worker)
         self._worker = None
-        if w is not None:
-            try:
-                w.blockSignals(True)
-            except RuntimeError:
-                pass
-            # Do NOT wait() — run() has no event loop, so quit() is a no-op
-            # and wait() would block the GUI.  Signal-blocking + gen counter
-            # is sufficient to discard stale results.
 
     def _prepare_load(self, source: str):
         """Common pre-load steps: cancel old worker, reset state, show loading UI."""

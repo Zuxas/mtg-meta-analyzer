@@ -20,8 +20,8 @@ Schema:
         created_at      — ISO timestamp
 """
 import json
-from datetime import datetime, timezone
 from db.database import get_connection
+from db.helpers import ensure_table as _do_ensure, utc_now as _now
 
 
 _CREATE_SQL = """
@@ -50,12 +50,7 @@ _CREATE_SQL = """
 
 
 def _ensure_table():
-    with get_connection() as conn:
-        conn.executescript(_CREATE_SQL)
-
-
-def _now():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _do_ensure(_CREATE_SQL)
 
 
 # ---------------------------------------------------------------------------

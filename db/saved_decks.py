@@ -27,9 +27,9 @@ Schema:
 """
 
 import json
-from datetime import datetime, timezone
 
 from db.database import get_connection
+from db.helpers import ensure_table as _do_ensure, utc_now as _now, json_loads_dict, json_loads_list
 
 
 _CREATE_SQL = """
@@ -66,12 +66,7 @@ _CREATE_SQL = """
 
 
 def _ensure_tables():
-    with get_connection() as conn:
-        conn.executescript(_CREATE_SQL)
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _do_ensure(_CREATE_SQL)
 
 
 # ---------------------------------------------------------------------------
@@ -156,14 +151,8 @@ def get_deck(deck_id: int) -> dict | None:
 
 def _deserialize_deck(row: dict) -> dict:
     """Parse JSON fields back to dicts."""
-    try:
-        row["mainboard"] = json.loads(row.get("mainboard") or "{}")
-    except (json.JSONDecodeError, TypeError):
-        row["mainboard"] = {}
-    try:
-        row["sideboard"] = json.loads(row.get("sideboard") or "{}")
-    except (json.JSONDecodeError, TypeError):
-        row["sideboard"] = {}
+    row["mainboard"] = json_loads_dict(row.get("mainboard"))
+    row["sideboard"] = json_loads_dict(row.get("sideboard"))
     return row
 
 
@@ -254,8 +243,5 @@ def get_sb_plan(deck_id: int, opponent_archetype: str) -> dict | None:
 def _deserialize_plan(row: dict) -> dict:
     """Parse JSON list fields back to Python lists."""
     for field in ("play_in", "play_out", "draw_in", "draw_out"):
-        try:
-            row[field] = json.loads(row.get(field) or "[]")
-        except (json.JSONDecodeError, TypeError):
-            row[field] = []
+        row[field] = json_loads_list(row.get(field))
     return row

@@ -17,17 +17,11 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://mythicspoiler.com"
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    )
-}
-
-DELAY = 1.0
+from scrapers.constants import (
+    URL_MYTHICSPOILER as BASE_URL,
+    HEADERS_MINIMAL as HEADERS,
+    DELAY_MYTHICSPOILER as DELAY,
+)
 
 # ── Known set code → display name mapping ──────────────────────────────
 # Used for the UI dropdown and to resolve set code → mythicspoiler URL.

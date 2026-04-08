@@ -25,6 +25,7 @@ from PyQt6.QtGui import QColor, QFont
 
 from gui.widgets.chart_canvas import ChartCanvas, fetch_chart_data
 from gui.worker_threads import DataLoadWorker
+from gui.worker_utils import cancel_worker as _cancel_worker
 import gui.theme as theme
 
 
@@ -184,20 +185,7 @@ def _date_sort_key(raw: str) -> str:
     return raw.replace("-", "")
 
 
-_SORT_ROLE = Qt.ItemDataRole.UserRole + 100
-
-
-class _SortItem(QTableWidgetItem):
-    """QTableWidgetItem that sorts by a numeric/string key stored in _SORT_ROLE."""
-    def __lt__(self, other):
-        a = self.data(_SORT_ROLE)
-        b = other.data(_SORT_ROLE)
-        if a is not None and b is not None:
-            try:
-                return a < b
-            except TypeError:
-                pass
-        return super().__lt__(other)
+from gui.widgets.table_helpers import SortItem as _SortItem, SORT_ROLE as _SORT_ROLE
 
 
 def _fmt_date(raw: str) -> str:
@@ -577,24 +565,10 @@ class DashboardTab(QWidget):
 
     def cleanup(self):
         """Stop all running workers. Called by MainWindow on app exit."""
-        DashboardTab._cancel_worker(self._panel_worker)
-        DashboardTab._cancel_worker(self._chart_worker)
+        _cancel_worker(self._panel_worker)
+        _cancel_worker(self._chart_worker)
         self._panel_worker = None
         self._chart_worker = None
-
-    @staticmethod
-    def _cancel_worker(w):
-        """Block signals on a running worker so stale results are silently dropped.
-
-        Guards against RuntimeError when the underlying C++ QThread has already been
-        freed by deleteLater (e.g. auto-refresh on startup completes before the user
-        clicks Refresh, leaving self._panel_worker pointing at a dead wrapper).
-        """
-        if w is not None:
-            try:
-                w.blockSignals(True)
-            except RuntimeError:
-                pass  # C++ object already deleted — nothing to cancel
 
     def refresh(self):
         self._status_lbl.setText("Loading…")
@@ -602,8 +576,8 @@ class DashboardTab(QWidget):
         self._canvas.show_message("Loading chart data…", theme.ACCENT)
 
         # Discard results from any still-running workers before replacing them
-        self._cancel_worker(self._panel_worker)
-        self._cancel_worker(self._chart_worker)
+        _cancel_worker(self._panel_worker)
+        _cancel_worker(self._chart_worker)
 
         fmt       = self._fmt.currentText()
         top       = int(self._top_n.currentText())
@@ -633,7 +607,7 @@ class DashboardTab(QWidget):
 
     def _reload_chart(self, auto_suggest=False):
         """Load chart data with current settings. Called from refresh() and _set_granularity()."""
-        DashboardTab._cancel_worker(self._chart_worker)
+        _cancel_worker(self._chart_worker)
         self._chart_worker = None
 
         fmt   = self._fmt.currentText()

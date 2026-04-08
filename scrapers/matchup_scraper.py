@@ -16,27 +16,11 @@ import argparse
 import cloudscraper
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://mtgdecks.net"
-
-FORMATS = {
-    "standard": "Standard",
-    "pioneer":  "Pioneer",
-    "modern":   "Modern",
-    "legacy":   "Legacy",
-}
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": (
-        "text/html,application/xhtml+xml,application/xml;"
-        "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
+from scrapers.constants import (
+    URL_MTGDECKS as BASE_URL,
+    FORMATS_DISPLAY as FORMATS,
+    HEADERS_FULL as HEADERS,
+)
 
 
 # ---------------------------------------------------------------------------

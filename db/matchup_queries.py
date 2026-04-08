@@ -7,9 +7,8 @@ Schema (added to the active DB on first use):
 All functions follow the same connection pattern as database.py.
 """
 
-from datetime import datetime
-
 from db.database import get_connection
+from db.helpers import ensure_table as _do_ensure, utc_now
 
 
 _CREATE_TABLE = """
@@ -26,8 +25,7 @@ _CREATE_TABLE = """
 
 
 def _ensure_table():
-    with get_connection() as conn:
-        conn.execute(_CREATE_TABLE)
+    _do_ensure(_CREATE_TABLE)
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +38,7 @@ def save_matchup_data(format_name: str, matrix: dict):
     matrix: {archetype_a: {archetype_b: {"winrate": float, "matches": int}}}
     """
     _ensure_table()
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    now = utc_now()
 
     rows = []
     for arch_a, opponents in matrix.items():
@@ -116,7 +114,7 @@ def _ensure_notes_table():
 def save_matchup_note(format_name: str, arch_a: str, arch_b: str, note: str):
     """Upsert a team note for a specific matchup cell."""
     _ensure_notes_table()
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+    now = utc_now()
     with get_connection() as conn:
         if note.strip():
             conn.execute("""
