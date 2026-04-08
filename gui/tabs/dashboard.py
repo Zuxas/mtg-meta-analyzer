@@ -320,7 +320,7 @@ class DashboardTab(QWidget):
 
         self._recent_tbl  = self._build_recent_panel(top_layout)
         self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
-            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Change", "Rating", "Prep", "Status", "Tier"])
+            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Change", "Rating", "Prep", "Status", "Tier", "Role"])
         self._winrate_tbl.horizontalHeaderItem(4).setToolTip(
             "Glicko-2 Power Rating\n"
             "Skill estimate from real match results.\n"
@@ -1029,6 +1029,28 @@ class DashboardTab(QWidget):
                 tier_item.setBackground(bg)
             tbl.setItem(ri, 7, tier_item)
 
+        # Deck role classification (batch for all visible archetypes)
+        try:
+            from analysis.deck_roles import classify_roles_batch
+            fmt = self._fmt.currentText()
+            arch_names = [s["archetype"] for s in ranked]
+            roles = classify_roles_batch(arch_names, fmt)
+            _ROLE_COLORS = {
+                "Aggro": theme.ERR, "Midrange": theme.OK,
+                "Control": "#42a5f5", "Combo": "#a078e0",
+                "Tempo": theme.ACCENT, "Unknown": theme.TEXT_DIM,
+            }
+            for ri, s in enumerate(ranked):
+                role = roles.get(s["archetype"], "")
+                role_item = QTableWidgetItem(role)
+                role_item.setForeground(QColor(_ROLE_COLORS.get(role, theme.TEXT_DIM)))
+                role_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+                role_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                f = role_item.font(); f.setBold(True); role_item.setFont(f)
+                tbl.setItem(ri, 8, role_item)
+        except Exception:
+            pass  # role classification is non-critical
+
         tbl.resizeRowsToContents()
         tbl.setSortingEnabled(True)
         tbl.sortByColumn(2, Qt.SortOrder.DescendingOrder)
@@ -1268,101 +1290,108 @@ class DashboardTab(QWidget):
         return (datetime.now() - timedelta(weeks=weeks)) if weeks is not None else None
 
     def _show_meta_shift(self):
-        """Compare current period vs prior period — shows rising/falling archetypes."""
-        if not self._standings:
-            return
-        prior_map = {s["archetype"]: s for s in getattr(self, "_prior_standings", [])}
-        if not prior_map:
-            QMessageBox.information(self, "Meta Shift",
-                                   "No prior period data available. Try a shorter timeframe.")
+        """Compare current period vs prior period — shows rising/falling/new/gone archetypes."""
+        weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1]
+        if weeks is None:
+            weeks = 4  # default for All Time
+        fmt = self._fmt.currentText()
+
+        from analysis.meta_change import compare_periods
+        try:
+            result = compare_periods(fmt, weeks_current=weeks, weeks_prior=weeks)
+        except Exception as e:
+            QMessageBox.warning(self, "Meta Shift", theme.friendly_error(e))
             return
 
-        tf_label = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+        archs = result["archetypes"]
+        if not archs:
+            QMessageBox.information(self, "Meta Shift", "No data for comparison.")
+            return
+
         dlg = QDialog(self)
-        dlg.setWindowTitle(f"Meta Shift \u2014 {tf_label}")
-        dlg.setMinimumSize(600, 450)
+        dlg.setWindowTitle(f"Meta Shift \u2014 {fmt.capitalize()}")
+        dlg.setMinimumSize(700, 500)
         dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
-
         layout = QVBoxLayout(dlg)
-        layout.addWidget(QLabel(
-            f"Comparing current {tf_label} vs the prior {tf_label}. "
-            f"Green = rising, Red = falling, New = didn't exist before."
-        ))
 
-        tbl = QTableWidget()
-        tbl.setColumnCount(6)
-        tbl.setHorizontalHeaderLabels(
-            ["Archetype", "Current Apps", "Prior Apps", "Change", "Current WR", "Status"])
+        s = result["summary"]
+        summary = QLabel(
+            f"{result['current_label']} vs {result['prior_label']}  \u2014  "
+            f"{s['rising']} rising, {s['falling']} falling, "
+            f"{s['new']} new, {s['gone']} gone"
+        )
+        summary.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px; padding: 4px;")
+        layout.addWidget(summary)
+
+        tbl = QTableWidget(len(archs), 7)
+        tbl.setHorizontalHeaderLabels([
+            "Archetype", "Share Now", "Share Before", "\u0394 Share",
+            "WR Now", "\u0394 WR", "Status",
+        ])
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in range(1, 6):
+        for c in range(1, 7):
             hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
         tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         tbl.verticalHeader().setVisible(False)
         tbl.setAlternatingRowColors(True)
 
-        # Build comparison data
-        rows_data = []
-        for s in self._standings:
-            arch = s["archetype"]
-            cur_apps = s["appearances"]
-            prior = prior_map.get(arch)
-            prior_apps = prior["appearances"] if prior else 0
-            delta = cur_apps - prior_apps
-            wr = s.get("est_match_winpct", 0)
+        _STATUS_COLORS = {
+            "rising": theme.OK, "falling": theme.ERR, "new": theme.ACCENT,
+            "gone": theme.ERR, "stable": theme.TEXT_DIM,
+        }
+        _STATUS_LABELS = {
+            "rising": "\u2191 Rising", "falling": "\u2193 Falling",
+            "new": "\u2605 New", "gone": "\u2620 Gone", "stable": "\u2192 Stable",
+        }
 
-            if prior is None:
-                status = "NEW"
-                status_color = theme.ACCENT
-            elif delta > 0:
-                status = f"\u2191 +{delta}"
-                status_color = theme.OK
-            elif delta < 0:
-                status = f"\u2193 {delta}"
-                status_color = theme.ERR
-            else:
-                status = "\u2192 stable"
-                status_color = theme.TEXT_DIM
+        for ri, a in enumerate(archs):
+            tbl.setItem(ri, 0, QTableWidgetItem(a["archetype"]))
 
-            rows_data.append((arch, cur_apps, prior_apps, delta, wr, status, status_color))
+            for ci, val in [
+                (1, f"{a['current_share']*100:.1f}%"),
+                (2, f"{a['prior_share']*100:.1f}%"),
+            ]:
+                it = QTableWidgetItem(val)
+                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                tbl.setItem(ri, ci, it)
 
-        # Also find decks that disappeared
-        current_set = {s["archetype"] for s in self._standings}
-        for arch, p in prior_map.items():
-            if arch not in current_set and p["appearances"] >= 10:
-                rows_data.append((arch, 0, p["appearances"], -p["appearances"],
-                                  p.get("est_match_winpct", 0), "\u2620 GONE", theme.ERR))
-
-        rows_data.sort(key=lambda x: -x[3])  # biggest gainers first
-
-        tbl.setRowCount(len(rows_data))
-        for ri, (arch, cur, prior, delta, wr, status, color) in enumerate(rows_data):
-            tbl.setItem(ri, 0, QTableWidgetItem(arch))
-            ci = QTableWidgetItem(str(cur))
-            ci.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            tbl.setItem(ri, 1, ci)
-            pi = QTableWidgetItem(str(prior))
-            pi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            tbl.setItem(ri, 2, pi)
-
-            di = QTableWidgetItem(f"{delta:+d}" if delta != 0 else "0")
+            # Share delta
+            sd = a["share_delta"] * 100
+            di = QTableWidgetItem(f"{sd:+.1f}%" if sd else "0.0%")
             di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if delta > 0:
+            if sd > 0.5:
                 di.setForeground(QColor(theme.OK))
-            elif delta < 0:
+            elif sd < -0.5:
                 di.setForeground(QColor(theme.ERR))
             tbl.setItem(ri, 3, di)
 
-            wi = QTableWidgetItem(f"{wr*100:.1f}%" if wr else "\u2014")
+            # WR now
+            wr_now = a.get("current_wr")
+            wi = QTableWidgetItem(f"{wr_now*100:.1f}%" if wr_now else "\u2014")
             wi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             tbl.setItem(ri, 4, wi)
 
-            si = QTableWidgetItem(status)
-            si.setForeground(QColor(color))
-            si.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            tbl.setItem(ri, 5, si)
+            # WR delta
+            wd = a.get("wr_delta")
+            wdi = QTableWidgetItem(f"{wd*100:+.1f}%" if wd else "\u2014")
+            wdi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if wd and wd > 0.02:
+                wdi.setForeground(QColor(theme.OK))
+            elif wd and wd < -0.02:
+                wdi.setForeground(QColor(theme.ERR))
+            tbl.setItem(ri, 5, wdi)
 
-        layout.addWidget(tbl)
+            # Status
+            st = a["status"]
+            si = QTableWidgetItem(_STATUS_LABELS.get(st, st))
+            si.setForeground(QColor(_STATUS_COLORS.get(st, theme.TEXT_DIM)))
+            f = si.font()
+            f.setBold(True)
+            si.setFont(f)
+            tbl.setItem(ri, 6, si)
+
+        layout.addWidget(tbl, 1)
         dlg.exec()
 
 

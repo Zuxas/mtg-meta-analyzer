@@ -137,6 +137,14 @@ class SettingsTab(QWidget):
         self._refresh_storage_btn.clicked.connect(self._refresh_storage)
         store_btns.addWidget(self._refresh_storage_btn)
 
+        self._dedup_btn = QPushButton("Scan Duplicates")
+        self._dedup_btn.setStyleSheet(theme.btn_secondary())
+        self._dedup_btn.setToolTip(
+            "Find duplicate events across MTGTop8, MTGDecks, and MTGMelee"
+        )
+        self._dedup_btn.clicked.connect(self._show_dedup_report)
+        store_btns.addWidget(self._dedup_btn)
+
         store_btns.addStretch()
         self._backfill_status = QLabel("")
         self._backfill_status.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
@@ -499,6 +507,98 @@ class SettingsTab(QWidget):
             self._sync_btn.setText("Run Sync Now")
 
     # ------------------------------------------------------------------
+    # Cross-source duplicate detection
+    # ------------------------------------------------------------------
+
+    def _show_dedup_report(self):
+        """Show a dialog with cross-source duplicate event analysis."""
+        from analysis.cross_source_dedup import get_dedup_report
+        fmt = "standard"
+        # Use the first selected format from preferences
+        prefs = load_preferences()
+        fmts = prefs.get("formats", ["standard"])
+        if fmts:
+            fmt = fmts[0]
+
+        try:
+            report = get_dedup_report(fmt)
+        except Exception as e:
+            QMessageBox.warning(self, "Duplicate Scan", theme.friendly_error(e))
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Cross-Source Duplicates \u2014 {fmt.capitalize()}")
+        dlg.setMinimumSize(600, 400)
+        dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+        layout = QVBoxLayout(dlg)
+
+        # Summary
+        summary = QLabel(
+            f"<b>{report['total_events']:,}</b> total events  \u00b7  "
+            f"<b>{report['duplicate_groups']}</b> duplicate groups found  \u00b7  "
+            f"<b>{report['removable_events']}</b> removable copies  "
+            f"({report['savings_pct']}% of total)"
+        )
+        summary.setStyleSheet(f"color: {theme.TEXT}; font-size: 12px; padding: 6px;")
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+
+        # Source pair breakdown
+        if report["by_source_pair"]:
+            pairs_text = " \u00b7 ".join(
+                f"{k}: {v}" for k, v in sorted(report["by_source_pair"].items())
+            )
+            pairs_lbl = QLabel(f"By source pair: {pairs_text}")
+            pairs_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px; padding: 2px 6px;")
+            layout.addWidget(pairs_lbl)
+
+        # Duplicate groups table
+        dupes = report["duplicates"]
+        if dupes:
+            tbl = QTableWidget(len(dupes), 4)
+            tbl.setHorizontalHeaderLabels(["Confidence", "Events", "Sources", "Reason"])
+            hh = tbl.horizontalHeader()
+            hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            hh.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+            tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            tbl.verticalHeader().setVisible(False)
+            tbl.setAlternatingRowColors(True)
+
+            for ri, d in enumerate(dupes):
+                # Confidence
+                conf = d["confidence"]
+                ci = QTableWidgetItem(f"{conf*100:.0f}%")
+                ci.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if conf >= 0.9:
+                    ci.setForeground(QColor(theme.OK))
+                elif conf >= 0.7:
+                    ci.setForeground(QColor(theme.WARN))
+                else:
+                    ci.setForeground(QColor(theme.TEXT_DIM))
+                tbl.setItem(ri, 0, ci)
+
+                # Event names
+                names = set(e["name"] for e in d["events"] if e.get("name"))
+                tbl.setItem(ri, 1, QTableWidgetItem(" / ".join(sorted(names)[:2])))
+
+                # Sources
+                sources = sorted(set(e["source"] for e in d["events"]))
+                tbl.setItem(ri, 2, QTableWidgetItem(", ".join(sources)))
+
+                # Reason
+                tbl.setItem(ri, 3, QTableWidgetItem(d["reason"]))
+
+            layout.addWidget(tbl, 1)
+        else:
+            no_dupes = QLabel("No cross-source duplicates detected.")
+            no_dupes.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            no_dupes.setStyleSheet(f"color: {theme.OK}; font-size: 13px; padding: 20px;")
+            layout.addWidget(no_dupes)
+
+        dlg.exec()
+
     # Backfill / Collect More Data
     # ------------------------------------------------------------------
 
