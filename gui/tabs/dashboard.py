@@ -298,9 +298,16 @@ class DashboardTab(QWidget):
         self._shift_btn = QPushButton("Meta Shift")
         self._shift_btn.setStyleSheet(theme.btn_secondary())
         self._shift_btn.setFixedHeight(26)
-        self._shift_btn.setToolTip("Compare current meta to the prior period — shows what changed")
+        self._shift_btn.setToolTip("Compare current meta to the prior period \u2014 shows what changed")
         self._shift_btn.clicked.connect(self._show_meta_shift)
         ctrl.addWidget(self._shift_btn)
+
+        self._recommend_btn = QPushButton("Best Deck")
+        self._recommend_btn.setStyleSheet(theme.btn_secondary())
+        self._recommend_btn.setFixedHeight(26)
+        self._recommend_btn.setToolTip("Recommend the best deck for the current meta based on matchup data")
+        self._recommend_btn.clicked.connect(self._show_recommendations)
+        ctrl.addWidget(self._recommend_btn)
 
         ctrl.addStretch()
         self._status_lbl = QLabel("")
@@ -1390,6 +1397,100 @@ class DashboardTab(QWidget):
             f.setBold(True)
             si.setFont(f)
             tbl.setItem(ri, 6, si)
+
+        layout.addWidget(tbl, 1)
+        dlg.exec()
+
+    def _show_recommendations(self):
+        """Show deck recommendation dialog based on current meta matchup data."""
+        fmt = self._fmt.currentText()
+        weeks = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][1] or 4
+
+        from analysis.deck_recommender import recommend_deck
+        try:
+            result = recommend_deck(fmt, top=12, weeks=weeks)
+        except Exception as e:
+            QMessageBox.warning(self, "Deck Recommendation", theme.friendly_error(e))
+            return
+
+        recs = result.get("recommendations", [])
+        if not recs:
+            QMessageBox.information(self, "Deck Recommendation", "Not enough data for recommendations.")
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Best Deck \u2014 {fmt.capitalize()}")
+        dlg.setMinimumSize(750, 500)
+        dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
+        layout = QVBoxLayout(dlg)
+
+        snap = QLabel(result.get("meta_snapshot", ""))
+        snap.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px; padding: 4px;")
+        layout.addWidget(snap)
+
+        tbl = QTableWidget(len(recs), 7)
+        tbl.setHorizontalHeaderLabels([
+            "Rank", "Archetype", "Score", "Matchup WR", "Raw WR", "Trend", "Verdict",
+        ])
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        for c in range(2, 6):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setAlternatingRowColors(True)
+
+        _TREND_COLORS = {
+            "rising": theme.OK, "falling": theme.ERR,
+            "stable": theme.TEXT_DIM, "new": theme.ACCENT,
+        }
+
+        for ri, r in enumerate(recs):
+            # Rank
+            rank_item = QTableWidgetItem(f"#{ri + 1}")
+            rank_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if ri == 0:
+                rank_item.setForeground(QColor("#ffd700"))  # gold
+                f = rank_item.font(); f.setBold(True); rank_item.setFont(f)
+            tbl.setItem(ri, 0, rank_item)
+
+            tbl.setItem(ri, 1, QTableWidgetItem(r["archetype"]))
+
+            # Score
+            sc = QTableWidgetItem(f"{r['score']:.0f}")
+            sc.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            sc_clr = theme.OK if r["score"] >= 55 else (theme.WARN if r["score"] >= 50 else theme.ERR)
+            sc.setForeground(QColor(sc_clr))
+            f = sc.font(); f.setBold(True); sc.setFont(f)
+            tbl.setItem(ri, 2, sc)
+
+            # Matchup WR
+            mu_wr = r.get("matchup_wr")
+            mu = QTableWidgetItem(f"{mu_wr*100:.1f}%" if mu_wr else "\u2014")
+            mu.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 3, mu)
+
+            # Raw WR
+            rw = QTableWidgetItem(f"{r['raw_wr']*100:.1f}%")
+            rw.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 4, rw)
+
+            # Trend
+            trend = r.get("trend", "stable")
+            tr = QTableWidgetItem(trend.capitalize())
+            tr.setForeground(QColor(_TREND_COLORS.get(trend, theme.TEXT_DIM)))
+            tr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 5, tr)
+
+            # Verdict
+            vi = QTableWidgetItem(r.get("verdict", ""))
+            vi.setToolTip(
+                f"Strengths: {', '.join(r.get('strengths', []))}\n"
+                f"Weaknesses: {', '.join(r.get('weaknesses', []))}"
+            )
+            tbl.setItem(ri, 6, vi)
 
         layout.addWidget(tbl, 1)
         dlg.exec()

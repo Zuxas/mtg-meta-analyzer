@@ -543,6 +543,12 @@ class DeckAnalyzerTab(QWidget):
         self._sim_lbl.setStyleSheet(f"color: {theme.TEXT}; font-size: 10px;")
         rv.addWidget(self._sim_lbl)
 
+        # Baseline vs deviation section
+        self._baseline_lbl = QLabel("")
+        self._baseline_lbl.setWordWrap(True)
+        self._baseline_lbl.setStyleSheet(f"color: {theme.TEXT}; font-size: 10px;")
+        rv.addWidget(self._baseline_lbl)
+
         # Divider
         div2 = QFrame()
         div2.setFrameShape(QFrame.Shape.HLine)
@@ -919,6 +925,7 @@ class DeckAnalyzerTab(QWidget):
         self._worker.finished.connect(lambda: setattr(self, "_worker", None))
         self._worker.finished.connect(lambda: self._run_deck_similarity(main, fmt))
         self._worker.finished.connect(lambda: self._run_auto_classify(main, fmt))
+        self._worker.finished.connect(lambda: self._run_baseline(main, side, fmt, arch))
         self._worker.start()
 
     def _clear_results(self):
@@ -926,6 +933,7 @@ class DeckAnalyzerTab(QWidget):
         self._score_lbl.setText("\u2014")
         self._overall_lbl.setText("")
         self._sim_lbl.setText("")
+        self._baseline_lbl.setText("")
         for lbl, bar, score_lbl in self._chapin_bars.values():
             bar.setValue(0)
             score_lbl.setText("\u2014")
@@ -1020,6 +1028,57 @@ class DeckAnalyzerTab(QWidget):
             self._sim_worker = w
         except Exception:
             self._sim_lbl.setText("")
+
+    # ------------------------------------------------------------------
+    # Baseline vs deviation — compare user's list to average
+    # ------------------------------------------------------------------
+
+    def _run_baseline(self, main: dict, side: dict, fmt: str, arch: str):
+        """Compare the pasted decklist against the average for its archetype."""
+        if arch == "Pasted Deck":
+            # Use auto-classified archetype if available
+            arch = getattr(self, "_classified_arch", arch)
+        if not arch or arch == "Pasted Deck":
+            return
+        try:
+            def _do():
+                from analysis.deck_analysis import compare_deck_to_average
+                return compare_deck_to_average(
+                    {"mainboard": main, "sideboard": side},
+                    arch, fmt, min_inclusion=0.15,
+                )
+
+            w = DataLoadWorker(_do)
+
+            def _done(result):
+                if not result:
+                    self._baseline_lbl.setText("")
+                    return
+                lines = [f"Baseline Comparison vs Average {arch}:"]
+                mb = result.get("mainboard", {})
+                added = mb.get("added", [])
+                cut = mb.get("cut", [])
+                adjusted = mb.get("adjusted", [])
+                sim = result.get("similarity_score", 0)
+                lines.append(f"  Similarity: {sim*100:.0f}%")
+                if added:
+                    lines.append(f"  You run (others don't): "
+                                 + ", ".join(f"{c['name']} x{c['qty']}" for c in added[:5]))
+                if cut:
+                    lines.append(f"  You're missing (most run): "
+                                 + ", ".join(f"{c['name']} ({c['inclusion_rate']*100:.0f}%)" for c in cut[:5]))
+                if adjusted:
+                    diffs = [f"{c['name']} ({c['diff']:+d})" for c in adjusted[:5]]
+                    lines.append(f"  Qty differences: " + ", ".join(diffs))
+                self._baseline_lbl.setText("\n".join(lines))
+
+            w.result.connect(_done)
+            w.error.connect(lambda _: self._baseline_lbl.setText(""))
+            w.finished.connect(w.deleteLater)
+            w.start()
+            self._baseline_worker = w
+        except Exception:
+            self._baseline_lbl.setText("")
 
     # ------------------------------------------------------------------
     # Auto-classify archetype (KNN)
