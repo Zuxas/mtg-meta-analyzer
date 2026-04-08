@@ -860,6 +860,13 @@ class HeatmapTab(QWidget):
         self._grid_notes = notes
 
         tbl = QTableWidget(n, ncols)
+        # Override global stylesheet so setBackground() on cells actually shows.
+        # The global alternate-background-color and QTableWidget background
+        # were overriding per-cell colors making the heatmap look flat.
+        tbl.setStyleSheet(
+            "QTableWidget { background: transparent; alternate-background-color: transparent; }"
+            "QTableWidget::item { background: transparent; }"
+        )
         tbl.setHorizontalHeaderLabels(["Overall"] + archetypes)
         tbl.setVerticalHeaderLabels(archetypes)
         tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
