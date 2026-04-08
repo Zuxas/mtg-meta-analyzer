@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
         self._tabs.setTabPosition(QTabWidget.TabPosition.North)
         central_layout.addWidget(self._tabs, 1)
 
+        # ── Create all tab widgets ────────────────────────────────
         self._dash      = DashboardTab()
         self._deck      = DeckAnalyzerTab()
         self._search    = SearchTab()
@@ -126,31 +127,48 @@ class MainWindow(QMainWindow):
         self._set_analysis = SetAnalysisTab()
         self._settings  = SettingsTab()
 
+        # ── Compose merged tabs ───────────────────────────────────
+        # META = Charts + Matchup Data + Predictions
+        self._meta_tab = QTabWidget()
+        self._meta_tab.addTab(self._charts,  "CHARTS")
+        self._meta_tab.addTab(self._heatmap, "MATCHUP DATA")
+        self._meta_tab.addTab(self._preds,   "PREDICTIONS")
+
+        # DECKS = Deck Analyzer + My Decks
+        self._decks_tab = QTabWidget()
+        self._decks_tab.addTab(self._deck,     "ANALYZE")
+        self._decks_tab.addTab(self._my_decks, "MY DECKS")
+
+        # TOURNAMENT = Event Optimizer + Breaker Math (already sub-tabbed) + Match Log
+        self._tournament_tab = QTabWidget()
+        self._tournament_tab.addTab(self._tourney,   "EVENT OPTIMIZER")
+        self._tournament_tab.addTab(self._match_log, "MATCH LOG")
+
+        # RESOURCES = Knowledge Base (+ AI tabs added dynamically)
+        self._resources_tab = QTabWidget()
+        self._resources_tab.addTab(self._kb, "GUIDES & BOOKMARKS")
+
+        # ── Add top-level tabs ────────────────────────────────────
         _tab_info = [
-            (self._dash,      "DASHBOARD",       "Current meta standings, win rates, and trending archetypes"),
-            (self._deck,      "DECK ANALYZER",   "Paste a decklist to check construction quality, legality, and archetype match"),
-            (self._my_decks,  "MY DECKS",        "Save your decklists and sideboard plans for each matchup"),
-            (self._match_log, "MATCH LOG",       "Track your tournament results and personal win rates over time"),
-            (self._search,    "SEARCH",          "Browse cards, search decklists, and compare head-to-head matchups"),
-            (self._tourney,   "TOURNAMENT PREP", "Calculate top-cut odds, ID equity, and matchup breakdown for events"),
-            (self._heatmap,   "MATCHUP DATA",    "Win-rate matrix showing how every archetype performs against each other"),
-            (self._kb,        "KNOWLEDGE BASE",  "Sideboard guides, bookmarks, and reference materials"),
-            (self._preds,     "PREDICTIONS",     "Auto-generated meta predictions and accuracy tracking"),
-            (self._charts,    "CHARTS",          "Interactive charts: meta share trends, archetype comparison, heatmaps"),
-            (self._settings,  "SETTINGS",        "Format preferences, data management, API keys, and ML models"),
+            (self._dash,          "DASHBOARD",  "Current meta standings, win rates, and trending archetypes"),
+            (self._meta_tab,      "META",       "Charts, matchup heatmap, and meta predictions"),
+            (self._decks_tab,     "DECKS",      "Analyze decklists and manage your saved decks + sideboard plans"),
+            (self._search,        "SEARCH",     "Browse cards, search decklists, and compare head-to-head matchups"),
+            (self._tournament_tab,"TOURNAMENT", "Event prep, top-cut math, breaker calculator, and match logging"),
+            (self._resources_tab, "RESOURCES",  "Sideboard guides, bookmarks, and AI-powered analysis"),
+            (self._settings,      "SETTINGS",   "Format preferences, data management, API keys, and ML models"),
         ]
         for i, (widget, label, tip) in enumerate(_tab_info):
             self._tabs.addTab(widget, label)
             self._tabs.setTabToolTip(i, tip)
 
-        # Wire "Open in Event Optimizer" from My Decks → Tournament Prep
+        # Wire "Open in Event Optimizer" from My Decks → Tournament tab
         self._my_decks.open_in_rcq.connect(self._on_open_in_rcq)
 
-        # AI tabs — added/removed dynamically based on API key presence
-        self._claude_tab_index = -1
-        self._set_analysis_tab_index = -1
+        # AI tabs — added/removed dynamically within RESOURCES based on API key
+        self._claude_added = False
+        self._set_analysis_added = False
         self._settings.api_key_changed.connect(self._on_api_key_changed)
-        # Show on startup if key already saved
         from gui.tabs.settings import load_preferences
         if load_preferences().get("anthropic_api_key", "").strip():
             self._add_claude_tab()
@@ -175,35 +193,32 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _add_claude_tab(self):
-        if self._claude_tab_index >= 0:
-            return  # already added
-        # Insert before Settings (last tab)
-        settings_idx = self._tabs.indexOf(self._settings)
-        self._tabs.insertTab(settings_idx, self._claude, "ASK CLAUDE")
-        self._claude_tab_index = self._tabs.indexOf(self._claude)
-        self._tabs.setTabToolTip(self._claude_tab_index,
-                                 "Chat with Claude AI about the meta, card choices, and strategy")
+        if self._claude_added:
+            return
+        self._resources_tab.addTab(self._claude, "ASK CLAUDE")
+        self._claude_added = True
 
     def _remove_claude_tab(self):
-        if self._claude_tab_index < 0:
+        if not self._claude_added:
             return
-        self._tabs.removeTab(self._tabs.indexOf(self._claude))
-        self._claude_tab_index = -1
+        idx = self._resources_tab.indexOf(self._claude)
+        if idx >= 0:
+            self._resources_tab.removeTab(idx)
+        self._claude_added = False
 
     def _add_set_analysis_tab(self):
-        if self._set_analysis_tab_index >= 0:
+        if self._set_analysis_added:
             return
-        settings_idx = self._tabs.indexOf(self._settings)
-        self._tabs.insertTab(settings_idx, self._set_analysis, "SET ANALYSIS")
-        self._set_analysis_tab_index = self._tabs.indexOf(self._set_analysis)
-        self._tabs.setTabToolTip(self._set_analysis_tab_index,
-                                 "Analyze new set spoilers for competitive impact by archetype")
+        self._resources_tab.addTab(self._set_analysis, "SET ANALYSIS")
+        self._set_analysis_added = True
 
     def _remove_set_analysis_tab(self):
-        if self._set_analysis_tab_index < 0:
+        if not self._set_analysis_added:
             return
-        self._tabs.removeTab(self._tabs.indexOf(self._set_analysis))
-        self._set_analysis_tab_index = -1
+        idx = self._resources_tab.indexOf(self._set_analysis)
+        if idx >= 0:
+            self._resources_tab.removeTab(idx)
+        self._set_analysis_added = False
 
     def _on_api_key_changed(self, key: str):
         if key:
@@ -214,10 +229,12 @@ class MainWindow(QMainWindow):
             self._remove_set_analysis_tab()
 
     def _on_open_in_rcq(self, deck: dict):
-        """Switch to Tournament Prep tab when user clicks 'Open in Event Optimizer'."""
-        idx = self._tabs.indexOf(self._tourney)
+        """Switch to Tournament tab → Event Optimizer sub-tab."""
+        idx = self._tabs.indexOf(self._tournament_tab)
         if idx >= 0:
             self._tabs.setCurrentIndex(idx)
+        # Switch to Event Optimizer sub-tab (index 0)
+        self._tournament_tab.setCurrentIndex(0)
         # Pre-fill Event Optimizer with the deck's archetype and format
         if hasattr(self._tourney, "load_deck"):
             self._tourney.load_deck(deck)
