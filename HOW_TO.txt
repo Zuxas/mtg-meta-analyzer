@@ -1,156 +1,210 @@
-# How to Use MTG Meta Analyzer
+=====================================================
+  MTG META ANALYZER — HOW TO USE
+  by Team Resolve
+=====================================================
 
-A quick guide to every feature in the app.
 
----
+GETTING STARTED (Step by Step)
+=====================================================
 
-## Getting Started
+Step 1: Build Your Database
+  - First launch opens the Setup Wizard automatically
+  - It downloads the Scryfall card database (~160 MB)
+  - Then scrapes recent tournament data (takes a few minutes)
+  - You need ~50 events before the dashboard works well
 
-1. **First launch**: The setup wizard downloads card data and scrapes initial events
-2. **Daily updates**: Background tasks run at 6 AM and 5 PM automatically
-3. **Manual refresh**: Click the Refresh button on Dashboard anytime
+Step 2: Let It Run
+  - Background tasks scrape new data automatically:
+    * 6 AM daily — pulls from MTGTop8, MTGDecks, MTGMelee
+    * 5 PM daily — latest Standard events + maintenance
+    * Sunday midnight — refreshes Scryfall card data
+  - The app lives in your system tray (green dot = current)
 
----
+Step 3: Explore the Dashboard
+  - Open the app and you land on the Dashboard
+  - Pick your format (Standard, Modern, Pioneer, etc.)
+  - Set a timeframe (2 weeks, 4 weeks, etc.)
+  - Click Refresh to load the latest data
 
-## DASHBOARD
+Step 4: Save Your Deck
+  - Go to DECKS > MY DECKS
+  - Click Add, paste your decklist, name it
+  - Add sideboard plans for each matchup
 
-Your home screen — shows the current meta at a glance.
+Step 5: Track Your Results
+  - Go to TOURNAMENT > MATCH LOG
+  - Log each match: opponent deck, result, play/draw
+  - Over time, your personal WR stats build up
+  - Click "SB Advice" to see where you need to improve
 
-| Panel | What it shows |
-|---|---|
-| **Recent Top Finishes** | Latest tournament results (placement 1-4). Double-click an archetype to see the full decklist. Click the Event column to see all decks from that tournament. |
-| **Win Rate** | Archetypes ranked by win %. Columns: Win% (★ = real match data), Change, Rating (Glicko-2), Prep Priority, Status (Pillar/Trap/Underplayed/Fringe), Tier, Role |
-| **Popular** | Archetypes ranked by appearances with % change vs prior period |
+Step 6: Prepare for Events
+  - Go to TOURNAMENT > EVENT OPTIMIZER
+  - Pick event type (RCQ, RC, PTQ)
+  - Enter expected field or click "Use Meta Distribution"
+  - See your top-cut odds and matchup breakdown
 
-**Buttons:**
-- **Meta Shift** — Compare current meta to the prior period. Shows what's rising, falling, new, and gone.
-- **Best Deck** — Recommends the best deck for the current meta based on matchup data and trends.
-- **Refresh** — Reload all panels with current filter settings.
 
-**Filters:** Format, Timeframe (1 week to All Time), Top N, Dedup toggles.
+WHAT EACH TAB DOES
+=====================================================
 
-**Charts:** Toggle between Popularity Over Time and Win Rate Over Time. Check/uncheck archetypes to show/hide lines. Toggle Daily/Weekly granularity and Show Events (set releases, bans, rotations).
+DASHBOARD
+  The home screen. Three panels at the top:
+  - Recent Top Finishes — latest tournament results
+  - Win Rate — archetypes ranked by win % with Glicko-2
+    ratings, prep priority, meta status, tier, and role
+  - Popular — archetypes ranked by appearances
 
----
+  Buttons:
+  - Meta Shift — what changed since last period
+  - Best Deck — recommends the best deck for this meta
+  - Refresh — reload everything
 
-## META tab
+  Charts below show Popularity or Win Rate Over Time.
+  Check/uncheck archetypes. Toggle Daily/Weekly.
+  "Show Events" marks set releases, bans, rotations.
 
-### Charts
-Interactive charts with format/timeframe/archetype controls.
-- **Meta Share** — Line chart of meta share % per week
-- **Archetype Trend** — Dual-axis: bars = appearances, lines = meta%/win%/top8%
-- **Compare Trends** — Overlay multiple archetypes on one chart
-- **Meta Positioning** — Scatter plot: X = meta share, Y = win rate (with card art bubbles)
-- **Matchup Heatmap** — NxN grid of win rates
+  Double-click any archetype to see full details:
+  average decklist, recent lists, tech choices, card trends.
 
-### Matchup Data
-Win-rate matrix showing how every archetype performs against each other.
-- **Real Match Data (DB)** — Uses actual match results from melee.gg (★ star indicator)
-- **MTGDecks Live** — Scrapes win rates from MTGDecks.net
-- **Gauntlet** — Builds a grid from top 12 meta decks
-- **Export Decks** — Exports average decklists as .txt files for mtg-sim gauntlet testing
-- **Equilibrium** — Nash equilibrium analysis showing optimal vs actual meta shares
-- **Right-click any cell** to add team notes (persists across sessions)
+-----------------------------------------------------
 
-### Predictions
-Auto-generated meta predictions and accuracy tracking.
+META (3 sub-tabs)
+  Charts — Interactive charts: meta share, archetype
+    trends, compare multiple decks, scatter plot, heatmap
 
----
+  Matchup Data — The big win-rate grid.
+    Shows how every archetype does against every other.
+    Green text = favored, red = unfavored, grey = even.
+    Star = real match data, no star = scraped.
+    Right-click any cell to add team notes.
+    "Gauntlet" builds a grid from top 12 meta decks.
+    "Export Decks" exports decklists for mtg-sim testing.
+    "Equilibrium" shows Nash optimal meta shares.
 
-## DECKS tab
+  Predictions — Auto-generated meta predictions
+    and accuracy tracking over time.
 
-### Analyze
-Paste any decklist (Arena, MTGO, Moxfield format) to analyze it.
+-----------------------------------------------------
 
-**What you get:**
-- **Blunder Detection** — Checks land count, mana curve, color consistency, interaction count, deck size, legality. Scores Major/Moderate/Minor issues.
-- **Chapin Principles** — Rates your deck 0-10 on Threats, Answers, Consistency, Velocity, Mana, Clock.
-- **Legality Check** — Verifies every card is legal in the selected format.
-- **Auto-classify** — KNN identifies your archetype automatically.
-- **Baseline Comparison** — Shows cards you run that most don't, cards you're missing, and quantity differences vs the average deck.
-- **Deck Similarity** — How similar your list is to meta archetypes.
+DECKS (2 sub-tabs)
+  Analyze — Paste a decklist to get:
+    - Blunder Detection (land count, curve, interaction)
+    - Chapin Principles (Threats/Answers/Consistency/etc)
+    - Legality Check (banned cards, deck size)
+    - Auto-classify archetype (KNN machine learning)
+    - Baseline Comparison (your list vs the average)
+    - Deck Similarity (how close to meta archetypes)
 
-**Load Average Deck:** Pick any archetype from the dropdown → loads the statistical average decklist ready to analyze or export.
+    "Load Average Deck" fills in the stock list for any
+    archetype so you can analyze or export it.
 
-### My Decks
-Save your decklists and sideboard plans.
+  My Decks — Save your decklists and sideboard plans.
+    - Add/Edit/Delete decks
+    - Sideboard Plans per matchup (play/draw IN/OUT)
+    - Export (MTGO, MTGA, decklist.org)
+    - Export Guide (printable HTML for tournament day)
+    - Share JSON / Import JSON (share with teammates)
 
-- **Add/Edit/Delete** decks with name, format, archetype, notes
-- **Sideboard Plans** — For each opponent matchup: play/draw IN/OUT cards, difficulty rating, notes
-- **Export** — MTGO .txt, MTGA .txt, or decklist.org tournament sheet
-- **Export Guide** — Print-friendly HTML with all your SB plans
-- **Share JSON / Import JSON** — Share decks + plans with teammates
+-----------------------------------------------------
 
----
+SEARCH (3 sub-tabs)
+  Card Browser — LOCAL Scryfall search. Works offline.
+    Searches all 37,000+ cards in the Scryfall database
+    stored on your machine. No internet needed.
 
-## SEARCH tab
+    Search syntax (combine any of these):
+      t:creature         type contains "creature"
+      o:"draw a card"    oracle text search
+      c:red              color filter
+      ci:wub             color identity
+      cmc<=3             mana cost comparison
+      f:standard         format legality
+      r:mythic           rarity filter
+      is:legendary       supertypes
+      k:flying           keyword abilities
+      pow>=4             power comparison
+      tou<=2             toughness comparison
+      s:tdm              set code filter
 
-Three sub-tabs:
+    Examples:
+      t:creature c:red cmc<=2 f:standard
+      o:"destroy target" ci:wb r:rare
+      k:lifelink pow>=3 f:modern
 
-### Card Browser
-Full Scryfall-style card database. Search with query syntax:
-```
-t:creature c:red cmc<=3        # red creatures CMC 3 or less
-o:"draw a card" f:standard     # standard-legal draw spells
-r:mythic is:legendary          # mythic legendaries
-k:flying pow>=4                # flyers with 4+ power
-```
-Card detail panel shows oracle text, legalities, meta usage, Similar Cards, and Functional Substitutes.
+    Card detail panel shows: full image, oracle text,
+    legalities, meta usage stats, Similar Cards
+    (text-based), and Functional Substitutes (usage-based).
 
-### Deck Search
-Search tournament decklists by archetype, player, or format. Click any result to see the full list.
+    "Cards in Meta only" toggle filters to cards that
+    actually appear in competitive decklists.
 
-### Head-to-Head
-Compare two archetypes side-by-side with win rates and matchup history.
+  Deck Search — Find tournament decklists by archetype,
+    player name, or format. Click to see full list.
 
----
+  Head-to-Head — Compare two archetypes with win rates
+    and matchup history.
 
-## TOURNAMENT tab
+-----------------------------------------------------
 
-### Event Optimizer
-Plan for specific events (RCQ, RC, PTQ, Custom).
+TOURNAMENT (2 sub-tabs)
+  Event Optimizer — Prepare for specific events.
+    1. Pick event type (RCQ/RC/PTQ/Custom)
+    2. Select your deck (or load a saved one)
+    3. Enter the expected field
+    4. Get: top-cut probability, X-loss cutoff,
+       matchup breakdown, SB recommendations,
+       encounter probability per opponent
 
-1. Select event type → auto-fills player count and rounds
-2. Pick your deck (or load a saved one)
-3. Enter the expected field (or click "Use Meta Distribution")
-4. **Results:** Top-cut probability (binomial math), X-loss cutoff, field grade, per-matchup breakdown with G1/G2-G3 win rates, sideboard recommendations, encounter probability
+    The Breaker Math sub-tab inside has:
+    - Live W/L/D tracker during events
+    - ID calculator (safe to draw?)
+    - Draw equity calculator
+    - Pair-down warnings
+    - Seeding impact explanation
+    - Tiebreaker education
 
-### Match Log
-Track your tournament results and personal win rates.
+  Match Log — Track your tournament results.
+    - Log each match with opponent, result, play/draw
+    - Stats table: Your WR vs Meta WR per matchup
+    - Green delta = outperforming, Red = underperforming
+    - "SB Advice" button: identifies your weakest matchups
+      and suggests sideboard changes based on guides
+    - Win rate trend chart over time
 
-- **Log Match** — Record opponent, result, play/draw, game-by-game scores, notes
-- **Stats Table** — Your WR per matchup vs Meta WR with delta (green = outperforming, red = underperforming)
-- **SB Advice** — Identifies your weakest matchups and suggests sideboard adjustments based on guides and meta data
-- **Trend Chart** — Your win rate over time
+-----------------------------------------------------
 
----
+RESOURCES (1-3 sub-tabs)
+  Guides & Bookmarks — Sideboard guides synced from
+    Skill Issue Magic sheet + your saved bookmarks.
 
-## RESOURCES tab
+  Ask Claude (needs API key in Settings) — Chat with
+    Claude AI about meta, card choices, strategy.
+    Has live meta context from your database.
 
-### Guides & Bookmarks
-Sideboard guides synced from Skill Issue Magic sheet + your saved bookmarks.
+  Set Analysis (needs API key) — Analyze new set
+    spoilers. Fetch from Mythic Spoiler, classify each
+    card by competitive impact per archetype.
 
-### Ask Claude (requires API key)
-Chat with Claude AI about the meta, card choices, and strategy. Injected with live meta context from your database.
+-----------------------------------------------------
 
-### Set Analysis (requires API key)
-Analyze new set spoilers for competitive impact. Fetch card lists from Mythic Spoiler, classify each card (Rate Outlier, Engine Piece, Enabler, SB Breaker, Upgrade Card), see impact per archetype.
+SETTINGS
+  - Formats — pick which formats to scrape
+  - Storage — DB size, event counts, collect more data,
+    scan for cross-source duplicate events
+  - ML Models — download embeddings, train Card2Vec/KNN
+  - API Key — for Ask Claude and Set Analysis
 
----
 
-## SETTINGS
+TIPS
+=====================================================
 
-- **Formats** — Choose which formats to scrape and maintain data for
-- **Storage** — Database size, event counts. "Collect More Data" for manual backfill. "Scan Duplicates" to find cross-source duplicate events.
-- **ML Models** — Download card embeddings, train Card2Vec and KNN classifiers
-- **API Key** — Anthropic API key for Ask Claude and Set Analysis tabs
-
----
-
-## Tips
-
-- **Hover everything** — Most buttons and column headers have tooltips explaining what they do
-- **Double-click archetypes** — Opens the detail dialog with average deck, recent lists, tech choices, card trends, and guides
-- **Right-click heatmap cells** — Add team notes that persist across sessions
-- **System tray** — The app stays in the tray when you close it. Right-click for status, "Run Now" to trigger a scrape, or Exit to fully quit
-- **Keyboard shortcut**: `Ctrl+R` on Dashboard to refresh
+- Hover over buttons and column headers for tooltips
+- Double-click any archetype name to see the full detail
+  dialog (average deck, recent lists, tech choices)
+- Right-click heatmap cells to add team notes
+- The app stays in your system tray when you close it
+  (right-click tray icon > Exit to fully quit)
+- "Export Decks" on Matchup Data exports average lists
+  as .txt files compatible with mtg-sim for testing
+- Card Browser works completely offline after first
+  Scryfall download — it's your local card search engine
