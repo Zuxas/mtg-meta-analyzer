@@ -1,6 +1,9 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-04-08
+Last updated: 2026-04-09
+
+> **Cross-project context:** See `E:\vscode ai project\ECOSYSTEM.md` for how this
+> project connects to mtg-sim, My-Website, and Team Resolve operations.
 
 ---
 
