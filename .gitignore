@@ -1,52 +1,76 @@
-# Daily scraper logs
-logs/
-
-# Database (can get large, regenerate by running scraper)
-data/*.db
-data/*.db-shm
-data/*.db-wal
-
-# Raw data dumps
-data/*.json
-data/*.csv
-
-# Generated data files (large, regenerable)
-data/card_images/
-data/charts/
-data/*.png
-data/*.jpg
-data/*.jpeg
-data/*.log
-data/scryfall_oracle.json
-
-# Local config (DB path may differ per machine)
-config.ini
-
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
-.env
-venv/
+*.egg-info/
+.pytest_cache/
 .venv/
+venv/
+env/
 
-# VS Code (commit workspace settings, ignore user-specific files)
+# IDE
+.idea/
 .vscode/*
 !.vscode/settings.json
+*.swp
 
 # Claude Code (commit project permissions, ignore session/cache data)
 .claude/*
 !.claude/settings.json
 
-# Windows
-Thumbs.db
-Desktop.ini
+# Env / secrets
+.env
+.env.local
+config.ini
 
-# Scratch / debug files
+# Daily scraper logs
+logs/
+*.log
+
+# Database (regenerate via scraper)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Runtime data dumps
+data/*.json
+data/*.csv
+data/*.parquet
+
+# Preferences contains local API key; explicit by filename
+data/preferences.json
+
+# Generated visuals
+data/card_images/
+data/charts/
+data/*.png
+data/*.jpg
+data/*.jpeg
+
+# Scryfall bulk (fetched on demand via scripts/fetch_scryfall_bulk.sh)
+data/scryfall_oracle.json
+data/rules_reference/scryfall_oracle_cards.json
+data/rules_reference/scryfall_rulings.json
+data/rules_reference/MagicCompRules.txt
+
+# Trained ML models (retrainable)
+data/models/
+
+# Graphify output (regenerable)
+graphify-out/
+
+# Dev scratch
+scripts/scratch/
+_*.txt
+
+# Legacy scratch/export files kept from prior .gitignore
 debug_response.html
 mtgdecks.net homepage.txt
-
-# Exports and scratch files
 exports/
 flexslotpage.html
 To Claude from ChatGPT.txt
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
