@@ -402,11 +402,17 @@ class MatchLogTab(QWidget):
                 f"{ov['wins']}W-{ov['losses']}L-{ov['draws']}D",
                 f"{ov['wr']*100:.0f}% win rate",
             ]
-            best = data.get("stats", [])
+            # data["stats"] is {opp_deck: {"wr", "total", ...}} per
+            # db.match_log.get_matchup_stats — iterate items, not keys.
+            best = data.get("stats", {})
             if best:
-                top = max(best, key=lambda s: s.get("wr", 0)) if best else None
-                if top and top.get("total", 0) >= 3:
-                    stats.append(f"Best: vs {top['opponent']} {top['wr']*100:.0f}%")
+                qualified = [(opp, s) for opp, s in best.items()
+                             if s.get("total", 0) >= 3]
+                if qualified:
+                    top_opp, top_stats = max(
+                        qualified, key=lambda kv: kv[1].get("wr", 0))
+                    stats.append(
+                        f"Best: vs {top_opp} {top_stats['wr']*100:.0f}%")
             self._summary_bar.update("MATCH LOG", stats)
         else:
             self._summary_lbl.setText(
