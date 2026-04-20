@@ -1,0 +1,12 @@
+{
+  "formats": [
+    "standard",
+    "pioneer",
+    "modern",
+    "legacy"
+  ],
+  "date_window": "2weeks",
+  "timezone": "UTC",
+  "auto_update": "daily",
+  "anthropic_api_key": ""
+}
