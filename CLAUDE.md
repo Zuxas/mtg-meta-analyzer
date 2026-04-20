@@ -2,8 +2,9 @@
 
 Last updated: 2026-04-09
 
-> **Cross-project context:** See `E:\vscode ai project\ECOSYSTEM.md` for how this
-> project connects to mtg-sim, My-Website, and Team Resolve operations.
+> **Cross-project context:** This project is part of a local multi-repo
+> ecosystem alongside mtg-sim and My-Website. Sibling clones at
+> `../mtg-sim/` and `../My-Website/` if you want the full picture.
 
 ---
 
@@ -20,7 +21,7 @@ Last updated: 2026-04-09
 
 **Project:** Automated competitive MTG tournament data analysis tool.
 **Goal:** Give Team Resolve a competitive edge for Pro Tour qualification — surface meta trends, identify rising archetypes, evaluate decklists against historical performance.
-**GitHub:** https://github.com/Zuxas/mtg-meta-analyzer (private repo)
+**GitHub:** https://github.com/Zuxas/mtg-meta-analyzer (public)
 
 **User:** Jermey Wallace (Zuxas), team captain of Team Resolve.
 5x RC qualifier. Current format focus: Modern.
@@ -28,11 +29,11 @@ Goal: Pro Tour qualification via RC conversion.
 
 **Workspace:**
 
-| Project | Path | Purpose |
+| Project | Relative path | Purpose |
 |---|---|---|
-| MTG Meta Analyzer | `E:/vscode ai project/mtg-meta-analyzer/` | This project |
-| Team Resolve | `E:/vscode ai project/Team Resolve/` | Sideboard guides, gauntlet, RC prep |
-| Road to Pro Tour | `E:/vscode ai project/My-Website/` | Public-facing website |
+| MTG Meta Analyzer | `./` (this repo) | Tournament data, meta analysis, GUI |
+| Team Resolve | `../Team Resolve/` (private, local only) | Sideboard guides, gauntlet, RC prep |
+| Road to Pro Tour | `../My-Website/` (private, local only) | Public-facing website source |
 
 **Team Resolve workflow integration:**
 - Dashboard meta share → gauntlet archetype selection
@@ -47,7 +48,7 @@ Goal: Pro Tour qualification via RC conversion.
 
 - **OS:** Windows 11, VS Code, Python 3.13
 - **Shell:** cmd (Command Prompt) — set in .vscode/settings.json (avoids path space issues)
-- **Project root:** `E:\vscode ai project\mtg-meta-analyzer`
+- **Project root:** the directory containing this CLAUDE.md
 - **User context:** Limited coding experience; AI assistants are primary dev support
 
 ### First-Run Setup

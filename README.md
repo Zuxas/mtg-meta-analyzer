@@ -7,9 +7,11 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 ## TL;DR
 
 1. Clone the repo, run `pip install -r requirements.txt`
-2. Double-click `fill_database.bat` to build your local database (takes 1–3 hours)
-3. Run `python run_gui.py` to launch the app
-4. Register the daily tasks once (`schedule_background_fill.bat` as Admin) — after that the DB stays current automatically
+2. `./scripts/fetch_scryfall_bulk.sh` to pull card data (~200 MB, one-time)
+3. `cp data/preferences.json.template data/preferences.json` and edit to add your Anthropic API key (optional — only needed for the AI chat tab)
+4. Double-click `fill_database.bat` to build your local tournament database (takes 1–3 hours)
+5. Run `python run_gui.py` to launch the app
+6. Register the daily tasks once (`schedule_background_fill.bat` as Admin) — after that the DB stays current automatically
 
 **262,641 real match records** across 5 formats. **37,186 decklists** with full card data. All on your local machine.
 
@@ -217,6 +219,27 @@ Copy `config.example.ini` to `config.ini` to customize:
 
 - **Database path** — point to a different drive if needed
 - **Retention windows** — per-format, in days (default 1095 = 3 years)
+
+---
+
+## Retraining the ML Models (optional)
+
+The Card Browser and Deck Analyzer use two trained models for similarity search and archetype classification. Both are gitignored (they rebuild from your local data) and both degrade gracefully if missing — the features just return empty or fall back to simpler heuristics.
+
+To train from scratch on your local data:
+
+```bash
+# Card2Vec embeddings — one model per format. Trains on ~67k decklists.
+# Measured: 6m 8s on a modern desktop CPU.
+python -m analysis.cooccurrence_embeddings
+
+# KNN classifier — one per format. Very fast.
+# Measured: 11s for Modern (11k decklists, 124 archetypes).
+python -c "from analysis.knn_classifier import train_knn; train_knn('modern')"
+# Or trigger from the GUI: Settings tab → "Retrain KNN"
+```
+
+The models are stored in `data/models/` (gitignored). You can safely ship the app to a new machine by rerunning the two commands above — no model files need to travel with the code.
 
 ---
 
