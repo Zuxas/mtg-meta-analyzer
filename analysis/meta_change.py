@@ -68,6 +68,18 @@ def compare_periods(format_name: str = "standard",
         since=prior_since, until=prior_until,
     )
 
+    # Compute meta_share from appearances if not present
+    def _add_share(standings):
+        total = sum(s.get("appearances", 0) for s in standings)
+        for s in standings:
+            if "meta_share" not in s and total > 0:
+                s["meta_share"] = s.get("appearances", 0) / total
+            elif "meta_share" not in s:
+                s["meta_share"] = 0.0
+
+    _add_share(current)
+    _add_share(prior)
+
     current_map = {s["archetype"]: s for s in current}
     prior_map = {s["archetype"]: s for s in prior}
     all_archs = sorted(set(current_map) | set(prior_map))
