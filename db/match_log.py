@@ -51,6 +51,17 @@ _CREATE_SQL = """
 
 def _ensure_table():
     _do_ensure(_CREATE_SQL)
+    # Additive migrations — safe to re-run; OperationalError = column exists
+    import sqlite3
+    with get_connection() as conn:
+        for stmt in [
+            "ALTER TABLE match_log ADD COLUMN swap_notes TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE match_log ADD COLUMN swap_verdict TEXT NOT NULL DEFAULT ''",
+        ]:
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -62,30 +73,40 @@ def save_match(event_name: str, event_date: str, format_name: str,
                opp_name: str = "", result: str = "",
                play_draw: str = "",
                g1_result: str = "", g2_result: str = "", g3_result: str = "",
-               notes: str = "", match_id: int = None) -> int:
-    """Insert or update a match log entry. Returns the row id."""
+               notes: str = "", swap_notes: str = "", swap_verdict: str = "",
+               match_id: int = None) -> int:
+    """Insert or update a match log entry. Returns the row id.
+
+    swap_notes: free-text 'what I changed for this match' (e.g.,
+        'in: 2 Dismember, out: 2 Lightning Helix')
+    swap_verdict: '' (no verdict yet) / 'kept' / 'reverted' — hindsight
+        flag set after the match to track whether the swap paid off.
+    """
     _ensure_table()
     with get_connection() as conn:
         if match_id is not None:
             conn.execute("""
                 UPDATE match_log SET event_name=?, event_date=?, format=?,
                     round=?, my_deck=?, opp_deck=?, opp_name=?, result=?,
-                    play_draw=?, g1_result=?, g2_result=?, g3_result=?, notes=?
+                    play_draw=?, g1_result=?, g2_result=?, g3_result=?,
+                    notes=?, swap_notes=?, swap_verdict=?
                 WHERE id=?
             """, (event_name, event_date, format_name, round_num,
                   my_deck, opp_deck, opp_name, result, play_draw,
-                  g1_result, g2_result, g3_result, notes, match_id))
+                  g1_result, g2_result, g3_result, notes,
+                  swap_notes, swap_verdict, match_id))
             return match_id
         else:
             cur = conn.execute("""
                 INSERT INTO match_log
                     (event_name, event_date, format, round, my_deck, opp_deck,
                      opp_name, result, play_draw, g1_result, g2_result, g3_result,
-                     notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     notes, swap_notes, swap_verdict, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (event_name, event_date, format_name, round_num,
                   my_deck, opp_deck, opp_name, result, play_draw,
-                  g1_result, g2_result, g3_result, notes, _now()))
+                  g1_result, g2_result, g3_result, notes,
+                  swap_notes, swap_verdict, _now()))
             return cur.lastrowid
 
 

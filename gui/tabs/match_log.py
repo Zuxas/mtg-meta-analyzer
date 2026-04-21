@@ -141,6 +141,26 @@ class _MatchDialog(QDialog):
             self._notes.setPlainText(match.get("notes", ""))
         form.addRow("Notes:", self._notes)
 
+        self._swap_notes = QLineEdit()
+        self._swap_notes.setPlaceholderText(
+            "e.g. in: 2 Dismember, out: 2 Lightning Helix"
+        )
+        if match:
+            self._swap_notes.setText(match.get("swap_notes", ""))
+        form.addRow("Swap:", self._swap_notes)
+
+        self._swap_verdict = QComboBox()
+        self._swap_verdict.addItems(["", "kept", "reverted"])
+        self._swap_verdict.setToolTip(
+            "Post-match hindsight: did the swap pay off?\n"
+            "  kept — works, keeping this change\n"
+            "  reverted — didn't work, going back\n"
+            "  (blank) — haven't decided yet"
+        )
+        if match:
+            self._swap_verdict.setCurrentText(match.get("swap_verdict", ""))
+        form.addRow("Swap Verdict:", self._swap_verdict)
+
         layout.addLayout(form)
 
         btns = QDialogButtonBox(
@@ -165,6 +185,8 @@ class _MatchDialog(QDialog):
             "g2_result":  self._g2.currentText(),
             "g3_result":  self._g3.currentText(),
             "notes":      self._notes.toPlainText().strip(),
+            "swap_notes": self._swap_notes.text().strip(),
+            "swap_verdict": self._swap_verdict.currentText(),
         }
 
 
@@ -233,9 +255,9 @@ class MatchLogTab(QWidget):
 
         # Match table
         self._table = QTableWidget()
-        self._table.setColumnCount(8)
+        self._table.setColumnCount(9)
         self._table.setHorizontalHeaderLabels(
-            ["Date", "Event", "Rd", "My Deck", "vs", "Result", "P/D", "Games"])
+            ["Date", "Event", "Rd", "My Deck", "vs", "Result", "P/D", "Games", "Swap"])
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -558,6 +580,27 @@ class MatchLogTab(QWidget):
                     games.append("L")
             self._table.setItem(ri, 7, QTableWidgetItem("-".join(games) if games else ""))
 
+            # Swap column: icon if the match has swap notes; color by verdict.
+            swap_notes = (m.get("swap_notes") or "").strip()
+            verdict = (m.get("swap_verdict") or "").strip()
+            if swap_notes:
+                if verdict == "kept":
+                    symbol, color = "\u2713", theme.OK    # check
+                elif verdict == "reverted":
+                    symbol, color = "\u2717", theme.ERR   # cross
+                else:
+                    symbol, color = "\u2219", theme.TEXT_DIM  # bullet
+                swap_item = QTableWidgetItem(symbol)
+                swap_item.setForeground(QColor(color))
+                swap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                swap_item.setToolTip(
+                    f"{swap_notes}"
+                    + (f"\nVerdict: {verdict}" if verdict else "")
+                )
+            else:
+                swap_item = QTableWidgetItem("")
+            self._table.setItem(ri, 8, swap_item)
+
             # Store match id
             self._table.item(ri, 0).setData(Qt.ItemDataRole.UserRole, m.get("id"))
 
@@ -785,13 +828,16 @@ class MatchLogTab(QWidget):
         if not data["opp_deck"]:
             QMessageBox.warning(self, "Missing", "Enter opponent's deck.")
             return
+        # Translate dialog keys to match save_match kwargs
+        data["format_name"] = data.pop("format")
+        data["round_num"] = data.pop("round")
         from db.match_log import save_match
         save_match(**data)
         # Remember for next entry
         self._last_event = data["event_name"]
         self._last_deck = data["my_deck"]
-        self._last_format = data["format"]
-        self._last_round = data["round"] + 1
+        self._last_format = data["format_name"]
+        self._last_round = data["round_num"] + 1
         self._load_matches()
 
     def _edit_match(self):
@@ -803,6 +849,8 @@ class MatchLogTab(QWidget):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         data = dlg.get_data()
+        data["format_name"] = data.pop("format")
+        data["round_num"] = data.pop("round")
         from db.match_log import save_match
         save_match(**data, match_id=m["id"])
         self._load_matches()
