@@ -919,7 +919,7 @@ class DeckAnalyzerTab(QWidget):
                 arch = (getter() or "").strip()
         source = arch if arch and arch not in ("(auto-detect)", "") else "Deck Analyzer paste"
         if self._on_simulate is not None:
-            self._on_simulate(text, source)
+            self._on_simulate(text, source, format_hint=self._fmt.currentText())
 
     def _run(self):
         text = self._deck_input.toPlainText().strip()

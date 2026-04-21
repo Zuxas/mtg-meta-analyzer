@@ -119,8 +119,10 @@ class MainWindow(QMainWindow):
         # decklist (Deck Analyzer paste, Deck Search result, Dashboard avg deck).
         # Late binding: self._simulate / self._tabs / self._meta_tab are looked
         # up on the instance at call time, so they can be constructed below.
-        def _send_to_simulate(deck_text: str, source_label: str):
-            self._simulate.set_deck_paste(deck_text, source_label)
+        def _send_to_simulate(deck_text: str, source_label: str,
+                              format_hint: str = None):
+            self._simulate.set_deck_paste(deck_text, source_label,
+                                           format_hint=format_hint)
             self._tabs.setCurrentWidget(self._meta_tab)
             self._meta_tab.setCurrentWidget(self._simulate)
 

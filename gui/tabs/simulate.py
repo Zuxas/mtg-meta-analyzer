@@ -1101,11 +1101,23 @@ class SimulateTab(QWidget):
                 lines.append(f"{qty} {card}")
         return "\n".join(lines)
 
-    def set_deck_paste(self, deck_text: str, source_label: str = ""):
+    def set_deck_paste(self, deck_text: str, source_label: str = "",
+                       format_hint: str = None):
         """External entry: load a decklist into the paste area.
         Used by cross-tab 'Simulate this deck' actions (from Deck Analyzer,
         Deck Search, Dashboard avg-deck, etc.). Does NOT auto-run.
+
+        format_hint: 'modern' / 'standard' / etc. When provided, pre-selects
+        the first archetype of that format so KNN auto-detect classifies in
+        the right format.
         """
+        if format_hint:
+            target = format_hint.lower()
+            for i, entry in enumerate(_ARCHETYPES):
+                if _format_of(entry[0]) == target:
+                    if self._archetype.currentIndex() != i:
+                        self._archetype.setCurrentIndex(i)
+                    break
         self._paste.setPlainText(deck_text)
         if source_label:
             self._status.setText(

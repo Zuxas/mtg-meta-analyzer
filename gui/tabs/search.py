@@ -181,7 +181,7 @@ class _DeckDetailDialog(QDialog):
         source = f"{self._archetype} ({self._player or 'unknown'})"
         if self._on_simulate:
             try:
-                self._on_simulate(text, source)
+                self._on_simulate(text, source, format_hint=self._fmt)
             except Exception:
                 pass
             self.accept()  # close dialog after dispatching

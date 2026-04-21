@@ -806,7 +806,7 @@ class ArchetypeDetailDialog(QDialog):
             n_decks = avg.get("deck_count", 0)
             source = f"{self._archetype} avg (from {n_decks} decks)"
             if self._on_simulate:
-                self._on_simulate(text, source)
+                self._on_simulate(text, source, format_hint=self._format_name)
                 self.accept()
         except Exception as e:
             if hasattr(self, "_status_lbl"):
