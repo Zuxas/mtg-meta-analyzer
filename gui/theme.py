@@ -600,6 +600,28 @@ def winrate_fg(winrate: float):
     return QColor(240, 60, 50)        # bright red
 
 
+def empty_state_label(title: str, hint: str = ""):
+    """Return a QLabel styled as a centered 'nothing here yet' placeholder.
+    title is the headline, hint is a secondary call-to-action. Used by any
+    tab whose primary surface can legitimately be empty (no saved decks,
+    no scraped data yet, no logged matches, etc.)."""
+    from PyQt6.QtWidgets import QLabel
+    from PyQt6.QtCore import Qt
+    body = (
+        f"<div style='color: {TEXT_DIM}; text-align: center; line-height: 1.6;'>"
+        f"<div style='font-size: 14px; color: {TEXT}; margin-bottom: 6px;'>"
+        f"{title}</div>"
+        + (f"<div style='font-size: 11px;'>{hint}</div>" if hint else "")
+        + "</div>"
+    )
+    lbl = QLabel(body)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    lbl.setTextFormat(Qt.TextFormat.RichText)
+    lbl.setWordWrap(True)
+    lbl.setStyleSheet(f"padding: {SPACE_LG}px; background: transparent;")
+    return lbl
+
+
 def friendly_error(e) -> str:
     """Convert a raw exception/message into a user-friendly error string."""
     msg = str(e).strip()

@@ -344,6 +344,15 @@ class MyDecksTab(QWidget):
         self._table.clicked.connect(self._on_deck_clicked)
         lv.addWidget(self._table, 1)
 
+        self._empty_state = theme.empty_state_label(
+            "No saved decks yet",
+            "Click <b>+ Add Deck</b> below to paste your first list "
+            "(Arena or MTGO format). Saved decks show up here and can be "
+            "sent to SIMULATE or the Event Optimizer."
+        )
+        self._empty_state.setVisible(False)
+        lv.addWidget(self._empty_state, 1)
+
         # Buttons
         btn_row = QHBoxLayout()
         self._add_btn = QPushButton("+ Add Deck")
@@ -582,6 +591,8 @@ class MyDecksTab(QWidget):
         self._workers.append(w)
 
     def _on_decks_loaded(self, decks: list):
+        self._empty_state.setVisible(not decks)
+        self._table.setVisible(bool(decks))
         self._decks = decks
         banned_by_deck = self._find_banned_cards(decks)
         self._table.setRowCount(len(decks))
