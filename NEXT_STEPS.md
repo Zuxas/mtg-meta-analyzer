@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-04-20
+Last updated: 2026-04-21
 
 ---
 
@@ -13,20 +13,23 @@ Last updated: 2026-04-20
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
 - [ ] Global "All Formats" option everywhere
 
-### Sim Integration (in progress)
+### Sim Integration (mostly done)
 - [x] SIMULATE tab supports Standard format (match-only, 7 archetypes)
+- [x] CALIBRATION tab format-aware (skips cross-format pairs, [M]/[S] headers)
+- [x] Cross-tab 'simulate this deck' callers pass format_hint
+- [x] My Decks load pre-selects same-format archetype
+- [x] Match Log right-click "Simulate this matchup" with fuzzy lookup
+- [x] Field gauntlet: Top-N (All/5/8/10) slice by meta share
 - [ ] Goldfish APLs for Standard archetypes (match APLs already exist)
-- [ ] Format picker on Field gauntlet (currently auto-infers from archetype)
 
 ### Match Logging Enhancements
-- [ ] Track record by event type (RCQ vs Open vs RC)
-- [ ] Trend analysis: personal WR over time, improving/declining matchups
-- [ ] Integration with SB advisor: "your WR is low vs X, adjust your plan"
+- [x] Track record by event type (RCQ vs Open vs RC) — _event_lbl summary
+- [x] Trend analysis: personal WR over time — _draw_trend chart
+- [x] Integration with SB advisor — SB Advice button (matchup_advisor)
 
 ### Testing & Iteration
 - [ ] Card swap rationale tracker
 - [ ] Matchup hypothesis tracker
-- [ ] Gauntlet builder (auto top decks to test against)
 
 ### Tournament System
 - [ ] Pre-event prep mode (deck + SB guide + expected meta)
