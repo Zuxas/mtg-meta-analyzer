@@ -81,16 +81,24 @@ def _lookup_real_pct(a_label: str, b_label: str) -> tuple:
 
 
 class CalibrationWorker(QThread):
-    """Runs the full sim sweep, emitting per-pair progress as it goes."""
+    """Runs the sim sweep. Mode: 'full' = upper triangle; 'row' = one row only."""
     progress = pyqtSignal(int, int, str)   # current, total, label
     cell_ready = pyqtSignal(int, int, dict) # row, col, {sim_pct, real_pct, sample_size}
     done = pyqtSignal(float)               # total elapsed seconds
     error = pyqtSignal(str)
 
-    def __init__(self, archetypes: list, n_games: int, parent=None):
+    def __init__(self, archetypes: list, n_games: int,
+                 row_only: int = None, parent=None):
+        """
+        archetypes  : list of _ARCHETYPES tuples
+        n_games     : games per pair
+        row_only    : if set, only re-run matchups for that archetype index
+                       (row i vs every other archetype). Full matrix if None.
+        """
         super().__init__(parent)
         self._archetypes = archetypes
         self._n_games = n_games
+        self._row_only = row_only
         self._stop = False
 
     def stop(self):
@@ -105,33 +113,36 @@ class CalibrationWorker(QThread):
         try:
             t0 = time.perf_counter()
             n = len(self._archetypes)
-            # Iterate upper triangle (i < j) + diagonal skipped
-            total_pairs = n * (n - 1) // 2
+            if self._row_only is not None:
+                pairs = [(self._row_only, j) for j in range(n)
+                         if j != self._row_only]
+            else:
+                pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+            total_pairs = len(pairs)
             current = 0
-            for i in range(n):
-                for j in range(i + 1, n):
-                    if self._stop:
-                        return
-                    current += 1
-                    a_meta = self._archetypes[i]
-                    b_meta = self._archetypes[j]
-                    self.progress.emit(current, total_pairs,
-                                       f"{a_meta[0]} vs {b_meta[0]}")
+            for (i, j) in pairs:
+                if self._stop:
+                    return
+                current += 1
+                a_meta = self._archetypes[i]
+                b_meta = self._archetypes[j]
+                self.progress.emit(current, total_pairs,
+                                   f"{a_meta[0]} vs {b_meta[0]}")
 
-                    sim_pct = _sim_matchup_headless(a_meta, b_meta, self._n_games)
-                    real_pct, sample = _lookup_real_pct(a_meta[0], b_meta[0])
+                sim_pct = _sim_matchup_headless(a_meta, b_meta, self._n_games)
+                real_pct, sample = _lookup_real_pct(a_meta[0], b_meta[0])
 
-                    payload = {"sim_pct": sim_pct,
-                               "real_pct": real_pct,
-                               "sample_size": sample}
-                    self.cell_ready.emit(i, j, payload)
-                    # Mirror cell (B vs A)
-                    mirror_sim = round(100.0 - sim_pct, 1)
-                    mirror_real = (round(100.0 - real_pct, 1)
-                                   if real_pct is not None else None)
-                    self.cell_ready.emit(j, i, {"sim_pct": mirror_sim,
-                                                "real_pct": mirror_real,
-                                                "sample_size": sample})
+                payload = {"sim_pct": sim_pct,
+                           "real_pct": real_pct,
+                           "sample_size": sample}
+                self.cell_ready.emit(i, j, payload)
+                # Mirror cell (B vs A) — inverse of sim, inverse of real
+                mirror_sim = round(100.0 - sim_pct, 1)
+                mirror_real = (round(100.0 - real_pct, 1)
+                               if real_pct is not None else None)
+                self.cell_ready.emit(j, i, {"sim_pct": mirror_sim,
+                                            "real_pct": mirror_real,
+                                            "sample_size": sample})
             self.done.emit(time.perf_counter() - t0)
         except Exception as e:
             import traceback
@@ -201,6 +212,13 @@ class CalibrationTab(QWidget):
         )
         self._copy_btn.clicked.connect(self._on_copy_tsv)
         ctrl.addWidget(self._copy_btn)
+        self._rerun_row_btn = QPushButton("Re-run selected row")
+        self._rerun_row_btn.setToolTip(
+            "Re-run calibration for just the currently-selected archetype's row. "
+            "Useful after tuning an APL — 10x faster than a full matrix re-run."
+        )
+        self._rerun_row_btn.clicked.connect(self._on_rerun_row)
+        ctrl.addWidget(self._rerun_row_btn)
         self._run_btn = QPushButton("Run full calibration")
         self._run_btn.clicked.connect(self._on_run)
         ctrl.addWidget(self._run_btn)
@@ -251,33 +269,58 @@ class CalibrationTab(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self._table.setItem(i, i, item)
 
-    def _on_run(self):
+    def _start_worker(self, row_only: int = None):
+        """Shared worker-kickoff for full matrix and single-row modes."""
         ok, msg = _check_mtg_sim_available()
         if not ok:
             self._status.setText(msg.split("\n")[0])
             return
 
         self._run_btn.setEnabled(False)
+        self._rerun_row_btn.setEnabled(False)
         self._progress.setVisible(True)
         self._progress.setValue(0)
         n = len(_ARCHETYPES)
-        total_pairs = n * (n - 1) // 2
+        if row_only is not None:
+            total_pairs = n - 1
+            # Clear just this row's off-diagonal cells so progress is visible
+            for j in range(n):
+                if j != row_only:
+                    self._table.setItem(row_only, j, QTableWidgetItem(""))
+                    # Also clear the mirror cell (the column for this archetype)
+                    self._table.setItem(j, row_only, QTableWidgetItem(""))
+        else:
+            total_pairs = n * (n - 1) // 2
+            for i in range(n):
+                for j in range(n):
+                    if i == j:
+                        continue
+                    self._table.setItem(i, j, QTableWidgetItem(""))
         self._progress.setMaximum(total_pairs)
 
-        # Clear any prior cell data
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    continue
-                self._table.setItem(i, j, QTableWidgetItem(""))
-
-        self._worker = CalibrationWorker(_ARCHETYPES, self._n_games.value())
+        self._worker = CalibrationWorker(_ARCHETYPES, self._n_games.value(),
+                                         row_only=row_only)
         self._worker.progress.connect(self._on_progress)
         self._worker.cell_ready.connect(self._on_cell)
         self._worker.done.connect(self._on_done)
         self._worker.error.connect(self._on_error)
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker.start()
+
+    def _on_run(self):
+        self._start_worker(row_only=None)
+
+    def _on_rerun_row(self):
+        row = self._table.currentRow()
+        if row < 0:
+            self._status.setText(
+                "Select a cell first — the row-re-run uses the selected row's archetype."
+            )
+            return
+        self._status.setText(
+            f"Re-running row: {_ARCHETYPES[row][0]} vs all opponents ..."
+        )
+        self._start_worker(row_only=row)
 
     def _on_progress(self, current: int, total: int, label: str):
         self._progress.setValue(current)
@@ -320,11 +363,13 @@ class CalibrationTab(QWidget):
 
     def _on_done(self, elapsed: float):
         self._run_btn.setEnabled(True)
+        self._rerun_row_btn.setEnabled(True)
         self._progress.setVisible(False)
         self._status.setText(f"Calibration complete in {elapsed:.1f}s.")
 
     def _on_error(self, msg: str):
         self._run_btn.setEnabled(True)
+        self._rerun_row_btn.setEnabled(True)
         self._progress.setVisible(False)
         self._status.setText(f"Error: {msg.splitlines()[0]}")
 
