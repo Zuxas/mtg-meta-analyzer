@@ -260,6 +260,109 @@ def _lookup_personal_matchup(a_label: str, b_label: str,
     return {"personal_wr": None, "total": 0, "wins": 0, "losses": 0}
 
 
+def _run_field_gauntlet(
+    a_label: str, a_match_module: str, a_match_class: str, a_deck_file: str,
+    field_entries: list,   # list of _ARCHETYPES tuples (the opponents)
+    n_per_matchup: int,
+) -> dict:
+    """Run A vs every archetype in field_entries, weighted by meta share.
+
+    Returns a results dict with:
+      - per_matchup: [{opp_label, sim_wr, meta_share, appearances}, ...]
+      - expected_field_wr: weighted WR (float 0-1) over sim-covered archetypes
+      - coverage_meta_share: total meta share covered by the sim (0-1)
+      - weighted_covered_share: sum of weights actually applied (same as coverage)
+      - total_matches: n_per_matchup * len(field_entries)
+      - elapsed_sec
+    """
+    ok, msg = _check_mtg_sim_available()
+    if not ok:
+        raise RuntimeError(msg)
+
+    import time
+    from data.deck import load_deck_from_file
+    from engine.match_engine import run_match_set
+    from analysis.win_rates import get_meta_standings
+    from analysis.archetypes import normalize as norm_arch
+
+    # Build a name -> meta_share lookup from the current DB
+    meta_share_by_arch = {}
+    appearances_by_arch = {}
+    try:
+        standings = get_meta_standings(format_name="modern", top=100)
+        for row in standings:
+            key = norm_arch(row.get("archetype", "") or "").lower()
+            if key:
+                meta_share_by_arch[key] = row.get("meta_share", 0.0)
+                appearances_by_arch[key] = row.get("appearances", 0)
+    except Exception:
+        pass
+
+    # Our side
+    a_mod = importlib.import_module(a_match_module)
+    apl_a_factory = getattr(a_mod, a_match_class)
+    a_deck, _ = load_deck_from_file(os.path.join(_MTG_SIM_PATH, a_deck_file))
+
+    t0 = time.perf_counter()
+    per_matchup = []
+
+    for entry in field_entries:
+        opp_label, _g_mod, _g_cls, m_mod, m_cls, opp_deck_file = entry
+        if opp_label == a_label:
+            continue  # skip self-matchup
+
+        opp_mod = importlib.import_module(m_mod)
+        apl_b = getattr(opp_mod, m_cls)()
+        apl_a = apl_a_factory()  # fresh instance per matchup
+        apl_a.name = a_label
+        apl_b.name = opp_label
+
+        opp_deck, _ = load_deck_from_file(os.path.join(_MTG_SIM_PATH, opp_deck_file))
+        results = run_match_set(apl_a, a_deck, apl_b, opp_deck,
+                                n=n_per_matchup, mix_play_draw=True, seed=42)
+        sim_wr = results.win_rate_a()
+
+        # Strip '(Modern)' from opp_label for the meta-share lookup
+        opp_bare = opp_label
+        for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
+            if opp_bare.endswith(suf):
+                opp_bare = opp_bare[:-len(suf)].strip()
+                break
+        opp_key = norm_arch(opp_bare).lower()
+        meta_share = meta_share_by_arch.get(opp_key, 0.0)
+        appearances = appearances_by_arch.get(opp_key, 0)
+
+        per_matchup.append({
+            "opp_label": opp_label,
+            "sim_wr": sim_wr,
+            "meta_share": meta_share,
+            "appearances": appearances,
+        })
+
+    # Weighted expected field WR (weights re-normalized over covered opponents)
+    total_weight = sum(m["meta_share"] for m in per_matchup)
+    if total_weight > 0:
+        expected_wr = sum(m["sim_wr"] * m["meta_share"]
+                          for m in per_matchup) / total_weight
+    else:
+        # No meta-share data available — fall back to uniform average
+        expected_wr = (sum(m["sim_wr"] for m in per_matchup) / len(per_matchup)
+                       if per_matchup else 0.0)
+
+    elapsed = time.perf_counter() - t0
+
+    return {
+        "mode": "field_gauntlet",
+        "a_label": a_label,
+        "n_per_matchup": n_per_matchup,
+        "per_matchup": per_matchup,
+        "expected_field_wr": expected_wr,
+        "coverage_meta_share": total_weight,
+        "total_matches": n_per_matchup * len(per_matchup),
+        "elapsed_sec": round(elapsed, 3),
+    }
+
+
 def _run_matchup(
     a_label: str, a_match_module: str, a_match_class: str, a_deck_file: str,
     b_label: str, b_match_module: str, b_match_class: str, b_deck_file: str,
@@ -431,6 +534,16 @@ class SimulateTab(QWidget):
         self._run_btn.clicked.connect(self._on_run)
         ctrl.addWidget(self._run_btn)
 
+        self._field_btn = QPushButton("Field")
+        self._field_btn.setMinimumWidth(80)
+        self._field_btn.setToolTip(
+            "Run this deck against every archetype in the sim registry, "
+            "weighted by current Modern meta share. Produces an expected "
+            "field win rate."
+        )
+        self._field_btn.clicked.connect(self._on_run_field)
+        ctrl.addWidget(self._field_btn)
+
         layout.addLayout(ctrl)
 
         # Status line + indeterminate progress
@@ -554,14 +667,54 @@ class SimulateTab(QWidget):
         w.start()
         self._workers.append(w)
 
+    def _on_run_field(self):
+        ok, msg = _check_mtg_sim_available()
+        if not ok:
+            self._results.setPlainText(msg)
+            return
+
+        a_idx = self._archetype.currentIndex()
+        a = _ARCHETYPES[a_idx]
+        n_per = max(50, min(500, self._n_games.value() // 10 or 100))
+
+        self._run_btn.setEnabled(False)
+        self._field_btn.setEnabled(False)
+        self._progress.setVisible(True)
+        self._results.clear()
+        total_pairs = len(_ARCHETYPES) - 1
+        self._status.setText(
+            f"Running {a[0]} vs {total_pairs} field archetypes ({n_per} games each) ..."
+        )
+
+        w = DataLoadWorker(_run_field_gauntlet, kwargs=dict(
+            a_label=a[0], a_match_module=a[3], a_match_class=a[4], a_deck_file=a[5],
+            field_entries=list(_ARCHETYPES),
+            n_per_matchup=n_per,
+        ))
+        w.result.connect(self._on_result)
+        w.error.connect(self._on_error)
+        w.finished.connect(self._on_finished)
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._workers.append(w)
+
     def _on_result(self, data: dict):
         elapsed = data.get("elapsed_sec") or 0.001
-        gps = data["n_games"] / elapsed
-        self._status.setText(f"Complete: {elapsed:.2f}s, {gps:.0f} games/sec")
+        mode = data.get("mode")
 
-        if data.get("mode") == "matchup":
+        if mode == "matchup":
+            gps = data["n_games"] / elapsed
+            self._status.setText(f"Complete: {elapsed:.2f}s, {gps:.0f} games/sec")
             self._results.setPlainText(self._format_matchup(data))
+        elif mode == "field_gauntlet":
+            self._status.setText(
+                f"Field gauntlet complete: {data['total_matches']:,} games in "
+                f"{elapsed:.1f}s ({data['total_matches']/elapsed:.0f} games/sec)"
+            )
+            self._results.setPlainText(self._format_field(data))
         else:
+            gps = data["n_games"] / elapsed
+            self._status.setText(f"Complete: {elapsed:.2f}s, {gps:.0f} games/sec")
             self._results.setPlainText(self._format_goldfish(data))
 
     @staticmethod
@@ -670,8 +823,44 @@ class SimulateTab(QWidget):
         self._status.setText("Error")
         self._results.setPlainText(f"Simulation failed:\n\n{msg}")
 
+    @staticmethod
+    def _format_field(data: dict) -> str:
+        a = data["a_label"]
+        n = data["n_per_matchup"]
+        expected = round(data["expected_field_wr"] * 100, 1)
+        coverage = round(data["coverage_meta_share"] * 100, 1)
+
+        lines = [
+            f"== {a} vs field (Modern) | {n} games per matchup ==",
+            "",
+            f"Expected field WR: {expected}%  "
+            f"(weighted over {len(data['per_matchup'])} covered archetypes, "
+            f"{coverage}% of meta)",
+            "",
+            "Per matchup (sorted by meta share):",
+            "",
+            f"  {'Opponent':32s} {'Meta%':>7s} {'Sim WR':>8s}",
+            f"  {'-'*32} {'-'*7} {'-'*8}",
+        ]
+        sorted_matchups = sorted(data["per_matchup"],
+                                 key=lambda m: m["meta_share"], reverse=True)
+        for m in sorted_matchups:
+            share_pct = m["meta_share"] * 100
+            sim_pct = m["sim_wr"] * 100
+            star = " *" if share_pct == 0 else ""
+            lines.append(
+                f"  {m['opp_label']:32s} {share_pct:>6.1f}% {sim_pct:>7.1f}%{star}"
+            )
+        lines.extend([
+            "",
+            "* = archetype has no meta-share data in the scraped DB; "
+            "uniform-weighted into the expected WR.",
+        ])
+        return "\n".join(lines)
+
     def _on_finished(self):
         self._run_btn.setEnabled(True)
+        self._field_btn.setEnabled(True)
         self._progress.setVisible(False)
 
     def _auto_detect_archetype(self):
