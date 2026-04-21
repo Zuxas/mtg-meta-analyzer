@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QSplitter,
 )
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication
 
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
@@ -602,6 +603,17 @@ class SimulateTab(QWidget):
         self._autodetect_timer.timeout.connect(self._auto_detect_archetype)
         self._paste.textChanged.connect(self._autodetect_timer.start)
 
+        # Results header with copy button
+        results_hdr = QHBoxLayout()
+        results_hdr.addWidget(QLabel("<b>Results</b>"))
+        results_hdr.addStretch(1)
+        self._copy_btn = QPushButton("Copy")
+        self._copy_btn.setMaximumWidth(80)
+        self._copy_btn.setToolTip("Copy the full results text to the clipboard.")
+        self._copy_btn.clicked.connect(self._on_copy_results)
+        results_hdr.addWidget(self._copy_btn)
+        layout.addLayout(results_hdr)
+
         # Results pane
         self._results = QTextEdit()
         self._results.setReadOnly(True)
@@ -822,6 +834,17 @@ class SimulateTab(QWidget):
     def _on_error(self, msg: str):
         self._status.setText("Error")
         self._results.setPlainText(f"Simulation failed:\n\n{msg}")
+
+    def _on_copy_results(self):
+        text = self._results.toPlainText()
+        if not text.strip():
+            self._status.setText("Nothing to copy — run a sim first.")
+            return
+        QApplication.clipboard().setText(text)
+        prev = self._status.text()
+        self._status.setText("Copied to clipboard.")
+        # Restore previous status after 2 seconds
+        QTimer.singleShot(2000, lambda: self._status.setText(prev))
 
     @staticmethod
     def _format_field(data: dict) -> str:

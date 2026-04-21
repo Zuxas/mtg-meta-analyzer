@@ -18,7 +18,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QProgressBar,
+    QProgressBar, QApplication,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QColor
@@ -194,6 +194,13 @@ class CalibrationTab(QWidget):
         self._n_games.setValue(150)
         ctrl.addWidget(self._n_games)
         ctrl.addStretch(1)
+        self._copy_btn = QPushButton("Copy as TSV")
+        self._copy_btn.setToolTip(
+            "Copy the full matrix to the clipboard as tab-separated values "
+            "(paste into Excel / Google Sheets)."
+        )
+        self._copy_btn.clicked.connect(self._on_copy_tsv)
+        ctrl.addWidget(self._copy_btn)
         self._run_btn = QPushButton("Run full calibration")
         self._run_btn.clicked.connect(self._on_run)
         ctrl.addWidget(self._run_btn)
@@ -320,6 +327,37 @@ class CalibrationTab(QWidget):
         self._run_btn.setEnabled(True)
         self._progress.setVisible(False)
         self._status.setText(f"Error: {msg.splitlines()[0]}")
+
+    def _on_copy_tsv(self):
+        """Serialize the matrix as TSV (tabs + newlines) to the clipboard."""
+        n_rows = self._table.rowCount()
+        n_cols = self._table.columnCount()
+        if n_rows == 0 or n_cols == 0:
+            return
+
+        lines = []
+        # Header row: blank corner cell + column labels
+        headers = [""] + [self._table.horizontalHeaderItem(c).text()
+                          if self._table.horizontalHeaderItem(c) else f"col{c}"
+                          for c in range(n_cols)]
+        lines.append("\t".join(headers))
+        for r in range(n_rows):
+            row_label = (self._table.verticalHeaderItem(r).text()
+                         if self._table.verticalHeaderItem(r) else f"row{r}")
+            row_cells = [row_label]
+            for c in range(n_cols):
+                item = self._table.item(r, c)
+                txt = item.text() if item else ""
+                # Flatten newlines inside cells (sim/real/delta lives on 2 lines)
+                txt = txt.replace("\n", " | ")
+                row_cells.append(txt)
+            lines.append("\t".join(row_cells))
+        QApplication.clipboard().setText("\n".join(lines))
+
+        prev = self._status.text()
+        self._status.setText(f"Copied {n_rows}x{n_cols} matrix to clipboard as TSV.")
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(2500, lambda: self._status.setText(prev))
 
     def _on_cell_double_click(self, row: int, col: int):
         if row == col:
