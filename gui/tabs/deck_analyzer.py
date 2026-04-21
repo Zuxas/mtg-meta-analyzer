@@ -560,6 +560,14 @@ class DeckAnalyzerTab(QWidget):
         self._sim_lbl.setStyleSheet(f"color: {theme.TEXT}; font-size: 10px;")
         rv.addWidget(self._sim_lbl)
 
+        self._similar_decks_lbl = QLabel("")
+        self._similar_decks_lbl.setWordWrap(True)
+        self._similar_decks_lbl.setTextFormat(Qt.TextFormat.RichText)
+        self._similar_decks_lbl.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 10px;"
+        )
+        rv.addWidget(self._similar_decks_lbl)
+
         # Baseline vs deviation section
         self._baseline_lbl = QLabel("")
         self._baseline_lbl.setWordWrap(True)
@@ -958,6 +966,7 @@ class DeckAnalyzerTab(QWidget):
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker.finished.connect(lambda: setattr(self, "_worker", None))
         self._worker.finished.connect(lambda: self._run_deck_similarity(main, fmt))
+        self._worker.finished.connect(lambda: self._run_similar_scraped(main, fmt))
         self._worker.finished.connect(lambda: self._run_auto_classify(main, fmt))
         self._worker.finished.connect(lambda: self._run_baseline(main, side, fmt, arch))
         self._worker.start()
@@ -967,6 +976,7 @@ class DeckAnalyzerTab(QWidget):
         self._score_lbl.setText("\u2014")
         self._overall_lbl.setText("")
         self._sim_lbl.setText("")
+        self._similar_decks_lbl.setText("")
         self._baseline_lbl.setText("")
         for lbl, bar, score_lbl in self._chapin_bars.values():
             bar.setValue(0)
@@ -1062,6 +1072,56 @@ class DeckAnalyzerTab(QWidget):
             self._sim_worker = w
         except Exception:
             self._sim_lbl.setText("")
+
+    def _run_similar_scraped(self, card_list: dict, format_name: str):
+        """Find the top 5 scraped decks most similar to the pasted list."""
+        try:
+            from gui.worker_threads import DataLoadWorker
+
+            def _do():
+                from analysis.deck_analysis import find_similar_scraped_decks
+                return find_similar_scraped_decks(
+                    card_list, format_name, top_n=5
+                )
+
+            w = DataLoadWorker(_do)
+
+            def _done(results):
+                if not results:
+                    self._similar_decks_lbl.setText("")
+                    return
+                rows = [
+                    "<b>Similar scraped decks (by card overlap):</b>",
+                    "<table cellpadding='2' style='font-family:Consolas,monospace;'>",
+                    "<tr style='color:#888'>"
+                    "<td>Sim</td><td>Archetype</td><td>Player</td>"
+                    "<td>Finish</td><td>Event</td><td>Date</td></tr>",
+                ]
+                for r in results:
+                    pct = r["similarity"] * 100
+                    place = (f"#{r['placement']}" if r["placement"]
+                             else "-")
+                    event = (r["event_name"] or "")[:36]
+                    rows.append(
+                        f"<tr>"
+                        f"<td>{pct:.0f}%</td>"
+                        f"<td>{r['archetype']}</td>"
+                        f"<td>{r['player']}</td>"
+                        f"<td>{place}</td>"
+                        f"<td>{event}</td>"
+                        f"<td>{r['date']}</td>"
+                        f"</tr>"
+                    )
+                rows.append("</table>")
+                self._similar_decks_lbl.setText("".join(rows))
+
+            w.result.connect(_done)
+            w.error.connect(lambda _: self._similar_decks_lbl.setText(""))
+            w.finished.connect(w.deleteLater)
+            w.start()
+            self._similar_scraped_worker = w
+        except Exception:
+            self._similar_decks_lbl.setText("")
 
     # ------------------------------------------------------------------
     # Baseline vs deviation — compare user's list to average

@@ -247,6 +247,106 @@ def compare_deck_to_average(deck, archetype, format_name=None,
 # DB lookup helpers
 # ---------------------------------------------------------------------------
 
+def find_similar_scraped_decks(card_list: dict, format_name: str,
+                               top_n: int = 5) -> list:
+    """Return top-N scraped decks most similar to the input decklist.
+
+    Uses Jaccard similarity on mainboard card names (ignores copy counts;
+    two decks running 2 vs 4 Lightning Bolt still both count as 'plays
+    Lightning Bolt'). Pre-filters candidates to decks that share at
+    least one card with the input, then ranks top 30 candidates by
+    Jaccard and returns the best top_n.
+
+    Each result has: deck_id, player, archetype, placement, event_name,
+    date, similarity (0-1), shared_count, pilot_total_cards.
+    """
+    from db.database import get_combined_connection
+
+    user_names = list((card_list or {}).keys())
+    if not user_names:
+        return []
+    user_set = set(user_names)
+    a_size = len(user_set)
+
+    conn = get_combined_connection()
+    try:
+        placeholders = ",".join("?" * len(user_names))
+        # Rank candidate decks by number of shared mainboard cards
+        cand_rows = conn.execute(
+            f"""
+            SELECT d.id AS deck_id,
+                   COUNT(DISTINCT c.name) AS shared
+            FROM decks d
+            JOIN events e ON e.id = d.event_id
+            JOIN deck_cards dc ON dc.deck_id = d.id AND dc.is_sideboard = 0
+            JOIN cards c ON c.id = dc.card_id
+            WHERE e.format = ? AND c.name IN ({placeholders})
+            GROUP BY d.id
+            ORDER BY shared DESC
+            LIMIT 30
+            """,
+            [format_name, *user_names],
+        ).fetchall()
+
+        if not cand_rows:
+            return []
+
+        cand_ids = [r["deck_id"] for r in cand_rows]
+        id_placeholders = ",".join("?" * len(cand_ids))
+        detail_rows = conn.execute(
+            f"""
+            SELECT d.id AS deck_id, d.player, d.archetype, d.placement,
+                   e.name AS event_name, e.date,
+                   c.name AS card_name
+            FROM decks d
+            JOIN events e ON e.id = d.event_id
+            JOIN deck_cards dc ON dc.deck_id = d.id AND dc.is_sideboard = 0
+            JOIN cards c ON c.id = dc.card_id
+            WHERE d.id IN ({id_placeholders})
+            """,
+            cand_ids,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    # Group card names per deck; capture metadata from first row per deck
+    decks_by_id = {}
+    for r in detail_rows:
+        did = r["deck_id"]
+        entry = decks_by_id.setdefault(did, {
+            "deck_id": did,
+            "player": r["player"],
+            "archetype": r["archetype"],
+            "placement": r["placement"],
+            "event_name": r["event_name"],
+            "date": r["date"],
+            "cards": set(),
+        })
+        entry["cards"].add(r["card_name"])
+
+    results = []
+    for entry in decks_by_id.values():
+        b_set = entry["cards"]
+        shared = len(user_set & b_set)
+        union = a_size + len(b_set) - shared
+        if union == 0:
+            continue
+        jaccard = shared / union
+        results.append({
+            "deck_id": entry["deck_id"],
+            "player": entry["player"] or "unknown",
+            "archetype": entry["archetype"] or "?",
+            "placement": entry["placement"],
+            "event_name": entry["event_name"] or "",
+            "date": (entry["date"] or "")[:10],
+            "similarity": round(jaccard, 4),
+            "shared_count": shared,
+            "pilot_total_cards": len(b_set),
+        })
+    results.sort(key=lambda d: -d["similarity"])
+    return results[:top_n]
+
+
 def get_deck_by_id(deck_id, include_archive=False):
     """Fetch a single deck's mainboard and sideboard from the DB by ID."""
     from db.database import get_combined_connection
