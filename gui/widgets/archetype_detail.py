@@ -630,7 +630,7 @@ class ArchetypeDetailDialog(QDialog):
         self._on_simulate = on_simulate
 
         self.setWindowTitle(f"{archetype} — Deck Analysis")
-        self.setMinimumSize(900, 620)
+        self.setMinimumSize(*theme.DIALOG_LG)
         self.resize(1000, 680)
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint

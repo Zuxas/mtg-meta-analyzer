@@ -106,7 +106,7 @@ class _DeckDetailDialog(QDialog):
 
         title = f"{archetype}  —  {player or 'Unknown'}  (#{placement})"
         self.setWindowTitle(title)
-        self.setMinimumSize(680, 560)
+        self.setMinimumSize(*theme.DIALOG_MD)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)

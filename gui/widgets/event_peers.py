@@ -26,7 +26,7 @@ class EventPeersDialog(QDialog):
 
         self._format = ""
         self.setWindowTitle(f"Event: {event_name}" if event_name else "Event Decks")
-        self.resize(700, 500)
+        self.resize(*theme.DIALOG_MD)
         self.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
         self._build_ui()
         # Load in background to avoid blocking UI on large events

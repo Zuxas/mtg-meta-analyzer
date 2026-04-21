@@ -34,7 +34,7 @@ class _MatchDialog(QDialog):
                  default_round=1):
         super().__init__(parent)
         self.setWindowTitle("Edit Match" if match else "Log Match")
-        self.setMinimumWidth(420)
+        self.setMinimumSize(*theme.DIALOG_SM)
         self.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
 
         layout = QVBoxLayout(self)

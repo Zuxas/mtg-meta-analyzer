@@ -90,7 +90,7 @@ class _DeckDialog(QDialog):
     def __init__(self, parent=None, deck=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Deck" if deck else "Add Deck")
-        self.setMinimumSize(500, 500)
+        self.setMinimumSize(*theme.DIALOG_SM)
         self.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
 
         layout = QVBoxLayout(self)
@@ -170,7 +170,7 @@ class _SBPlanDialog(QDialog):
                  format_name="standard"):
         super().__init__(parent)
         self.setWindowTitle("Edit Sideboard Plan" if plan else "Add Sideboard Plan")
-        self.setMinimumSize(500, 480)
+        self.setMinimumSize(*theme.DIALOG_SM)
         self.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
 
         layout = QVBoxLayout(self)

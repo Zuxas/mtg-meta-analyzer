@@ -51,6 +51,13 @@ SPACE_MD = 12    # section-to-section inside a pane
 SPACE_LG = 20    # tab outer margins, major layout breaks
 SPACE_XL = 32    # dialog paddings, top-level hero gutters
 
+# ── Dialog size tiers ─────────────────────────────────────────────────────
+# (width, height) minimums for QDialog.setMinimumSize(). Keep dialog
+# proportions consistent so they feel like part of one system.
+DIALOG_SM = (500, 450)    # form dialogs (match log, deck input, SB plan)
+DIALOG_MD = (680, 540)    # drill-down dialogs (deck detail, event peers)
+DIALOG_LG = (900, 620)    # rich dialogs (archetype detail w/ tabs)
+
 # Chart colour palette — curated, not neon
 CHART_PALETTE = [
     "#5eb5cf", "#f04040", "#34d058", "#f0a030", "#a078e0",
