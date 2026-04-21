@@ -31,6 +31,7 @@ from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.tabs.heatmap_tab       import HeatmapTab
 from gui.tabs.my_decks          import MyDecksTab
 from gui.tabs.match_log         import MatchLogTab
+from gui.tabs.simulate          import SimulateTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 import gui.theme as theme
 
@@ -121,6 +122,7 @@ class MainWindow(QMainWindow):
         self._kb        = KnowledgeBaseTab()
         self._tourney   = TournamentPrepTab()
         self._heatmap   = HeatmapTab()
+        self._simulate  = SimulateTab()
         self._my_decks  = MyDecksTab()
         self._match_log = MatchLogTab()
         self._claude    = AskClaudeTab()
@@ -133,6 +135,7 @@ class MainWindow(QMainWindow):
         self._meta_tab.addTab(self._charts,  "CHARTS")
         self._meta_tab.addTab(self._heatmap, "MATCHUP DATA")
         self._meta_tab.addTab(self._preds,   "PREDICTIONS")
+        self._meta_tab.addTab(self._simulate, "SIMULATE")
 
         # DECKS = Deck Analyzer + My Decks
         self._decks_tab = QTabWidget()
