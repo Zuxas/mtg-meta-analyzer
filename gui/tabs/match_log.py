@@ -358,21 +358,35 @@ class MatchLogTab(QWidget):
             except Exception:
                 pass
 
-            # Event type breakdown
-            from collections import Counter
-            event_types = Counter()
+            # Event type breakdown: tally W/L/D per event category so we can
+            # show 'RCQ: 12W-8L (60%)' rather than just '20 matches'.
+            def _classify_event(name: str) -> str:
+                low = (name or "").lower()
+                if "rcq" in low:
+                    return "RCQ"
+                if "regional" in low or " rc " in low:
+                    return "RC"
+                if "open" in low or "5k" in low or "$5k" in low:
+                    return "Open"
+                if "fnm" in low or "friday" in low:
+                    return "FNM"
+                return "Other"
+
+            event_stats = {}  # type -> {wins, losses, draws, total}
             for m in matches:
-                name = (m.get("event_name") or "").lower()
-                if "rcq" in name:
-                    event_types["RCQ"] += 1
-                elif "regional" in name or " rc " in name:
-                    event_types["RC"] += 1
-                elif "open" in name or "5k" in name or "$5k" in name:
-                    event_types["Open"] += 1
-                elif "fnm" in name or "friday" in name:
-                    event_types["FNM"] += 1
-                else:
-                    event_types["Other"] += 1
+                cat = _classify_event(m.get("event_name"))
+                bucket = event_stats.setdefault(
+                    cat, {"wins": 0, "losses": 0, "draws": 0, "total": 0})
+                bucket["total"] += 1
+                result = (m.get("result") or "").lower()
+                if result == "win":
+                    bucket["wins"] += 1
+                elif result == "loss":
+                    bucket["losses"] += 1
+                elif result == "draw":
+                    bucket["draws"] += 1
+            # Also keep a flat count for backward-compat with any other consumer
+            event_types = {k: v["total"] for k, v in event_stats.items()}
 
             # Win rate trend over time
             from db.match_log import get_trend_data
@@ -380,6 +394,7 @@ class MatchLogTab(QWidget):
 
             return {"matches": matches, "stats": stats, "overall": overall,
                     "meta_wrs": meta_wrs, "event_types": dict(event_types),
+                    "event_stats": event_stats,
                     "trend": trend}
 
         w = DataLoadWorker(_do)
@@ -422,11 +437,24 @@ class MatchLogTab(QWidget):
                 "Track your results to see personal win rates vs each archetype",
             ])
 
-        # Event type breakdown
-        ev = data.get("event_types", {})
-        if ev:
-            parts = [f"{k}: {v}" for k, v in sorted(ev.items(), key=lambda x: -x[1])]
-            self._event_lbl.setText("Events: " + " \u2022 ".join(parts))
+        # Event type breakdown — now includes W/L per event category.
+        event_stats = data.get("event_stats", {})
+        if event_stats:
+            parts = []
+            # Sort by decisive-match volume descending so the heaviest-used
+            # category shows first.
+            ranked = sorted(event_stats.items(),
+                            key=lambda kv: -(kv[1]["wins"] + kv[1]["losses"]))
+            for cat, s in ranked:
+                decisive = s["wins"] + s["losses"]
+                if decisive == 0:
+                    continue
+                wr = round(s["wins"] / decisive * 100)
+                draws = f"-{s['draws']}D" if s["draws"] else ""
+                parts.append(f"{cat}: {s['wins']}W-{s['losses']}L{draws} ({wr}%)")
+            self._event_lbl.setText(
+                ("Events: " + " \u2022 ".join(parts)) if parts else ""
+            )
         else:
             self._event_lbl.setText("")
 
