@@ -601,6 +601,21 @@ class SimulateTab(QWidget):
         self._run_btn.setEnabled(True)
         self._progress.setVisible(False)
 
+    def set_matchup(self, a_label: str, b_label: str):
+        """External entry for 'jump to this matchup from another tab'.
+        Sets the archetype + opponent dropdowns to the requested labels
+        (silently no-ops if either label isn't in the registry)."""
+        # Find the archetype dropdown index for a_label
+        for i in range(self._archetype.count()):
+            if self._archetype.itemText(i) == a_label:
+                self._archetype.setCurrentIndex(i)
+                break
+        # Opponent dropdown: index 0 is 'Goldfish', archetypes start at 1
+        for j in range(1, self._opponent.count()):
+            if self._opponent.itemText(j) == b_label:
+                self._opponent.setCurrentIndex(j)
+                break
+
     def cleanup(self):
         """Called by main_window on close — stops any running workers."""
         for w in self._workers:

@@ -141,9 +141,15 @@ class CalibrationWorker(QThread):
 class CalibrationTab(QWidget):
     """Whole-matrix sim-vs-real-match calibration view."""
 
-    def __init__(self):
+    def __init__(self, on_cell_activate=None):
+        """
+        on_cell_activate: optional callable(a_label: str, b_label: str).
+        Called when the user double-clicks a cell — lets the main window
+        wire this to 'jump to SIMULATE tab with these archetypes loaded'.
+        """
         super().__init__()
         self._worker = None
+        self._on_cell_activate = on_cell_activate
         self._build()
 
     def _build(self):
@@ -204,7 +210,14 @@ class CalibrationTab(QWidget):
 
         self._table = QTableWidget()
         self._init_table()
+        self._table.cellDoubleClicked.connect(self._on_cell_double_click)
         layout.addWidget(self._table, 1)
+
+        hint = QLabel(
+            "Double-click any cell to open that matchup in the SIMULATE tab."
+        )
+        hint.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        layout.addWidget(hint)
 
     def _init_table(self):
         n = len(_ARCHETYPES)
@@ -307,6 +320,20 @@ class CalibrationTab(QWidget):
         self._run_btn.setEnabled(True)
         self._progress.setVisible(False)
         self._status.setText(f"Error: {msg.splitlines()[0]}")
+
+    def _on_cell_double_click(self, row: int, col: int):
+        if row == col:
+            return  # diagonal — no meaningful matchup
+        if self._on_cell_activate is None:
+            return
+        a_label = _ARCHETYPES[row][0]
+        b_label = _ARCHETYPES[col][0]
+        try:
+            self._on_cell_activate(a_label, b_label)
+        except Exception:
+            # Best-effort jump; don't break the calibration tab if the
+            # hook throws.
+            pass
 
     def cleanup(self):
         if self._worker and self._worker.isRunning():

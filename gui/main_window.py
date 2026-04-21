@@ -124,7 +124,12 @@ class MainWindow(QMainWindow):
         self._tourney   = TournamentPrepTab()
         self._heatmap   = HeatmapTab()
         self._simulate  = SimulateTab()
-        self._calibration = CalibrationTab()
+        # Calibration callback: double-click a cell -> set the SIMULATE tab's
+        # matchup and switch the META sub-tab to SIMULATE.
+        def _jump_to_simulate_matchup(a_label: str, b_label: str):
+            self._simulate.set_matchup(a_label, b_label)
+            self._meta_tab.setCurrentWidget(self._simulate)
+        self._calibration = CalibrationTab(on_cell_activate=_jump_to_simulate_matchup)
         self._my_decks  = MyDecksTab()
         self._match_log = MatchLogTab()
         self._claude    = AskClaudeTab()
