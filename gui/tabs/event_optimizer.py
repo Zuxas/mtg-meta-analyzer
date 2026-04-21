@@ -157,18 +157,11 @@ class EventWidget(QWidget):
         self._gauntlet_btn.clicked.connect(self._export_gauntlet)
         lv.addWidget(self._gauntlet_btn)
 
-        self._status = QLabel("")
-        self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
-        self._status.setWordWrap(True)
-        lv.addWidget(self._status)
-
-        from PyQt6.QtWidgets import QProgressBar
-        self._progress = QProgressBar()
-        self._progress.setRange(0, 0)  # indeterminate
-        self._progress.setFixedHeight(3)
-        self._progress.setTextVisible(False)
-        self._progress.setVisible(False)
-        lv.addWidget(self._progress)
+        from gui.widgets.status_row import StatusRow
+        self._status_row = StatusRow()
+        self._status = self._status_row.label()        # back-compat alias
+        self._progress = self._status_row.progress()   # back-compat alias
+        lv.addWidget(self._status_row)
 
         lv.addStretch()
 

@@ -266,14 +266,12 @@ class CalibrationTab(QWidget):
         ctrl.addWidget(self._run_btn)
         layout.addLayout(ctrl)
 
-        self._status = QLabel("Idle.")
-        self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
-        layout.addWidget(self._status)
-
-        self._progress = QProgressBar()
-        self._progress.setVisible(False)
-        self._progress.setMaximumHeight(4)
-        layout.addWidget(self._progress)
+        from gui.widgets.status_row import StatusRow
+        self._status_row = StatusRow()
+        self._status_row.done("Idle.")
+        self._status = self._status_row.label()        # back-compat alias
+        self._progress = self._status_row.progress()   # back-compat alias
+        layout.addWidget(self._status_row)
 
         self._table = QTableWidget()
         self._init_table()

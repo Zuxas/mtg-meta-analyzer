@@ -682,15 +682,11 @@ class SimulateTab(QWidget):
         layout.addLayout(ctrl)
 
         # Status line + indeterminate progress
-        self._status = QLabel("")
-        self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
-        layout.addWidget(self._status)
-
-        self._progress = QProgressBar()
-        self._progress.setRange(0, 0)
-        self._progress.setVisible(False)
-        self._progress.setMaximumHeight(4)
-        layout.addWidget(self._progress)
+        from gui.widgets.status_row import StatusRow
+        self._status_row = StatusRow()
+        self._status = self._status_row.label()        # back-compat alias
+        self._progress = self._status_row.progress()   # back-compat alias
+        layout.addWidget(self._status_row)
 
         # Optional: load a saved deck from the analyzer's My Decks tab
         my_decks_row = QHBoxLayout()
