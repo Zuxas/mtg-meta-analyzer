@@ -16,7 +16,8 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QComboBox, QSpinBox, QCheckBox, QTextEdit, QProgressBar,
+    QComboBox, QSpinBox, QCheckBox, QTextEdit, QPlainTextEdit,
+    QProgressBar, QSplitter,
 )
 from PyQt6.QtCore import Qt
 
@@ -61,22 +62,28 @@ def _check_mtg_sim_available():
 
 
 def _run_goldfish(apl_module: str, apl_class: str, deck_file: str,
-                  n_games: int, on_play: bool) -> dict:
-    """Worker-thread callable. Runs N goldfish sims, returns results dict."""
+                  n_games: int, on_play: bool, deck_text: str = "") -> dict:
+    """Worker-thread callable. Runs N goldfish sims, returns results dict.
+
+    If deck_text is non-empty, loads from the pasted text instead of deck_file.
+    """
     ok, msg = _check_mtg_sim_available()
     if not ok:
         raise RuntimeError(msg)
 
     # Deferred imports — only touch mtg-sim internals once the path check passes.
-    from data.deck import load_deck_from_file
+    from data.deck import load_deck_from_file, load_deck_from_text
     from engine.runner import run_simulation
 
     mod = importlib.import_module(apl_module)
     apl_cls = getattr(mod, apl_class)
     apl = apl_cls()
 
-    deck_path = os.path.join(_MTG_SIM_PATH, deck_file)
-    main_deck, _sb = load_deck_from_file(deck_path)
+    if deck_text.strip():
+        main_deck, _sb = load_deck_from_text(deck_text)
+    else:
+        deck_path = os.path.join(_MTG_SIM_PATH, deck_file)
+        main_deck, _sb = load_deck_from_file(deck_path)
 
     results = run_simulation(
         apl=apl, mainboard=main_deck, n=n_games, on_play=on_play,
@@ -256,6 +263,29 @@ class SimulateTab(QWidget):
         self._progress.setMaximumHeight(4)
         layout.addWidget(self._progress)
 
+        # Optional paste-your-own-deck textarea (overrides the archetype's shipped deck)
+        paste_hdr = QLabel(
+            "Paste your decklist (optional — overrides the archetype's shipped deck, "
+            "but keeps the APL you picked above):"
+        )
+        paste_hdr.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        paste_hdr.setWordWrap(True)
+        layout.addWidget(paste_hdr)
+
+        self._paste = QPlainTextEdit()
+        self._paste.setPlaceholderText(
+            "4 Monastery Swiftspear\n4 Ragavan, Nimble Pilferer\n...\n\n"
+            "Sideboard\n2 Dismember\n..."
+        )
+        self._paste.setStyleSheet(
+            f"background: {theme.INPUT}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; "
+            f"font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace; "
+            f"font-size: 11px; padding: 6px;"
+        )
+        self._paste.setMaximumHeight(120)
+        layout.addWidget(self._paste)
+
         # Results pane
         self._results = QTextEdit()
         self._results.setReadOnly(True)
@@ -296,10 +326,13 @@ class SimulateTab(QWidget):
             # Goldfish mode: just the chosen deck
             a_label, apl_mod, apl_cls, _m_mod, _m_cls, deck_file = a
             on_play = self._on_play.isChecked()
-            self._status.setText(f"Running {n:,} goldfish games of {a_label} ...")
+            deck_text = self._paste.toPlainText()
+            source = "pasted deck" if deck_text.strip() else a_label
+            self._status.setText(f"Running {n:,} goldfish games ({source}, {apl_cls}) ...")
             w = DataLoadWorker(_run_goldfish, kwargs=dict(
                 apl_module=apl_mod, apl_class=apl_cls,
                 deck_file=deck_file, n_games=n, on_play=on_play,
+                deck_text=deck_text,
             ))
         else:
             # Matchup mode: A vs B with mixed play/draw
