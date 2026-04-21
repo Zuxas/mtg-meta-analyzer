@@ -24,7 +24,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QColor
 
 import gui.theme as theme
-from gui.tabs.simulate import _ARCHETYPES, _MTG_SIM_PATH, _check_mtg_sim_available
+from gui.tabs.simulate import (
+    _ARCHETYPES, _MTG_SIM_PATH, _check_mtg_sim_available, _format_of,
+)
 
 
 def _sim_matchup_headless(a_meta: tuple, b_meta: tuple, n_games: int) -> float:
@@ -54,7 +56,11 @@ def _sim_matchup_headless(a_meta: tuple, b_meta: tuple, n_games: int) -> float:
 
 
 def _lookup_real_pct(a_label: str, b_label: str) -> tuple:
-    """Return (real_a_pct, sample_size) or (None, 0) if unavailable."""
+    """Return (real_a_pct, sample_size) or (None, 0) if unavailable.
+
+    Derives format from the labels — calibration pairs are always
+    same-format (cross-format pairs are filtered out in the worker).
+    """
     try:
         from analysis.win_rates import get_real_matchup_winrates
         from analysis.archetypes import normalize as norm_arch
@@ -67,7 +73,7 @@ def _lookup_real_pct(a_label: str, b_label: str) -> tuple:
 
         a_arch = norm_arch(_strip_fmt(a_label))
         b_arch = norm_arch(_strip_fmt(b_label))
-        real = get_real_matchup_winrates("modern", min_matches=5)
+        real = get_real_matchup_winrates(_format_of(a_label), min_matches=5)
 
         if a_arch in real and b_arch in real[a_arch]:
             entry = real[a_arch][b_arch]
@@ -113,11 +119,14 @@ class CalibrationWorker(QThread):
         try:
             t0 = time.perf_counter()
             n = len(self._archetypes)
+            fmts = [_format_of(a[0]) for a in self._archetypes]
             if self._row_only is not None:
                 pairs = [(self._row_only, j) for j in range(n)
-                         if j != self._row_only]
+                         if j != self._row_only
+                         and fmts[j] == fmts[self._row_only]]
             else:
-                pairs = [(i, j) for i in range(n) for j in range(i + 1, n)]
+                pairs = [(i, j) for i in range(n) for j in range(i + 1, n)
+                         if fmts[i] == fmts[j]]
             total_pairs = len(pairs)
             current = 0
             for (i, j) in pairs:
@@ -248,7 +257,16 @@ class CalibrationTab(QWidget):
         n = len(_ARCHETYPES)
         self._table.setRowCount(n)
         self._table.setColumnCount(n)
-        labels = [a[0].replace(" (Modern)", "") for a in _ARCHETYPES]
+
+        def _short(a_label):
+            for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
+                if a_label.endswith(suf):
+                    # keep a one-letter format tag so Standard and Modern rows
+                    # are distinguishable when two formats share a pretty name
+                    return a_label[:-len(suf)].strip() + f" [{suf.strip(' ()')[0]}]"
+            return a_label
+
+        labels = [_short(a[0]) for a in _ARCHETYPES]
         self._table.setHorizontalHeaderLabels(labels)
         self._table.setVerticalHeaderLabels(labels)
         self._table.horizontalHeader().setSectionResizeMode(
@@ -269,6 +287,20 @@ class CalibrationTab(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self._table.setItem(i, i, item)
 
+        # Cross-format cells: mark as N/A (incoherent to sim Modern vs Standard)
+        fmts = [_format_of(a[0]) for a in _ARCHETYPES]
+        for i in range(n):
+            for j in range(n):
+                if i == j or fmts[i] == fmts[j]:
+                    continue
+                item = QTableWidgetItem("--")
+                item.setBackground(QColor(theme.SURFACE))
+                item.setForeground(QColor(theme.TEXT_OFF))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                item.setToolTip("Cross-format pair — not simulated.")
+                self._table.setItem(i, j, item)
+
     def _start_worker(self, row_only: int = None):
         """Shared worker-kickoff for full matrix and single-row modes."""
         ok, msg = _check_mtg_sim_available()
@@ -281,19 +313,21 @@ class CalibrationTab(QWidget):
         self._progress.setVisible(True)
         self._progress.setValue(0)
         n = len(_ARCHETYPES)
+        fmts = [_format_of(a[0]) for a in _ARCHETYPES]
         if row_only is not None:
-            total_pairs = n - 1
-            # Clear just this row's off-diagonal cells so progress is visible
-            for j in range(n):
-                if j != row_only:
-                    self._table.setItem(row_only, j, QTableWidgetItem(""))
-                    # Also clear the mirror cell (the column for this archetype)
-                    self._table.setItem(j, row_only, QTableWidgetItem(""))
+            same_fmt = [j for j in range(n)
+                        if j != row_only and fmts[j] == fmts[row_only]]
+            total_pairs = len(same_fmt)
+            # Clear just this row's same-format off-diagonal cells
+            for j in same_fmt:
+                self._table.setItem(row_only, j, QTableWidgetItem(""))
+                self._table.setItem(j, row_only, QTableWidgetItem(""))
         else:
-            total_pairs = n * (n - 1) // 2
+            total_pairs = sum(1 for i in range(n) for j in range(i + 1, n)
+                              if fmts[i] == fmts[j])
             for i in range(n):
                 for j in range(n):
-                    if i == j:
+                    if i == j or fmts[i] != fmts[j]:
                         continue
                     self._table.setItem(i, j, QTableWidgetItem(""))
         self._progress.setMaximum(total_pairs)
@@ -411,6 +445,9 @@ class CalibrationTab(QWidget):
             return
         a_label = _ARCHETYPES[row][0]
         b_label = _ARCHETYPES[col][0]
+        if _format_of(a_label) != _format_of(b_label):
+            self._status.setText("Cross-format pair — not simulated.")
+            return
         try:
             self._on_cell_activate(a_label, b_label)
         except Exception:
