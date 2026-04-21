@@ -302,6 +302,13 @@ class DashboardTab(QWidget):
         self._dedup_upd.stateChanged.connect(self.refresh)
         ctrl.addWidget(self._dedup_upd)
 
+        # ── Insights actions ──────────────────────────────────────────
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.Shape.VLine)
+        sep2.setFixedWidth(1)
+        sep2.setStyleSheet(f"background: {theme.BORDER};")
+        ctrl.addWidget(sep2)
+
         self._shift_btn = QPushButton("Meta Shift")
         self._shift_btn.setStyleSheet(theme.btn_secondary())
         self._shift_btn.setFixedHeight(26)

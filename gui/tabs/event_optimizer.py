@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTextEdit, QComboBox, QSpinBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QCheckBox,
+    QCheckBox, QGroupBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
@@ -49,34 +49,47 @@ class EventWidget(QWidget):
         lv.setContentsMargins(theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD)
         lv.setSpacing(theme.SPACE_SM)
 
-        lv.addWidget(QLabel("Event type:"))
+        # ── Event group ───────────────────────────────────────────────
+        event_box = QGroupBox("Event")
+        event_lv = QVBoxLayout(event_box)
+        event_lv.setSpacing(theme.SPACE_XS)
+
+        event_lv.addWidget(QLabel("Event type:"))
         self._event_type = QComboBox()
         self._event_type.addItems([
             "RCQ", "Regional Championship", "Pro Tour Qualifier / Open", "Custom"
         ])
         self._event_type.currentTextChanged.connect(self._on_event_type_changed)
-        lv.addWidget(self._event_type)
+        event_lv.addWidget(self._event_type)
 
-        lv.addWidget(QLabel("Format:"))
+        event_lv.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
-        lv.addWidget(self._fmt)
+        event_lv.addWidget(self._fmt)
         self._fmt.currentTextChanged.connect(self._on_fmt_changed)
 
-        lv.addWidget(QLabel("Player count:"))
+        event_lv.addWidget(QLabel("Player count:"))
         self._players = QSpinBox()
         self._players.setRange(4, 5000)
         self._players.setValue(48)
         self._players.setSuffix(" players")
-        lv.addWidget(self._players)
+        event_lv.addWidget(self._players)
 
         self._struct_lbl = QLabel("")
         self._struct_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 11px;")
-        lv.addWidget(self._struct_lbl)
+        self._struct_lbl.setWordWrap(True)
+        event_lv.addWidget(self._struct_lbl)
         self._players.valueChanged.connect(self._update_struct_lbl)
         self._update_struct_lbl(48)
 
-        lv.addWidget(QLabel("Timeframe:"))
+        lv.addWidget(event_box)
+
+        # ── Deck group ────────────────────────────────────────────────
+        deck_box = QGroupBox("Your Deck")
+        deck_lv = QVBoxLayout(deck_box)
+        deck_lv.setSpacing(theme.SPACE_XS)
+
+        deck_lv.addWidget(QLabel("Timeframe:"))
         self._tf = QComboBox()
         for label, _ in theme.TIMEFRAME_OPTIONS:
             self._tf.addItem(label)
@@ -84,25 +97,32 @@ class EventWidget(QWidget):
         self._tf.currentIndexChanged.connect(
             lambda _: self._populate_arch_combo(self._fmt.currentText())
         )
-        lv.addWidget(self._tf)
+        deck_lv.addWidget(self._tf)
 
-        # Saved deck selector
-        lv.addWidget(QLabel("Load saved deck:"))
+        deck_lv.addWidget(QLabel("Load saved deck:"))
         self._deck_combo = QComboBox()
         self._deck_combo.addItem("— none —")
         self._deck_combo.currentIndexChanged.connect(self._on_deck_selected)
-        lv.addWidget(self._deck_combo)
-        self._loaded_deck = None  # currently loaded deck dict
+        deck_lv.addWidget(self._deck_combo)
+        self._loaded_deck = None
 
-        lv.addWidget(QLabel("My archetype:"))
+        deck_lv.addWidget(QLabel("My archetype:"))
         self._my_arch = QComboBox()
         self._my_arch.setEditable(True)
         self._my_arch.lineEdit().setPlaceholderText("e.g. Boros Energy")
-        lv.addWidget(self._my_arch)
+        deck_lv.addWidget(self._my_arch)
 
-        help_lbl = QLabel("Expected field (one per line):\n'Deck Name x4' or 'Deck Name 4'")
+        lv.addWidget(deck_box)
+
+        # ── Field group ───────────────────────────────────────────────
+        field_box = QGroupBox("Expected Field")
+        field_lv = QVBoxLayout(field_box)
+        field_lv.setSpacing(theme.SPACE_XS)
+
+        help_lbl = QLabel("One per line: 'Deck Name x4' or 'Deck Name 4'")
         help_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
-        lv.addWidget(help_lbl)
+        help_lbl.setWordWrap(True)
+        field_lv.addWidget(help_lbl)
 
         self._field_input = QTextEdit()
         self._field_input.setPlaceholderText(
@@ -110,13 +130,15 @@ class EventWidget(QWidget):
         )
         self._field_input.setMinimumHeight(130)
         self._field_input.setMaximumHeight(220)
-        lv.addWidget(self._field_input)
+        field_lv.addWidget(self._field_input)
 
         self._meta_btn = QPushButton("Use Meta Distribution")
         self._meta_btn.setStyleSheet(theme.btn_secondary())
         self._meta_btn.setToolTip("Auto-fill field from current top meta archetypes by share %")
         self._meta_btn.clicked.connect(self._auto_populate_field)
-        lv.addWidget(self._meta_btn)
+        field_lv.addWidget(self._meta_btn)
+
+        lv.addWidget(field_box)
 
         self._analyze_btn = QPushButton("Analyze Field")
         self._analyze_btn.setStyleSheet(theme.btn_primary())
