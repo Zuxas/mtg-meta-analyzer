@@ -114,9 +114,25 @@ class MainWindow(QMainWindow):
         self._tabs.setTabPosition(QTabWidget.TabPosition.North)
         central_layout.addWidget(self._tabs, 1)
 
+        # ── Cross-tab callbacks (defined early so downstream tabs can take them) ─
+        # 'Send deck to SIMULATE' — invoked by any tab that has a current
+        # decklist (Deck Analyzer paste, Deck Search result, Dashboard avg deck).
+        # Late binding: self._simulate / self._tabs / self._meta_tab are looked
+        # up on the instance at call time, so they can be constructed below.
+        def _send_to_simulate(deck_text: str, source_label: str):
+            self._simulate.set_deck_paste(deck_text, source_label)
+            self._tabs.setCurrentWidget(self._meta_tab)
+            self._meta_tab.setCurrentWidget(self._simulate)
+
+        # 'Jump to SIMULATE matchup' — invoked by CalibrationTab double-click.
+        def _jump_to_simulate_matchup(a_label: str, b_label: str):
+            self._simulate.set_matchup(a_label, b_label)
+            self._tabs.setCurrentWidget(self._meta_tab)
+            self._meta_tab.setCurrentWidget(self._simulate)
+
         # ── Create all tab widgets ────────────────────────────────
         self._dash      = DashboardTab()
-        self._deck      = DeckAnalyzerTab()
+        self._deck      = DeckAnalyzerTab(on_simulate=_send_to_simulate)
         self._search    = SearchTab()
         self._charts    = ChartsTab()
         self._preds     = PredictionsTab()
@@ -124,11 +140,6 @@ class MainWindow(QMainWindow):
         self._tourney   = TournamentPrepTab()
         self._heatmap   = HeatmapTab()
         self._simulate  = SimulateTab()
-        # Calibration callback: double-click a cell -> set the SIMULATE tab's
-        # matchup and switch the META sub-tab to SIMULATE.
-        def _jump_to_simulate_matchup(a_label: str, b_label: str):
-            self._simulate.set_matchup(a_label, b_label)
-            self._meta_tab.setCurrentWidget(self._simulate)
         self._calibration = CalibrationTab(on_cell_activate=_jump_to_simulate_matchup)
         self._my_decks  = MyDecksTab()
         self._match_log = MatchLogTab()

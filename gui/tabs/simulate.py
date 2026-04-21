@@ -663,6 +663,18 @@ class SimulateTab(QWidget):
                 lines.append(f"{qty} {card}")
         return "\n".join(lines)
 
+    def set_deck_paste(self, deck_text: str, source_label: str = ""):
+        """External entry: load a decklist into the paste area.
+        Used by cross-tab 'Simulate this deck' actions (from Deck Analyzer,
+        Deck Search, Dashboard avg-deck, etc.). Does NOT auto-run.
+        """
+        self._paste.setPlainText(deck_text)
+        if source_label:
+            self._status.setText(
+                f"Loaded '{source_label}' into the paste area. "
+                f"Pick an archetype whose APL matches, then Run."
+            )
+
     def set_matchup(self, a_label: str, b_label: str):
         """External entry for 'jump to this matchup from another tab'.
         Sets the archetype + opponent dropdowns to the requested labels

@@ -323,8 +323,13 @@ def _card_reason(oracle_text: str | None, type_line: str | None, zone: str) -> s
 
 
 class DeckAnalyzerTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, on_simulate=None):
+        """
+        on_simulate: optional callable(deck_text: str, source_label: str).
+        Wired by main_window to send the current decklist to SIMULATE.
+        """
         super().__init__(parent)
+        self._on_simulate = on_simulate
         self._worker  = None
         self._workers = []          # keep refs alive
         self._parsed_main = {}
@@ -389,6 +394,18 @@ class DeckAnalyzerTab(QWidget):
         self._export_btn.setEnabled(False)
         self._export_btn.clicked.connect(self._on_export)
         ctrl.addWidget(self._export_btn)
+
+        # Send the current paste area to SIMULATE tab for goldfish/matchup runs.
+        # Only shown when main_window wired an on_simulate callback.
+        if self._on_simulate is not None:
+            self._simulate_btn = QPushButton("Simulate ▸")
+            self._simulate_btn.setStyleSheet(theme.btn_secondary())
+            self._simulate_btn.setToolTip(
+                "Send this decklist to the SIMULATE tab "
+                "(META > SIMULATE) with the paste area pre-filled."
+            )
+            self._simulate_btn.clicked.connect(self._on_send_to_simulate)
+            ctrl.addWidget(self._simulate_btn)
 
         self._status = QLabel("")
         ctrl.addWidget(self._status)
@@ -886,6 +903,23 @@ class DeckAnalyzerTab(QWidget):
             arch,
             self._fmt.currentText(),
         )
+
+    def _on_send_to_simulate(self):
+        """Hand the current paste-area deck text to SIMULATE."""
+        text = self._deck_input.toPlainText().strip()
+        if not text:
+            self._status.setText("Paste a decklist first.")
+            return
+        # Source label: try to read the archetype field if it's present; works
+        # whether _arch is a QComboBox (currentText) or QLineEdit (text).
+        arch = ""
+        if hasattr(self, "_arch"):
+            getter = getattr(self._arch, "currentText", None) or getattr(self._arch, "text", None)
+            if getter:
+                arch = (getter() or "").strip()
+        source = arch if arch and arch not in ("(auto-detect)", "") else "Deck Analyzer paste"
+        if self._on_simulate is not None:
+            self._on_simulate(text, source)
 
     def _run(self):
         text = self._deck_input.toPlainText().strip()
