@@ -545,11 +545,34 @@ def btn_success() -> str:
 
 
 def section_header_style() -> str:
-    """Stylesheet for bold section headers inside tabs."""
+    """Stylesheet for bold section headers inside tabs. Alias for h2_style."""
+    return h2_style()
+
+
+def h1_style() -> str:
+    """Tab-level heading (one per tab). 18px, bold, accent-colored."""
+    return (
+        f"font-family: '{HEADING_FONT}', 'Segoe UI', sans-serif; "
+        f"font-size: 18px; font-weight: 700; color: {TEXT}; "
+        f"letter-spacing: 0.2px;"
+    )
+
+
+def h2_style() -> str:
+    """Section header inside a tab. 13px, semibold."""
     return (
         f"font-family: '{HEADING_FONT}', 'Segoe UI', sans-serif; "
         f"font-size: 13px; font-weight: 600; color: {TEXT}; "
         f"letter-spacing: 0.3px;"
+    )
+
+
+def h3_style() -> str:
+    """Sub-section label / field group heading. 11px, medium, dim."""
+    return (
+        f"font-family: '{HEADING_FONT}', 'Segoe UI', sans-serif; "
+        f"font-size: 11px; font-weight: 500; color: {TEXT_DIM}; "
+        f"letter-spacing: 0.5px; text-transform: uppercase;"
     )
 
 

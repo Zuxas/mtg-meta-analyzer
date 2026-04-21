@@ -200,8 +200,8 @@ class CalibrationTab(QWidget):
         layout.setContentsMargins(theme.SPACE_LG, theme.SPACE_LG, theme.SPACE_LG, theme.SPACE_LG)
         layout.setSpacing(theme.SPACE_MD)
 
-        hdr = QLabel("<b>Calibration Matrix</b>")
-        hdr.setStyleSheet(f"color: {theme.TEXT}; font-size: 18px;")
+        hdr = QLabel("Calibration Matrix")
+        hdr.setStyleSheet(theme.h1_style())
         layout.addWidget(hdr)
 
         desc = QLabel(

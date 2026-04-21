@@ -588,8 +588,8 @@ class SimulateTab(QWidget):
         layout.setSpacing(theme.SPACE_MD)
 
         # Header
-        hdr = QLabel("<b>Goldfish Simulator</b>")
-        hdr.setStyleSheet(f"color: {theme.TEXT}; font-size: 18px;")
+        hdr = QLabel("Goldfish Simulator")
+        hdr.setStyleSheet(theme.h1_style())
         layout.addWidget(hdr)
 
         desc = QLabel(
