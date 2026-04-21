@@ -157,19 +157,44 @@ def _run_matchup(
     results = run_match_set(apl_a, a_deck, apl_b, b_deck, n=n_games, mix_play_draw=True, seed=42)
     elapsed = time.perf_counter() - t0
 
-    # Compute average winner hand size (7 - winner's mulligan count).
+    # Aggregate per-game winner stats: hand sizes + which cards appeared.
     # Per-game MatchResult objects are in results.results.
+    from collections import Counter
     winner_hand_sizes = []
+    a_inclusion = Counter()   # card name -> # of winning A-hands it was in
+    b_inclusion = Counter()   # same for B
+    a_wins_with_hand = 0
+    b_wins_with_hand = 0
     for r in getattr(results, "results", []) or []:
         if r.winner == "a":
             winner_hand_sizes.append(7 - r.mulligans_a)
+            hand = getattr(r, "hand_a", []) or []
+            if hand:
+                a_wins_with_hand += 1
+                for name in set(hand):
+                    a_inclusion[name] += 1
         elif r.winner == "b":
             winner_hand_sizes.append(7 - r.mulligans_b)
+            hand = getattr(r, "hand_b", []) or []
+            if hand:
+                b_wins_with_hand += 1
+                for name in set(hand):
+                    b_inclusion[name] += 1
+
     avg_winner_hand = (round(sum(winner_hand_sizes) / len(winner_hand_sizes), 2)
                        if winner_hand_sizes else 7.0)
     pct_winner_kept_7 = (round(sum(1 for h in winner_hand_sizes if h == 7)
                                / len(winner_hand_sizes) * 100, 1)
                          if winner_hand_sizes else 100.0)
+
+    def _top_cards(counter: Counter, denom: int, n: int = 12):
+        if not denom:
+            return []
+        return [{"name": name, "pct": round(c / denom * 100, 1)}
+                for name, c in counter.most_common(n)]
+
+    a_winner_hand_top = _top_cards(a_inclusion, a_wins_with_hand)
+    b_winner_hand_top = _top_cards(b_inclusion, b_wins_with_hand)
 
     # Calibration overlay: pull real-match WR from analyzer's DB if available
     real = _lookup_real_matchup(a_label, b_label)
@@ -185,6 +210,10 @@ def _run_matchup(
         "avg_turns": round(results.avg_turns, 2) if results.avg_turns else 0,
         "avg_winner_hand": avg_winner_hand,
         "pct_winner_kept_7": pct_winner_kept_7,
+        "a_winner_hand_top": a_winner_hand_top,
+        "b_winner_hand_top": b_winner_hand_top,
+        "a_wins_with_hand": a_wins_with_hand,
+        "b_wins_with_hand": b_wins_with_hand,
         "kill_distribution": results.kill_turn_distribution(),
         "elapsed_sec": round(elapsed, 3),
         "real_a_wr": real["real_a_wr"],
@@ -440,6 +469,20 @@ class SimulateTab(QWidget):
         else:
             lines.append(f"  (no real-match data on record for {a} vs {b} in modern)")
             lines.append("  Log more matches or lower the min-matches threshold to compare.")
+
+        # Most-common cards in winning opening hands (per side)
+        a_top = data.get("a_winner_hand_top") or []
+        b_top = data.get("b_winner_hand_top") or []
+        if a_top or b_top:
+            lines.extend(["", "-- Cards in winning opening hands --"])
+            if a_top:
+                lines.append(f"  [{a} winners, n={data.get('a_wins_with_hand', 0)}]")
+                for item in a_top:
+                    lines.append(f"    {item['name']:32s} {item['pct']:5.1f}%")
+            if b_top:
+                lines.append(f"  [{b} winners, n={data.get('b_wins_with_hand', 0)}]")
+                for item in b_top:
+                    lines.append(f"    {item['name']:32s} {item['pct']:5.1f}%")
 
         lines.extend(["", "Kill turn distribution (winner):"])
         for turn, pct in data.get("kill_distribution", {}).items():
