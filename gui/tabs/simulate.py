@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QSpinBox, QCheckBox, QTextEdit, QPlainTextEdit,
     QProgressBar, QSplitter,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
@@ -481,6 +481,14 @@ class SimulateTab(QWidget):
         self._paste.setMaximumHeight(120)
         layout.addWidget(self._paste)
 
+        # Debounced auto-detect: when paste changes, wait 500ms and try to
+        # auto-select the best-matching archetype via the KNN classifier.
+        self._autodetect_timer = QTimer(self)
+        self._autodetect_timer.setSingleShot(True)
+        self._autodetect_timer.setInterval(500)
+        self._autodetect_timer.timeout.connect(self._auto_detect_archetype)
+        self._paste.textChanged.connect(self._autodetect_timer.start)
+
         # Results pane
         self._results = QTextEdit()
         self._results.setReadOnly(True)
@@ -665,6 +673,54 @@ class SimulateTab(QWidget):
     def _on_finished(self):
         self._run_btn.setEnabled(True)
         self._progress.setVisible(False)
+
+    def _auto_detect_archetype(self):
+        """Parse the paste text, ask KNN for the best matching archetype,
+        select it in the dropdown if we ship an APL for it.
+        Silent no-op when:
+          - paste is empty or too small to classify
+          - classifier can't confidently identify
+          - returned archetype isn't in our registry
+        """
+        text = self._paste.toPlainText().strip()
+        if len(text) < 20:
+            return  # too short to be a deck
+
+        try:
+            # Reuse the analyzer's existing parser
+            from gui.tabs.deck_analyzer import parse_arena_decklist
+            main, _side = parse_arena_decklist(text)
+            if not main or sum(main.values()) < 40:
+                return  # not a plausible 60-card deck
+
+            from analysis.knn_classifier import hybrid_classify
+            from analysis.archetypes import normalize as norm_arch
+            arch = hybrid_classify(main, format_name="modern")
+            if not arch:
+                return
+
+            # Find the matching archetype in _ARCHETYPES by normalized name
+            target_norm = norm_arch(arch).lower()
+            for i, entry in enumerate(_ARCHETYPES):
+                entry_label_bare = entry[0]
+                for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
+                    if entry_label_bare.endswith(suf):
+                        entry_label_bare = entry_label_bare[:-len(suf)].strip()
+                        break
+                if norm_arch(entry_label_bare).lower() == target_norm:
+                    if self._archetype.currentIndex() != i:
+                        self._archetype.setCurrentIndex(i)
+                        self._status.setText(
+                            f"Auto-detected: {arch} -> {entry[0]} APL selected."
+                        )
+                    return
+            # Classified but not in our registry — note it in the status line
+            self._status.setText(
+                f"Auto-detected: {arch} (no APL in registry for this archetype)."
+            )
+        except Exception:
+            # Silent — classifier may be missing its model file, etc.
+            pass
 
     def _refresh_my_decks(self):
         """Populate the My Decks dropdown from the saved_decks table."""
