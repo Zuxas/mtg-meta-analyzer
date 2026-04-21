@@ -36,32 +36,10 @@ import gui.theme as theme
 # Colour helpers
 # ---------------------------------------------------------------------------
 
-def _wr_bg(winrate: float) -> QColor:
-    """Background QColor for a given win-rate (0.0–1.0). Subtle tint only."""
-    pct = winrate * 100
-    if pct >= 60:
-        return QColor(12, 50, 22)
-    if pct >= 55:
-        return QColor(14, 40, 20)
-    if pct >= 45:
-        return QColor(30, 30, 38)
-    if pct >= 40:
-        return QColor(55, 18, 16)
-    return QColor(65, 14, 14)
-
-
-def _wr_fg(winrate: float) -> QColor:
-    """Foreground (text) QColor for a given win-rate — matches legend colors."""
-    pct = winrate * 100
-    if pct >= 60:
-        return QColor(50, 220, 90)       # bright green
-    if pct >= 55:
-        return QColor(70, 190, 90)       # green
-    if pct >= 45:
-        return QColor(140, 145, 160)     # neutral grey
-    if pct >= 40:
-        return QColor(230, 90, 70)       # orange-red
-    return QColor(240, 60, 50)           # bright red
+# Back-compat aliases — the actual palette lives in theme.py so calibration,
+# heatmap, and any future matchup surface share one source of truth.
+_wr_bg = theme.winrate_bg
+_wr_fg = theme.winrate_fg
 
 
 def _wr_label(winrate: float) -> str:

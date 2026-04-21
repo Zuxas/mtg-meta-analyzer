@@ -112,19 +112,16 @@ def _fetch_meta_context(fmt: str) -> str:
 # Lightweight markdown → HTML
 # ---------------------------------------------------------------------------
 
-_USER_STYLE = ("background:#1a2535; border-left:3px solid #5eb5cf; "
-               "padding:8px 10px; margin:4px 0; border-radius:3px;")
-_ASST_STYLE = ("background:#1a2235; border-left:3px solid #3cb44b; "
-               "padding:8px 10px; margin:4px 0; border-radius:3px;")
-_ERR_STYLE  = ("background:#3a1515; border-left:3px solid #e6194b; "
-               "padding:8px 10px; margin:4px 0; border-radius:3px;")
+_USER_STYLE = theme.chat_bubble_style(theme.ACCENT)
+_ASST_STYLE = theme.chat_bubble_style(theme.OK)
+_ERR_STYLE  = theme.chat_bubble_style(theme.ERR)
 
 
 def _md_to_html(text: str) -> str:
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     text = re.sub(r"\*(.+?)\*",     r"<i>\1</i>", text)
-    text = re.sub(r"`(.+?)`", r'<code style="background:#2a3045;">\1</code>', text)
+    text = re.sub(r"`(.+?)`", rf'<code style="{theme.inline_code_style()}">\1</code>', text)
     lines, out = text.split("\n"), []
     for line in lines:
         if line.startswith(("• ", "- ")):

@@ -19,11 +19,11 @@ import gui.theme as theme
 # Breaker education text (static HTML, shown at bottom of results)
 # ---------------------------------------------------------------------------
 
-_WORKED_EXAMPLE_HTML = """
-<hr style="border: 1px solid #2d2e3f; margin: 14px 0;">
-<h3 style="color: #5eb5cf; margin: 0 0 8px 0;">Worked Example — 5-Round RCQ</h3>
+_WORKED_EXAMPLE_HTML = f"""
+<hr style="border: 1px solid {theme.BORDER}; margin: 14px 0;">
+<h3 style="color: {theme.ACCENT}; margin: 0 0 8px 0;">Worked Example — 5-Round RCQ</h3>
 <table style="border-collapse: collapse; width: 100%;">
-<tr style="color: #8a9aaa;">
+<tr style="color: {theme.TEXT_DIM};">
   <th style="text-align:left; padding-right:12px;">Round</th>
   <th style="text-align:left; padding-right:12px;">Opponent</th>
   <th style="text-align:left; padding-right:12px;">Result</th>
@@ -31,31 +31,31 @@ _WORKED_EXAMPLE_HTML = """
 <tr>
   <td style="padding-right:12px;">R1</td>
   <td style="padding-right:12px;">Mono Red Aggro</td>
-  <td style="color:#3cb44b; padding-right:12px;">Win</td>
+  <td style="color:{theme.OK}; padding-right:12px;">Win</td>
   <td>1-0-0 (3 pts)</td></tr>
 <tr>
   <td style="padding-right:12px;">R2</td>
   <td style="padding-right:12px;">Esper Oculus</td>
-  <td style="color:#3cb44b; padding-right:12px;">Win</td>
+  <td style="color:{theme.OK}; padding-right:12px;">Win</td>
   <td>2-0-0 (6 pts)</td></tr>
 <tr>
   <td style="padding-right:12px;">R3</td>
   <td style="padding-right:12px;">Big Dimir Midrange</td>
-  <td style="color:#e6194b; padding-right:12px;">Loss</td>
+  <td style="color:{theme.ERR}; padding-right:12px;">Loss</td>
   <td>2-1-0 (6 pts)</td></tr>
 <tr>
   <td style="padding-right:12px;">R4</td>
   <td style="padding-right:12px;">Rakdos Goblins</td>
-  <td style="color:#3cb44b; padding-right:12px;">Win</td>
+  <td style="color:{theme.OK}; padding-right:12px;">Win</td>
   <td>3-1-0 (9 pts) ✓ Locked top 4</td></tr>
 <tr>
-  <td style="padding-right:12px; color:#f58231;">R5 (pair-down)</td>
-  <td style="padding-right:12px; color:#f58231;">Unknown (2-2 player)</td>
-  <td style="color:#e6194b; padding-right:12px;">Loss</td>
-  <td style="color:#f58231;">3-2-0 (9 pts) → seeded 3rd</td></tr>
+  <td style="padding-right:12px; color:{theme.WARN};">R5 (pair-down)</td>
+  <td style="padding-right:12px; color:{theme.WARN};">Unknown (2-2 player)</td>
+  <td style="color:{theme.ERR}; padding-right:12px;">Loss</td>
+  <td style="color:{theme.WARN};">3-2-0 (9 pts) → seeded 3rd</td></tr>
 </table>
 
-<p style="margin: 8px 0; color: #f0c020;"><b>What happened:</b></p>
+<p style="margin: 8px 0; color: {theme.HILITE};"><b>What happened:</b></p>
 <ul style="margin: 4px 0; padding-left: 20px;">
 <li>At 9 pts in a 5-round event (top 4 cut at 9 pts), you were <b>locked for top 4</b> before R5.</li>
 <li>You were seeded <b>2nd</b> at 3-1 on tiebreakers — your opponents (including the 3-1 Dimir player)
@@ -66,7 +66,7 @@ _WORKED_EXAMPLE_HTML = """
   In top 4, higher seed plays lower seed: 1st vs 4th, 2nd vs 3rd.</li>
 </ul>
 
-<p style="margin: 8px 0; color: #f0c020;"><b>Why your R5 opponent (now 3-2) didn't make top 4:</b></p>
+<p style="margin: 8px 0; color: {theme.HILITE};"><b>Why your R5 opponent (now 3-2) didn't make top 4:</b></p>
 <ul style="margin: 4px 0; padding-left: 20px;">
 <li>Their 2 prior losses meant their R1-R4 opponents had weaker average records.</li>
 <li>OMW% is the average win rate of your opponents. A 2-2 player's opponents
@@ -77,32 +77,32 @@ _WORKED_EXAMPLE_HTML = """
 </ul>
 """
 
-_EDU_HTML = """
-<hr style="border: 1px solid #2d2e3f; margin: 14px 0;">
-<h3 style="color: #5eb5cf; margin: 0 0 8px 0;">How Tiebreakers Work in Magic Tournaments</h3>
+_EDU_HTML = f"""
+<hr style="border: 1px solid {theme.BORDER}; margin: 14px 0;">
+<h3 style="color: {theme.ACCENT}; margin: 0 0 8px 0;">How Tiebreakers Work in Magic Tournaments</h3>
 <p style="margin: 4px 0;">When players tie on points after Swiss, three tiebreakers decide who makes top cut:</p>
 
 <p style="margin: 8px 0;">
-<b style="color: #f0c020;">1. Opponent Match Win % (OMW%) — most important</b><br>
+<b style="color: {theme.HILITE};">1. Opponent Match Win % (OMW%) — most important</b><br>
 The average match win percentage of every opponent you played against.
 Playing against strong opponents who go 4-1 is better for your OMW% than
 opponents who go 1-4. <i>Each opponent has a 33% minimum floor to protect players who receive byes.</i>
 </p>
 
 <p style="margin: 8px 0;">
-<b style="color: #f0c020;">2. Game Win % (GW%)</b><br>
+<b style="color: {theme.HILITE};">2. Game Win % (GW%)</b><br>
 Your own win % across all individual games (not matches).
 Going 2-0 in every match builds GW% faster than 2-1 wins.
 <i>Minimum floor: 33%.</i>
 </p>
 
 <p style="margin: 8px 0;">
-<b style="color: #f0c020;">3. Opponent Game Win % (OGW%)</b><br>
+<b style="color: {theme.HILITE};">3. Opponent Game Win % (OGW%)</b><br>
 The average GW% of all your opponents. The last tiebreaker — only relevant
 when OMW% and GW% are both perfectly tied.
 </p>
 
-<p style="margin: 8px 0; color: #3cb44b;">
+<p style="margin: 8px 0; color: {theme.OK};">
 <b>Practical tips:</b><br>
 &nbsp;• Playing fast matters — a 2-0 win is worth more GW% than a 2-1 grind<br>
 &nbsp;• If you're already eliminated and your opponent is fighting for top 8, conceding
@@ -124,15 +124,15 @@ def _pair_down_note(s: dict) -> str:
     if cur < thr:
         return ""
     return (
-        '<div style="background: #2a2a1a; border-left: 4px solid #f58231; '
+        f'<div style="background: {theme.WARN_BG}; border-left: 4px solid {theme.WARN}; '
         'padding: 8px 12px; border-radius: 3px; margin: 10px 0;">'
-        '<b style="color: #f58231;">Pair-Down Warning</b><br>'
+        f'<b style="color: {theme.WARN};">Pair-Down Warning</b><br>'
         f'You are locked at {cur} pts with 1 round remaining. '
         'You may be paired DOWN against a player with one fewer win.<br>'
-        '<span style="color: #f0f0f0;">• Winning improves your seeding and GW%</span><br>'
-        '<span style="color: #8a9aaa;">• Losing still qualifies you for top cut, but drops your '
+        f'<span style="color: {theme.TEXT};">• Winning improves your seeding and GW%</span><br>'
+        f'<span style="color: {theme.TEXT_DIM};">• Losing still qualifies you for top cut, but drops your '
         'seeding and hurts GW% — important if multiple players are at the same points total</span><br>'
-        '<span style="color: #8a9aaa;">• Your opponent (if 2-2) will need a win to reach '
+        f'<span style="color: {theme.TEXT_DIM};">• Your opponent (if 2-2) will need a win to reach '
         f'{thr} pts — they cannot ID into top cut</span>'
         '</div>'
     )
@@ -148,15 +148,15 @@ def _seeding_html(top_cut: int) -> str:
         pairings = [("1st vs 2nd", "Finals only")]
 
     rows = "".join(
-        f'<tr><td style="padding-right:16px; color:#5eb5cf;">{p}</td>'
-        f'<td style="color:#8a9aaa;">{note}</td></tr>'
+        f'<tr><td style="padding-right:16px; color:{theme.ACCENT};">{p}</td>'
+        f'<td style="color:{theme.TEXT_DIM};">{note}</td></tr>'
         for p, note in pairings
     )
     return (
-        f'<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">Seeding Impact</h3>'
+        f'<h3 style="color: {theme.ACCENT}; margin: 12px 0 6px 0;">Seeding Impact</h3>'
         f'<p style="margin: 4px 0;">Top-{top_cut} bracket pairings (higher seed = better):</p>'
         f'<table style="border-collapse: collapse; margin: 6px 0 0 8px;">{rows}</table>'
-        f'<p style="margin: 6px 0; color: #8a9aaa; font-size: 10px;">'
+        f'<p style="margin: 6px 0; color: {theme.TEXT_DIM}; font-size: 10px;">'
         f'Seeding is determined by: 1. Points, 2. OMW%, 3. GW%, 4. OGW%</p>'
     )
 
@@ -167,7 +167,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
     sc = s["status_color"]
 
     lines = [
-        f'<div style="background: #1e2d40; border-left: 4px solid {sc}; '
+        f'<div style="background: {theme.INFO_BG}; border-left: 4px solid {sc}; '
         f'padding: 10px 12px; margin-bottom: 10px; border-radius: 3px;">',
         f'<span style="font-size: 15px; color: {sc}; font-weight: bold;">{s["status"]}</span><br>',
         f'Record: <b>{s["record"]}</b> &nbsp;|&nbsp; '
@@ -187,7 +187,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
         d_count = int(parts[2])
         pts_lost = d_count * 2
         lines.append(
-            f'<p style="color: #f58231; margin: 6px 0;">'
+            f'<p style="color: {theme.WARN}; margin: 6px 0;">'
             f'⚠ You have {d_count} draw(s) on your record — '
             f'each draw cost you 2 points vs a win ({pts_lost} pts total lost). '
             f'Your OMW% is also slightly reduced since opponents get 1 pt from you instead of 0 or 3.'
@@ -196,7 +196,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
 
     if s["eliminated"]:
         lines.append(
-            '<p style="color: #e6194b; margin: 6px 0;">'
+            f'<p style="color: {theme.ERR}; margin: 6px 0;">'
             f'Mathematically eliminated — maximum {s["max_pts"]} pts cannot reach '
             f'the {s["threshold"]}-pt threshold with {s["remaining"]} rounds remaining.</p>'
         )
@@ -205,7 +205,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
 
     # --- ID Calculator ---
     lines.append(
-        '<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">ID Calculator</h3>'
+        f'<h3 style="color: {theme.ACCENT}; margin: 12px 0 6px 0;">ID Calculator</h3>'
     )
 
     if s["remaining"] == 0:
@@ -218,7 +218,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
         if d["viable"]:
             if d["wins_needed"] == 0:
                 draw_desc = (
-                    f'<span style="color:#3cb44b;">✓ You are already at or above threshold. '
+                    f'<span style="color:{theme.OK};">✓ You are already at or above threshold. '
                     f'Safe to draw.</span>'
                 )
             else:
@@ -228,7 +228,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
                 )
         else:
             draw_desc = (
-                f'<span style="color:#e6194b;">⚠ Cannot reach {s["threshold"]} pts after a draw. '
+                f'<span style="color:{theme.ERR};">⚠ Cannot reach {s["threshold"]} pts after a draw. '
                 f'Max would be {d["pts"] + d["remaining"]*3} pts. You MUST WIN this round.</span>'
             )
 
@@ -239,7 +239,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
 
         # Win scenario
         if w["wins_needed"] == 0:
-            win_desc = '<span style="color:#3cb44b;">✓ At or above threshold!</span>'
+            win_desc = '<span style="color:{theme.OK};">✓ At or above threshold!</span>'
         else:
             win_desc = (
                 f'Then need <b>{w["wins_needed"]}</b> more win(s) from {w["remaining"]} remaining.'
@@ -251,7 +251,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
 
     # --- Points Tracker / Alive Records ---
     lines.append(
-        '<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">Points Tracker</h3>'
+        f'<h3 style="color: {theme.ACCENT}; margin: 12px 0 6px 0;">Points Tracker</h3>'
     )
     lines.append(
         f'<p style="margin: 4px 0;">'
@@ -264,13 +264,13 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
         lines.append('<p style="margin: 6px 0;"><b>Records that reach top cut:</b></p>')
         lines.append('<table style="border-collapse: collapse; margin-left: 8px;">')
         for rec in s["alive_records"][:12]:
-            clr = "#3cb44b" if rec["over"] else "#f0c020"
+            clr = theme.OK if rec["over"] else theme.HILITE
             tag = "safely in" if rec["over"] else "at threshold"
             lines.append(
                 f'<tr>'
                 f'<td style="color:{clr}; padding: 1px 12px 1px 0;"><b>{rec["record"]}</b></td>'
                 f'<td style="color:{clr};">{rec["points"]} pts</td>'
-                f'<td style="color: #8a9aaa; padding-left: 12px;">{tag}</td>'
+                f'<td style="color: {theme.TEXT_DIM}; padding-left: 12px;">{tag}</td>'
                 f'</tr>'
             )
         lines.append('</table>')
@@ -278,12 +278,12 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
     # --- Draw Equity Calculator ---
     if id_data:
         lines.append(
-            '<h3 style="color: #5eb5cf; margin: 12px 0 6px 0;">Draw Equity Calculator</h3>'
+            f'<h3 style="color: {theme.ACCENT}; margin: 12px 0 6px 0;">Draw Equity Calculator</h3>'
         )
         rc  = id_data["rec_color"]
         opp = id_data["opponent"]
         lines.append(
-            f'<div style="background: #1e2d40; border-left: 4px solid {rc}; '
+            f'<div style="background: {theme.INFO_BG}; border-left: 4px solid {rc}; '
             f'padding: 8px 12px; border-radius: 3px; margin-bottom: 8px;">'
             f'<b style="color: {rc};">{id_data["recommendation"]}</b>'
             f'</div>'
@@ -297,7 +297,7 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
         me = id_data["me"]
         lines.append(
             '<table style="border-collapse: collapse; margin-top: 6px;">'
-            '<tr style="color: #8a9aaa;">'
+            f'<tr style="color: {theme.TEXT_DIM};">'
             '<th style="text-align:left; padding-right: 16px;">Outcome</th>'
             '<th style="padding-right: 12px;">Your pts</th>'
             '<th>Opp pts</th></tr>'
@@ -322,13 +322,13 @@ def _build_results_html(standing: dict, id_data: dict | None, show_examples: boo
     # Teammate / locked concession note
     if s["safe_to_draw"] and id_data and id_data["opponent"]["safe_to_draw"]:
         lines.append(
-            '<div style="background: #1e3a22; border-left: 4px solid #3cb44b; '
+            f'<div style="background: {theme.SUCCESS_BG}; border-left: 4px solid {theme.OK}; '
             'padding: 8px 12px; border-radius: 3px; margin: 10px 0;">'
-            '<b style="color: #3cb44b;">Teammate / Locked Concession</b><br>'
+            f'<b style="color: {theme.OK};">Teammate / Locked Concession</b><br>'
             'Both players are locked for top cut. '
             'If this is a teammate pairing, either player can concede instantly — '
             'the result does not affect whether either player makes top cut.<br>'
-            '<span style="color: #8a9aaa;">Note: conceding to a teammate helps '
+            f'<span style="color: {theme.TEXT_DIM};">Note: conceding to a teammate helps '
             'their GW% and can improve their seeding slightly.</span>'
             '</div>'
         )
@@ -458,7 +458,7 @@ class BreakerWidget(QWidget):
         if players < RCQ_MIN_PLAYERS:
             self._struct_lbl.setText(
                 f"\u26a0  {players} players \u2014 below minimum ({RCQ_MIN_PLAYERS} required for RCQ)")
-            self._struct_lbl.setStyleSheet("color: #e6194b; font-size: 11px;")
+            self._struct_lbl.setStyleSheet(f"color: {theme.ERR}; font-size: 11px;")
         elif struct["single_elim"]:
             self._struct_lbl.setText(
                 "3 rounds, single elimination  \u2022  All 8 in bracket  \u2022  No threshold")

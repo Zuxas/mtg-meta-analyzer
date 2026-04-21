@@ -36,6 +36,12 @@ OK        = "#34d058"   # softer green
 WARN      = "#f0a030"   # warm amber
 ERR       = "#f04040"   # softer red
 
+# Tinted panel backgrounds for info / warning / success callouts
+INFO_BG      = "#1e2d40"   # dark blue tint for neutral info boxes
+WARN_BG      = "#2a2a1a"   # dark yellow tint for pair-down / caution boxes
+SUCCESS_BG   = "#1e3a22"   # dark green tint for success / all-clear boxes
+HILITE       = "#f0c020"   # yellow callout text (highlighted headings)
+
 # Chart colour palette — curated, not neon
 CHART_PALETTE = [
     "#5eb5cf", "#f04040", "#34d058", "#f0a030", "#a078e0",
@@ -536,6 +542,53 @@ def section_header_style() -> str:
         f"font-size: 13px; font-weight: 600; color: {TEXT}; "
         f"letter-spacing: 0.3px;"
     )
+
+
+def chat_bubble_style(accent_color: str) -> str:
+    """Inline CSS for a chat-log bubble. `accent_color` picks the left border —
+    e.g. ACCENT for user, OK for assistant, ERR for error."""
+    return (
+        f"background: {SURFACE}; border-left: 3px solid {accent_color}; "
+        f"padding: 8px 10px; margin: 4px 0; border-radius: 3px;"
+    )
+
+
+def inline_code_style() -> str:
+    """Inline CSS for <code>-style spans in rendered HTML."""
+    return f"background: {INPUT}; padding: 0 3px; border-radius: 2px;"
+
+
+# Winrate heatmap palette — 5-step green→grey→red gradient used anywhere
+# a matchup cell needs a favorability tint. Kept here so all winrate-tinted
+# surfaces (heatmap matrix, calibration matrix, matchup lists) share one source.
+def winrate_bg(winrate: float):
+    """Return a QColor background tint for a win-rate in [0.0, 1.0]."""
+    from PyQt6.QtGui import QColor
+    pct = winrate * 100
+    if pct >= 60:
+        return QColor(12, 50, 22)     # strong-favored green tint
+    if pct >= 55:
+        return QColor(14, 40, 20)     # favored green tint
+    if pct >= 45:
+        return QColor(30, 30, 38)     # even neutral tint
+    if pct >= 40:
+        return QColor(55, 18, 16)     # unfavored red tint
+    return QColor(65, 14, 14)         # strong-unfavored red tint
+
+
+def winrate_fg(winrate: float):
+    """Return a QColor foreground that pairs with winrate_bg() at the same level."""
+    from PyQt6.QtGui import QColor
+    pct = winrate * 100
+    if pct >= 60:
+        return QColor(50, 220, 90)    # bright green
+    if pct >= 55:
+        return QColor(70, 190, 90)    # green
+    if pct >= 45:
+        return QColor(140, 145, 160)  # neutral grey
+    if pct >= 40:
+        return QColor(230, 90, 70)    # orange-red
+    return QColor(240, 60, 50)        # bright red
 
 
 def friendly_error(e) -> str:
