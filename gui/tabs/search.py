@@ -361,7 +361,7 @@ class SearchTab(QWidget):
         self._deck_player_q.setFixedWidth(120)
         row2.addWidget(self._deck_player_q)
 
-        row2.addWidget(QLabel("Cards:"))
+        row2.addWidget(QLabel("All of:"))
         self._deck_cards_q = QLineEdit()
         self._deck_cards_q.setPlaceholderText(
             "exact names, comma-separated — all must be in deck"
@@ -372,8 +372,22 @@ class SearchTab(QWidget):
             "  Ragavan, Nimble Pilferer, Wrenn and Six"
         )
         self._deck_cards_q.returnPressed.connect(self._search_decks)
-        self._deck_cards_q.setMinimumWidth(240)
+        self._deck_cards_q.setMinimumWidth(180)
         row2.addWidget(self._deck_cards_q, 1)
+
+        row2.addWidget(QLabel("Any of:"))
+        self._deck_cards_any_q = QLineEdit()
+        self._deck_cards_any_q.setPlaceholderText(
+            "exact names, comma-separated — any one matches"
+        )
+        self._deck_cards_any_q.setToolTip(
+            "Filter to decks whose mainboard contains AT LEAST ONE of "
+            "these cards. Combine with 'All of:' to e.g. find control "
+            "decks playing Force of Negation OR Spell Pierce."
+        )
+        self._deck_cards_any_q.returnPressed.connect(self._search_decks)
+        self._deck_cards_any_q.setMinimumWidth(180)
+        row2.addWidget(self._deck_cards_any_q, 1)
 
         btn = _btn("Search")
         btn.clicked.connect(self._search_decks)
@@ -420,6 +434,8 @@ class SearchTab(QWidget):
         player_q  = self._deck_player_q.text().strip()
         card_names = [c.strip() for c in self._deck_cards_q.text().split(",")
                        if c.strip()]
+        any_card_names = [c.strip() for c in self._deck_cards_any_q.text().split(",")
+                           if c.strip()]
 
         self._deck_status.setText("Searching…")
         self._deck_table.setSortingEnabled(False)
@@ -464,6 +480,16 @@ class SearchTab(QWidget):
                             "AND dc.is_sideboard = 0 "
                             "AND lower(c.name) = lower(?))")
                     params.append(card)
+                # OR-semantics: a single EXISTS whose inner IN clause covers
+                # all 'Any of' names, so the deck matches if it plays any.
+                if any_card_names:
+                    any_ph = ",".join("lower(?)" for _ in any_card_names)
+                    sql += (f" AND EXISTS (SELECT 1 FROM deck_cards dc "
+                            f"JOIN cards c ON c.id = dc.card_id "
+                            f"WHERE dc.deck_id = d.id "
+                            f"AND dc.is_sideboard = 0 "
+                            f"AND lower(c.name) IN ({any_ph}))")
+                    params.extend(any_card_names)
                 sql += " ORDER BY sort_date DESC, d.placement ASC LIMIT 500"
                 rows = conn.execute(sql, params).fetchall()
             finally:
