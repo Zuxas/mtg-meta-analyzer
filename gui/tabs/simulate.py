@@ -565,7 +565,12 @@ class SimulateTab(QWidget):
         # Active archetype list — filtered by the format dropdown. Populated
         # by _build() before the archetype/opponent combos are filled.
         self._active = []
+        # Rolling history of recent sim runs (most recent first). Each entry:
+        # {label: str, text: str}. Capped at _HISTORY_CAP.
+        self._history = []
         self._build()
+
+    _HISTORY_CAP = 10
 
     @staticmethod
     def _formats_in_registry() -> list:
@@ -732,10 +737,20 @@ class SimulateTab(QWidget):
         self._autodetect_timer.timeout.connect(self._auto_detect_archetype)
         self._paste.textChanged.connect(self._autodetect_timer.start)
 
-        # Results header with copy button
+        # Results header with history + copy button
         results_hdr = QHBoxLayout()
         results_hdr.addWidget(QLabel("<b>Results</b>"))
         results_hdr.addStretch(1)
+        results_hdr.addWidget(QLabel("History:"))
+        self._history_combo = QComboBox()
+        self._history_combo.setMinimumWidth(280)
+        self._history_combo.addItem("-- no runs yet --")
+        self._history_combo.setToolTip(
+            f"Last {self._HISTORY_CAP} sim runs. Pick an older run to "
+            f"reload its output and compare against your current run."
+        )
+        self._history_combo.currentIndexChanged.connect(self._on_history_pick)
+        results_hdr.addWidget(self._history_combo)
         self._copy_btn = QPushButton("Copy")
         self._copy_btn.setMaximumWidth(80)
         self._copy_btn.setToolTip("Copy the full results text to the clipboard.")
@@ -921,17 +936,45 @@ class SimulateTab(QWidget):
         if mode == "matchup":
             gps = data["n_games"] / elapsed
             self._status.setText(f"Complete: {elapsed:.2f}s, {gps:.0f} games/sec")
-            self._results.setPlainText(self._format_matchup(data))
+            text = self._format_matchup(data)
+            hist_label = (f"{data['a_label']} vs {data['b_label']}  "
+                          f"{data['a_win_pct']}%  (n={data['n_games']})")
         elif mode == "field_gauntlet":
             self._status.setText(
                 f"Field gauntlet complete: {data['total_matches']:,} games in "
                 f"{elapsed:.1f}s ({data['total_matches']/elapsed:.0f} games/sec)"
             )
-            self._results.setPlainText(self._format_field(data))
+            text = self._format_field(data)
+            exp = round(data["expected_field_wr"] * 100, 1)
+            hist_label = (f"{data['a_label']} vs field  {exp}%  "
+                          f"(n={data['total_matches']})")
         else:
             gps = data["n_games"] / elapsed
             self._status.setText(f"Complete: {elapsed:.2f}s, {gps:.0f} games/sec")
-            self._results.setPlainText(self._format_goldfish(data))
+            text = self._format_goldfish(data)
+            wr = round(data["win_rate"] * 100, 1)
+            hist_label = (f"{data['archetype']} goldfish  {wr}%  "
+                          f"(n={data['n_games']})")
+
+        self._results.setPlainText(text)
+        self._push_history(hist_label, text)
+
+    def _push_history(self, label: str, text: str):
+        """Prepend a run to the history combo (most-recent first, capped)."""
+        from datetime import datetime
+        stamp = datetime.now().strftime("%H:%M:%S")
+        self._history.insert(0, {"label": f"{stamp}  {label}", "text": text})
+        if len(self._history) > self._HISTORY_CAP:
+            self._history = self._history[:self._HISTORY_CAP]
+        self._history_combo.blockSignals(True)
+        self._history_combo.clear()
+        for h in self._history:
+            self._history_combo.addItem(h["label"])
+        self._history_combo.blockSignals(False)
+
+    def _on_history_pick(self, idx: int):
+        if 0 <= idx < len(self._history):
+            self._results.setPlainText(self._history[idx]["text"])
 
     @staticmethod
     def _format_goldfish(data: dict) -> str:
