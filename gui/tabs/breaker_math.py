@@ -351,7 +351,7 @@ class BreakerWidget(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD)
         layout.setSpacing(10)
 
         # ── Tournament structure ───────────────────────────────────────

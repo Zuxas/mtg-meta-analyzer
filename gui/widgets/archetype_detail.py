@@ -365,7 +365,7 @@ def _make_resources_tab(resources: list) -> QWidget:
 
     container = QWidget()
     vl = QVBoxLayout(container)
-    vl.setContentsMargins(8, 8, 8, 8)
+    vl.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
     vl.setSpacing(6)
 
     if not resources:
@@ -534,7 +534,7 @@ def _make_tech_table(mainboard: list) -> QWidget:
 
     container = QWidget()
     vl = QVBoxLayout(container)
-    vl.setContentsMargins(8, 8, 8, 8)
+    vl.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
 
     if not tech:
         lbl = QLabel("No tech choices found — the list is very consistent.")

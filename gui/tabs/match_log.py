@@ -218,7 +218,7 @@ class MatchLogTab(QWidget):
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
 
         from gui.widgets.summary_bar import SummaryBar
         self._summary_bar = SummaryBar()

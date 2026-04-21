@@ -73,7 +73,7 @@ def _make_rcq_banner() -> QWidget:
     banner.setFixedHeight(32)
     row = QHBoxLayout(banner)
     row.setContentsMargins(12, 0, 12, 0)
-    row.setSpacing(8)
+    row.setSpacing(theme.SPACE_SM)
 
     icon = QLabel("\u26a0")
     icon.setStyleSheet("color: #f58231; font-size: 13px; background: transparent;")

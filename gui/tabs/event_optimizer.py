@@ -46,8 +46,8 @@ class EventWidget(QWidget):
         left.setMinimumWidth(270)
         left.setMaximumWidth(340)
         lv = QVBoxLayout(left)
-        lv.setContentsMargins(12, 12, 12, 12)
-        lv.setSpacing(8)
+        lv.setContentsMargins(theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD)
+        lv.setSpacing(theme.SPACE_SM)
 
         lv.addWidget(QLabel("Event type:"))
         self._event_type = QComboBox()
@@ -155,8 +155,8 @@ class EventWidget(QWidget):
         # ── Right: results ─────────────────────────────────────────────
         right = QWidget()
         rv = QVBoxLayout(right)
-        rv.setContentsMargins(12, 12, 12, 12)
-        rv.setSpacing(8)
+        rv.setContentsMargins(theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD)
+        rv.setSpacing(theme.SPACE_SM)
 
         # Header: grade + equity score
         hdr = QHBoxLayout()

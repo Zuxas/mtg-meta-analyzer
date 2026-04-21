@@ -288,8 +288,8 @@ class MyDecksTab(QWidget):
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
-        root.setSpacing(4)
+        root.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        root.setSpacing(theme.SPACE_XS)
 
         from gui.widgets.summary_bar import SummaryBar
         self._summary_bar = SummaryBar()

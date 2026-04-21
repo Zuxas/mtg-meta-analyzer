@@ -60,8 +60,8 @@ class KnowledgeBaseTab(QWidget):
 
     def _build_ui(self):
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(8)
+        outer.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        outer.setSpacing(theme.SPACE_SM)
 
         # ── Left: Add form ────────────────────────────────────────────
         left = QGroupBox("Add Resource")
@@ -120,7 +120,7 @@ class KnowledgeBaseTab(QWidget):
         right = QFrame()
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
-        rv.setSpacing(4)
+        rv.setSpacing(theme.SPACE_XS)
 
         # Header row: title + search + delete
         hdr = QHBoxLayout()

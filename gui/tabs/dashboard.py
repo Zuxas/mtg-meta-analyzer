@@ -231,7 +231,7 @@ class DashboardTab(QWidget):
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
         root.setSpacing(6)
 
         # ── Summary bar ─────────────────────────────────────────────
@@ -241,7 +241,7 @@ class DashboardTab(QWidget):
 
         # ── Controls bar ──────────────────────────────────────────────
         ctrl = QHBoxLayout()
-        ctrl.setSpacing(8)
+        ctrl.setSpacing(theme.SPACE_SM)
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
@@ -371,11 +371,11 @@ class DashboardTab(QWidget):
         bottom = QWidget()
         bl = QVBoxLayout(bottom)
         bl.setContentsMargins(0, 4, 0, 0)
-        bl.setSpacing(4)
+        bl.setSpacing(theme.SPACE_XS)
 
         # Chart mode toggle
         mode_row = QHBoxLayout()
-        mode_row.setSpacing(4)
+        mode_row.setSpacing(theme.SPACE_XS)
         self._mode_pop_btn = QPushButton("Popularity Over Time")
         self._mode_win_btn = QPushButton("Win Rate Over Time")
         for btn in (self._mode_pop_btn, self._mode_win_btn):
@@ -426,7 +426,7 @@ class DashboardTab(QWidget):
         )
         impact_hl = QHBoxLayout(self._impact_bar)
         impact_hl.setContentsMargins(8, 0, 8, 0)
-        impact_hl.setSpacing(8)
+        impact_hl.setSpacing(theme.SPACE_SM)
 
         impact_title = QLabel("META IMPACT:")
         impact_title.setStyleSheet(
@@ -458,7 +458,7 @@ class DashboardTab(QWidget):
         )
         sidebar_vl = QVBoxLayout(sidebar_frame)
         sidebar_vl.setContentsMargins(6, 6, 6, 6)
-        sidebar_vl.setSpacing(4)
+        sidebar_vl.setSpacing(theme.SPACE_XS)
 
         sidebar_hdr = QLabel("ARCHETYPES")
         sidebar_hdr.setStyleSheet(
@@ -1226,7 +1226,7 @@ class DashboardTab(QWidget):
             row_widget.setStyleSheet("background: transparent;")
             row_hl = QHBoxLayout(row_widget)
             row_hl.setContentsMargins(2, 0, 2, 0)
-            row_hl.setSpacing(4)
+            row_hl.setSpacing(theme.SPACE_XS)
 
             dot = QLabel("\u25cf")
             dot.setStyleSheet(f"color: {color_hex}; font-size: 10px; background: transparent;")

@@ -42,6 +42,15 @@ WARN_BG      = "#2a2a1a"   # dark yellow tint for pair-down / caution boxes
 SUCCESS_BG   = "#1e3a22"   # dark green tint for success / all-clear boxes
 HILITE       = "#f0c020"   # yellow callout text (highlighted headings)
 
+# ── Spacing scale ─────────────────────────────────────────────────────────
+# Use these for setContentsMargins() and setSpacing() instead of raw ints.
+# Sticking to a 4px grid keeps vertical rhythm consistent across tabs.
+SPACE_XS =  4    # inside buttons, tight row gaps
+SPACE_SM =  8    # field-to-field, inline filter bars
+SPACE_MD = 12    # section-to-section inside a pane
+SPACE_LG = 20    # tab outer margins, major layout breaks
+SPACE_XL = 32    # dialog paddings, top-level hero gutters
+
 # Chart colour palette — curated, not neon
 CHART_PALETTE = [
     "#5eb5cf", "#f04040", "#34d058", "#f0a030", "#a078e0",

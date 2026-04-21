@@ -307,7 +307,7 @@ class HeatmapTab(QWidget):
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
+        outer.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
         outer.setSpacing(6)
 
         # ── Toolbar ───────────────────────────────────────────────────
@@ -317,7 +317,7 @@ class HeatmapTab(QWidget):
         )
         tl = QHBoxLayout(toolbar)
         tl.setContentsMargins(8, 4, 8, 4)
-        tl.setSpacing(8)
+        tl.setSpacing(theme.SPACE_SM)
 
         tl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
@@ -458,7 +458,7 @@ class HeatmapTab(QWidget):
         row = QWidget()
         hl = QHBoxLayout(row)
         hl.setContentsMargins(4, 2, 4, 2)
-        hl.setSpacing(12)
+        hl.setSpacing(theme.SPACE_MD)
         hl.addWidget(QLabel("Legend:"))
         for label, color in [
             ("\u226560% (Strong Fav)", QColor(50, 220, 90)),
@@ -1268,7 +1268,7 @@ class HeatmapTab(QWidget):
         mc_bar = QWidget()
         mc_bar.setStyleSheet(f"background: {theme.PANEL}; border-radius: 4px;")
         mc_layout = QVBoxLayout(mc_bar)
-        mc_layout.setContentsMargins(8, 8, 8, 8)
+        mc_layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
         mc_layout.setSpacing(6)
 
         mc_header = QLabel("Monte Carlo Tournament Simulation")

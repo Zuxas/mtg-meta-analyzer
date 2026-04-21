@@ -23,12 +23,12 @@ class PredictionsTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        layout.setSpacing(theme.SPACE_SM)
 
         # ── Controls ──────────────────────────────────────────────────
         ctrl = QHBoxLayout()
-        ctrl.setSpacing(8)
+        ctrl.setSpacing(theme.SPACE_SM)
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()

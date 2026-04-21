@@ -73,7 +73,7 @@ class SettingsTab(QWidget):
         # ── Formats ───────────────────────────────────────────────────
         fmt_box = QGroupBox("Formats to Track")
         fmt_layout = QVBoxLayout(fmt_box)
-        fmt_layout.setSpacing(8)
+        fmt_layout.setSpacing(theme.SPACE_SM)
 
         self._fmt_checks = {}
         for fmt in ["standard", "pioneer", "modern", "legacy"]:
@@ -239,7 +239,7 @@ class SettingsTab(QWidget):
         # ── AI Assistant ──────────────────────────────────────────────
         ai_box = QGroupBox("AI Assistant (optional)")
         av = QVBoxLayout(ai_box)
-        av.setSpacing(8)
+        av.setSpacing(theme.SPACE_SM)
 
         ai_note = QLabel(
             "Enter your Anthropic API key to unlock the Ask Claude tab — "

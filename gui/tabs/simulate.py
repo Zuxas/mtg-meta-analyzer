@@ -584,8 +584,8 @@ class SimulateTab(QWidget):
 
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(theme.SPACE_LG, theme.SPACE_LG, theme.SPACE_LG, theme.SPACE_LG)
+        layout.setSpacing(theme.SPACE_MD)
 
         # Header
         hdr = QLabel("<b>Goldfish Simulator</b>")
@@ -602,7 +602,7 @@ class SimulateTab(QWidget):
 
         # Controls row
         ctrl = QHBoxLayout()
-        ctrl.setSpacing(8)
+        ctrl.setSpacing(theme.SPACE_SM)
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()

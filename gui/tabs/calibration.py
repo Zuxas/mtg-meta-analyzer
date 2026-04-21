@@ -197,8 +197,8 @@ class CalibrationTab(QWidget):
 
     def _build(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(theme.SPACE_LG, theme.SPACE_LG, theme.SPACE_LG, theme.SPACE_LG)
+        layout.setSpacing(theme.SPACE_MD)
 
         hdr = QLabel("<b>Calibration Matrix</b>")
         hdr.setStyleSheet(f"color: {theme.TEXT}; font-size: 18px;")

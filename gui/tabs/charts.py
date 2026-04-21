@@ -50,15 +50,15 @@ class ChartsTab(QWidget):
 
     def _build_ui(self):
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(8)
+        outer.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        outer.setSpacing(theme.SPACE_SM)
 
         # ── Left: controls panel ──────────────────────────────────────
         ctrl = QGroupBox("Chart Controls")
         ctrl.setFixedWidth(230)
         ctrl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         cv = QVBoxLayout(ctrl)
-        cv.setSpacing(8)
+        cv.setSpacing(theme.SPACE_SM)
 
         # Chart type
         cv.addWidget(QLabel("Chart Type:"))

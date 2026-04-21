@@ -109,8 +109,8 @@ class _DeckDetailDialog(QDialog):
         self.setMinimumSize(680, 560)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        layout.setSpacing(theme.SPACE_SM)
 
         # Header
         hdr = QLabel(f"<b>{archetype}</b>  ·  {player or '—'}  ·  "
@@ -288,7 +288,7 @@ class SearchTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
 
         tabs = QTabWidget()
         tabs.addTab(self._build_card_browser_tab(), "Card Browser")
@@ -312,7 +312,7 @@ class SearchTab(QWidget):
     def _build_deck_tab(self):
         w = QWidget()
         v = QVBoxLayout(w)
-        v.setContentsMargins(8, 8, 8, 8)
+        v.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
         v.setSpacing(6)
 
         # ── Row 1: query + format + placement ─────────────────────────
@@ -608,11 +608,11 @@ class SearchTab(QWidget):
     def _build_avsa_pane(self):
         w = QWidget()
         v = QVBoxLayout(w)
-        v.setContentsMargins(8, 8, 8, 8)
-        v.setSpacing(8)
+        v.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        v.setSpacing(theme.SPACE_SM)
 
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(theme.SPACE_SM)
 
         row.addWidget(QLabel("Deck A:"))
         self._h2h_a = QLineEdit()
@@ -689,11 +689,11 @@ class SearchTab(QWidget):
     def _build_vsfield_pane(self):
         w = QWidget()
         v = QVBoxLayout(w)
-        v.setContentsMargins(8, 8, 8, 8)
-        v.setSpacing(8)
+        v.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+        v.setSpacing(theme.SPACE_SM)
 
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(theme.SPACE_SM)
 
         row.addWidget(QLabel("My archetype:"))
         self._vsf_arch = QComboBox()

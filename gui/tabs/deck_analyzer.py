@@ -354,12 +354,12 @@ class DeckAnalyzerTab(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
         layout.setSpacing(6)
 
         # ── Top controls ──────────────────────────────────────────────
         ctrl = QHBoxLayout()
-        ctrl.setSpacing(8)
+        ctrl.setSpacing(theme.SPACE_SM)
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
@@ -414,7 +414,7 @@ class DeckAnalyzerTab(QWidget):
 
         # ── Load avg deck row ─────────────────────────────────────────
         load_row = QHBoxLayout()
-        load_row.setSpacing(8)
+        load_row.setSpacing(theme.SPACE_SM)
 
         lbl = QLabel("Load avg deck:")
         lbl.setStyleSheet(f"color: {theme.TEXT_DIM};")
@@ -500,7 +500,7 @@ class DeckAnalyzerTab(QWidget):
         right = QFrame()
         rv    = QVBoxLayout(right)
         rv.setContentsMargins(4, 0, 0, 0)
-        rv.setSpacing(8)
+        rv.setSpacing(theme.SPACE_SM)
 
         # Blunder section
         blunder_hdr = QLabel("Blunder Detection")
