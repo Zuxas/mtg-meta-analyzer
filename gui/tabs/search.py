@@ -361,6 +361,20 @@ class SearchTab(QWidget):
         self._deck_player_q.setFixedWidth(120)
         row2.addWidget(self._deck_player_q)
 
+        row2.addWidget(QLabel("Cards:"))
+        self._deck_cards_q = QLineEdit()
+        self._deck_cards_q.setPlaceholderText(
+            "exact names, comma-separated — all must be in deck"
+        )
+        self._deck_cards_q.setToolTip(
+            "Filter to decks whose mainboard contains ALL of these cards.\n"
+            "Names are matched exactly — use Scryfall spelling. Example:\n"
+            "  Ragavan, Nimble Pilferer, Wrenn and Six"
+        )
+        self._deck_cards_q.returnPressed.connect(self._search_decks)
+        self._deck_cards_q.setMinimumWidth(240)
+        row2.addWidget(self._deck_cards_q, 1)
+
         btn = _btn("Search")
         btn.clicked.connect(self._search_decks)
         row2.addWidget(btn)
@@ -404,6 +418,8 @@ class SearchTab(QWidget):
         date_from = self._deck_from.text().strip().replace("-", "")
         date_to   = self._deck_to.text().strip().replace("-", "")
         player_q  = self._deck_player_q.text().strip()
+        card_names = [c.strip() for c in self._deck_cards_q.text().split(",")
+                       if c.strip()]
 
         self._deck_status.setText("Searching…")
         self._deck_table.setSortingEnabled(False)
@@ -438,6 +454,16 @@ class SearchTab(QWidget):
                 if player_q:
                     sql += " AND lower(d.player) LIKE ?"
                     params.append(f"%{player_q.lower()}%")
+                # AND-semantics card filter: require a deck_cards row for
+                # each requested card. One EXISTS subquery per card so all
+                # names must be present on the same deck.
+                for card in card_names:
+                    sql += (" AND EXISTS (SELECT 1 FROM deck_cards dc "
+                            "JOIN cards c ON c.id = dc.card_id "
+                            "WHERE dc.deck_id = d.id "
+                            "AND dc.is_sideboard = 0 "
+                            "AND lower(c.name) = lower(?))")
+                    params.append(card)
                 sql += " ORDER BY sort_date DESC, d.placement ASC LIMIT 500"
                 rows = conn.execute(sql, params).fetchall()
             finally:
