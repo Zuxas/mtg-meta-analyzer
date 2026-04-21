@@ -411,6 +411,20 @@ class SimulateTab(QWidget):
         self._progress.setMaximumHeight(4)
         layout.addWidget(self._progress)
 
+        # Optional: load a saved deck from the analyzer's My Decks tab
+        my_decks_row = QHBoxLayout()
+        my_decks_row.addWidget(QLabel("Load from My Decks:"))
+        self._my_decks_combo = QComboBox()
+        self._my_decks_combo.setMinimumWidth(280)
+        self._my_decks_combo.currentIndexChanged.connect(self._on_load_my_deck)
+        my_decks_row.addWidget(self._my_decks_combo, 1)
+        refresh = QPushButton("Refresh")
+        refresh.setMaximumWidth(80)
+        refresh.clicked.connect(self._refresh_my_decks)
+        my_decks_row.addWidget(refresh)
+        layout.addLayout(my_decks_row)
+        self._refresh_my_decks()
+
         # Optional paste-your-own-deck textarea (overrides the archetype's shipped deck)
         paste_hdr = QLabel(
             "Paste your decklist (optional — overrides the archetype's shipped deck, "
@@ -600,6 +614,54 @@ class SimulateTab(QWidget):
     def _on_finished(self):
         self._run_btn.setEnabled(True)
         self._progress.setVisible(False)
+
+    def _refresh_my_decks(self):
+        """Populate the My Decks dropdown from the saved_decks table."""
+        self._my_decks_combo.blockSignals(True)
+        self._my_decks_combo.clear()
+        self._my_decks_combo.addItem("-- choose a saved deck --")
+        self._my_decks_cache = []
+        try:
+            from db.saved_decks import get_decks
+            decks = get_decks()
+            for d in decks:
+                fmt = d.get("format", "") or "?"
+                label = f"{d.get('name', '(unnamed)')}  [{fmt}]"
+                self._my_decks_combo.addItem(label)
+                self._my_decks_cache.append(d)
+        except Exception:
+            # DB missing / not bootstrapped yet — silently skip.
+            pass
+        self._my_decks_combo.blockSignals(False)
+
+    def _on_load_my_deck(self, idx: int):
+        if idx <= 0:
+            return
+        if idx - 1 >= len(self._my_decks_cache):
+            return
+        deck = self._my_decks_cache[idx - 1]
+        text = self._deck_to_text(deck)
+        self._paste.setPlainText(text)
+        # Nudge: show a tip via the status line
+        self._status.setText(
+            f"Loaded '{deck.get('name', '(unnamed)')}' into the paste area. "
+            f"Pick an archetype whose APL matches this deck, then Run."
+        )
+
+    @staticmethod
+    def _deck_to_text(deck: dict) -> str:
+        """Format a saved-deck dict ({name, mainboard: {card: qty}, sideboard: {...}}) as plain text."""
+        lines = []
+        mb = deck.get("mainboard") or {}
+        for card, qty in sorted(mb.items()):
+            lines.append(f"{qty} {card}")
+        sb = deck.get("sideboard") or {}
+        if sb:
+            lines.append("")
+            lines.append("Sideboard")
+            for card, qty in sorted(sb.items()):
+                lines.append(f"{qty} {card}")
+        return "\n".join(lines)
 
     def set_matchup(self, a_label: str, b_label: str):
         """External entry for 'jump to this matchup from another tab'.
