@@ -620,13 +620,14 @@ class ArchetypeDetailDialog(QDialog):
 
     def __init__(self, archetype: str, format_name: str,
                  initial_weeks: int | None = 2, parent=None,
-                 deck_id: int = None):
+                 deck_id: int = None, on_simulate=None):
         super().__init__(parent)
         self._archetype   = archetype
         self._format_name = format_name
         self._worker      = None
         self._data        = None   # populated by _on_data; used by export
         self._deck_id     = deck_id  # specific deck to show in "This List" tab
+        self._on_simulate = on_simulate
 
         self.setWindowTitle(f"{archetype} — Deck Analysis")
         self.setMinimumSize(900, 620)
@@ -696,6 +697,17 @@ class ArchetypeDetailDialog(QDialog):
         self._export_btn.clicked.connect(self._on_export)
         hl.addWidget(self._export_btn)
 
+        # Simulate the consensus 75 — only shown when a callback is wired.
+        if self._on_simulate is not None:
+            self._sim_btn = QPushButton("Simulate ▸")
+            self._sim_btn.setStyleSheet(theme.btn_secondary())
+            self._sim_btn.setFixedHeight(26)
+            self._sim_btn.setToolTip(
+                f"Send the consensus '{self._archetype}' deck to SIMULATE."
+            )
+            self._sim_btn.clicked.connect(self._on_send_to_simulate)
+            hl.addWidget(self._sim_btn)
+
         outer.addWidget(header)
 
         # ── Status bar (shown while loading) ─────────────────────────
@@ -759,6 +771,46 @@ class ArchetypeDetailDialog(QDialog):
     # ------------------------------------------------------------------
     # Slots
     # ------------------------------------------------------------------
+
+    def _on_send_to_simulate(self):
+        """Compute the archetype's avg deck and dispatch to SIMULATE."""
+        try:
+            from analysis.deck_analysis import get_average_deck
+            avg = get_average_deck(self._archetype,
+                                   format_name=self._format_name)
+            if not avg:
+                # Status bar fallback
+                if hasattr(self, "_status_lbl"):
+                    self._status_lbl.setText(
+                        f"No deck data available for {self._archetype} "
+                        f"({self._format_name}) — can't build an average deck."
+                    )
+                return
+
+            lines = []
+            for entry in avg.get("mainboard", []):
+                qty = entry.get("suggested_qty") or 0
+                name = entry.get("name")
+                if qty > 0 and name:
+                    lines.append(f"{qty} {name}")
+            sb = avg.get("sideboard") or []
+            if sb:
+                lines.append("")
+                lines.append("Sideboard")
+                for entry in sb:
+                    qty = entry.get("suggested_qty") or 0
+                    name = entry.get("name")
+                    if qty > 0 and name:
+                        lines.append(f"{qty} {name}")
+            text = "\n".join(lines)
+            n_decks = avg.get("deck_count", 0)
+            source = f"{self._archetype} avg (from {n_decks} decks)"
+            if self._on_simulate:
+                self._on_simulate(text, source)
+                self.accept()
+        except Exception as e:
+            if hasattr(self, "_status_lbl"):
+                self._status_lbl.setText(f"Simulate failed: {e}")
 
     def _on_export(self):
         if not self._data:

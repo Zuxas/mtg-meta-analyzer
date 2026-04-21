@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
             self._meta_tab.setCurrentWidget(self._simulate)
 
         # ── Create all tab widgets ────────────────────────────────
-        self._dash      = DashboardTab()
+        self._dash      = DashboardTab(on_simulate=_send_to_simulate)
         self._deck      = DeckAnalyzerTab(on_simulate=_send_to_simulate)
         self._search    = SearchTab(on_simulate=_send_to_simulate)
         self._charts    = ChartsTab()

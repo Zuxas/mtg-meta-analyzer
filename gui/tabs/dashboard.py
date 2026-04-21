@@ -208,7 +208,13 @@ class DashboardTab(QWidget):
 
     _TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, on_simulate=None):
+        """
+        on_simulate: optional callable(deck_text: str, source_label: str).
+        When set, the archetype detail dialog (opened by double-clicking an
+        archetype row) shows a 'Simulate' button that sends the archetype's
+        consensus 75 to the SIMULATE tab.
+        """
         super().__init__(parent)
         self._panel_worker  = None
         self._chart_worker  = None
@@ -216,6 +222,7 @@ class DashboardTab(QWidget):
         self._chart_checks  = {}       # archetype -> QCheckBox
         self._chart_mode    = "meta_share"
         self._standings     = []
+        self._on_simulate   = on_simulate
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -788,6 +795,7 @@ class DashboardTab(QWidget):
             initial_weeks=weeks,
             parent=self,
             deck_id=deck_id,
+            on_simulate=self._on_simulate,
         )
         dlg.exec()
 
