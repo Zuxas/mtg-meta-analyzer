@@ -333,16 +333,22 @@ def _run_field_gauntlet(
     a_label: str, a_match_module: str, a_match_class: str, a_deck_file: str,
     field_entries: list,   # list of _ARCHETYPES tuples (the opponents)
     n_per_matchup: int,
+    top_n: int = 0,        # 0 = all same-format entries; >0 = top-N by meta share
 ) -> dict:
-    """Run A vs every archetype in field_entries, weighted by meta share.
+    """Run A vs archetypes in field_entries, weighted by meta share.
+
+    If top_n > 0, filter field_entries to the top N by scraped meta share
+    (plus any entry whose share is unknown but is in the registry — we
+    keep those with zero weight so the expected WR calc ignores them but
+    the per-matchup table still shows 'not in scraped meta').
 
     Returns a results dict with:
       - per_matchup: [{opp_label, sim_wr, meta_share, appearances}, ...]
       - expected_field_wr: weighted WR (float 0-1) over sim-covered archetypes
       - coverage_meta_share: total meta share covered by the sim (0-1)
-      - weighted_covered_share: sum of weights actually applied (same as coverage)
       - total_matches: n_per_matchup * len(field_entries)
       - elapsed_sec
+      - top_n: top_n value used (echoed for display)
     """
     ok, msg = _check_mtg_sim_available()
     if not ok:
@@ -371,6 +377,16 @@ def _run_field_gauntlet(
                 appearances_by_arch[key] = row.get("appearances", 0)
     except Exception:
         pass
+
+    # Top-N filter: keep entries whose meta share ranks in the top N.
+    # Archetypes with no scraped share get share=0 and are ranked below
+    # known entries; they only survive if the registry has fewer than N
+    # known-meta entries in this format.
+    if top_n and top_n > 0 and len(field_entries) > top_n:
+        def _share(entry):
+            key = norm_arch(_strip_format_suffix(entry[0])).lower()
+            return meta_share_by_arch.get(key, 0.0)
+        field_entries = sorted(field_entries, key=_share, reverse=True)[:top_n]
 
     # Our side
     a_mod = importlib.import_module(a_match_module)
@@ -434,6 +450,7 @@ def _run_field_gauntlet(
         "coverage_meta_share": total_weight,
         "total_matches": n_per_matchup * len(per_matchup),
         "elapsed_sec": round(elapsed, 3),
+        "top_n": top_n,
     }
 
 
@@ -611,12 +628,27 @@ class SimulateTab(QWidget):
         self._run_btn.clicked.connect(self._on_run)
         ctrl.addWidget(self._run_btn)
 
+        ctrl.addWidget(QLabel("Top:"))
+        self._field_top = QComboBox()
+        # Labels + int values. 0 = All (the old behavior).
+        self._field_top_values = [("All", 0), ("Top 5", 5),
+                                   ("Top 8", 8), ("Top 10", 10)]
+        for label, _v in self._field_top_values:
+            self._field_top.addItem(label)
+        self._field_top.setCurrentIndex(2)   # Top 8 default
+        self._field_top.setToolTip(
+            "Limit the field gauntlet to the top N same-format archetypes "
+            "by current scraped meta share — closer to an expected RCQ "
+            "field than running vs every sim APL."
+        )
+        ctrl.addWidget(self._field_top)
+
         self._field_btn = QPushButton("Field")
         self._field_btn.setMinimumWidth(80)
         self._field_btn.setToolTip(
-            "Run this deck against every archetype in the sim registry, "
-            "weighted by current Modern meta share. Produces an expected "
-            "field win rate."
+            "Run this deck against the selected slice of the field, "
+            "weighted by current meta share. Produces an expected field "
+            "win rate."
         )
         self._field_btn.clicked.connect(self._on_run_field)
         ctrl.addWidget(self._field_btn)
@@ -805,15 +837,19 @@ class SimulateTab(QWidget):
         fmt = _format_of(a[0])
         field_entries = [e for e in _ARCHETYPES
                          if _format_of(e[0]) == fmt and e[0] != a[0]]
+        top_n = self._field_top_values[self._field_top.currentIndex()][1]
+        slice_label = (f"top {top_n}" if top_n
+                       else f"{len(field_entries)} archetype(s)")
         self._status.setText(
-            f"Running {a[0]} vs {len(field_entries)} field archetypes "
-            f"({fmt.capitalize()}, {n_per} games each) ..."
+            f"Running {a[0]} vs {slice_label} of the "
+            f"{fmt.capitalize()} field ({n_per} games each) ..."
         )
 
         w = DataLoadWorker(_run_field_gauntlet, kwargs=dict(
             a_label=a[0], a_match_module=a[3], a_match_class=a[4], a_deck_file=a[5],
             field_entries=field_entries,
             n_per_matchup=n_per,
+            top_n=top_n,
         ))
         w.result.connect(self._on_result)
         w.error.connect(self._on_error)
@@ -965,9 +1001,11 @@ class SimulateTab(QWidget):
         expected = round(data["expected_field_wr"] * 100, 1)
         coverage = round(data["coverage_meta_share"] * 100, 1)
         fmt = _format_of(a).capitalize()
+        top_n = data.get("top_n", 0) or 0
+        slice_tag = f" top {top_n}" if top_n else ""
 
         lines = [
-            f"== {a} vs field ({fmt}) | {n} games per matchup ==",
+            f"== {a} vs{slice_tag} field ({fmt}) | {n} games per matchup ==",
             "",
             f"Expected field WR: {expected}%  "
             f"(weighted over {len(data['per_matchup'])} covered archetypes, "
