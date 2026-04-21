@@ -318,8 +318,9 @@ class MyDecksTab(QWidget):
 
         # Deck table
         self._table = QTableWidget()
-        self._table.setColumnCount(4)
-        self._table.setHorizontalHeaderLabels(["Name", "Format", "Archetype", "Cards"])
+        self._table.setColumnCount(5)
+        self._table.setHorizontalHeaderLabels(
+            ["Name", "Format", "Archetype", "Cards", "Legal"])
         self._table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch
         )
@@ -331,6 +332,9 @@ class MyDecksTab(QWidget):
         )
         self._table.horizontalHeader().setSectionResizeMode(
             3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.ResizeToContents
         )
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
@@ -509,6 +513,60 @@ class MyDecksTab(QWidget):
     # Data loading
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _find_banned_cards(decks: list) -> dict:
+        """Return {deck_id: [banned_card_names]} for any mainboard card
+        banned in the deck's format. Empty list = all legal. Silently
+        returns {} on DB errors so the table still loads."""
+        if not decks:
+            return {}
+        names = set()
+        for d in decks:
+            names.update((d.get("mainboard") or {}).keys())
+            names.update((d.get("sideboard") or {}).keys())
+        if not names:
+            return {}
+        import json
+        try:
+            from db.database import get_combined_connection
+            conn = get_combined_connection()
+            try:
+                placeholders = ",".join("?" * len(names))
+                rows = conn.execute(
+                    f"SELECT name, legalities FROM card_data "
+                    f"WHERE name IN ({placeholders})",
+                    list(names),
+                ).fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            return {}
+
+        legality_map = {}
+        for row in rows:
+            try:
+                legality_map[row["name"]] = json.loads(row["legalities"] or "{}")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        result = {}
+        for d in decks:
+            fmt = (d.get("format") or "").lower()
+            if not fmt:
+                continue
+            banned_here = []
+            for card in (d.get("mainboard") or {}):
+                status = (legality_map.get(card, {}) or {}).get(fmt)
+                if status == "banned":
+                    banned_here.append(card)
+            for card in (d.get("sideboard") or {}):
+                status = (legality_map.get(card, {}) or {}).get(fmt)
+                if status == "banned" and card not in banned_here:
+                    banned_here.append(card)
+            if banned_here:
+                result[d.get("id")] = banned_here
+        return result
+
     def _load_decks(self):
         fmt = self._filter_fmt.currentText()
         fmt_arg = None if fmt == "All" else fmt
@@ -525,6 +583,7 @@ class MyDecksTab(QWidget):
 
     def _on_decks_loaded(self, decks: list):
         self._decks = decks
+        banned_by_deck = self._find_banned_cards(decks)
         self._table.setRowCount(len(decks))
         for row, d in enumerate(decks):
             main = d.get("mainboard", {})
@@ -543,6 +602,21 @@ class MyDecksTab(QWidget):
             ct_item = QTableWidgetItem(str(total))
             ct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 3, ct_item)
+
+            banned = banned_by_deck.get(d.get("id"), [])
+            if banned:
+                legal_item = QTableWidgetItem(f"\u26A0 {len(banned)}")
+                legal_item.setForeground(QColor(theme.ERR))
+                legal_item.setToolTip(
+                    "Banned in " + (d.get("format") or "?").capitalize() + ":\n  "
+                    + "\n  ".join(banned)
+                )
+            else:
+                legal_item = QTableWidgetItem("\u2713")
+                legal_item.setForeground(QColor(theme.OK))
+                legal_item.setToolTip("All cards legal in this format.")
+            legal_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._table.setItem(row, 4, legal_item)
 
         # Summary bar
         n = len(decks)
