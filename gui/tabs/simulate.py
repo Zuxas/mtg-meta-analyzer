@@ -86,6 +86,42 @@ def _run_goldfish(apl_module: str, apl_class: str, deck_file: str,
     return data
 
 
+def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern",
+                         min_matches: int = 10) -> dict:
+    """Look up real-match win rate for A vs B from the analyzer's scraped DB.
+
+    Returns {'real_a_wr': float|None, 'sample_size': int}. If no data exists
+    for the pairing (or the normalizer can't match the archetype name),
+    real_a_wr is None and sample_size is 0. Silently returns empty on any
+    exception — the overlay is opt-in, not load-bearing.
+    """
+    try:
+        from analysis.win_rates import get_real_matchup_winrates
+        from analysis.archetypes import normalize as norm_arch
+
+        # Strip '(Modern)'/(Standard) suffix from sim display labels
+        def _strip_fmt(s):
+            for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
+                if s.endswith(suf):
+                    return s[:-len(suf)].strip()
+            return s.strip()
+
+        a_arch = norm_arch(_strip_fmt(a_label))
+        b_arch = norm_arch(_strip_fmt(b_label))
+        real = get_real_matchup_winrates(format_name, min_matches=min_matches)
+
+        # Canonical ordering is alphabetical; query both directions
+        if a_arch in real and b_arch in real[a_arch]:
+            entry = real[a_arch][b_arch]
+            return {"real_a_wr": entry["win_rate"], "sample_size": entry["total"]}
+        if b_arch in real and a_arch in real[b_arch]:
+            entry = real[b_arch][a_arch]
+            return {"real_a_wr": 1.0 - entry["win_rate"], "sample_size": entry["total"]}
+    except Exception:
+        pass
+    return {"real_a_wr": None, "sample_size": 0}
+
+
 def _run_matchup(
     a_label: str, a_match_module: str, a_match_class: str, a_deck_file: str,
     b_label: str, b_match_module: str, b_match_class: str, b_deck_file: str,
@@ -114,6 +150,9 @@ def _run_matchup(
     results = run_match_set(apl_a, a_deck, apl_b, b_deck, n=n_games, mix_play_draw=True, seed=42)
     elapsed = time.perf_counter() - t0
 
+    # Calibration overlay: pull real-match WR from analyzer's DB if available
+    real = _lookup_real_matchup(a_label, b_label)
+
     return {
         "mode": "matchup",
         "a_label": a_label,
@@ -125,6 +164,8 @@ def _run_matchup(
         "avg_turns": round(results.avg_turns, 2) if results.avg_turns else 0,
         "kill_distribution": results.kill_turn_distribution(),
         "elapsed_sec": round(elapsed, 3),
+        "real_a_wr": real["real_a_wr"],
+        "real_sample_size": real["sample_size"],
     }
 
 
@@ -326,9 +367,30 @@ class SimulateTab(QWidget):
             f"  {b:35s} {b_wins:5d} wins  ({b_pct}%)",
             "",
             f"Avg match length: {data['avg_turns']} turns",
-            "",
-            "Kill turn distribution (winner):",
         ]
+
+        # Calibration overlay: sim prediction vs real-match data
+        lines.extend(["", "-- Sim vs real-match data --"])
+        real_wr = data.get("real_a_wr")
+        if real_wr is not None:
+            real_pct = round(real_wr * 100, 1)
+            sample = data.get("real_sample_size", 0)
+            delta = round(a_pct - real_pct, 1)
+            lines.append(f"  Sim predicts  {a:20s}  {a_pct:5.1f}%  (n={n})")
+            lines.append(f"  Real data     {a:20s}  {real_pct:5.1f}%  (n={sample})")
+            sign = "+" if delta >= 0 else ""
+            if abs(delta) >= 5:
+                verdict = f"{sign}{delta} pts — sim {'over' if delta > 0 else 'under'}-predicts {a}"
+            elif abs(delta) >= 2:
+                verdict = f"{sign}{delta} pts — close match"
+            else:
+                verdict = f"{sign}{delta} pts — sim aligns with real data"
+            lines.append(f"  Delta         {' ':20s}  {verdict}")
+        else:
+            lines.append(f"  (no real-match data on record for {a} vs {b} in modern)")
+            lines.append("  Log more matches or lower the min-matches threshold to compare.")
+
+        lines.extend(["", "Kill turn distribution (winner):"])
         for turn, pct in data.get("kill_distribution", {}).items():
             bar = "\u2588" * int(pct / 2)
             lines.append(f"  T{turn:2d}  {pct:5.1f}%  {bar}")
