@@ -1132,20 +1132,62 @@ class SimulateTab(QWidget):
                 f"Pick an archetype whose APL matches, then Run."
             )
 
-    def set_matchup(self, a_label: str, b_label: str):
+    def set_matchup(self, a_label: str, b_label: str,
+                    format_hint: str = None) -> tuple:
         """External entry for 'jump to this matchup from another tab'.
-        Sets the archetype + opponent dropdowns to the requested labels
-        (silently no-ops if either label isn't in the registry)."""
-        # Find the archetype dropdown index for a_label
-        for i in range(self._archetype.count()):
-            if self._archetype.itemText(i) == a_label:
-                self._archetype.setCurrentIndex(i)
-                break
-        # Opponent dropdown: index 0 is 'Goldfish', archetypes start at 1
-        for j in range(1, self._opponent.count()):
-            if self._opponent.itemText(j) == b_label:
-                self._opponent.setCurrentIndex(j)
-                break
+        Sets the archetype + opponent dropdowns to the requested labels.
+
+        If a label already carries a format suffix ('(Modern)'/'(Standard)'),
+        matches exactly. Otherwise uses format_hint + normalized-name
+        fuzzy-matching so callers like Match Log (which store bare
+        archetype names) can dispatch without knowing the registry's
+        labeling convention.
+
+        Returns (a_ok, b_ok) — True for each side we could resolve.
+        Updates the status line if either side wasn't found.
+        """
+        def _resolve(label, opponent_mode=False):
+            count = self._opponent.count() if opponent_mode else self._archetype.count()
+            combo = self._opponent if opponent_mode else self._archetype
+            start = 1 if opponent_mode else 0   # skip 'Goldfish' opponent entry
+            for i in range(start, count):
+                if combo.itemText(i) == label:
+                    return i
+            # Fuzzy match: same format (from hint or label suffix) + same
+            # normalized archetype name.
+            try:
+                from analysis.archetypes import normalize as norm_arch
+            except Exception:
+                return None
+            target_fmt = (format_hint or _format_of(label)).lower()
+            target_arch = norm_arch(_strip_format_suffix(label)).lower()
+            for i in range(start, count):
+                entry_label = combo.itemText(i)
+                if _format_of(entry_label) != target_fmt:
+                    continue
+                bare = _strip_format_suffix(entry_label)
+                if norm_arch(bare).lower() == target_arch:
+                    return i
+            return None
+
+        a_idx = _resolve(a_label, opponent_mode=False)
+        b_idx = _resolve(b_label, opponent_mode=True)
+        a_ok = a_idx is not None
+        b_ok = b_idx is not None
+
+        if a_ok:
+            self._archetype.setCurrentIndex(a_idx)
+        if b_ok:
+            self._opponent.setCurrentIndex(b_idx)
+
+        if not a_ok or not b_ok:
+            missing = []
+            if not a_ok:
+                missing.append(f"no sim APL for '{a_label}'")
+            if not b_ok:
+                missing.append(f"no sim APL for '{b_label}'")
+            self._status.setText(" / ".join(missing) + ". Pick the closest match manually.")
+        return (a_ok, b_ok)
 
     def cleanup(self):
         """Called by main_window on close — stops any running workers."""

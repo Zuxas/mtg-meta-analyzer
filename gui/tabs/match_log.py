@@ -169,13 +169,20 @@ class _MatchDialog(QDialog):
 
 
 class MatchLogTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, on_simulate_matchup=None):
+        """
+        on_simulate_matchup: optional callable(a_label, b_label, format_hint).
+        When set, rows in both the match table and the stats table show a
+        right-click 'Simulate this matchup' action that hands off to
+        SIMULATE pre-filled.
+        """
         super().__init__(parent)
         self._workers = []
         self._last_event = ""
         self._last_deck = ""
         self._last_format = "modern"
         self._last_round = 1
+        self._on_simulate_matchup = on_simulate_matchup
         self._build_ui()
         QTimer.singleShot(200, self._load_matches)
 
@@ -242,6 +249,8 @@ class MatchLogTab(QWidget):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
         self._table.setAlternatingRowColors(True)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_matches_menu)
         lv.addWidget(self._table, 1)
 
         # Buttons
@@ -285,6 +294,8 @@ class MatchLogTab(QWidget):
         self._stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._stats_table.verticalHeader().setVisible(False)
         self._stats_table.setAlternatingRowColors(True)
+        self._stats_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._stats_table.customContextMenuRequested.connect(self._on_stats_menu)
         rv.addWidget(self._stats_table, 1)
 
         # SB Advice button
@@ -395,7 +406,8 @@ class MatchLogTab(QWidget):
             return {"matches": matches, "stats": stats, "overall": overall,
                     "meta_wrs": meta_wrs, "event_types": dict(event_types),
                     "event_stats": event_stats,
-                    "trend": trend}
+                    "trend": trend,
+                    "active_deck": active_deck, "active_format": fmt_arg}
 
         w = DataLoadWorker(_do)
         w.result.connect(self._on_data)
@@ -405,6 +417,8 @@ class MatchLogTab(QWidget):
 
     def _on_data(self, data):
         self._matches = data["matches"]
+        self._active_deck = data.get("active_deck") or ""
+        self._active_format = data.get("active_format") or "modern"
         self._populate_table(data["matches"])
         self._populate_stats(data["stats"], data.get("meta_wrs", {}))
         ov = data["overall"]
@@ -461,6 +475,54 @@ class MatchLogTab(QWidget):
         # Win rate trend chart
         trend = data.get("trend", [])
         self._draw_trend(trend)
+
+    def _on_matches_menu(self, pos):
+        """Right-click on a logged match row → 'Simulate this matchup'."""
+        if self._on_simulate_matchup is None:
+            return
+        row = self._table.rowAt(pos.y())
+        if row < 0 or row >= len(getattr(self, "_matches", [])):
+            return
+        m = self._matches[row]
+        my_deck = (m.get("my_deck") or "").strip()
+        opp_deck = (m.get("opp_deck") or "").strip()
+        fmt = (m.get("format") or "modern").lower()
+        if not my_deck or not opp_deck:
+            return
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self._table)
+        act = menu.addAction(f"Simulate: {my_deck} vs {opp_deck}")
+        chosen = menu.exec(self._table.viewport().mapToGlobal(pos))
+        if chosen is act:
+            try:
+                self._on_simulate_matchup(my_deck, opp_deck, fmt)
+            except Exception:
+                pass
+
+    def _on_stats_menu(self, pos):
+        """Right-click on a matchup-stats row → 'Simulate this matchup'."""
+        if self._on_simulate_matchup is None:
+            return
+        row = self._stats_table.rowAt(pos.y())
+        if row < 0:
+            return
+        opp_item = self._stats_table.item(row, 0)
+        if opp_item is None:
+            return
+        opp_deck = opp_item.text().strip()
+        my_deck = getattr(self, "_active_deck", "") or ""
+        fmt = getattr(self, "_active_format", "modern") or "modern"
+        if not my_deck or not opp_deck:
+            return
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self._stats_table)
+        act = menu.addAction(f"Simulate: {my_deck} vs {opp_deck}")
+        chosen = menu.exec(self._stats_table.viewport().mapToGlobal(pos))
+        if chosen is act:
+            try:
+                self._on_simulate_matchup(my_deck, opp_deck, fmt)
+            except Exception:
+                pass
 
     def _populate_table(self, matches):
         self._table.setRowCount(len(matches))

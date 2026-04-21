@@ -126,9 +126,12 @@ class MainWindow(QMainWindow):
             self._tabs.setCurrentWidget(self._meta_tab)
             self._meta_tab.setCurrentWidget(self._simulate)
 
-        # 'Jump to SIMULATE matchup' — invoked by CalibrationTab double-click.
-        def _jump_to_simulate_matchup(a_label: str, b_label: str):
-            self._simulate.set_matchup(a_label, b_label)
+        # 'Jump to SIMULATE matchup' — invoked by CalibrationTab double-click
+        # and Match Log context menu.
+        def _jump_to_simulate_matchup(a_label: str, b_label: str,
+                                       format_hint: str = None):
+            self._simulate.set_matchup(a_label, b_label,
+                                        format_hint=format_hint)
             self._tabs.setCurrentWidget(self._meta_tab)
             self._meta_tab.setCurrentWidget(self._simulate)
 
@@ -144,7 +147,7 @@ class MainWindow(QMainWindow):
         self._simulate  = SimulateTab()
         self._calibration = CalibrationTab(on_cell_activate=_jump_to_simulate_matchup)
         self._my_decks  = MyDecksTab()
-        self._match_log = MatchLogTab()
+        self._match_log = MatchLogTab(on_simulate_matchup=_jump_to_simulate_matchup)
         self._claude    = AskClaudeTab()
         self._set_analysis = SetAnalysisTab()
         self._settings  = SettingsTab()
