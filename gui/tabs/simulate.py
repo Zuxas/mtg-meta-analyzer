@@ -196,6 +196,14 @@ def _run_goldfish(apl_module: str, apl_class: str, deck_file: str,
     return data
 
 
+def _strip_format_suffix(s: str) -> str:
+    """Drop '(Modern)'/(Standard)/etc. trailing format tag from a sim label."""
+    for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)", " (Pauper)"):
+        if s.endswith(suf):
+            return s[:-len(suf)].strip()
+    return s.strip()
+
+
 def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern",
                          min_matches: int = 10) -> dict:
     """Look up real-match win rate for A vs B from the analyzer's scraped DB.
@@ -209,15 +217,8 @@ def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern"
         from analysis.win_rates import get_real_matchup_winrates
         from analysis.archetypes import normalize as norm_arch
 
-        # Strip '(Modern)'/(Standard) suffix from sim display labels
-        def _strip_fmt(s):
-            for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
-                if s.endswith(suf):
-                    return s[:-len(suf)].strip()
-            return s.strip()
-
-        a_arch = norm_arch(_strip_fmt(a_label))
-        b_arch = norm_arch(_strip_fmt(b_label))
+        a_arch = norm_arch(_strip_format_suffix(a_label))
+        b_arch = norm_arch(_strip_format_suffix(b_label))
         real = get_real_matchup_winrates(format_name, min_matches=min_matches)
 
         # Canonical ordering is alphabetical; query both directions
@@ -230,6 +231,33 @@ def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern"
     except Exception:
         pass
     return {"real_a_wr": None, "sample_size": 0}
+
+
+def _lookup_personal_matchup(a_label: str, b_label: str,
+                             format_name: str = "modern") -> dict:
+    """Look up the user's personal W/L record for A vs B from the match_log table.
+
+    Returns {'personal_wr': float|None, 'total': int, 'wins': int, 'losses': int}.
+    Matches by archetype name (normalized) on my_deck + opp_deck.
+    """
+    try:
+        from db.match_log import get_matchup_stats
+        from analysis.archetypes import normalize as norm_arch
+
+        a_arch = norm_arch(_strip_format_suffix(a_label))
+        b_arch = norm_arch(_strip_format_suffix(b_label))
+
+        stats = get_matchup_stats(a_arch, format_name=format_name)
+        # stats shape: {opp_deck: {'wr', 'total', 'wins', 'losses', ...}}
+        if b_arch in stats:
+            entry = stats[b_arch]
+            return {"personal_wr": entry.get("wr"),
+                    "total": entry.get("total", 0),
+                    "wins": entry.get("wins", 0),
+                    "losses": entry.get("losses", 0)}
+    except Exception:
+        pass
+    return {"personal_wr": None, "total": 0, "wins": 0, "losses": 0}
 
 
 def _run_matchup(
@@ -299,8 +327,9 @@ def _run_matchup(
     a_winner_hand_top = _top_cards(a_inclusion, a_wins_with_hand)
     b_winner_hand_top = _top_cards(b_inclusion, b_wins_with_hand)
 
-    # Calibration overlay: pull real-match WR from analyzer's DB if available
+    # Calibration overlay: community real-match WR + user's personal record
     real = _lookup_real_matchup(a_label, b_label)
+    personal = _lookup_personal_matchup(a_label, b_label)
 
     return {
         "mode": "matchup",
@@ -321,6 +350,10 @@ def _run_matchup(
         "elapsed_sec": round(elapsed, 3),
         "real_a_wr": real["real_a_wr"],
         "real_sample_size": real["sample_size"],
+        "personal_wr": personal["personal_wr"],
+        "personal_total": personal["total"],
+        "personal_wins": personal["wins"],
+        "personal_losses": personal["losses"],
     }
 
 
@@ -566,26 +599,44 @@ class SimulateTab(QWidget):
             f"({data.get('pct_winner_kept_7', 100.0)}% kept 7)",
         ]
 
-        # Calibration overlay: sim prediction vs real-match data
+        # Calibration overlay: sim prediction vs real-match data + personal record
         lines.extend(["", "-- Sim vs real-match data --"])
         real_wr = data.get("real_a_wr")
+        personal_wr = data.get("personal_wr")
+
+        # Sim row always present
+        lines.append(f"  Sim predicts  {a:24s}  {a_pct:5.1f}%  (n={n})")
+
+        # Community real data
         if real_wr is not None:
             real_pct = round(real_wr * 100, 1)
             sample = data.get("real_sample_size", 0)
             delta = round(a_pct - real_pct, 1)
-            lines.append(f"  Sim predicts  {a:20s}  {a_pct:5.1f}%  (n={n})")
-            lines.append(f"  Real data     {a:20s}  {real_pct:5.1f}%  (n={sample})")
             sign = "+" if delta >= 0 else ""
+            lines.append(f"  Real (meta)   {a:24s}  {real_pct:5.1f}%  (n={sample})")
             if abs(delta) >= 5:
-                verdict = f"{sign}{delta} pts — sim {'over' if delta > 0 else 'under'}-predicts {a}"
+                verdict = f"{sign}{delta} pts - sim {'over' if delta > 0 else 'under'}-predicts {a}"
             elif abs(delta) >= 2:
-                verdict = f"{sign}{delta} pts — close match"
+                verdict = f"{sign}{delta} pts - close match"
             else:
-                verdict = f"{sign}{delta} pts — sim aligns with real data"
-            lines.append(f"  Delta         {' ':20s}  {verdict}")
+                verdict = f"{sign}{delta} pts - sim aligns with real data"
+            lines.append(f"  Sim vs meta   {'':24s}  {verdict}")
         else:
-            lines.append(f"  (no real-match data on record for {a} vs {b} in modern)")
-            lines.append("  Log more matches or lower the min-matches threshold to compare.")
+            lines.append(f"  Real (meta)   (no scraped data for {a} vs {b} at min_matches>=10)")
+
+        # User's personal match log
+        if personal_wr is not None and data.get("personal_total", 0) > 0:
+            personal_pct = round(personal_wr * 100, 1)
+            total = data["personal_total"]
+            wins = data["personal_wins"]
+            losses = data["personal_losses"]
+            delta_p = round(a_pct - personal_pct, 1)
+            sign_p = "+" if delta_p >= 0 else ""
+            lines.append(f"  Your log      {a:24s}  {personal_pct:5.1f}%  "
+                         f"({wins}W-{losses}L, n={total})")
+            lines.append(f"  Sim vs you    {'':24s}  {sign_p}{delta_p} pts")
+        else:
+            lines.append(f"  Your log      (no personal matches logged for {a} vs {b})")
 
         # Most-common cards in winning opening hands (per side)
         a_top = data.get("a_winner_hand_top") or []
