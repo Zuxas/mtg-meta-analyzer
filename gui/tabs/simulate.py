@@ -562,7 +562,20 @@ class SimulateTab(QWidget):
     def __init__(self):
         super().__init__()
         self._workers = []
+        # Active archetype list — filtered by the format dropdown. Populated
+        # by _build() before the archetype/opponent combos are filled.
+        self._active = []
         self._build()
+
+    @staticmethod
+    def _formats_in_registry() -> list:
+        """Return formats present in _ARCHETYPES in declaration order."""
+        seen = []
+        for r in _ARCHETYPES:
+            f = _format_of(r[0])
+            if f not in seen:
+                seen.append(f)
+        return seen
 
     def _build(self):
         layout = QVBoxLayout(self)
@@ -586,10 +599,17 @@ class SimulateTab(QWidget):
         ctrl = QHBoxLayout()
         ctrl.setSpacing(8)
 
+        ctrl.addWidget(QLabel("Format:"))
+        self._fmt = QComboBox()
+        for f in self._formats_in_registry():
+            self._fmt.addItem(f.capitalize(), userData=f)
+        self._fmt.setFixedWidth(120)
+        ctrl.addWidget(self._fmt)
+
+        ctrl.addSpacing(8)
+
         ctrl.addWidget(QLabel("Deck:"))
         self._archetype = QComboBox()
-        for label, *_ in _ARCHETYPES:
-            self._archetype.addItem(label)
         self._archetype.setMinimumWidth(220)
         ctrl.addWidget(self._archetype)
 
@@ -597,14 +617,15 @@ class SimulateTab(QWidget):
 
         ctrl.addWidget(QLabel("vs:"))
         self._opponent = QComboBox()
-        self._opponent.addItem("Goldfish (no opponent)")
-        for label, *_ in _ARCHETYPES:
-            self._opponent.addItem(label)
         self._opponent.setMinimumWidth(220)
-        self._opponent.currentIndexChanged.connect(self._on_mode_change)
         ctrl.addWidget(self._opponent)
 
+        # Populate archetype + opponent combos for the default format
+        self._rebuild_archetype_combos()
+
+        self._opponent.currentIndexChanged.connect(self._on_mode_change)
         self._archetype.currentIndexChanged.connect(self._on_archetype_change)
+        self._fmt.currentIndexChanged.connect(self._on_format_change)
 
         ctrl.addSpacing(12)
 
@@ -741,6 +762,42 @@ class SimulateTab(QWidget):
         # Sync the Goldfish-option enabled state with the default archetype.
         self._on_archetype_change(self._archetype.currentIndex())
 
+    def _rebuild_archetype_combos(self):
+        """Repopulate the archetype + opponent combos from the currently-
+        selected format. Blocks signals so the archetype-change handler
+        doesn't fire mid-rebuild."""
+        fmt = self._fmt.currentData() or self._formats_in_registry()[0]
+        self._active = [r for r in _ARCHETYPES if _format_of(r[0]) == fmt]
+
+        self._archetype.blockSignals(True)
+        self._opponent.blockSignals(True)
+        self._archetype.clear()
+        self._opponent.clear()
+        self._opponent.addItem("Goldfish (no opponent)")
+        for label, *_ in self._active:
+            self._archetype.addItem(label)
+            self._opponent.addItem(label)
+        self._archetype.blockSignals(False)
+        self._opponent.blockSignals(False)
+
+    def _on_format_change(self, _idx):
+        """Swap archetype + opponent combos to the new format's registry."""
+        self._rebuild_archetype_combos()
+        # Re-apply Goldfish gating for the first archetype of the new format
+        self._on_archetype_change(self._archetype.currentIndex())
+
+    def _select_format(self, fmt: str):
+        """Set the format dropdown to the requested format, if present.
+        No-op when fmt is falsy or not in the dropdown."""
+        if not fmt:
+            return
+        target = fmt.lower()
+        for i in range(self._fmt.count()):
+            if (self._fmt.itemData(i) or "").lower() == target:
+                if self._fmt.currentIndex() != i:
+                    self._fmt.setCurrentIndex(i)
+                return
+
     def _on_mode_change(self, idx: int):
         """Gray out the on-play checkbox when a real opponent is selected."""
         goldfish = (idx == 0)
@@ -750,9 +807,9 @@ class SimulateTab(QWidget):
         """Disable the 'Goldfish (no opponent)' option when the selected
         archetype has no goldfish APL (currently all Standard archetypes).
         Also drop the opponent selection to index 1 if Goldfish was active."""
-        if a_idx < 0 or a_idx >= len(_ARCHETYPES):
+        if a_idx < 0 or a_idx >= len(self._active):
             return
-        has_goldfish = _ARCHETYPES[a_idx][2] is not None
+        has_goldfish = self._active[a_idx][2] is not None
         model = self._opponent.model()
         item = model.item(0) if model else None
         if item is not None:
@@ -772,7 +829,7 @@ class SimulateTab(QWidget):
 
         a_idx = self._archetype.currentIndex()
         o_idx = self._opponent.currentIndex()
-        a = _ARCHETYPES[a_idx]
+        a = self._active[a_idx]
         n = self._n_games.value()
 
         self._run_btn.setEnabled(False)
@@ -805,7 +862,7 @@ class SimulateTab(QWidget):
             ))
         else:
             # Matchup mode: A vs B with mixed play/draw
-            b = _ARCHETYPES[o_idx - 1]  # opponent dropdown has 'Goldfish' at index 0
+            b = self._active[o_idx - 1]  # opponent dropdown has 'Goldfish' at index 0
             self._status.setText(f"Running {n:,} matches of {a[0]} vs {b[0]} ...")
             w = DataLoadWorker(_run_matchup, kwargs=dict(
                 a_label=a[0], a_match_module=a[3], a_match_class=a[4], a_deck_file=a[5],
@@ -827,7 +884,7 @@ class SimulateTab(QWidget):
             return
 
         a_idx = self._archetype.currentIndex()
-        a = _ARCHETYPES[a_idx]
+        a = self._active[a_idx]
         n_per = max(50, min(500, self._n_games.value() // 10 or 100))
 
         self._run_btn.setEnabled(False)
@@ -835,8 +892,7 @@ class SimulateTab(QWidget):
         self._progress.setVisible(True)
         self._results.clear()
         fmt = _format_of(a[0])
-        field_entries = [e for e in _ARCHETYPES
-                         if _format_of(e[0]) == fmt and e[0] != a[0]]
+        field_entries = [e for e in self._active if e[0] != a[0]]
         top_n = self._field_top_values[self._field_top.currentIndex()][1]
         slice_label = (f"top {top_n}" if top_n
                        else f"{len(field_entries)} archetype(s)")
@@ -1058,24 +1114,17 @@ class SimulateTab(QWidget):
 
             from analysis.knn_classifier import hybrid_classify
             from analysis.archetypes import normalize as norm_arch
-            # Respect the currently-selected archetype's format so paste
-            # classification matches the registry the user is browsing.
-            cur_idx = self._archetype.currentIndex()
-            cur_label = (_ARCHETYPES[cur_idx][0]
-                         if 0 <= cur_idx < len(_ARCHETYPES) else "")
-            fmt = _format_of(cur_label) if cur_label else "modern"
+            # Classify against the currently-selected format (the visible
+            # registry). If the user has the wrong format selected for
+            # their paste, they switch the dropdown and it re-detects.
+            fmt = self._fmt.currentData() or "modern"
             arch = hybrid_classify(main, format_name=fmt)
             if not arch:
                 return
 
-            # Find the matching archetype in _ARCHETYPES by normalized name
             target_norm = norm_arch(arch).lower()
-            for i, entry in enumerate(_ARCHETYPES):
-                entry_label_bare = entry[0]
-                for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
-                    if entry_label_bare.endswith(suf):
-                        entry_label_bare = entry_label_bare[:-len(suf)].strip()
-                        break
+            for i, entry in enumerate(self._active):
+                entry_label_bare = _strip_format_suffix(entry[0])
                 if norm_arch(entry_label_bare).lower() == target_norm:
                     if self._archetype.currentIndex() != i:
                         self._archetype.setCurrentIndex(i)
@@ -1083,9 +1132,9 @@ class SimulateTab(QWidget):
                             f"Auto-detected: {arch} -> {entry[0]} APL selected."
                         )
                     return
-            # Classified but not in our registry — note it in the status line
             self._status.setText(
-                f"Auto-detected: {arch} (no APL in registry for this archetype)."
+                f"Auto-detected: {arch} (no APL in {fmt.capitalize()} registry "
+                f"— switch the Format dropdown if the deck is a different format)."
             )
         except Exception:
             # Silent — classifier may be missing its model file, etc.
@@ -1117,14 +1166,9 @@ class SimulateTab(QWidget):
             return
         deck = self._my_decks_cache[idx - 1]
         text = self._deck_to_text(deck)
-        # Pre-select a same-format archetype so autodetect classifies right.
-        fmt = (deck.get("format") or "").lower().strip()
-        if fmt:
-            for i, entry in enumerate(_ARCHETYPES):
-                if _format_of(entry[0]) == fmt:
-                    if self._archetype.currentIndex() != i:
-                        self._archetype.setCurrentIndex(i)
-                    break
+        # Switch to the saved deck's format so autodetect + archetype combo
+        # scope to the right registry.
+        self._select_format((deck.get("format") or "").lower().strip())
         self._paste.setPlainText(text)
         self._status.setText(
             f"Loaded '{deck.get('name', '(unnamed)')}' into the paste area. "
@@ -1156,13 +1200,7 @@ class SimulateTab(QWidget):
         the first archetype of that format so KNN auto-detect classifies in
         the right format.
         """
-        if format_hint:
-            target = format_hint.lower()
-            for i, entry in enumerate(_ARCHETYPES):
-                if _format_of(entry[0]) == target:
-                    if self._archetype.currentIndex() != i:
-                        self._archetype.setCurrentIndex(i)
-                    break
+        self._select_format(format_hint)
         self._paste.setPlainText(deck_text)
         if source_label:
             self._status.setText(
@@ -1184,6 +1222,10 @@ class SimulateTab(QWidget):
         Returns (a_ok, b_ok) — True for each side we could resolve.
         Updates the status line if either side wasn't found.
         """
+        # Switch the format dropdown first so both labels resolve against
+        # the right registry. Prefer explicit hint, then infer from a_label.
+        self._select_format(format_hint or _format_of(a_label))
+
         def _resolve(label, opponent_mode=False):
             count = self._opponent.count() if opponent_mode else self._archetype.count()
             combo = self._opponent if opponent_mode else self._archetype
