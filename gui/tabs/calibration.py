@@ -25,8 +25,15 @@ from PyQt6.QtGui import QColor
 
 import gui.theme as theme
 from gui.tabs.simulate import (
-    _ARCHETYPES, _MTG_SIM_PATH, _check_mtg_sim_available, _format_of,
+    _ARCHETYPES as _SIM_ARCHETYPES,
+    _MTG_SIM_PATH, _check_mtg_sim_available, _format_of,
 )
+
+# Sort by (format, name) so the matrix forms visible per-format blocks
+# instead of interleaving Modern and Standard archetypes alphabetically.
+_FMT_ORDER = {"modern": 0, "standard": 1, "pioneer": 2, "legacy": 3, "pauper": 4}
+_ARCHETYPES = sorted(_SIM_ARCHETYPES,
+                     key=lambda r: (_FMT_ORDER.get(_format_of(r[0]), 99), r[0]))
 
 
 def _sim_matchup_headless(a_meta: tuple, b_meta: tuple, n_games: int) -> float:
@@ -192,6 +199,9 @@ class CalibrationTab(QWidget):
         legend = QLabel(
             "<b>How to read:</b> each cell is ROW's win rate against COLUMN.  "
             "Top line = <b>sim% / real%</b>.  Bottom line = <b>delta</b> (sim minus real). "
+            "Rows group by format ([M]odern / [S]tandard); "
+            "<span style='background:#121216;color:#4a4e5c;padding:2px 6px'>N/A</span> "
+            "cells are cross-format pairs that aren't simulated. "
             "&nbsp;&nbsp; "
             "<span style='background:#2e7846;color:white;padding:2px 6px'>green</span> "
             "|delta| &lt; 3 &nbsp; "
@@ -200,7 +210,7 @@ class CalibrationTab(QWidget):
             "<span style='background:#963737;color:white;padding:2px 6px'>red</span> "
             "&ge; 7 &nbsp; "
             "<span style='background:#1f2133;color:#7a8194;padding:2px 6px'>dim</span> "
-            "no real data (lower min-matches threshold to widen coverage)"
+            "no real data"
         )
         legend.setStyleSheet(f"color: {theme.TEXT}; font-size: 11px;")
         legend.setWordWrap(True)
@@ -287,18 +297,24 @@ class CalibrationTab(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self._table.setItem(i, i, item)
 
-        # Cross-format cells: mark as N/A (incoherent to sim Modern vs Standard)
+        # Cross-format cells: mark as N/A (incoherent to sim Modern vs Standard).
+        # Use a distinctly dark background so the format-block structure
+        # reads visually rather than looking like empty same-format cells.
         fmts = [_format_of(a[0]) for a in _ARCHETYPES]
+        na_bg = QColor(18, 18, 22)     # near-black, clearly different from empty
+        na_fg = QColor(74, 78, 92)     # dim gray
         for i in range(n):
             for j in range(n):
                 if i == j or fmts[i] == fmts[j]:
                     continue
-                item = QTableWidgetItem("--")
-                item.setBackground(QColor(theme.SURFACE))
-                item.setForeground(QColor(theme.TEXT_OFF))
+                item = QTableWidgetItem("N/A")
+                item.setBackground(na_bg)
+                item.setForeground(na_fg)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setToolTip("Cross-format pair — not simulated.")
+                item.setToolTip(
+                    f"Cross-format pair ({fmts[i]} vs {fmts[j]}) — not simulated."
+                )
                 self._table.setItem(i, j, item)
 
     def _start_worker(self, row_only: int = None):
