@@ -649,7 +649,8 @@ class SimulateTab(QWidget):
 
         ctrl.addStretch(1)
 
-        self._run_btn = QPushButton("Run")
+        from gui.icons_util import btn_icon
+        self._run_btn = QPushButton(btn_icon("run", color=theme.BTN_FG), "Run")
         self._run_btn.setMinimumWidth(80)
         self._run_btn.clicked.connect(self._on_run)
         ctrl.addWidget(self._run_btn)
@@ -669,7 +670,7 @@ class SimulateTab(QWidget):
         )
         ctrl.addWidget(self._field_top)
 
-        self._field_btn = QPushButton("Field")
+        self._field_btn = QPushButton(btn_icon("field"), "Field")
         self._field_btn.setMinimumWidth(80)
         self._field_btn.setToolTip(
             "Run this deck against the selected slice of the field, "
@@ -747,7 +748,7 @@ class SimulateTab(QWidget):
         )
         self._history_combo.currentIndexChanged.connect(self._on_history_pick)
         results_hdr.addWidget(self._history_combo)
-        self._copy_btn = QPushButton("Copy")
+        self._copy_btn = QPushButton(btn_icon("copy"), "Copy")
         self._copy_btn.setMaximumWidth(80)
         self._copy_btn.setToolTip("Copy the full results text to the clipboard.")
         self._copy_btn.clicked.connect(self._on_copy_results)

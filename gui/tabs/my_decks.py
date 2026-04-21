@@ -354,8 +354,9 @@ class MyDecksTab(QWidget):
         lv.addWidget(self._empty_state, 1)
 
         # Buttons
+        from gui.icons_util import btn_icon
         btn_row = QHBoxLayout()
-        self._add_btn = QPushButton("+ Add Deck")
+        self._add_btn = QPushButton(btn_icon("add", color=theme.BTN_FG), "Add Deck")
         self._add_btn.setStyleSheet(
             f"background: {theme.ACCENT}; color: {theme.BTN_FG}; "
             f"font-weight: bold; padding: 6px 14px; border-radius: 4px;"
@@ -363,12 +364,12 @@ class MyDecksTab(QWidget):
         self._add_btn.clicked.connect(self._add_deck)
         btn_row.addWidget(self._add_btn)
 
-        self._edit_btn = QPushButton("Edit")
+        self._edit_btn = QPushButton(btn_icon("edit"), "Edit")
         self._edit_btn.setEnabled(False)
         self._edit_btn.clicked.connect(self._edit_deck)
         btn_row.addWidget(self._edit_btn)
 
-        self._del_btn = QPushButton("Delete")
+        self._del_btn = QPushButton(btn_icon("delete", color=theme.ERR), "Delete")
         self._del_btn.setEnabled(False)
         self._del_btn.setStyleSheet(f"color: {theme.ERR};")
         self._del_btn.clicked.connect(self._delete_deck)

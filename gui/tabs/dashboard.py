@@ -266,7 +266,8 @@ class DashboardTab(QWidget):
         self._top_n.setFixedWidth(60)
         ctrl.addWidget(self._top_n)
 
-        self._refresh_btn = QPushButton("Refresh")
+        from gui.icons_util import btn_icon
+        self._refresh_btn = QPushButton(btn_icon("refresh", color=theme.BTN_FG), "Refresh")
         self._refresh_btn.setStyleSheet(theme.btn_primary())
         self._refresh_btn.clicked.connect(self.refresh)
         ctrl.addWidget(self._refresh_btn)
