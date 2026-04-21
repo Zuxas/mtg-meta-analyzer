@@ -31,12 +31,110 @@ _MTG_SIM_PATH = os.environ.get("MTG_SIM_PATH") or str(
 )
 
 
-# Canonical archetypes shipped in mtg-sim/apl/. Each tuple:
-#   (display label,
-#    goldfish module,  goldfish class,
-#    match module,     match class,
-#    deck file relative to mtg-sim root)
-_ARCHETYPES = [
+# Manual overrides for archetypes whose match file doesn't follow the
+# <name>_match.py convention (e.g., Dimir Murktide -> murktide_match.py).
+# Key is the goldfish module name (without 'apl.' prefix).
+_OVERRIDES = {
+    "dimir_murktide": {
+        "match_module": "apl.murktide_match",
+        "match_class":  "MurktideMatchAPL",
+    },
+}
+
+# Module names to skip during discovery — base classes and utilities.
+_DISCOVERY_SKIP = {
+    "__init__", "base_apl", "match_apl", "sb_mixin", "sb_plans",
+    "mulligan", "auto_apl", "generic_apl", "playbook_parser",
+}
+
+
+def _discover_archetypes(format_name: str = "modern") -> list:
+    """Scan mtg-sim/apl/ for archetypes with a goldfish APL, match APL,
+    and a matching deck file. Returns the registry tuple list.
+
+    Falls back to an empty list if mtg-sim isn't reachable — caller
+    should handle the empty case with a hardcoded fallback.
+    """
+    import re
+
+    # Lightweight check — discovery only reads files, doesn't need sys.path.
+    # (_check_mtg_sim_available is defined later in the file; avoid forward ref.)
+    if not os.path.isdir(_MTG_SIM_PATH):
+        return []
+
+    apl_dir = os.path.join(_MTG_SIM_PATH, "apl")
+    if not os.path.isdir(apl_dir):
+        return []
+
+    cls_re = re.compile(r"^class\s+([A-Z][A-Za-z0-9]*APL)\s*\(", re.MULTILINE)
+    rows = []
+
+    for fname in sorted(os.listdir(apl_dir)):
+        if not fname.endswith(".py"):
+            continue
+        base = fname[:-3]
+        if base in _DISCOVERY_SKIP:
+            continue
+        if base.endswith("_match") or "_grind_" in base or base.endswith("_standard_match"):
+            continue
+
+        # Goldfish APL class
+        with open(os.path.join(apl_dir, fname), "r", encoding="utf-8", errors="ignore") as f:
+            src = f.read()
+        gcls_match = cls_re.search(src)
+        if not gcls_match:
+            continue
+        goldfish_class = gcls_match.group(1)
+
+        # Match APL: convention, with override fallback
+        override = _OVERRIDES.get(base, {})
+        match_module = override.get("match_module") or f"apl.{base}_match"
+        match_class = override.get("match_class")
+        if not match_class:
+            match_path = os.path.join(apl_dir, f"{base}_match.py")
+            if not os.path.isfile(match_path):
+                continue
+            with open(match_path, "r", encoding="utf-8", errors="ignore") as f:
+                msrc = f.read()
+            mcls_match = re.search(r"^class\s+([A-Z][A-Za-z0-9]*MatchAPL)\s*\(",
+                                   msrc, re.MULTILINE)
+            if not mcls_match:
+                continue
+            match_class = mcls_match.group(1)
+        else:
+            # Verify override module exists
+            override_path = os.path.join(_MTG_SIM_PATH,
+                                         match_module.replace(".", os.sep) + ".py")
+            if not os.path.isfile(override_path):
+                continue
+
+        # Matching deck file
+        deck_rel = f"decks/{base}_{format_name}.txt"
+        if not os.path.isfile(os.path.join(_MTG_SIM_PATH, deck_rel)):
+            continue
+
+        # Display label: title-case the module name, append format.
+        # MTG color codes (uw, ub, ur, ug, wb, br, etc. up to 5 letters)
+        # stay uppercase — otherwise 'uw_blink' reads as 'Uw Blink'.
+        _ACRONYMS = {"uw", "ub", "ur", "ug", "wb", "wr", "wg", "br", "bg", "rg",
+                     "wub", "wug", "wbg", "wbr", "wrg", "ubg", "ubr", "urg",
+                     "brg", "bug", "bant", "naya", "jund", "grixis", "esper"}
+        def _fmt(w):
+            if w.lower() in _ACRONYMS and len(w) <= 3:
+                return w.upper()
+            return w.capitalize()
+        label = " ".join(_fmt(w) for w in base.split("_"))
+        label = f"{label} ({format_name.capitalize()})"
+
+        rows.append((label, f"apl.{base}", goldfish_class,
+                     match_module, match_class, deck_rel))
+
+    return sorted(rows, key=lambda r: r[0])
+
+
+# Fallback registry if discovery fails or finds nothing — ensures the tab
+# works out of the box on a fresh mtg-sim clone matching the original 6.
+_FALLBACK_ARCHETYPES = [
     ("Amulet Titan (Modern)",   "apl.amulet_titan",   "AmuletTitanAPL",  "apl.amulet_titan_match",  "AmuletTitanMatchAPL",  "decks/amulet_titan_modern.txt"),
     ("Boros Energy (Modern)",   "apl.boros_energy",   "BorosEnergyAPL",  "apl.boros_energy_match",  "BorosEnergyMatchAPL",  "decks/boros_energy_modern.txt"),
     ("Humans (Modern)",         "apl.humans",         "HumansAPL",       "apl.humans_match",        "HumansMatchAPL",       "decks/humans_modern.txt"),
@@ -44,6 +142,11 @@ _ARCHETYPES = [
     ("Eldrazi Tron (Modern)",   "apl.eldrazi_tron",   "EldraziTronAPL",  "apl.eldrazi_tron_match",  "EldraziTronMatchAPL",  "decks/eldrazi_tron_modern.txt"),
     ("Domain Zoo (Modern)",     "apl.domain_zoo",     "DomainZooAPL",    "apl.domain_zoo_match",    "DomainZooMatchAPL",    "decks/domain_zoo_modern.txt"),
 ]
+
+# Build the registry at module load — use discovery when possible,
+# fall back if mtg-sim isn't reachable or finds fewer than 3 archetypes.
+_discovered = _discover_archetypes("modern")
+_ARCHETYPES = _discovered if len(_discovered) >= 3 else _FALLBACK_ARCHETYPES
 
 
 def _check_mtg_sim_available():
