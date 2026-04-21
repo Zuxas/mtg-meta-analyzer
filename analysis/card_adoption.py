@@ -151,3 +151,91 @@ def get_card_adoption(archetype: str, format_name: str = "standard",
         "weeks": week_labels,
         "cards": results,
     }
+
+
+def get_card_trend(card_name: str, format_name: str = "modern",
+                    weeks: int = 12) -> dict:
+    """Week-by-week inclusion rate for a single card across a format.
+
+    Inclusion rate = (decks that play the card) / (total decks in the
+    format's week bucket). Sideboard copies count. Returns:
+        {
+            "card": str, "format": str,
+            "weeks": [YYYY-MM-DD bucket starts],
+            "rates": [float 0-1 per bucket],
+            "deck_counts": [int per bucket],
+            "total_decks": int,
+            "total_inclusions": int,
+        }
+    Weeks with zero decks are dropped.
+    """
+    from db.database import get_combined_connection
+
+    now = datetime.now()
+    since = now - timedelta(weeks=weeks)
+
+    _date_key = (
+        "CASE WHEN instr(e.date,'/')>0 "
+        "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
+        "ELSE replace(e.date,'-','') END"
+    )
+
+    conn = get_combined_connection()
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT d.id AS deck_id, ({_date_key}) AS sort_date
+            FROM decks d
+            JOIN events e ON e.id = d.event_id
+            WHERE lower(e.format) = lower(?)
+              AND ({_date_key}) >= ?
+            """,
+            (format_name, since.strftime("%Y%m%d")),
+        ).fetchall()
+        if not rows:
+            return {"card": card_name, "format": format_name,
+                    "weeks": [], "rates": [], "deck_counts": [],
+                    "total_decks": 0, "total_inclusions": 0}
+        deck_dates = {r["deck_id"]: r["sort_date"] for r in rows}
+
+        inclusion_rows = conn.execute(
+            """
+            SELECT DISTINCT dc.deck_id
+            FROM deck_cards dc
+            JOIN cards c ON c.id = dc.card_id
+            WHERE lower(c.name) = lower(?)
+              AND dc.deck_id IN (SELECT id FROM decks)
+            """,
+            (card_name,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    decks_with_card = {r["deck_id"] for r in inclusion_rows}
+
+    bucket_size = timedelta(weeks=1)
+    buckets = []
+    bs = since
+    while bs < now:
+        be = bs + bucket_size
+        ids_in_bucket = {did for did, sd in deck_dates.items()
+                         if bs.strftime("%Y%m%d") <= sd < be.strftime("%Y%m%d")}
+        if ids_in_bucket:
+            hits = len(ids_in_bucket & decks_with_card)
+            buckets.append({
+                "start": bs.strftime("%Y-%m-%d"),
+                "total": len(ids_in_bucket),
+                "hits": hits,
+                "rate": hits / len(ids_in_bucket),
+            })
+        bs = be
+
+    return {
+        "card": card_name,
+        "format": format_name,
+        "weeks": [b["start"] for b in buckets],
+        "rates": [round(b["rate"], 4) for b in buckets],
+        "deck_counts": [b["total"] for b in buckets],
+        "total_decks": sum(b["total"] for b in buckets),
+        "total_inclusions": sum(b["hits"] for b in buckets),
+    }

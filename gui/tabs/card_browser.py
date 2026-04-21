@@ -434,6 +434,24 @@ class _SimilarCardsWorker(QThread):
             self.results.emit([])
 
 
+class _CardTrendWorker(QThread):
+    """Compute per-week inclusion rate for a card in a format."""
+    results = pyqtSignal(dict)
+
+    def __init__(self, card_name: str, fmt: str = None, weeks: int = 12):
+        super().__init__()
+        self._name = card_name
+        self._fmt = fmt or "modern"
+        self._weeks = weeks
+
+    def run(self):
+        try:
+            from analysis.card_adoption import get_card_trend
+            self.results.emit(get_card_trend(self._name, self._fmt, self._weeks))
+        except Exception:
+            self.results.emit({"weeks": [], "rates": []})
+
+
 class _SubstitutesWorker(QThread):
     """Find functional substitutes via Card2Vec co-occurrence embeddings."""
     results = pyqtSignal(list)
@@ -856,6 +874,14 @@ class CardBrowserTab(QWidget):
         usage_worker.start()
         self._workers.append(usage_worker)
 
+        # Fetch weekly inclusion trend
+        trend_worker = _CardTrendWorker(name, fmt or "modern")
+        trend_worker.results.connect(
+            lambda data, _name=name: self._on_card_trend(data, _name))
+        trend_worker.finished.connect(trend_worker.deleteLater)
+        trend_worker.start()
+        self._workers.append(trend_worker)
+
         # Fetch similar cards (embeddings)
         sim_worker = _SimilarCardsWorker(name, fmt)
         sim_worker.results.connect(
@@ -931,6 +957,11 @@ class CardBrowserTab(QWidget):
                     f"— {fmt.capitalize()}<br>"
                 )
 
+        # Weekly inclusion trend placeholder
+        parts.append("<hr style='border-color:#555;'>")
+        parts.append(f"<div id='card-trend'><i style='color:{theme.TEXT_DIM};'>"
+                      "Loading inclusion trend...</i></div>")
+
         # Meta usage placeholder
         parts.append("<hr style='border-color:#555;'>")
         parts.append(f"<div id='meta-usage'><i style='color:{theme.TEXT_DIM};'>"
@@ -946,6 +977,59 @@ class CardBrowserTab(QWidget):
                       "Loading functional substitutes...</i></div>")
 
         return "".join(parts)
+
+    def _on_card_trend(self, data: dict, card_name: str):
+        """Render a compact weekly inclusion-rate sparkline in the detail panel."""
+        current_row = self._table.currentRow()
+        if current_row >= 0:
+            item = self._table.item(current_row, 0)
+            if item and item.text() != card_name:
+                return
+
+        weeks = data.get("weeks") or []
+        rates = data.get("rates") or []
+        fmt = (data.get("format") or "modern").capitalize()
+
+        if not weeks:
+            html_block = (f"<i style='color:{theme.TEXT_DIM};'>"
+                          f"No {fmt} decks in the last 12 weeks — nothing "
+                          f"to trend.</i>")
+        else:
+            # Unicode block sparkline (8 levels). Max rate anchors the top.
+            blocks = " \u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
+            peak = max(rates) if rates else 0.0
+            def _spark(r):
+                if peak <= 0:
+                    return blocks[0]
+                idx = min(len(blocks) - 1, int(round(r / peak * (len(blocks) - 1))))
+                return blocks[idx]
+            sparkline = "".join(_spark(r) for r in rates)
+
+            first_pct = round(rates[0] * 100, 1)
+            last_pct = round(rates[-1] * 100, 1)
+            delta = round(last_pct - first_pct, 1)
+            arrow = ("\u2197" if delta > 1 else
+                     ("\u2198" if delta < -1 else "\u2192"))
+            color = (theme.OK if delta > 1 else
+                     (theme.ERR if delta < -1 else theme.TEXT_DIM))
+            total = data.get("total_decks", 0)
+            inclusions = data.get("total_inclusions", 0)
+
+            html_block = (
+                f"<b>Inclusion Trend ({fmt}, last {len(weeks)} weeks):</b><br>"
+                f"<span style='font-family:Consolas,monospace;font-size:14px;'>"
+                f"{sparkline}</span><br>"
+                f"{first_pct}% &rarr; {last_pct}% "
+                f"<span style='color:{color};'>({arrow} "
+                f"{'+' if delta >= 0 else ''}{delta} pts)</span><br>"
+                f"<span style='color:{theme.TEXT_DIM};font-size:11px;'>"
+                f"Across {total:,} {fmt} decks, {inclusions:,} played the card."
+                f"</span>"
+            )
+
+        html = self._detail_info.toHtml()
+        html = html.replace("Loading inclusion trend...", html_block)
+        self._detail_info.setHtml(html)
 
     def _on_meta_usage(self, rows: list, card_name: str):
         """Append meta usage data to the detail panel."""
