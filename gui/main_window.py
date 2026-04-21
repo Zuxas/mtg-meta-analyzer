@@ -133,7 +133,7 @@ class MainWindow(QMainWindow):
         # ── Create all tab widgets ────────────────────────────────
         self._dash      = DashboardTab()
         self._deck      = DeckAnalyzerTab(on_simulate=_send_to_simulate)
-        self._search    = SearchTab()
+        self._search    = SearchTab(on_simulate=_send_to_simulate)
         self._charts    = ChartsTab()
         self._preds     = PredictionsTab()
         self._kb        = KnowledgeBaseTab()

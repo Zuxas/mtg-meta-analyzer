@@ -92,13 +92,17 @@ _PLACEMENT_FILTERS = {
 
 class _DeckDetailDialog(QDialog):
     def __init__(self, deck_id: int, archetype: str, player: str,
-                 placement, event: str, date: str, fmt: str, parent=None):
+                 placement, event: str, date: str, fmt: str,
+                 parent=None, on_simulate=None):
         super().__init__(parent)
         self._deck_id   = deck_id
         self._archetype = archetype
         self._player    = player
         self._fmt       = fmt
         self._workers   = []
+        self._on_simulate = on_simulate
+        self._mainboard = {}
+        self._sideboard = {}
 
         title = f"{archetype}  —  {player or 'Unknown'}  (#{placement})"
         self.setWindowTitle(title)
@@ -145,6 +149,12 @@ class _DeckDetailDialog(QDialog):
         self._export_btn.setStyleSheet(theme.btn_secondary())
         self._export_btn.clicked.connect(self._export)
         btn_row.addWidget(self._export_btn)
+        if on_simulate is not None:
+            self._sim_btn = QPushButton("Simulate ▸")
+            self._sim_btn.setStyleSheet(theme.btn_secondary())
+            self._sim_btn.setToolTip("Send this decklist to META > SIMULATE.")
+            self._sim_btn.clicked.connect(self._send_to_simulate)
+            btn_row.addWidget(self._sim_btn)
         btn_row.addStretch()
         close_btn = QPushButton("Close")
         close_btn.setStyleSheet(theme.btn_secondary())
@@ -154,6 +164,27 @@ class _DeckDetailDialog(QDialog):
 
         self._main_browser.setPlainText("Loading…")
         self._load()
+
+    def _send_to_simulate(self):
+        """Serialize the loaded 75 as plain text and hand off to SIMULATE."""
+        if not self._mainboard and not self._sideboard:
+            return
+        lines = []
+        for card, qty in sorted(self._mainboard.items()):
+            lines.append(f"{qty} {card}")
+        if self._sideboard:
+            lines.append("")
+            lines.append("Sideboard")
+            for card, qty in sorted(self._sideboard.items()):
+                lines.append(f"{qty} {card}")
+        text = "\n".join(lines)
+        source = f"{self._archetype} ({self._player or 'unknown'})"
+        if self._on_simulate:
+            try:
+                self._on_simulate(text, source)
+            except Exception:
+                pass
+            self.accept()  # close dialog after dispatching
 
     def _load(self):
         deck_id = self._deck_id
@@ -234,10 +265,17 @@ class _DeckDetailDialog(QDialog):
 # ---------------------------------------------------------------------------
 
 class SearchTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, on_simulate=None):
+        """
+        on_simulate: optional callable(deck_text: str, source_label: str).
+        When provided, the DeckDetailDialog (opened by double-clicking a
+        deck search result) shows a 'Simulate' button that dispatches the
+        selected 75 to the SIMULATE tab.
+        """
         super().__init__(parent)
         self._workers = []
         self._card_browser = None
+        self._on_simulate = on_simulate
         self._build_ui()
 
     def cleanup(self):
@@ -492,6 +530,7 @@ class SearchTab(QWidget):
             date      = meta["date"],
             fmt       = meta["fmt"],
             parent    = self,
+            on_simulate = self._on_simulate,
         )
         dlg.exec()
 
