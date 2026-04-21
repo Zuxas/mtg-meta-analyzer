@@ -49,20 +49,27 @@ _DISCOVERY_SKIP = {
 }
 
 
-def _discover_archetypes(format_name: str = "modern") -> list:
-    """Scan mtg-sim/apl/ for archetypes with a goldfish APL, match APL,
-    and a matching deck file. Returns the registry tuple list.
+_ACRONYMS = {"uw", "ub", "ur", "ug", "wb", "wr", "wg", "br", "bg", "rg",
+             "wub", "wug", "wbg", "wbr", "wrg", "ubg", "ubr", "urg",
+             "brg", "bug", "bant", "naya", "jund", "grixis", "esper"}
 
-    Falls back to an empty list if mtg-sim isn't reachable — caller
-    should handle the empty case with a hardcoded fallback.
-    """
+
+def _label_from_base(base: str, format_name: str) -> str:
+    """Title-case the module name, preserving MTG color acronyms as upper."""
+    def _fmt(w):
+        if w.lower() in _ACRONYMS and len(w) <= 3:
+            return w.upper()
+        return w.capitalize()
+    label = " ".join(_fmt(w) for w in base.split("_"))
+    return f"{label} ({format_name.capitalize()})"
+
+
+def _discover_archetypes_modern() -> list:
+    """Scan mtg-sim/apl/ for Modern archetypes with goldfish + match APL + deck."""
     import re
 
-    # Lightweight check — discovery only reads files, doesn't need sys.path.
-    # (_check_mtg_sim_available is defined later in the file; avoid forward ref.)
     if not os.path.isdir(_MTG_SIM_PATH):
         return []
-
     apl_dir = os.path.join(_MTG_SIM_PATH, "apl")
     if not os.path.isdir(apl_dir):
         return []
@@ -79,7 +86,6 @@ def _discover_archetypes(format_name: str = "modern") -> list:
         if base.endswith("_match") or "_grind_" in base or base.endswith("_standard_match"):
             continue
 
-        # Goldfish APL class
         with open(os.path.join(apl_dir, fname), "r", encoding="utf-8", errors="ignore") as f:
             src = f.read()
         gcls_match = cls_re.search(src)
@@ -87,7 +93,6 @@ def _discover_archetypes(format_name: str = "modern") -> list:
             continue
         goldfish_class = gcls_match.group(1)
 
-        # Match APL: convention, with override fallback
         override = _OVERRIDES.get(base, {})
         match_module = override.get("match_module") or f"apl.{base}_match"
         match_class = override.get("match_class")
@@ -103,33 +108,78 @@ def _discover_archetypes(format_name: str = "modern") -> list:
                 continue
             match_class = mcls_match.group(1)
         else:
-            # Verify override module exists
             override_path = os.path.join(_MTG_SIM_PATH,
                                          match_module.replace(".", os.sep) + ".py")
             if not os.path.isfile(override_path):
                 continue
 
-        # Matching deck file
-        deck_rel = f"decks/{base}_{format_name}.txt"
+        deck_rel = f"decks/{base}_modern.txt"
         if not os.path.isfile(os.path.join(_MTG_SIM_PATH, deck_rel)):
             continue
 
-        # Display label: title-case the module name, append format.
-        # MTG color codes (uw, ub, ur, ug, wb, br, etc. up to 5 letters)
-        # stay uppercase — otherwise 'uw_blink' reads as 'Uw Blink'.
-        _ACRONYMS = {"uw", "ub", "ur", "ug", "wb", "wr", "wg", "br", "bg", "rg",
-                     "wub", "wug", "wbg", "wbr", "wrg", "ubg", "ubr", "urg",
-                     "brg", "bug", "bant", "naya", "jund", "grixis", "esper"}
-        def _fmt(w):
-            if w.lower() in _ACRONYMS and len(w) <= 3:
-                return w.upper()
-            return w.capitalize()
-        label = " ".join(_fmt(w) for w in base.split("_"))
-        label = f"{label} ({format_name.capitalize()})"
+        rows.append((
+            _label_from_base(base, "modern"),
+            f"apl.{base}", goldfish_class,
+            match_module, match_class, deck_rel,
+        ))
 
-        rows.append((label, f"apl.{base}", goldfish_class,
-                     match_module, match_class, deck_rel))
+    return rows
 
+
+def _discover_archetypes_standard() -> list:
+    """Scan mtg-sim/apl/ for Standard archetypes (match APL + deck, no goldfish).
+
+    Standard archetypes ship as *_standard_match.py with a matching
+    *_standard.txt deck. Goldfish variants generally don't exist for
+    these — so the tuple's goldfish slots are None.
+    """
+    import re
+
+    if not os.path.isdir(_MTG_SIM_PATH):
+        return []
+    apl_dir = os.path.join(_MTG_SIM_PATH, "apl")
+    if not os.path.isdir(apl_dir):
+        return []
+
+    mcls_re = re.compile(r"^class\s+([A-Z][A-Za-z0-9]*StandardMatchAPL)\s*\(",
+                          re.MULTILINE)
+    rows = []
+
+    for fname in sorted(os.listdir(apl_dir)):
+        if not fname.endswith("_standard_match.py"):
+            continue
+        base = fname[:-len("_standard_match.py")]
+        if base in _DISCOVERY_SKIP:
+            continue
+
+        with open(os.path.join(apl_dir, fname), "r", encoding="utf-8", errors="ignore") as f:
+            src = f.read()
+        m = mcls_re.search(src)
+        if not m:
+            continue
+        match_class = m.group(1)
+
+        deck_rel = f"decks/{base}_standard.txt"
+        if not os.path.isfile(os.path.join(_MTG_SIM_PATH, deck_rel)):
+            continue
+
+        rows.append((
+            _label_from_base(base, "standard"),
+            None, None,   # no goldfish APL for Standard archetypes
+            f"apl.{base}_standard_match", match_class, deck_rel,
+        ))
+
+    return rows
+
+
+def _discover_archetypes(format_name: str = "modern") -> list:
+    """Combined discovery. Kept for backwards-compat with earlier callers."""
+    if format_name == "modern":
+        rows = _discover_archetypes_modern()
+    elif format_name == "standard":
+        rows = _discover_archetypes_standard()
+    else:
+        rows = []
     return sorted(rows, key=lambda r: r[0])
 
 
@@ -144,10 +194,18 @@ _FALLBACK_ARCHETYPES = [
     ("Domain Zoo (Modern)",     "apl.domain_zoo",     "DomainZooAPL",    "apl.domain_zoo_match",    "DomainZooMatchAPL",    "decks/domain_zoo_modern.txt"),
 ]
 
-# Build the registry at module load — use discovery when possible,
-# fall back if mtg-sim isn't reachable or finds fewer than 3 archetypes.
-_discovered = _discover_archetypes("modern")
-_ARCHETYPES = _discovered if len(_discovered) >= 3 else _FALLBACK_ARCHETYPES
+# Build the registry at module load. Combine Modern + Standard discovery
+# results. Modern archetypes have goldfish + match APLs; Standard
+# archetypes are match-only (goldfish slots are None in the tuple).
+# Fall back to hardcoded Modern set if discovery fails entirely.
+_discovered_modern = _discover_archetypes_modern()
+_discovered_standard = _discover_archetypes_standard()
+_discovered_combined = sorted(
+    _discovered_modern + _discovered_standard, key=lambda r: r[0]
+)
+_ARCHETYPES = (_discovered_combined
+               if len(_discovered_combined) >= 3
+               else _FALLBACK_ARCHETYPES)
 
 
 def _check_mtg_sim_available():
@@ -205,7 +263,15 @@ def _strip_format_suffix(s: str) -> str:
     return s.strip()
 
 
-def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern",
+def _format_of(label: str) -> str:
+    """Return 'modern'/'standard'/etc. based on the label's trailing tag."""
+    for fmt in ("Modern", "Standard", "Pioneer", "Legacy", "Pauper"):
+        if label.endswith(f" ({fmt})"):
+            return fmt.lower()
+    return "modern"
+
+
+def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = None,
                          min_matches: int = 10) -> dict:
     """Look up real-match win rate for A vs B from the analyzer's scraped DB.
 
@@ -218,9 +284,10 @@ def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern"
         from analysis.win_rates import get_real_matchup_winrates
         from analysis.archetypes import normalize as norm_arch
 
+        fmt = format_name or _format_of(a_label)
         a_arch = norm_arch(_strip_format_suffix(a_label))
         b_arch = norm_arch(_strip_format_suffix(b_label))
-        real = get_real_matchup_winrates(format_name, min_matches=min_matches)
+        real = get_real_matchup_winrates(fmt, min_matches=min_matches)
 
         # Canonical ordering is alphabetical; query both directions
         if a_arch in real and b_arch in real[a_arch]:
@@ -235,7 +302,7 @@ def _lookup_real_matchup(a_label: str, b_label: str, format_name: str = "modern"
 
 
 def _lookup_personal_matchup(a_label: str, b_label: str,
-                             format_name: str = "modern") -> dict:
+                             format_name: str = None) -> dict:
     """Look up the user's personal W/L record for A vs B from the match_log table.
 
     Returns {'personal_wr': float|None, 'total': int, 'wins': int, 'losses': int}.
@@ -245,10 +312,11 @@ def _lookup_personal_matchup(a_label: str, b_label: str,
         from db.match_log import get_matchup_stats
         from analysis.archetypes import normalize as norm_arch
 
+        fmt = format_name or _format_of(a_label)
         a_arch = norm_arch(_strip_format_suffix(a_label))
         b_arch = norm_arch(_strip_format_suffix(b_label))
 
-        stats = get_matchup_stats(a_arch, format_name=format_name)
+        stats = get_matchup_stats(a_arch, format_name=fmt)
         # stats shape: {opp_deck: {'wr', 'total', 'wins', 'losses', ...}}
         if b_arch in stats:
             entry = stats[b_arch]
@@ -286,11 +354,16 @@ def _run_field_gauntlet(
     from analysis.win_rates import get_meta_standings
     from analysis.archetypes import normalize as norm_arch
 
+    fmt = _format_of(a_label)
+    # Only match opponents in the same format as A — mixing Modern and
+    # Standard in a field gauntlet is incoherent.
+    field_entries = [e for e in field_entries if _format_of(e[0]) == fmt]
+
     # Build a name -> meta_share lookup from the current DB
     meta_share_by_arch = {}
     appearances_by_arch = {}
     try:
-        standings = get_meta_standings(format_name="modern", top=100)
+        standings = get_meta_standings(format_name=fmt, top=100)
         for row in standings:
             key = norm_arch(row.get("archetype", "") or "").lower()
             if key:
@@ -432,8 +505,9 @@ def _run_matchup(
     b_winner_hand_top = _top_cards(b_inclusion, b_wins_with_hand)
 
     # Calibration overlay: community real-match WR + user's personal record
-    real = _lookup_real_matchup(a_label, b_label)
-    personal = _lookup_personal_matchup(a_label, b_label)
+    fmt = _format_of(a_label)
+    real = _lookup_real_matchup(a_label, b_label, format_name=fmt)
+    personal = _lookup_personal_matchup(a_label, b_label, format_name=fmt)
 
     return {
         "mode": "matchup",
@@ -512,6 +586,8 @@ class SimulateTab(QWidget):
         self._opponent.setMinimumWidth(220)
         self._opponent.currentIndexChanged.connect(self._on_mode_change)
         ctrl.addWidget(self._opponent)
+
+        self._archetype.currentIndexChanged.connect(self._on_archetype_change)
 
         ctrl.addSpacing(12)
 
@@ -630,10 +706,31 @@ class SimulateTab(QWidget):
             self._status.setText("mtg-sim not configured")
         layout.addWidget(self._results, 1)
 
+        # Sync the Goldfish-option enabled state with the default archetype.
+        self._on_archetype_change(self._archetype.currentIndex())
+
     def _on_mode_change(self, idx: int):
         """Gray out the on-play checkbox when a real opponent is selected."""
         goldfish = (idx == 0)
         self._on_play.setEnabled(goldfish)
+
+    def _on_archetype_change(self, a_idx: int):
+        """Disable the 'Goldfish (no opponent)' option when the selected
+        archetype has no goldfish APL (currently all Standard archetypes).
+        Also drop the opponent selection to index 1 if Goldfish was active."""
+        if a_idx < 0 or a_idx >= len(_ARCHETYPES):
+            return
+        has_goldfish = _ARCHETYPES[a_idx][2] is not None
+        model = self._opponent.model()
+        item = model.item(0) if model else None
+        if item is not None:
+            flags = item.flags()
+            if has_goldfish:
+                item.setFlags(flags | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            else:
+                item.setFlags(flags & ~Qt.ItemFlag.ItemIsEnabled & ~Qt.ItemFlag.ItemIsSelectable)
+                if self._opponent.currentIndex() == 0 and self._opponent.count() > 1:
+                    self._opponent.setCurrentIndex(1)
 
     def _on_run(self):
         ok, msg = _check_mtg_sim_available()
@@ -653,6 +750,18 @@ class SimulateTab(QWidget):
         if o_idx == 0:
             # Goldfish mode: just the chosen deck
             a_label, apl_mod, apl_cls, _m_mod, _m_cls, deck_file = a
+            if apl_cls is None:
+                self._run_btn.setEnabled(True)
+                self._progress.setVisible(False)
+                self._status.setText(
+                    f"{a_label} has no goldfish APL — pick an opponent instead."
+                )
+                self._results.setPlainText(
+                    f"{a_label} is a matchup-only archetype (no solo goldfish "
+                    f"variant available). Select an opponent in the 'vs' "
+                    f"dropdown and try again."
+                )
+                return
             on_play = self._on_play.isChecked()
             deck_text = self._paste.toPlainText()
             source = "pasted deck" if deck_text.strip() else a_label
@@ -693,14 +802,17 @@ class SimulateTab(QWidget):
         self._field_btn.setEnabled(False)
         self._progress.setVisible(True)
         self._results.clear()
-        total_pairs = len(_ARCHETYPES) - 1
+        fmt = _format_of(a[0])
+        field_entries = [e for e in _ARCHETYPES
+                         if _format_of(e[0]) == fmt and e[0] != a[0]]
         self._status.setText(
-            f"Running {a[0]} vs {total_pairs} field archetypes ({n_per} games each) ..."
+            f"Running {a[0]} vs {len(field_entries)} field archetypes "
+            f"({fmt.capitalize()}, {n_per} games each) ..."
         )
 
         w = DataLoadWorker(_run_field_gauntlet, kwargs=dict(
             a_label=a[0], a_match_module=a[3], a_match_class=a[4], a_deck_file=a[5],
-            field_entries=list(_ARCHETYPES),
+            field_entries=field_entries,
             n_per_matchup=n_per,
         ))
         w.result.connect(self._on_result)
@@ -852,9 +964,10 @@ class SimulateTab(QWidget):
         n = data["n_per_matchup"]
         expected = round(data["expected_field_wr"] * 100, 1)
         coverage = round(data["coverage_meta_share"] * 100, 1)
+        fmt = _format_of(a).capitalize()
 
         lines = [
-            f"== {a} vs field (Modern) | {n} games per matchup ==",
+            f"== {a} vs field ({fmt}) | {n} games per matchup ==",
             "",
             f"Expected field WR: {expected}%  "
             f"(weighted over {len(data['per_matchup'])} covered archetypes, "
@@ -907,7 +1020,13 @@ class SimulateTab(QWidget):
 
             from analysis.knn_classifier import hybrid_classify
             from analysis.archetypes import normalize as norm_arch
-            arch = hybrid_classify(main, format_name="modern")
+            # Respect the currently-selected archetype's format so paste
+            # classification matches the registry the user is browsing.
+            cur_idx = self._archetype.currentIndex()
+            cur_label = (_ARCHETYPES[cur_idx][0]
+                         if 0 <= cur_idx < len(_ARCHETYPES) else "")
+            fmt = _format_of(cur_label) if cur_label else "modern"
+            arch = hybrid_classify(main, format_name=fmt)
             if not arch:
                 return
 

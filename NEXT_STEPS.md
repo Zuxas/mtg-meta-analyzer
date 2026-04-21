@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-04-08
+Last updated: 2026-04-20
 
 ---
 
@@ -12,6 +12,11 @@ Last updated: 2026-04-08
 ### Query & Discovery
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
 - [ ] Global "All Formats" option everywhere
+
+### Sim Integration (in progress)
+- [x] SIMULATE tab supports Standard format (match-only, 7 archetypes)
+- [ ] Goldfish APLs for Standard archetypes (match APLs already exist)
+- [ ] Format picker on Field gauntlet (currently auto-infers from archetype)
 
 ### Match Logging Enhancements
 - [ ] Track record by event type (RCQ vs Open vs RC)
