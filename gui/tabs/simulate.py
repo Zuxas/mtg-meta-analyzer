@@ -157,6 +157,20 @@ def _run_matchup(
     results = run_match_set(apl_a, a_deck, apl_b, b_deck, n=n_games, mix_play_draw=True, seed=42)
     elapsed = time.perf_counter() - t0
 
+    # Compute average winner hand size (7 - winner's mulligan count).
+    # Per-game MatchResult objects are in results.results.
+    winner_hand_sizes = []
+    for r in getattr(results, "results", []) or []:
+        if r.winner == "a":
+            winner_hand_sizes.append(7 - r.mulligans_a)
+        elif r.winner == "b":
+            winner_hand_sizes.append(7 - r.mulligans_b)
+    avg_winner_hand = (round(sum(winner_hand_sizes) / len(winner_hand_sizes), 2)
+                       if winner_hand_sizes else 7.0)
+    pct_winner_kept_7 = (round(sum(1 for h in winner_hand_sizes if h == 7)
+                               / len(winner_hand_sizes) * 100, 1)
+                         if winner_hand_sizes else 100.0)
+
     # Calibration overlay: pull real-match WR from analyzer's DB if available
     real = _lookup_real_matchup(a_label, b_label)
 
@@ -169,6 +183,8 @@ def _run_matchup(
         "b_wins": results.b_wins,
         "a_win_pct": results.win_pct_a(),
         "avg_turns": round(results.avg_turns, 2) if results.avg_turns else 0,
+        "avg_winner_hand": avg_winner_hand,
+        "pct_winner_kept_7": pct_winner_kept_7,
         "kill_distribution": results.kill_turn_distribution(),
         "elapsed_sec": round(elapsed, 3),
         "real_a_wr": real["real_a_wr"],
@@ -400,6 +416,8 @@ class SimulateTab(QWidget):
             f"  {b:35s} {b_wins:5d} wins  ({b_pct}%)",
             "",
             f"Avg match length: {data['avg_turns']} turns",
+            f"Avg winner hand : {data.get('avg_winner_hand', 7.0):.2f} cards  "
+            f"({data.get('pct_winner_kept_7', 100.0)}% kept 7)",
         ]
 
         # Calibration overlay: sim prediction vs real-match data

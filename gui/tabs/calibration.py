@@ -157,12 +157,28 @@ class CalibrationTab(QWidget):
 
         desc = QLabel(
             "Runs sim matchups for every archetype pair and compares the predicted "
-            "win rate to real-match data. Cells show the delta (sim minus real). "
-            "Green = sim aligns with reality; red = sim is off by 7+ points."
+            "win rate to real-match data from the scraped DB."
         )
         desc.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
+
+        legend = QLabel(
+            "<b>How to read:</b> each cell is ROW's win rate against COLUMN.  "
+            "Top line = <b>sim% / real%</b>.  Bottom line = <b>delta</b> (sim minus real). "
+            "&nbsp;&nbsp; "
+            "<span style='background:#2e7846;color:white;padding:2px 6px'>green</span> "
+            "|delta| &lt; 3 &nbsp; "
+            "<span style='background:#9b8232;color:white;padding:2px 6px'>amber</span> "
+            "&lt; 7 &nbsp; "
+            "<span style='background:#963737;color:white;padding:2px 6px'>red</span> "
+            "&ge; 7 &nbsp; "
+            "<span style='background:#1f2133;color:#7a8194;padding:2px 6px'>dim</span> "
+            "no real data (lower min-matches threshold to widen coverage)"
+        )
+        legend.setStyleSheet(f"color: {theme.TEXT}; font-size: 11px;")
+        legend.setWordWrap(True)
+        layout.addWidget(legend)
 
         ctrl = QHBoxLayout()
         ctrl.addWidget(QLabel("Games per pair:"))
