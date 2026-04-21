@@ -18,7 +18,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QProgressBar, QApplication,
+    QProgressBar, QApplication, QComboBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QColor
@@ -177,7 +177,23 @@ class CalibrationTab(QWidget):
         super().__init__()
         self._worker = None
         self._on_cell_activate = on_cell_activate
+        # Active archetype list — filtered by format dropdown. Starts empty;
+        # _build populates it before the table gets its first layout.
+        self._active = []
         self._build()
+
+    def _formats_in_registry(self) -> list:
+        """Return formats actually present in _ARCHETYPES, preserving _FMT_ORDER."""
+        seen = []
+        for r in _ARCHETYPES:
+            f = _format_of(r[0])
+            if f not in seen:
+                seen.append(f)
+        return seen
+
+    def _filtered_archetypes(self, fmt: str) -> list:
+        """Subset of _ARCHETYPES matching the given format."""
+        return [r for r in _ARCHETYPES if _format_of(r[0]) == fmt]
 
     def _build(self):
         layout = QVBoxLayout(self)
@@ -199,9 +215,7 @@ class CalibrationTab(QWidget):
         legend = QLabel(
             "<b>How to read:</b> each cell is ROW's win rate against COLUMN.  "
             "Top line = <b>sim% / real%</b>.  Bottom line = <b>delta</b> (sim minus real). "
-            "Rows group by format ([M]odern / [S]tandard); "
-            "<span style='background:#121216;color:#4a4e5c;padding:2px 6px'>N/A</span> "
-            "cells are cross-format pairs that aren't simulated. "
+            "Pick a format above — the matrix shows only that format's archetypes. "
             "&nbsp;&nbsp; "
             "<span style='background:#2e7846;color:white;padding:2px 6px'>green</span> "
             "|delta| &lt; 3 &nbsp; "
@@ -217,6 +231,15 @@ class CalibrationTab(QWidget):
         layout.addWidget(legend)
 
         ctrl = QHBoxLayout()
+        ctrl.addWidget(QLabel("Format:"))
+        self._fmt = QComboBox()
+        for f in self._formats_in_registry():
+            self._fmt.addItem(f.capitalize(), userData=f)
+        self._fmt.setFixedWidth(120)
+        self._fmt.currentIndexChanged.connect(self._on_format_change)
+        ctrl.addWidget(self._fmt)
+        ctrl.addSpacing(12)
+
         ctrl.addWidget(QLabel("Games per pair:"))
         self._n_games = QSpinBox()
         self._n_games.setRange(50, 2000)
@@ -264,19 +287,29 @@ class CalibrationTab(QWidget):
         layout.addWidget(hint)
 
     def _init_table(self):
-        n = len(_ARCHETYPES)
+        # Initialize self._active from the current dropdown, then build the
+        # matrix for just that format's archetypes.
+        if hasattr(self, "_fmt"):
+            cur_fmt = self._fmt.currentData()
+            if cur_fmt:
+                self._active = self._filtered_archetypes(cur_fmt)
+        if not self._active:
+            # Fallback: first format in registry order
+            fmts = self._formats_in_registry()
+            if fmts:
+                self._active = self._filtered_archetypes(fmts[0])
+
+        n = len(self._active)
         self._table.setRowCount(n)
         self._table.setColumnCount(n)
 
         def _short(a_label):
             for suf in (" (Modern)", " (Standard)", " (Pioneer)", " (Legacy)"):
                 if a_label.endswith(suf):
-                    # keep a one-letter format tag so Standard and Modern rows
-                    # are distinguishable when two formats share a pretty name
-                    return a_label[:-len(suf)].strip() + f" [{suf.strip(' ()')[0]}]"
+                    return a_label[:-len(suf)].strip()
             return a_label
 
-        labels = [_short(a[0]) for a in _ARCHETYPES]
+        labels = [_short(a[0]) for a in self._active]
         self._table.setHorizontalHeaderLabels(labels)
         self._table.setVerticalHeaderLabels(labels)
         self._table.horizontalHeader().setSectionResizeMode(
@@ -297,26 +330,6 @@ class CalibrationTab(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self._table.setItem(i, i, item)
 
-        # Cross-format cells: mark as N/A (incoherent to sim Modern vs Standard).
-        # Use a distinctly dark background so the format-block structure
-        # reads visually rather than looking like empty same-format cells.
-        fmts = [_format_of(a[0]) for a in _ARCHETYPES]
-        na_bg = QColor(18, 18, 22)     # near-black, clearly different from empty
-        na_fg = QColor(74, 78, 92)     # dim gray
-        for i in range(n):
-            for j in range(n):
-                if i == j or fmts[i] == fmts[j]:
-                    continue
-                item = QTableWidgetItem("N/A")
-                item.setBackground(na_bg)
-                item.setForeground(na_fg)
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                item.setToolTip(
-                    f"Cross-format pair ({fmts[i]} vs {fmts[j]}) — not simulated."
-                )
-                self._table.setItem(i, j, item)
-
     def _start_worker(self, row_only: int = None):
         """Shared worker-kickoff for full matrix and single-row modes."""
         ok, msg = _check_mtg_sim_available()
@@ -328,27 +341,23 @@ class CalibrationTab(QWidget):
         self._rerun_row_btn.setEnabled(False)
         self._progress.setVisible(True)
         self._progress.setValue(0)
-        n = len(_ARCHETYPES)
-        fmts = [_format_of(a[0]) for a in _ARCHETYPES]
+        n = len(self._active)
         if row_only is not None:
-            same_fmt = [j for j in range(n)
-                        if j != row_only and fmts[j] == fmts[row_only]]
-            total_pairs = len(same_fmt)
-            # Clear just this row's same-format off-diagonal cells
-            for j in same_fmt:
-                self._table.setItem(row_only, j, QTableWidgetItem(""))
-                self._table.setItem(j, row_only, QTableWidgetItem(""))
+            total_pairs = n - 1
+            for j in range(n):
+                if j != row_only:
+                    self._table.setItem(row_only, j, QTableWidgetItem(""))
+                    self._table.setItem(j, row_only, QTableWidgetItem(""))
         else:
-            total_pairs = sum(1 for i in range(n) for j in range(i + 1, n)
-                              if fmts[i] == fmts[j])
+            total_pairs = n * (n - 1) // 2
             for i in range(n):
                 for j in range(n):
-                    if i == j or fmts[i] != fmts[j]:
+                    if i == j:
                         continue
                     self._table.setItem(i, j, QTableWidgetItem(""))
         self._progress.setMaximum(total_pairs)
 
-        self._worker = CalibrationWorker(_ARCHETYPES, self._n_games.value(),
+        self._worker = CalibrationWorker(self._active, self._n_games.value(),
                                          row_only=row_only)
         self._worker.progress.connect(self._on_progress)
         self._worker.cell_ready.connect(self._on_cell)
@@ -356,6 +365,23 @@ class CalibrationTab(QWidget):
         self._worker.error.connect(self._on_error)
         self._worker.finished.connect(self._worker.deleteLater)
         self._worker.start()
+
+    def _on_format_change(self, _idx):
+        """Swap the matrix to the newly-selected format's archetypes."""
+        # If a worker is mid-run, stop it — it'd emit cells into a table
+        # that's about to be repopulated for a different format.
+        if self._worker and self._worker.isRunning():
+            self._worker.stop()
+            self._worker.wait(500)
+            self._run_btn.setEnabled(True)
+            self._rerun_row_btn.setEnabled(True)
+            self._progress.setVisible(False)
+        self._init_table()
+        fmt = self._fmt.currentData() or ""
+        self._status.setText(
+            f"Switched to {fmt.capitalize()} — {len(self._active)} archetypes. "
+            f"Click 'Run full calibration' to populate the matrix."
+        )
 
     def _on_run(self):
         self._start_worker(row_only=None)
@@ -368,7 +394,7 @@ class CalibrationTab(QWidget):
             )
             return
         self._status.setText(
-            f"Re-running row: {_ARCHETYPES[row][0]} vs all opponents ..."
+            f"Re-running row: {self._active[row][0]} vs all opponents ..."
         )
         self._start_worker(row_only=row)
 
@@ -459,11 +485,10 @@ class CalibrationTab(QWidget):
             return  # diagonal — no meaningful matchup
         if self._on_cell_activate is None:
             return
-        a_label = _ARCHETYPES[row][0]
-        b_label = _ARCHETYPES[col][0]
-        if _format_of(a_label) != _format_of(b_label):
-            self._status.setText("Cross-format pair — not simulated.")
+        if row < 0 or col < 0 or row >= len(self._active) or col >= len(self._active):
             return
+        a_label = self._active[row][0]
+        b_label = self._active[col][0]
         try:
             self._on_cell_activate(a_label, b_label)
         except Exception:
