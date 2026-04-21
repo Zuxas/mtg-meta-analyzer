@@ -1079,8 +1079,15 @@ class SimulateTab(QWidget):
             return
         deck = self._my_decks_cache[idx - 1]
         text = self._deck_to_text(deck)
+        # Pre-select a same-format archetype so autodetect classifies right.
+        fmt = (deck.get("format") or "").lower().strip()
+        if fmt:
+            for i, entry in enumerate(_ARCHETYPES):
+                if _format_of(entry[0]) == fmt:
+                    if self._archetype.currentIndex() != i:
+                        self._archetype.setCurrentIndex(i)
+                    break
         self._paste.setPlainText(text)
-        # Nudge: show a tip via the status line
         self._status.setText(
             f"Loaded '{deck.get('name', '(unnamed)')}' into the paste area. "
             f"Pick an archetype whose APL matches this deck, then Run."
