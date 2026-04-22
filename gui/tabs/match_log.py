@@ -276,20 +276,21 @@ class MatchLogTab(QWidget):
         lv.addWidget(self._table, 1)
 
         # Buttons
+        from gui.icons_util import btn_icon
         btn_row = QHBoxLayout()
-        self._add_btn = QPushButton("+ Log Match")
+        self._add_btn = QPushButton(btn_icon("add", color=theme.BTN_FG), "Log Match")
         self._add_btn.setStyleSheet(
             f"background: {theme.ACCENT}; color: {theme.BTN_FG}; "
             f"font-weight: bold; padding: 6px 14px; border-radius: 4px;")
         self._add_btn.clicked.connect(self._add_match)
         btn_row.addWidget(self._add_btn)
 
-        self._edit_btn = QPushButton("Edit")
+        self._edit_btn = QPushButton(btn_icon("edit"), "Edit")
         self._edit_btn.setStyleSheet(theme.btn_secondary())
         self._edit_btn.clicked.connect(self._edit_match)
         btn_row.addWidget(self._edit_btn)
 
-        self._del_btn = QPushButton("Delete")
+        self._del_btn = QPushButton(btn_icon("delete", color=theme.ERR), "Delete")
         self._del_btn.setStyleSheet(f"color: {theme.ERR};")
         self._del_btn.clicked.connect(self._delete_match)
         btn_row.addWidget(self._del_btn)

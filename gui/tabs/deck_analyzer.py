@@ -374,12 +374,13 @@ class DeckAnalyzerTab(QWidget):
         self._arch.setFixedWidth(210)
         ctrl.addWidget(self._arch)
 
-        self._analyze_btn = QPushButton("Analyze Deck")
+        from gui.icons_util import btn_icon
+        self._analyze_btn = QPushButton(btn_icon("analyze", color=theme.BTN_FG), "Analyze Deck")
         self._analyze_btn.setStyleSheet(theme.btn_primary())
         self._analyze_btn.clicked.connect(self._run)
         ctrl.addWidget(self._analyze_btn)
 
-        self._legality_btn = QPushButton("Check Legality")
+        self._legality_btn = QPushButton(btn_icon("search"), "Check Legality")
         self._legality_btn.setStyleSheet(theme.btn_secondary())
         self._legality_btn.setToolTip(
             "Verify decklist legality for this format.\n"
@@ -389,7 +390,7 @@ class DeckAnalyzerTab(QWidget):
         self._legality_btn.clicked.connect(self._run_legality_check)
         ctrl.addWidget(self._legality_btn)
 
-        self._export_btn = QPushButton("Export ▾")
+        self._export_btn = QPushButton(btn_icon("export"), "Export")
         self._export_btn.setStyleSheet(theme.btn_secondary())
         self._export_btn.setEnabled(False)
         self._export_btn.clicked.connect(self._on_export)
@@ -398,7 +399,7 @@ class DeckAnalyzerTab(QWidget):
         # Send the current paste area to SIMULATE tab for goldfish/matchup runs.
         # Only shown when main_window wired an on_simulate callback.
         if self._on_simulate is not None:
-            self._simulate_btn = QPushButton("Simulate ▸")
+            self._simulate_btn = QPushButton(btn_icon("simulate"), "Simulate")
             self._simulate_btn.setStyleSheet(theme.btn_secondary())
             self._simulate_btn.setToolTip(
                 "Send this decklist to the SIMULATE tab "

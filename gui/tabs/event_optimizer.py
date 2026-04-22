@@ -132,7 +132,8 @@ class EventWidget(QWidget):
         self._field_input.setMaximumHeight(220)
         field_lv.addWidget(self._field_input)
 
-        self._meta_btn = QPushButton("Use Meta Distribution")
+        from gui.icons_util import btn_icon
+        self._meta_btn = QPushButton(btn_icon("refresh"), "Use Meta Distribution")
         self._meta_btn.setStyleSheet(theme.btn_secondary())
         self._meta_btn.setToolTip("Auto-fill field from current top meta archetypes by share %")
         self._meta_btn.clicked.connect(self._auto_populate_field)
@@ -140,18 +141,18 @@ class EventWidget(QWidget):
 
         lv.addWidget(field_box)
 
-        self._analyze_btn = QPushButton("Analyze Field")
+        self._analyze_btn = QPushButton(btn_icon("analyze", color=theme.BTN_FG), "Analyze Field")
         self._analyze_btn.setStyleSheet(theme.btn_primary())
         self._analyze_btn.clicked.connect(self._run)
         lv.addWidget(self._analyze_btn)
 
-        self._prep_btn = QPushButton("Generate Prep Package")
+        self._prep_btn = QPushButton(btn_icon("tournament"), "Generate Prep Package")
         self._prep_btn.setStyleSheet(theme.btn_secondary())
         self._prep_btn.setToolTip("Printable HTML: your 75 + field analysis + SB plans + gap warnings")
         self._prep_btn.clicked.connect(self._generate_prep_package)
         lv.addWidget(self._prep_btn)
 
-        self._gauntlet_btn = QPushButton("Export Gauntlet CSV")
+        self._gauntlet_btn = QPushButton(btn_icon("export"), "Export Gauntlet CSV")
         self._gauntlet_btn.setStyleSheet(theme.btn_secondary())
         self._gauntlet_btn.setToolTip("Export top meta decks as CSV for Team Resolve gauntlet pipeline")
         self._gauntlet_btn.clicked.connect(self._export_gauntlet)

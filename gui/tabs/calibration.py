@@ -247,21 +247,22 @@ class CalibrationTab(QWidget):
         self._n_games.setValue(150)
         ctrl.addWidget(self._n_games)
         ctrl.addStretch(1)
-        self._copy_btn = QPushButton("Copy as TSV")
+        from gui.icons_util import btn_icon
+        self._copy_btn = QPushButton(btn_icon("copy"), "Copy as TSV")
         self._copy_btn.setToolTip(
             "Copy the full matrix to the clipboard as tab-separated values "
             "(paste into Excel / Google Sheets)."
         )
         self._copy_btn.clicked.connect(self._on_copy_tsv)
         ctrl.addWidget(self._copy_btn)
-        self._rerun_row_btn = QPushButton("Re-run selected row")
+        self._rerun_row_btn = QPushButton(btn_icon("refresh"), "Re-run selected row")
         self._rerun_row_btn.setToolTip(
             "Re-run calibration for just the currently-selected archetype's row. "
             "Useful after tuning an APL — 10x faster than a full matrix re-run."
         )
         self._rerun_row_btn.clicked.connect(self._on_rerun_row)
         ctrl.addWidget(self._rerun_row_btn)
-        self._run_btn = QPushButton("Run full calibration")
+        self._run_btn = QPushButton(btn_icon("run"), "Run full calibration")
         self._run_btn.clicked.connect(self._on_run)
         ctrl.addWidget(self._run_btn)
         layout.addLayout(ctrl)
