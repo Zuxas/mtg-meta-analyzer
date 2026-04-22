@@ -224,6 +224,21 @@ class MatchLogTab(QWidget):
         self._summary_bar = SummaryBar()
         outer.addWidget(self._summary_bar)
 
+        # Live event banner — shows current standing, points, threshold,
+        # and a 'Quick-log next round' button when an event is active.
+        self._event_banner = QLabel("")
+        self._event_banner.setWordWrap(True)
+        self._event_banner.setStyleSheet(
+            f"background: {theme.INFO_BG}; border-left: 4px solid {theme.ACCENT}; "
+            f"padding: 8px 12px; border-radius: 3px; color: {theme.TEXT}; "
+            f"font-size: 12px;"
+        )
+        self._event_banner.setTextFormat(Qt.TextFormat.RichText)
+        self._event_banner.setOpenExternalLinks(False)
+        self._event_banner.linkActivated.connect(self._on_banner_link)
+        self._event_banner.setVisible(False)
+        outer.addWidget(self._event_banner)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # ── Left: match log table ─────────────────────────────────────
@@ -444,6 +459,7 @@ class MatchLogTab(QWidget):
         self._active_format = data.get("active_format") or "modern"
         self._populate_table(data["matches"])
         self._populate_stats(data["stats"], data.get("meta_wrs", {}))
+        self._refresh_event_banner()
         ov = data["overall"]
         if ov["total"] > 0:
             self._summary_lbl.setText(
@@ -498,6 +514,88 @@ class MatchLogTab(QWidget):
         # Win rate trend chart
         trend = data.get("trend", [])
         self._draw_trend(trend)
+
+    # ------------------------------------------------------------------
+    # Live event banner (round tracking)
+    # ------------------------------------------------------------------
+
+    def _refresh_event_banner(self):
+        """Group the most recently-logged matches by event name and show the
+        current event's live standing: W-L-D, points, cut threshold, next
+        round number."""
+        matches = getattr(self, "_matches", []) or []
+        if not matches:
+            self._event_banner.setVisible(False)
+            return
+        # Most recent event = event_name of the newest match (they're sorted
+        # DESC by date/id by get_matches).
+        newest = matches[0]
+        event_name = (newest.get("event_name") or "").strip()
+        if not event_name:
+            self._event_banner.setVisible(False)
+            return
+
+        same_event = [m for m in matches
+                      if (m.get("event_name") or "").strip() == event_name]
+        rounds_played = len(same_event)
+        wins = sum(1 for m in same_event if (m.get("result") or "").lower() == "win")
+        losses = sum(1 for m in same_event if (m.get("result") or "").lower() == "loss")
+        draws = sum(1 for m in same_event if (m.get("result") or "").lower() == "draw")
+        points = wins * 3 + draws
+
+        # Next-round lookup: the max round in same_event + 1
+        next_round = max(((m.get("round") or 0) for m in same_event), default=0) + 1
+        fmt = (newest.get("format") or "modern")
+        my_deck = (newest.get("my_deck") or "").strip()
+
+        # Threshold heuristic based on rounds played:
+        #   — up to 4 rounds ⇒ assume 5-round RCQ (cut at 9 pts / top 4)
+        #   — 5–7 rounds     ⇒ assume 7-round event (cut at 15 pts / top 8)
+        #   — 8+ rounds      ⇒ assume 9-round RC / Pro Tour (cut at 18 pts)
+        if rounds_played <= 4:
+            threshold, top_cut = 9, 4
+        elif rounds_played <= 7:
+            threshold, top_cut = 15, 8
+        else:
+            threshold, top_cut = 18, 8
+
+        status_color = theme.OK if points >= threshold else (
+            theme.WARN if points >= threshold - 3 else theme.TEXT_DIM
+        )
+        status = ("✓ at / above cut threshold"
+                  if points >= threshold
+                  else f"need {threshold - points} more pts for top {top_cut}")
+
+        lines = [
+            f"<b style='color:{theme.ACCENT};'>Active event: {event_name}</b>"
+            f"  <span style='color:{theme.TEXT_DIM};'>({fmt}"
+            + (f" · {my_deck}" if my_deck else "") + ")</span>",
+            f"Record: <b>{wins}-{losses}-{draws}</b> · Points: <b>{points}</b> · "
+            f"<span style='color:{status_color};'>{status}</span> · "
+            f"<a href='next' style='color:{theme.ACCENT};'>Log round {next_round} →</a>",
+        ]
+        self._event_banner.setText("<br>".join(lines))
+        self._event_banner.setVisible(True)
+
+    def _on_banner_link(self, href: str):
+        """Banner link clicks — 'next' opens _MatchDialog pre-filled for the
+        next round of the active event."""
+        if href != "next":
+            return
+        matches = getattr(self, "_matches", []) or []
+        if not matches:
+            return
+        newest = matches[0]
+        event_name = (newest.get("event_name") or "").strip()
+        same_event = [m for m in matches
+                      if (m.get("event_name") or "").strip() == event_name]
+        next_round = max(((m.get("round") or 0) for m in same_event), default=0) + 1
+        # Reuse _add_match's dialog path but seed the defaults
+        self._last_event = event_name
+        self._last_deck = (newest.get("my_deck") or "").strip()
+        self._last_format = newest.get("format") or "modern"
+        self._last_round = next_round
+        self._add_match()
 
     def _on_matches_menu(self, pos):
         """Right-click on a logged match row → 'Simulate this matchup'."""
