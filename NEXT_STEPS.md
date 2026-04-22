@@ -10,34 +10,44 @@ Last updated: 2026-04-21
 - [ ] Meta clustering by playstyle
 
 ### Query & Discovery
-- [ ] Card-name decklist search (exact + multi-card AND/OR)
+- [x] Card-name decklist search (Deck Search → Cards filter, AND + OR)
 - [ ] Global "All Formats" option everywhere
 
 ### Sim Integration (mostly done)
-- [x] SIMULATE tab supports Standard format (match-only, 7 archetypes)
-- [x] CALIBRATION tab format-aware (skips cross-format pairs, [M]/[S] headers)
-- [x] Cross-tab 'simulate this deck' callers pass format_hint
-- [x] My Decks load pre-selects same-format archetype
+- [x] Standard-format support in SIMULATE + CALIBRATION (format dropdowns)
+- [x] Cross-tab format_hint plumbing (Deck Analyzer / Search / Dashboard / My Decks)
 - [x] Match Log right-click "Simulate this matchup" with fuzzy lookup
-- [x] Field gauntlet: Top-N (All/5/8/10) slice by meta share
-- [ ] Goldfish APLs for Standard archetypes (match APLs already exist)
+- [x] Field gauntlet Top-N (All/5/8/10) slice by meta share
+- [x] Sim run history (last 10 runs)
+- [ ] Goldfish APLs for Standard archetypes (cross-repo mtg-sim work)
 
 ### Match Logging Enhancements
-- [x] Track record by event type (RCQ vs Open vs RC) — _event_lbl summary
-- [x] Trend analysis: personal WR over time — _draw_trend chart
-- [x] Integration with SB advisor — SB Advice button (matchup_advisor)
+- [x] Record by event type, trend chart, SB Advice (matchup_advisor)
+- [x] Card swap rationale tracker (swap_notes + swap_verdict columns + Swap indicator)
 
 ### Testing & Iteration
-- [ ] Card swap rationale tracker
-- [ ] Matchup hypothesis tracker
+- [x] Matchup hypothesis tracker (Tournament → Hypotheses sub-tab)
 
 ### Tournament System
-- [ ] Pre-event prep mode (deck + SB guide + expected meta)
+- [x] Pre-event prep checklist (Tournament → Prep Checklist sub-tab)
+- [x] Generate Prep Package HTML export (Event Optimizer button)
 - [ ] Round tracking during event
 - [ ] Post-event analysis (expected vs actual matchups)
 
-### UI/UX
+### UI/UX (audit rollout)
+- [x] Hardcoded color audit — theme.* constants + helpers
+- [x] Spacing scale (SPACE_XS/SM/MD/LG/XL on 4px grid)
+- [x] empty_state_label() helper + My Decks wire
+- [x] h1/h2/h3 style helpers
+- [x] Dense control bars grouped (Dashboard separators + Event Optimizer QGroupBoxes)
+- [x] Dialog size tiers (DIALOG_SM/MD/LG)
+- [x] QtAwesome icons on primary actions
+- [x] StatusRow helper (simulate/calibration/event_optimizer)
+- [x] Deck legality watchdog (My Decks Legal column)
+- [x] Card inclusion trend sparkline (Card Browser)
+- [x] Similar-scraped-decks panel w/ clickable rows
 - [ ] Interaction speed (filters update in place)
+- [ ] Dashboard + Heatmap empty-state polish
 
 ### Packaging
 - [ ] PyInstaller .exe packaging + clean machine testing
