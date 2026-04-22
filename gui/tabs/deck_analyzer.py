@@ -566,6 +566,10 @@ class DeckAnalyzerTab(QWidget):
         self._similar_decks_lbl.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 10px;"
         )
+        # Intercept the 'deck:{id}' anchor hrefs we render in the rows.
+        self._similar_decks_lbl.setOpenExternalLinks(False)
+        self._similar_decks_lbl.linkActivated.connect(self._on_similar_deck_link)
+        self._similar_deck_cache = {}
         rv.addWidget(self._similar_decks_lbl)
 
         # Baseline vs deviation section
@@ -1073,6 +1077,32 @@ class DeckAnalyzerTab(QWidget):
         except Exception:
             self._sim_lbl.setText("")
 
+    def _on_similar_deck_link(self, href: str):
+        """Open the Deck Detail dialog for a 'deck:{id}' href from the
+        similar-scraped-decks panel."""
+        if not href.startswith("deck:"):
+            return
+        try:
+            deck_id = int(href[5:])
+        except ValueError:
+            return
+        r = self._similar_deck_cache.get(deck_id)
+        if not r:
+            return
+        from gui.tabs.search import _DeckDetailDialog
+        dlg = _DeckDetailDialog(
+            deck_id=deck_id,
+            archetype=r.get("archetype", ""),
+            player=r.get("player", ""),
+            placement=r.get("placement"),
+            event=r.get("event_name", ""),
+            date=r.get("date", ""),
+            fmt=self._fmt.currentText(),
+            parent=self,
+            on_simulate=self._on_simulate,
+        )
+        dlg.exec()
+
     def _run_similar_scraped(self, card_list: dict, format_name: str):
         """Find the top 5 scraped decks most similar to the pasted list."""
         try:
@@ -1097,15 +1127,20 @@ class DeckAnalyzerTab(QWidget):
                     "<td>Sim</td><td>Archetype</td><td>Player</td>"
                     "<td>Finish</td><td>Event</td><td>Date</td></tr>",
                 ]
+                # Cache metadata so the linkActivated handler can open the
+                # right deck without a second DB hit.
+                self._similar_deck_cache = {r["deck_id"]: r for r in results}
                 for r in results:
                     pct = r["similarity"] * 100
                     place = (f"#{r['placement']}" if r["placement"]
                              else "-")
                     event = (r["event_name"] or "")[:36]
+                    link = f"deck:{r['deck_id']}"
                     rows.append(
                         f"<tr>"
                         f"<td>{pct:.0f}%</td>"
-                        f"<td>{r['archetype']}</td>"
+                        f"<td><a href='{link}' style='color:{theme.ACCENT};"
+                        f"text-decoration:none;'>{r['archetype']}</a></td>"
                         f"<td>{r['player']}</td>"
                         f"<td>{place}</td>"
                         f"<td>{event}</td>"
@@ -1113,6 +1148,11 @@ class DeckAnalyzerTab(QWidget):
                         f"</tr>"
                     )
                 rows.append("</table>")
+                rows.append(
+                    f"<span style='color:{theme.TEXT_DIM}; font-size:10px;'>"
+                    "Click an archetype name to open that deck's full list."
+                    "</span>"
+                )
                 self._similar_decks_lbl.setText("".join(rows))
 
             w.result.connect(_done)
