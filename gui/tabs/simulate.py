@@ -166,22 +166,31 @@ def _discover_archetypes_standard() -> list:
         if not os.path.isfile(os.path.join(_MTG_SIM_PATH, deck_rel)):
             continue
 
-        # Optional goldfish APL — apl/<base>.py must exist, declare itself
-        # Standard in its module docstring, and expose a non-Match APL class.
+        # Optional goldfish APL. Two conventions checked in order:
+        #   1. apl/<base>_standard.py  — format-specific, no ambiguity
+        #   2. apl/<base>.py           — legacy, must self-declare Standard
+        #                                in the module docstring to be claimed
         goldfish_module = None
         goldfish_class = None
-        goldfish_path = os.path.join(apl_dir, f"{base}.py")
-        if os.path.isfile(goldfish_path):
+        for candidate_base, verify_docstring in (
+            (f"{base}_standard", False),
+            (base, True),
+        ):
+            goldfish_path = os.path.join(apl_dir, f"{candidate_base}.py")
+            if not os.path.isfile(goldfish_path):
+                continue
             with open(goldfish_path, "r", encoding="utf-8", errors="ignore") as gf:
                 gsrc = gf.read()
-            # Only claim this goldfish if its docstring self-identifies
+            # Only claim legacy <base>.py if its docstring self-identifies
             # as Standard — otherwise a collision like mono_red_aggro.py
             # (which is Modern Burn) would bind to the wrong format.
-            if "(Standard)" in gsrc or "Standard)" in gsrc[:500]:
-                gm = gcls_re.search(gsrc)
-                if gm:
-                    goldfish_module = f"apl.{base}"
-                    goldfish_class = gm.group(1)
+            if verify_docstring and "(Standard)" not in gsrc[:500]:
+                continue
+            gm = gcls_re.search(gsrc)
+            if gm:
+                goldfish_module = f"apl.{candidate_base}"
+                goldfish_class = gm.group(1)
+                break
 
         rows.append((
             _label_from_base(base, "standard"),
