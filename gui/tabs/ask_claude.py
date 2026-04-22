@@ -21,6 +21,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QTextCursor
 
 import gui.theme as theme
+from gui.icons_util import btn_icon
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +182,7 @@ class AskClaudeTab(QWidget):
         opt_row.addWidget(self._ctx_check)
         opt_row.addStretch()
 
-        self._clear_btn = QPushButton("Clear chat")
+        self._clear_btn = QPushButton(btn_icon("delete"), "Clear chat")
         self._clear_btn.setStyleSheet(theme.btn_secondary())
         self._clear_btn.clicked.connect(self._clear_chat)
         opt_row.addWidget(self._clear_btn)
@@ -208,7 +209,7 @@ class AskClaudeTab(QWidget):
         self._input.installEventFilter(self)
         input_row.addWidget(self._input, 1)
 
-        self._send_btn = QPushButton("Send")
+        self._send_btn = QPushButton(btn_icon("run"), "Send")
         self._send_btn.setStyleSheet(theme.btn_primary())
         self._send_btn.setFixedWidth(70)
         self._send_btn.setFixedHeight(78)

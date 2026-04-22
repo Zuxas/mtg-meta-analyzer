@@ -17,6 +17,7 @@ from PyQt6.QtCore import Qt, QUrl, QTimer
 from PyQt6.QtGui import QDesktopServices, QColor, QFont
 
 import gui.theme as theme
+from gui.icons_util import btn_icon
 from gui.worker_threads import DataLoadWorker
 
 
@@ -104,7 +105,7 @@ class KnowledgeBaseTab(QWidget):
 
         lv.addStretch()
 
-        self._add_btn = QPushButton("Save Bookmark")
+        self._add_btn = QPushButton(btn_icon("save"), "Save Bookmark")
         self._add_btn.setStyleSheet(theme.btn_primary())
         self._add_btn.clicked.connect(self._save_bookmark)
         lv.addWidget(self._add_btn)

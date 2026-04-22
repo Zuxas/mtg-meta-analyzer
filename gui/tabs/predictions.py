@@ -13,6 +13,7 @@ from PyQt6.QtGui import QColor, QFont
 
 from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
+from gui.icons_util import btn_icon
 
 
 class PredictionsTab(QWidget):
@@ -39,17 +40,17 @@ class PredictionsTab(QWidget):
         self._pending_only = QCheckBox("Pending only")
         ctrl.addWidget(self._pending_only)
 
-        self._gen_btn = QPushButton("Generate Predictions")
+        self._gen_btn = QPushButton(btn_icon("analyze"), "Generate Predictions")
         self._gen_btn.setStyleSheet(theme.btn_primary())
         self._gen_btn.clicked.connect(self._generate)
         ctrl.addWidget(self._gen_btn)
 
-        self._val_btn = QPushButton("Validate")
+        self._val_btn = QPushButton(btn_icon("search"), "Validate")
         self._val_btn.setStyleSheet(theme.btn_success())
         self._val_btn.clicked.connect(self._validate)
         ctrl.addWidget(self._val_btn)
 
-        self._refresh_btn = QPushButton("Refresh")
+        self._refresh_btn = QPushButton(btn_icon("refresh"), "Refresh")
         self._refresh_btn.setStyleSheet(theme.btn_secondary())
         self._refresh_btn.clicked.connect(self._load)
         ctrl.addWidget(self._refresh_btn)

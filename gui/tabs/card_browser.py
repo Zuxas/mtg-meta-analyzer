@@ -25,6 +25,7 @@ from PyQt6.QtGui import QFont, QPixmap, QColor
 
 from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
+from gui.icons_util import btn_icon
 
 
 # ---------------------------------------------------------------------------
@@ -535,7 +536,7 @@ class CardBrowserTab(QWidget):
         self._search_input.returnPressed.connect(self._do_search)
         search_row.addWidget(self._search_input, 1)
 
-        self._search_btn = QPushButton("Search")
+        self._search_btn = QPushButton(btn_icon("search"), "Search")
         self._search_btn.setStyleSheet(theme.btn_primary())
         self._search_btn.clicked.connect(self._do_search)
         search_row.addWidget(self._search_btn)

@@ -19,6 +19,7 @@ from PyQt6.QtCore import QDate, Qt
 from gui.widgets.chart_canvas import ChartCanvas
 from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
+from gui.icons_util import btn_icon
 
 _project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -102,7 +103,7 @@ class ChartsTab(QWidget):
         self._add_arch_btn.setStyleSheet(theme.btn_secondary())
         self._add_arch_btn.clicked.connect(self._add_compare_arch)
         cmp_row.addWidget(self._add_arch_btn)
-        self._rm_arch_btn = QPushButton("Remove")
+        self._rm_arch_btn = QPushButton(btn_icon("cancel"), "Remove")
         self._rm_arch_btn.setStyleSheet(theme.btn_secondary())
         self._rm_arch_btn.clicked.connect(self._remove_compare_arch)
         cmp_row.addWidget(self._rm_arch_btn)
@@ -147,12 +148,12 @@ class ChartsTab(QWidget):
         cv.addStretch()
 
         # Buttons
-        self._gen_btn = QPushButton("Generate Chart")
+        self._gen_btn = QPushButton(btn_icon("analyze"), "Generate Chart")
         self._gen_btn.setStyleSheet(theme.btn_primary())
         self._gen_btn.clicked.connect(self.generate)
         cv.addWidget(self._gen_btn)
 
-        self._save_btn = QPushButton("Save PNG")
+        self._save_btn = QPushButton(btn_icon("export"), "Save PNG")
         self._save_btn.setStyleSheet(theme.btn_secondary())
         self._save_btn.clicked.connect(self._save_png)
         cv.addWidget(self._save_btn)
