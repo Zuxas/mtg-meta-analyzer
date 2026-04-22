@@ -309,6 +309,15 @@ class MatchLogTab(QWidget):
         self._del_btn.setStyleSheet(f"color: {theme.ERR};")
         self._del_btn.clicked.connect(self._delete_match)
         btn_row.addWidget(self._del_btn)
+
+        self._post_event_btn = QPushButton(btn_icon("analyze"), "Post-Event")
+        self._post_event_btn.setStyleSheet(theme.btn_secondary())
+        self._post_event_btn.setToolTip(
+            "Compare a completed event's actual matchups against the "
+            "expected meta share and scraped real-match WR."
+        )
+        self._post_event_btn.clicked.connect(self._show_post_event)
+        btn_row.addWidget(self._post_event_btn)
         btn_row.addStretch()
         lv.addLayout(btn_row)
 
@@ -514,6 +523,16 @@ class MatchLogTab(QWidget):
         # Win rate trend chart
         trend = data.get("trend", [])
         self._draw_trend(trend)
+
+    def _show_post_event(self):
+        """Open the PostEventDialog with the currently-loaded matches."""
+        if not getattr(self, "_matches", []):
+            QMessageBox.information(self, "No matches",
+                                     "Log some matches first.")
+            return
+        from gui.widgets.post_event_dialog import PostEventDialog
+        dlg = PostEventDialog(self, matches=self._matches)
+        dlg.exec()
 
     # ------------------------------------------------------------------
     # Live event banner (round tracking)
