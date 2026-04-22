@@ -17,6 +17,7 @@ import gui.theme as theme
 
 from gui.tabs.event_optimizer import EventWidget
 from gui.tabs.breaker_math import BreakerWidget
+from gui.tabs.hypotheses import HypothesesTab
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +130,7 @@ class TournamentPrepTab(QWidget):
         self._rcq = EventWidget()
         inner.addTab(self._rcq, "EVENT OPTIMIZER")
         inner.addTab(BreakerWidget(), "BREAKER MATH")
+        inner.addTab(HypothesesTab(), "HYPOTHESES")
         layout.addWidget(inner)
 
     def load_deck(self, deck: dict):
