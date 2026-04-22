@@ -691,7 +691,15 @@ class DashboardTab(QWidget):
         n = len(self._standings)
         # Detect matches-table fallback
         using_matches = any(s.get("_source") == "matches" for s in self._standings)
-        if using_matches:
+        if n == 0:
+            fmt = self._fmt.currentText()
+            tf = self._TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
+            self._status_lbl.setText(
+                f"No {fmt} data in the last {tf.lower()} — run "
+                f"fill_database.bat or widen the timeframe."
+            )
+            self._status_lbl.setStyleSheet(f"color: {theme.WARN};")
+        elif using_matches:
             self._status_lbl.setText(
                 f"{n} archetypes (using match data \u2014 deck scraper needs refresh)"
             )

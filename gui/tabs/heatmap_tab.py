@@ -707,21 +707,29 @@ class HeatmapTab(QWidget):
         if not matrix:
             self._grid_container.setVisible(False)
             self._status.setVisible(True)
+            # Hero-sized empty message — same styling as theme.empty_state_label
+            # so the tab feels intentional rather than broken.
             if self._load_source == "cache":
-                self._status.setText(
-                    f"No cached data for {fmt} \u2014 click \u2018Real Match Data (DB)\u2019 "
-                    f"or \u2018MTGDecks Live\u2019 first."
-                )
+                title = f"No cached matchup data for {fmt.capitalize()}"
+                hint = ("Click <b>Real Match Data (DB)</b> or "
+                        "<b>MTGDecks Live</b> above to populate the cache.")
             elif self._load_source == "combined":
-                self._status.setText(
-                    f"No match data found for {fmt}. "
-                    f"Run the MTGMelee scraper or fetch from MTGDecks."
-                )
+                title = f"No match data found for {fmt.capitalize()}"
+                hint = ("Run the MTGMelee scraper, or click "
+                        "<b>MTGDecks Live</b> to fetch from the web.")
             else:
-                self._status.setText(
-                    f"No data found for {fmt}. "
-                    f"Try \u2018Real Match Data (DB)\u2019 or \u2018MTGDecks Live\u2019."
-                )
+                title = f"No matchup data for {fmt.capitalize()}"
+                hint = ("Try <b>Real Match Data (DB)</b> or "
+                        "<b>MTGDecks Live</b> above.")
+            self._status.setTextFormat(Qt.TextFormat.RichText)
+            self._status.setText(
+                f"<div style='color: {theme.TEXT}; text-align: center;"
+                f" line-height: 1.6;'>"
+                f"<div style='font-size: 14px; margin-bottom: 6px;'>"
+                f"{title}</div>"
+                f"<div style='color: {theme.TEXT_DIM}; font-size: 11px;'>"
+                f"{hint}</div></div>"
+            )
             return
 
         self._current_matrix = matrix
