@@ -6,48 +6,43 @@ Last updated: 2026-04-21
 
 ## OPEN PRIORITIES
 
-### Deck Intelligence (remaining)
-- [ ] Meta clustering by playstyle
+### Deck Intelligence
+- [x] Meta clustering by playstyle (Dashboard → Clusters dialog)
 
 ### Query & Discovery
 - [x] Card-name decklist search (Deck Search → Cards filter, AND + OR)
-- [ ] Global "All Formats" option everywhere
+- [x] Global "All Formats" option (Dashboard). Broader rollout to Charts
+      / Predictions / Card Browser filters is the next step.
 
-### Sim Integration (mostly done)
-- [x] Standard-format support in SIMULATE + CALIBRATION (format dropdowns)
-- [x] Cross-tab format_hint plumbing (Deck Analyzer / Search / Dashboard / My Decks)
-- [x] Match Log right-click "Simulate this matchup" with fuzzy lookup
-- [x] Field gauntlet Top-N (All/5/8/10) slice by meta share
-- [x] Sim run history (last 10 runs)
-- [ ] Goldfish APLs for Standard archetypes (cross-repo mtg-sim work)
+### Sim Integration
+- [x] Standard-format support end-to-end (format dropdowns,
+      cross-tab format_hint, fuzzy match lookups, Top-N field,
+      sim history)
+- [x] Standard goldfish auto-detect (Dimir Midrange Standard wired;
+      future mtg-sim goldfish APLs pick up automatically)
+- [ ] Author Standard goldfish APLs for the remaining 6 archetypes
+      (cross-repo mtg-sim authoring)
 
-### Match Logging Enhancements
-- [x] Record by event type, trend chart, SB Advice (matchup_advisor)
-- [x] Card swap rationale tracker (swap_notes + swap_verdict columns + Swap indicator)
+### Match Logging
+- [x] Event-type summary, trend chart, SB Advice, card-swap tracker
 
 ### Testing & Iteration
-- [x] Matchup hypothesis tracker (Tournament → Hypotheses sub-tab)
+- [x] Matchup hypothesis tracker (Tournament → Hypotheses)
 
 ### Tournament System
-- [x] Pre-event prep checklist (Tournament → Prep Checklist sub-tab)
-- [x] Generate Prep Package HTML export (Event Optimizer button)
-- [ ] Round tracking during event
-- [ ] Post-event analysis (expected vs actual matchups)
+- [x] Pre-event prep checklist (Tournament → Prep Checklist)
+- [x] Generate Prep Package HTML export (Event Optimizer)
+- [x] Round tracking during event (Match Log live event banner)
+- [x] Post-event analysis (Match Log → Post-Event dialog)
 
 ### UI/UX (audit rollout)
-- [x] Hardcoded color audit — theme.* constants + helpers
-- [x] Spacing scale (SPACE_XS/SM/MD/LG/XL on 4px grid)
-- [x] empty_state_label() helper + My Decks wire
-- [x] h1/h2/h3 style helpers
-- [x] Dense control bars grouped (Dashboard separators + Event Optimizer QGroupBoxes)
-- [x] Dialog size tiers (DIALOG_SM/MD/LG)
-- [x] QtAwesome icons on primary actions
-- [x] StatusRow helper (simulate/calibration/event_optimizer)
-- [x] Deck legality watchdog (My Decks Legal column)
-- [x] Card inclusion trend sparkline (Card Browser)
-- [x] Similar-scraped-decks panel w/ clickable rows
-- [ ] Interaction speed (filters update in place)
+- [x] All 8 audit fixes shipped (colors / spacing / empty state / headers
+      / density / dialog sizes / icons / StatusRow helper)
+- [x] Deck legality watchdog, card-trend sparkline, similar-decks click
+- [ ] Interaction speed — filters update in place (no full refresh)
 - [ ] Dashboard + Heatmap empty-state polish
+- [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
+      / card_browser Search button / h2h / vs-field forms)
 
 ### Packaging
 - [ ] PyInstaller .exe packaging + clean machine testing
