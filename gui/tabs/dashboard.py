@@ -223,7 +223,21 @@ class DashboardTab(QWidget):
         self._chart_mode    = "meta_share"
         self._standings     = []
         self._on_simulate   = on_simulate
+
+        # Debounce rapid filter changes — a 200ms pause before firing
+        # collapses 'format-then-timeframe' clicks into a single refresh.
+        from PyQt6.QtCore import QTimer
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(200)
+        self._refresh_timer.timeout.connect(self.refresh)
+
         self._build_ui()
+
+    def _schedule_refresh(self):
+        """Called by filter widgets — restarts the debounce timer so rapid
+        changes coalesce into one refresh instead of spawning N workers."""
+        self._refresh_timer.start()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -251,7 +265,7 @@ class DashboardTab(QWidget):
             "'all' merges every scraped format — archetype rows include "
             "the format in their label so collisions stay distinguishable."
         )
-        self._fmt.currentIndexChanged.connect(lambda _: self.refresh())
+        self._fmt.currentIndexChanged.connect(lambda _: self._schedule_refresh())
         ctrl.addWidget(self._fmt)
 
         ctrl.addWidget(QLabel("Timeframe:"))
@@ -260,7 +274,7 @@ class DashboardTab(QWidget):
             self._tf.addItem(label)
         self._tf.setCurrentText(theme.TIMEFRAME_DEFAULT)
         self._tf.setFixedWidth(110)
-        self._tf.currentIndexChanged.connect(lambda _: self.refresh())
+        self._tf.currentIndexChanged.connect(lambda _: self._schedule_refresh())
         ctrl.addWidget(self._tf)
 
         ctrl.addWidget(QLabel("Top N:"))
@@ -293,7 +307,7 @@ class DashboardTab(QWidget):
             "Prevents the same deck from being double-counted in meta-share and win-rate.\n"
             "Recommended: ON"
         )
-        self._dedup_cs.stateChanged.connect(self.refresh)
+        self._dedup_cs.stateChanged.connect(self._schedule_refresh)
         ctrl.addWidget(self._dedup_cs)
 
         self._dedup_upd = QCheckBox("One per player")
@@ -304,7 +318,7 @@ class DashboardTab(QWidget):
             "Useful when a single player is dominating raw appearance counts.\n"
             "Default: OFF (each tournament result counts separately)"
         )
-        self._dedup_upd.stateChanged.connect(self.refresh)
+        self._dedup_upd.stateChanged.connect(self._schedule_refresh)
         ctrl.addWidget(self._dedup_upd)
 
         # ── Insights actions ──────────────────────────────────────────
