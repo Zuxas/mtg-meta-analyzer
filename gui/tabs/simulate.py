@@ -127,11 +127,13 @@ def _discover_archetypes_modern() -> list:
 
 
 def _discover_archetypes_standard() -> list:
-    """Scan mtg-sim/apl/ for Standard archetypes (match APL + deck, no goldfish).
+    """Scan mtg-sim/apl/ for Standard archetypes.
 
     Standard archetypes ship as *_standard_match.py with a matching
-    *_standard.txt deck. Goldfish variants generally don't exist for
-    these — so the tuple's goldfish slots are None.
+    *_standard.txt deck. A goldfish variant is optional: if
+    apl/<base>.py exists, declares itself Standard in the module
+    docstring, and defines a non-Match APL class, we wire it in so
+    Goldfish mode works for that archetype.
     """
     import re
 
@@ -143,6 +145,7 @@ def _discover_archetypes_standard() -> list:
 
     mcls_re = re.compile(r"^class\s+([A-Z][A-Za-z0-9]*StandardMatchAPL)\s*\(",
                           re.MULTILINE)
+    gcls_re = re.compile(r"^class\s+([A-Z][A-Za-z0-9]*APL)\s*\(", re.MULTILINE)
     rows = []
 
     for fname in sorted(os.listdir(apl_dir)):
@@ -163,9 +166,26 @@ def _discover_archetypes_standard() -> list:
         if not os.path.isfile(os.path.join(_MTG_SIM_PATH, deck_rel)):
             continue
 
+        # Optional goldfish APL — apl/<base>.py must exist, declare itself
+        # Standard in its module docstring, and expose a non-Match APL class.
+        goldfish_module = None
+        goldfish_class = None
+        goldfish_path = os.path.join(apl_dir, f"{base}.py")
+        if os.path.isfile(goldfish_path):
+            with open(goldfish_path, "r", encoding="utf-8", errors="ignore") as gf:
+                gsrc = gf.read()
+            # Only claim this goldfish if its docstring self-identifies
+            # as Standard — otherwise a collision like mono_red_aggro.py
+            # (which is Modern Burn) would bind to the wrong format.
+            if "(Standard)" in gsrc or "Standard)" in gsrc[:500]:
+                gm = gcls_re.search(gsrc)
+                if gm:
+                    goldfish_module = f"apl.{base}"
+                    goldfish_class = gm.group(1)
+
         rows.append((
             _label_from_base(base, "standard"),
-            None, None,   # no goldfish APL for Standard archetypes
+            goldfish_module, goldfish_class,
             f"apl.{base}_standard_match", match_class, deck_rel,
         ))
 
