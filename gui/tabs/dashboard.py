@@ -328,6 +328,16 @@ class DashboardTab(QWidget):
         self._recommend_btn.clicked.connect(self._show_recommendations)
         ctrl.addWidget(self._recommend_btn)
 
+        self._cluster_btn = QPushButton("Clusters")
+        self._cluster_btn.setStyleSheet(theme.btn_secondary())
+        self._cluster_btn.setFixedHeight(26)
+        self._cluster_btn.setToolTip(
+            "Group archetypes by card-shell similarity so the meta reads "
+            "as playstyle buckets rather than a flat alphabetical list."
+        )
+        self._cluster_btn.clicked.connect(self._show_clusters)
+        ctrl.addWidget(self._cluster_btn)
+
         ctrl.addStretch()
         self._status_lbl = QLabel("")
         self._status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
@@ -1419,6 +1429,21 @@ class DashboardTab(QWidget):
             tbl.setItem(ri, 6, si)
 
         layout.addWidget(tbl, 1)
+        dlg.exec()
+
+    def _show_clusters(self):
+        """Open the meta-clustering dialog for the current format."""
+        fmt = self._fmt.currentText()
+        if fmt == "all":
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "Clusters",
+                "Pick a specific format — clustering needs one format's "
+                "average-deck data."
+            )
+            return
+        from gui.widgets.cluster_dialog import MetaClusterDialog
+        dlg = MetaClusterDialog(self, format_name=fmt)
         dlg.exec()
 
     def _show_recommendations(self):
