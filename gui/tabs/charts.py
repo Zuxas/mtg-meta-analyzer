@@ -71,7 +71,7 @@ class ChartsTab(QWidget):
         # Format
         cv.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
-        self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
+        self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "all"])
         self._fmt.currentIndexChanged.connect(self._refresh_archetypes)
         cv.addWidget(self._fmt)
 

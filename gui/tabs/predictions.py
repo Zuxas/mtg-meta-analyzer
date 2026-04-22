@@ -33,7 +33,7 @@ class PredictionsTab(QWidget):
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
-        self._fmt.addItems(["standard", "pioneer", "modern", "legacy"])
+        self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "all"])
         self._fmt.setFixedWidth(120)
         ctrl.addWidget(self._fmt)
 
