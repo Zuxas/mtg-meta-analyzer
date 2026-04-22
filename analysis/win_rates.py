@@ -382,9 +382,15 @@ def get_meta_standings(format_name="standard", event_type=None,
                 FROM decks
                 GROUP BY event_id
             ) mp ON mp.event_id = e.id
-            WHERE lower(e.format) = lower(?) AND d.archetype != ''
+            WHERE d.archetype != ''
         """
-        params = [format_name]
+        params = []
+        # 'all' (or None) skips the format filter — caller wants every format.
+        # Otherwise lock to the requested format.
+        _all_fmts = format_name is None or str(format_name).lower() == "all"
+        if not _all_fmts:
+            q += " AND lower(e.format) = lower(?)"
+            params.append(format_name)
         if event_type:
             q += " AND e.event_type = ?"
             params.append(event_type)
@@ -404,17 +410,26 @@ def get_meta_standings(format_name="standard", event_type=None,
     all_rows = apply_deck_filters(all_rows, dedup_cross_source=dedup_cross_source,
                                   unique_player_decks=unique_player_decks)
 
-    # Group by archetype in Python, then aggregate each group
+    # Group by archetype in Python, then aggregate each group.
+    # In cross-format mode, key on (archetype, format) so a collision like
+    # 'Dimir Midrange' in both Standard and Modern stays distinguishable.
     arch_rows = defaultdict(list)
     for row in all_rows:
-        arch_rows[row["archetype"]].append(row)
+        key = ((row["archetype"], (row["format"] or "").lower())
+               if _all_fmts else row["archetype"])
+        arch_rows[key].append(row)
 
     results = []
-    for arch, rows in arch_rows.items():
+    for key, rows in arch_rows.items():
         if len(rows) < min_appearances:
             continue
         stats = _aggregate_appearances(rows)
-        stats["archetype"] = arch
+        if _all_fmts:
+            arch, fmt = key
+            stats["archetype"] = f"{arch} ({fmt.capitalize()})"
+            stats["format"] = fmt
+        else:
+            stats["archetype"] = key
         results.append(stats)
 
     results.sort(key=lambda s: (s["avg_points"], s["top8_rate"]), reverse=True)
