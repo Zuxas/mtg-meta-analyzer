@@ -421,7 +421,9 @@ def search_decks(archetype=None, format_name=None, limit=20):
         if format_name:
             q += " AND lower(e.format) = lower(?)"
             params.append(format_name)
-        q += " ORDER BY e.date DESC, d.placement ASC LIMIT ?"
+        q += (" ORDER BY (CASE WHEN instr(e.date,'/')>0 "
+              "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
+              "ELSE replace(e.date,'-','') END) DESC, d.placement ASC LIMIT ?")
         params.append(limit)
         rows = conn.execute(q, params).fetchall()
     return [dict(r) for r in rows]

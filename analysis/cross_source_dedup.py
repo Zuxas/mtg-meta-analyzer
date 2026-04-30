@@ -48,7 +48,7 @@ def find_duplicate_events(format_name: str = "standard",
               AND e.event_fingerprint_cs IS NOT NULL
               AND e.event_fingerprint_cs != ''
             GROUP BY e.id
-            ORDER BY e.date DESC
+            ORDER BY (CASE WHEN instr(e.date,'/')>0 THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) ELSE replace(e.date,'-','') END) DESC
         """, (format_name,)).fetchall()
     finally:
         conn.close()
