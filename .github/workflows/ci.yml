@@ -89,11 +89,12 @@ jobs:
       - name: Spicerack scraper API
         run: |
           python -c "
-          from scrapers.spicerack_scraper import scrape_events, show_counts
-          import inspect, sys
-          assert callable(scrape_events), 'scrape_events missing'
+          from scrapers.spicerack_scraper import fetch_tournaments, scrape_format, show_counts
+          import inspect
+          assert callable(fetch_tournaments), 'fetch_tournaments missing'
+          assert callable(scrape_format), 'scrape_format missing'
           assert callable(show_counts), 'show_counts missing'
-          assert 'format_name' in inspect.signature(scrape_events).parameters, 'scrape_events missing format_name param'
+          assert 'event_format' in inspect.signature(scrape_format).parameters, 'scrape_format missing event_format param'
           print('Spicerack scraper API surface OK')
           "
       - name: Event finder geocode smoke test
