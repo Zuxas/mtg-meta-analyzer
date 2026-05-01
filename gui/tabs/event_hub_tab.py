@@ -73,6 +73,32 @@ _PREMIER_COLORS = {
 
 DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
+# ---------------------------------------------------------------------------
+# Session 2 helpers
+# ---------------------------------------------------------------------------
+
+def _estimate_drive(dist_mi) -> str:
+    """Heuristic drive time: 55 mph average + 30 min overhead."""
+    if not dist_mi:
+        return ""
+    total_min = int(dist_mi / 55 * 60 + 30)
+    if total_min < 60:
+        return f"~{total_min}m"
+    h, m = divmod(total_min, 60)
+    return f"~{h}h {m}m" if m else f"~{h}h"
+
+
+def _next_rc_event() -> dict | None:
+    """Return the next upcoming regional championship from the hardcoded schedule."""
+    today_str = date.today().isoformat()
+    rcs = [e for e in _PREMIER_EVENTS_2026
+           if e.get("type") == "regional_championship" and e["start"] >= today_str]
+    return min(rcs, key=lambda e: e["start"]) if rcs else None
+
+
+def _days_until(date_str: str) -> int:
+    return (date.fromisoformat(date_str) - date.today()).days
+
 
 _PREMIER_EVENTS_2026 = [
     {"name":"SCG CON Atlanta","subtitle":"Magic Spotlight: The Avatar","type":"magic_spotlight","format":"Standard","start":"2026-01-09","end":"2026-01-11","location":"Atlanta, GA","url":"https://scgcon.starcitygames.com/"},
@@ -991,10 +1017,19 @@ class MyEventsView(QWidget):
 
         root.addLayout(bar)
 
+        self._conflict_banner = QLabel("")
+        self._conflict_banner.setWordWrap(True)
+        self._conflict_banner.setStyleSheet(
+            "QLabel { background: #7d3c00; color: #f0a500; font-size: 11px; "
+            "font-weight: 600; padding: 4px 8px; border-radius: 3px; }"
+        )
+        self._conflict_banner.hide()
+        root.addWidget(self._conflict_banner)
+
         self._table = self._build_table()
         root.addWidget(self._table, 1)
 
-        hint = QLabel("Double-click Notes / Result / Deck to edit  |  Click status to change  |  Del key to remove bookmark")
+        hint = QLabel("Double-click Notes / Result / Deck to edit  |  Click status to change  |  Del key to remove  |  Right-click for Spicerack enrichment")
         hint.setStyleSheet(f"color: {theme.TEXT_OFF}; font-size: 10px; background: transparent;")
         root.addWidget(hint)
 
@@ -1029,10 +1064,28 @@ class MyEventsView(QWidget):
 
         tbl.itemChanged.connect(self._on_item_changed)
         tbl.keyPressEvent = self._key_press
+        tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tbl.customContextMenuRequested.connect(self._show_context_menu)
         return tbl
 
     def refresh(self):
         bookmarks = get_all_bookmarks()
+
+        # Conflict detection: find date collisions among active events
+        active = [b for b in bookmarks if b["status"] in ("interested", "going")]
+        date_map: dict[str, list[str]] = {}
+        for b in active:
+            d = b.get("event_date") or ""
+            if d:
+                date_map.setdefault(d, []).append(b.get("title") or "event")
+        conflicts = {d: titles for d, titles in date_map.items() if len(titles) > 1}
+        if conflicts:
+            lines = [f"{d}: {', '.join(ts)}" for d, ts in sorted(conflicts.items())]
+            self._conflict_banner.setText("Date conflicts: " + "  |  ".join(lines))
+            self._conflict_banner.show()
+        else:
+            self._conflict_banner.hide()
+
         status_filter = self._filter.currentData()
         if status_filter:
             bookmarks = [b for b in bookmarks if b["status"] == status_filter]
@@ -1047,14 +1100,19 @@ class MyEventsView(QWidget):
             fmt_str = _tag_display(tags)
 
             # Fixed columns
-            for col, text in enumerate([
-                b.get("event_date") or "—",
-                f"{b['dist_mi']:.0f} mi" if b.get("dist_mi") else "—",
-                b.get("store_name") or "—",
-                b.get("title") or "—",
+            dist_mi = b.get("dist_mi")
+            drive_str = _estimate_drive(dist_mi)
+            dist_display = f"{dist_mi:.0f} mi" if dist_mi else "—"
+            for col, (text, tip) in enumerate([
+                (b.get("event_date") or "—", ""),
+                (dist_display, drive_str),
+                (b.get("store_name") or "—", ""),
+                (b.get("title") or "—", ""),
             ]):
                 item = QTableWidgetItem(text)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if tip:
+                    item.setToolTip(tip)
                 self._table.setItem(row, col, item)
 
             # Status dropdown
@@ -1087,6 +1145,103 @@ class MyEventsView(QWidget):
             self._table.setCellWidget(row, 8, del_btn)
 
         self._table.blockSignals(False)
+
+    def _show_context_menu(self, pos):
+        row = self._table.rowAt(pos.y())
+        if row < 0 or row >= len(self._bm_data):
+            return
+        b = self._bm_data[row]
+        event_date = b.get("event_date") or ""
+        today_str = date.today().isoformat()
+
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            f"QMenu {{ background: {theme.SURFACE}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; font-size: 11px; }}"
+            f"QMenu::item:selected {{ background: {theme.ACCENT_DK}; }}"
+        )
+
+        if event_date and event_date < today_str:
+            enrich_act = QAction("Pull Spicerack Top 8", self)
+            enrich_act.triggered.connect(lambda: self._spicerack_enrich(b))
+            menu.addAction(enrich_act)
+
+        open_act = QAction("Open Event URL", self)
+        open_act.triggered.connect(
+            lambda: QDesktopServices.openUrl(QUrl(b.get("event_url") or ""))
+            if b.get("event_url") else None
+        )
+        open_act.setEnabled(bool(b.get("event_url")))
+        menu.addAction(open_act)
+
+        if not menu.isEmpty():
+            menu.exec(self._table.viewport().mapToGlobal(pos))
+
+    def _spicerack_enrich(self, b: dict):
+        """Fetch Spicerack top 8 for a past event and offer to save to notes."""
+        event_date = b.get("event_date") or ""
+        tags = json.loads(b.get("format_tags") or "[]")
+        fmt = next((t for t in tags if t in ("modern", "standard", "pioneer", "legacy")), "standard")
+
+        try:
+            from scrapers.spicerack_scraper import fetch_tournaments
+        except ImportError:
+            QMessageBox.warning(self, "Spicerack", "Spicerack scraper not available.")
+            return
+
+        QMessageBox.information(self, "Fetching...",
+            f"Fetching Spicerack {fmt.title()} results near {event_date}.\nThis may take a few seconds.")
+
+        try:
+            tournaments = fetch_tournaments(fmt, num_days=60)
+        except Exception as e:
+            QMessageBox.warning(self, "Spicerack Error", str(e))
+            return
+
+        # Match tournament by date proximity (within 3 days)
+        target = date.fromisoformat(event_date)
+        nearby = []
+        for t in tournaments:
+            t_date_str = (t.get("date") or t.get("start_date") or "")[:10]
+            if not t_date_str:
+                continue
+            try:
+                delta = abs((date.fromisoformat(t_date_str) - target).days)
+                if delta <= 3:
+                    nearby.append((delta, t))
+            except Exception:
+                continue
+
+        if not nearby:
+            QMessageBox.information(self, "Spicerack",
+                f"No {fmt.title()} events found near {event_date} on Spicerack.")
+            return
+
+        nearby.sort(key=lambda x: x[0])
+        best = nearby[0][1]
+        name = best.get("name") or best.get("tournament_name") or "Event"
+        players = best.get("players") or "?"
+        top_entries = best.get("top8") or best.get("standings") or []
+
+        lines = [f"{name}  ({players} players)  —  {fmt.title()}"]
+        if top_entries:
+            for i, e in enumerate(top_entries[:8], 1):
+                player = e.get("player") or e.get("name") or "?"
+                deck = e.get("deck") or e.get("archetype") or "?"
+                lines.append(f"  {i}. {player} — {deck}")
+        else:
+            lines.append("  (No top-8 breakdown available)")
+
+        result_text = "\n".join(lines)
+
+        reply = QMessageBox.question(
+            self, "Spicerack Results",
+            result_text + "\n\nSave to event notes?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            update_bookmark_field(b["event_id"], "personal_notes", result_text)
+            self.refresh()
 
     def _on_item_changed(self, item: QTableWidgetItem):
         data = item.data(Qt.ItemDataRole.UserRole)
@@ -1234,7 +1389,7 @@ class EventHubTab(QWidget):
                                 theme.SPACE_MD, theme.SPACE_MD)
         root.setSpacing(theme.SPACE_SM)
 
-        # Title
+        # Title + RC countdown
         title_row = QHBoxLayout()
         title = QLabel("Event Hub")
         title.setStyleSheet(
@@ -1242,6 +1397,25 @@ class EventHubTab(QWidget):
         )
         title_row.addWidget(title)
         title_row.addStretch()
+
+        rc = _next_rc_event()
+        if rc:
+            days = _days_until(rc["start"])
+            if days >= 0:
+                urgency = "#e74c3c" if days <= 7 else ("#f39c12" if days <= 21 else theme.ACCENT)
+                rc_lbl = QLabel(
+                    f"RC {rc['location'].split(',')[0].strip()}: "
+                    f"{'TODAY' if days == 0 else f'{days}d'}"
+                )
+                rc_lbl.setStyleSheet(
+                    f"color: {urgency}; font-size: 11px; font-weight: 700; "
+                    "background: transparent; padding: 2px 8px;"
+                )
+                rc_lbl.setToolTip(
+                    f"{rc['name']}  |  {rc['start']} → {rc['end']}  |  {rc['location']}"
+                )
+                title_row.addWidget(rc_lbl)
+
         root.addLayout(title_row)
 
         # View selector
