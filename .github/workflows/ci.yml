@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests thefuzz
       - name: Verify core module imports
         run: |
           python -c "
