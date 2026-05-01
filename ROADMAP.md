@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-04-08
+> Last updated: 2026-05-01
 
 ---
 
@@ -46,6 +46,14 @@
 ---
 
 ## COMPLETED
+
+### 2026-05-01 — Event Hub + CI/CD + Scrapers
+- [x] Event Hub tab (Session 1): Search, Calendar, My Events, My Stores, .ics export, MTGO calendar
+- [x] Event Hub tab (Session 2): RC countdown, drive time, conflict detection, Spicerack enrichment
+- [x] Spicerack historical scraper — tournament + top-8 data
+- [x] Event Finder — Wizards GraphQL API, geocode + radius search
+- [x] GitHub Actions CI/CD — lint/tests/imports/GUI gates, self-hosted runners, failure reporter
+- [x] MTGTop8 date normalization (DD/MM/YY → YYYY-MM-DD)
 
 ### 2026-04-08 — Deck Intelligence + Codebase Consolidation + UX
 - [x] Card adoption tracking (analysis/card_adoption.py) — week-by-week inclusion rates per archetype
