@@ -34,9 +34,11 @@ from db.event_hub_db import (
 # ---------------------------------------------------------------------------
 
 _TYPE_OPTIONS = [
-    ("All Types",         None),
-    ("RCQ",               "regional_championship_qualifier"),
-    ("Store Championship","store_championship"),
+    ("All Types",           None),
+    ("RCQ",                 "regional_championship_qualifier"),
+    ("Store Championship",  "store_championship"),
+    ("Standard Showdown",   "standard_showdown"),
+    ("Magic Presents",      "magicpresents"),
 ]
 _FMT_OPTIONS = [
     ("All Formats", None),
@@ -54,12 +56,51 @@ _STATUS_LABELS  = {"interested": "Interested", "going": "Going", "attended": "At
 _CHIP_COLORS = {
     "rcq":                "#c0392b",
     "store_championship": "#2471a3",
+    "standard_showdown":  "#7d3c98",
+    "magicpresents":      "#1a7a4a",
     "fnm":                "#5d6d7e",
     "other":              "#4a5568",
 }
 _CHIP_BOOKMARK_BORDER = "#f39c12"
 
+# Premier event colors (multi-day travel events)
+_PREMIER_COLORS = {
+    "pro_tour":             "#8e44ad",   # purple
+    "regional_championship":"#d35400",   # orange
+    "world_championship":   "#c0392b",   # red
+    "magic_spotlight":      "#117a65",   # teal
+}
+
 DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+
+_PREMIER_EVENTS_2026 = [
+    {"name":"SCG CON Atlanta","subtitle":"Magic Spotlight: The Avatar","type":"magic_spotlight","format":"Standard","start":"2026-01-09","end":"2026-01-11","location":"Atlanta, GA","url":"https://scgcon.starcitygames.com/"},
+    {"name":"SCG CON Portland","subtitle":"Regional Championship","type":"regional_championship","format":"Standard","start":"2026-01-23","end":"2026-01-25","location":"Portland, OR","url":"https://scgcon.starcitygames.com/event/scg-con-portland-2026/"},
+    {"name":"Pro Tour Lorwyn Eclipsed","subtitle":"Booster Draft + Standard","type":"pro_tour","format":"Standard/Draft","start":"2026-01-30","end":"2026-02-01","location":"Richmond, VA","url":"https://magic.gg/pro-tour"},
+    {"name":"SCG CON Milwaukee","subtitle":"Regional Championship","type":"regional_championship","format":"Standard","start":"2026-02-20","end":"2026-02-22","location":"Milwaukee, WI","url":"https://scgcon.starcitygames.com/event/scg-con-milwaukee-2026/"},
+    {"name":"SCG CON Richmond","subtitle":"Magic Spotlight: TMNT","type":"magic_spotlight","format":"Standard","start":"2026-03-06","end":"2026-03-08","location":"Richmond, VA","url":"https://scgcon.starcitygames.com/"},
+    {"name":"Pro Tour Secrets of Strixhaven","subtitle":"Booster Draft + Standard","type":"pro_tour","format":"Standard/Draft","start":"2026-05-01","end":"2026-05-03","location":"Las Vegas, NV","url":"https://magic.gg/pro-tour"},
+    {"name":"Magic Spotlight: Secrets","subtitle":"Standard Constructed","type":"magic_spotlight","format":"Standard","start":"2026-05-08","end":"2026-05-10","location":"London, England","url":"https://magic.gg/events"},
+    {"name":"SCG CON Cincinnati","subtitle":"Regional Championship","type":"regional_championship","format":"Standard","start":"2026-05-15","end":"2026-05-17","location":"Cincinnati, OH","url":"https://scgcon.starcitygames.com/"},
+    {"name":"SCG CON Washington DC","subtitle":"Regional Championship","type":"regional_championship","format":"Standard","start":"2026-05-29","end":"2026-05-31","location":"Washington, DC","url":"https://scgcon.starcitygames.com/"},
+    {"name":"Magic Spotlight: Secrets","subtitle":"Standard Constructed","type":"magic_spotlight","format":"Standard","start":"2026-05-29","end":"2026-05-31","location":"Chiba, Japan","url":"https://magic.gg/events"},
+    {"name":"SCG CON Las Vegas","subtitle":"Magic Spotlight: Marvel","type":"magic_spotlight","format":"Team Limited","start":"2026-06-26","end":"2026-06-28","location":"Las Vegas, NV","url":"https://scgcon.starcitygames.com/"},
+    {"name":"Pro Tour Marvel Super Heroes","subtitle":"Booster Draft + Modern","type":"pro_tour","format":"Modern/Draft","start":"2026-07-17","end":"2026-07-19","location":"Amsterdam, Netherlands","url":"https://magic.gg/pro-tour"},
+    {"name":"Magic Spotlight: Marvel","subtitle":"Team Limited","type":"magic_spotlight","format":"Team Limited","start":"2026-07-24","end":"2026-07-26","location":"Brussels, Belgium","url":"https://magic.gg/events"},
+    {"name":"Magic Spotlight: The Hobbit","subtitle":"Modern Constructed","type":"magic_spotlight","format":"Modern","start":"2026-08-28","end":"2026-08-30","location":"Brisbane, Australia","url":"https://magic.gg/events"},
+    {"name":"SCG CON Dallas/Fort Worth","subtitle":"Magic Spotlight: The Hobbit","type":"magic_spotlight","format":"Modern","start":"2026-09-04","end":"2026-09-06","location":"Dallas, TX","url":"https://scgcon.starcitygames.com/"},
+    {"name":"SCG CON Baltimore","subtitle":"Regional Championship","type":"regional_championship","format":"TBD","start":"2026-09-11","end":"2026-09-13","location":"Baltimore, MD","url":"https://scgcon.starcitygames.com/"},
+    {"name":"SCG CON Los Angeles","subtitle":"Regional Championship","type":"regional_championship","format":"TBD","start":"2026-10-09","end":"2026-10-11","location":"Los Angeles, CA","url":"https://scgcon.starcitygames.com/"},
+    {"name":"SCG CON Hartford","subtitle":"Magic Spotlight: Fracture","type":"magic_spotlight","format":"Standard","start":"2026-10-23","end":"2026-10-25","location":"Hartford, CT","url":"https://scgcon.starcitygames.com/"},
+    {"name":"Magic Spotlight: Fracture","subtitle":"Standard Constructed","type":"magic_spotlight","format":"Standard","start":"2026-10-31","end":"2026-11-01","location":"Beijing, China","url":"https://magic.gg/events"},
+    {"name":"Magic World Championship 32","subtitle":"TBA formats","type":"world_championship","format":"TBA","start":"2026-11-13","end":"2026-11-15","location":"Atlanta, GA","url":"https://magic.gg/events"},
+]
+
+
+def _load_premier_events() -> list[dict]:
+    """Return the hardcoded 2026 premier events schedule."""
+    return _PREMIER_EVENTS_2026
 
 
 # ---------------------------------------------------------------------------
@@ -448,24 +489,34 @@ class DayCell(QFrame):
             return
 
         raw_tags = event.get("raw_tags") or []
-        if "regional_championship_qualifier" in raw_tags:
+        evt_type = event.get("_premier_type")  # set for premier events
+        if evt_type:
+            chip_color = _PREMIER_COLORS.get(evt_type, "#555")
+        elif "regional_championship_qualifier" in raw_tags:
             chip_color = _CHIP_COLORS["rcq"]
         elif "store_championship" in raw_tags:
             chip_color = _CHIP_COLORS["store_championship"]
+        elif "standard_showdown" in raw_tags:
+            chip_color = _CHIP_COLORS["standard_showdown"]
+        elif "magicpresents" in raw_tags:
+            chip_color = _CHIP_COLORS["magicpresents"]
         elif "friday_night_magic" in raw_tags:
             chip_color = _CHIP_COLORS["fnm"]
         else:
             chip_color = _CHIP_COLORS["other"]
 
         border = f"2px solid {_CHIP_BOOKMARK_BORDER}" if bookmarked else "none"
-        chip = QLabel(event.get("title", "?")[:22])
+        title = event.get("title") or event.get("name") or "?"
+        subtitle = event.get("subtitle") or event.get("store") or ""
+        tooltip_loc = event.get("location") or event.get("store") or ""
+        chip = QLabel(title[:22])
         chip.setStyleSheet(
             f"background: {chip_color}; color: #fff; font-size: 9px; "
             f"border-radius: 2px; padding: 1px 3px; border: {border};"
         )
         chip.setToolTip(
-            f"{event.get('title')}\n{event.get('store')}\n"
-            f"Entry: {event.get('fee') or '?'}"
+            f"{title}\n{subtitle}\n{tooltip_loc}\n"
+            + (f"Entry: {event.get('fee')}" if event.get("fee") else "")
         )
         layout.addWidget(chip)
         layout.addStretch()
@@ -478,6 +529,9 @@ class CalendarView(QWidget):
         self._year  = self._today.year
         self._month = self._today.month
         self._search_events: list[dict] = []
+        self._premier_events: list[dict] = _load_premier_events()
+        self._selected_day: str | None = None
+        self._day_events_map: dict[str, list] = {}
         self._build_ui()
 
     def _build_ui(self):
@@ -488,10 +542,16 @@ class CalendarView(QWidget):
         # Nav row
         nav = QHBoxLayout()
         self._prev_btn = QPushButton("< Prev")
-        self._prev_btn.setFixedWidth(70)
+        self._prev_btn.setFixedWidth(65)
         self._prev_btn.setStyleSheet(_btn_style(theme.SURFACE, theme.TEXT))
         self._prev_btn.clicked.connect(self._prev_month)
         nav.addWidget(self._prev_btn)
+
+        self._today_btn = QPushButton("Today")
+        self._today_btn.setFixedWidth(60)
+        self._today_btn.setStyleSheet(_btn_style(theme.ACCENT_DK, "#fff"))
+        self._today_btn.clicked.connect(self._go_today)
+        nav.addWidget(self._today_btn)
 
         self._month_lbl = QLabel()
         self._month_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -500,32 +560,45 @@ class CalendarView(QWidget):
         )
         nav.addWidget(self._month_lbl, 1)
 
+        self._summary_lbl = QLabel("")
+        self._summary_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._summary_lbl.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px; background: transparent;"
+        )
+        nav.addWidget(self._summary_lbl)
+
         self._next_btn = QPushButton("Next >")
-        self._next_btn.setFixedWidth(70)
+        self._next_btn.setFixedWidth(65)
         self._next_btn.setStyleSheet(_btn_style(theme.SURFACE, theme.TEXT))
         self._next_btn.clicked.connect(self._next_month)
         nav.addWidget(self._next_btn)
-
         root.addLayout(nav)
 
         # Legend
         legend = QHBoxLayout()
-        legend.setSpacing(theme.SPACE_MD)
+        legend.setSpacing(theme.SPACE_SM)
         legend.addStretch()
-        for label, color in [("RCQ", _CHIP_COLORS["rcq"]),
-                              ("Store Champ", _CHIP_COLORS["store_championship"]),
-                              ("FNM/Weekly", _CHIP_COLORS["fnm"]),
-                              ("Other", _CHIP_COLORS["other"])]:
+        legend_items = [
+            ("Pro Tour", _PREMIER_COLORS["pro_tour"]),
+            ("Regional Champ", _PREMIER_COLORS["regional_championship"]),
+            ("Worlds", _PREMIER_COLORS["world_championship"]),
+            ("Spotlight", _PREMIER_COLORS["magic_spotlight"]),
+            ("RCQ", _CHIP_COLORS["rcq"]),
+            ("Store Champ", _CHIP_COLORS["store_championship"]),
+            ("Showdown", _CHIP_COLORS["standard_showdown"]),
+            ("FNM/Other", _CHIP_COLORS["fnm"]),
+        ]
+        for label, color in legend_items:
             chip = QLabel(f"  {label}  ")
             chip.setStyleSheet(
-                f"background: {color}; color: #fff; font-size: 10px; "
-                "border-radius: 2px; padding: 1px 6px;"
+                f"background: {color}; color: #fff; font-size: 9px; "
+                "border-radius: 2px; padding: 1px 5px;"
             )
             legend.addWidget(chip)
         bm_chip = QLabel("  Bookmarked  ")
         bm_chip.setStyleSheet(
-            f"background: {_CHIP_COLORS['other']}; color: #fff; font-size: 10px; "
-            f"border-radius: 2px; padding: 1px 6px; border: 2px solid {_CHIP_BOOKMARK_BORDER};"
+            f"background: {_CHIP_COLORS['fnm']}; color: #fff; font-size: 9px; "
+            f"border-radius: 2px; padding: 1px 5px; border: 2px solid {_CHIP_BOOKMARK_BORDER};"
         )
         legend.addWidget(bm_chip)
         legend.addStretch()
@@ -543,18 +616,37 @@ class CalendarView(QWidget):
         scroll.setWidget(self._grid_widget)
         root.addWidget(scroll, 1)
 
+        # Day detail panel (shown when a day is clicked)
+        self._detail_panel = QFrame()
+        self._detail_panel.setMaximumHeight(0)
+        self._detail_panel.setStyleSheet(
+            f"QFrame {{ background: {theme.SURFACE}; border-top: 2px solid {theme.ACCENT}; }}"
+        )
+        detail_layout = QVBoxLayout(self._detail_panel)
+        detail_layout.setContentsMargins(12, 8, 12, 8)
+        detail_layout.setSpacing(4)
+        self._detail_title = QLabel("")
+        self._detail_title.setStyleSheet(
+            f"color: {theme.ACCENT}; font-size: 12px; font-weight: 700; background: transparent;"
+        )
+        detail_layout.addWidget(self._detail_title)
+        self._detail_list = QLabel("")
+        self._detail_list.setWordWrap(True)
+        self._detail_list.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 11px; background: transparent;"
+        )
+        detail_layout.addWidget(self._detail_list)
+        root.addWidget(self._detail_panel)
+
         self._render()
 
     def _render(self):
-        # Clear grid
         while self._grid.count():
             item = self._grid.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        self._month_lbl.setText(
-            f"{_cal.month_name[self._month]} {self._year}"
-        )
+        self._month_lbl.setText(f"{_cal.month_name[self._month]} {self._year}")
 
         # Day headers
         for col, day_name in enumerate(DAYS_OF_WEEK):
@@ -567,64 +659,149 @@ class CalendarView(QWidget):
             hdr.setFixedHeight(22)
             self._grid.addWidget(hdr, 0, col)
 
-        # Build event index: date_str -> [events]
         bookmarks_set: set[str] = {b["event_id"] for b in get_all_bookmarks()}
-        all_events_this_month: dict[str, list] = {}
+        self._day_events_map = {}
 
-        def add_event(e):
-            d = e.get("date", "")
-            if d:
-                all_events_this_month.setdefault(d, []).append(e)
+        def add_to_map(d, e):
+            self._day_events_map.setdefault(d, []).append(e)
 
+        # Search results
         for e in self._search_events:
-            add_event(e)
-        for b in get_all_bookmarks():
-            b_as_event = {
-                "id": b["event_id"], "title": b["title"], "store": b["store_name"],
-                "date": b["event_date"], "fee": f"${b['entry_fee_cents']//100}" if b.get("entry_fee_cents") else "",
-                "raw_tags": json.loads(b.get("format_tags") or "[]"),
-            }
-            add_event(b_as_event)
+            if e.get("date"):
+                add_to_map(e["date"], e)
 
-        # Month calendar matrix
+        # Bookmarked events
+        for b in get_all_bookmarks():
+            if b.get("event_date"):
+                add_to_map(b["event_date"], {
+                    "id": b["event_id"], "title": b["title"], "store": b["store_name"],
+                    "date": b["event_date"],
+                    "fee": f"${b['entry_fee_cents']//100}" if b.get("entry_fee_cents") else "",
+                    "raw_tags": json.loads(b.get("format_tags") or "[]"),
+                })
+
+        # Premier events — expand date ranges
+        for p in self._premier_events:
+            try:
+                start = date.fromisoformat(p["start"])
+                end   = date.fromisoformat(p["end"])
+                cur   = start
+                while cur <= end:
+                    d_str = cur.isoformat()
+                    p_event = dict(p, date=d_str, _premier_type=p["type"])
+                    add_to_map(d_str, p_event)
+                    cur += timedelta(days=1)
+            except Exception:
+                pass
+
+        # Count notable events this month for summary
+        month_str = f"{self._year:04d}-{self._month:02d}"
+        rcq_count    = sum(1 for events in self._day_events_map.values()
+                          for e in events if "regional_championship_qualifier" in e.get("raw_tags",[]))
+        sc_count     = sum(1 for events in self._day_events_map.values()
+                          for e in events if "store_championship" in e.get("raw_tags",[]))
+        sd_count     = sum(1 for events in self._day_events_map.values()
+                          for e in events if "standard_showdown" in e.get("raw_tags",[]))
+        premier_count= sum(1 for d, events in self._day_events_map.items()
+                          for e in events
+                          if d.startswith(month_str) and e.get("_premier_type") and e.get("start") == d)
+
+        parts = []
+        if premier_count: parts.append(f"{premier_count} premier")
+        if rcq_count:     parts.append(f"{rcq_count} RCQ")
+        if sc_count:      parts.append(f"{sc_count} Store Champ")
+        if sd_count:      parts.append(f"{sd_count} Showdown")
+        self._summary_lbl.setText("  |  ".join(parts) if parts else "")
+
+        # Month calendar matrix (Sun-first)
         weeks = _cal.monthcalendar(self._year, self._month)
-        # _cal.monthcalendar uses Monday=0, Sunday=6; we want Sunday=0 so adjust
-        # Actually Python calendar Monday=0 by default. Rearrange to Sun-Sat:
         for week_idx, week in enumerate(weeks):
-            # week: [Mon, Tue, Wed, Thu, Fri, Sat, Sun] -> reorder to [Sun, Mon, ..., Sat]
             sun_first = [week[6]] + week[:6]
             for col, day_num in enumerate(sun_first):
                 in_month = day_num != 0
-                display_num = day_num if in_month else 0
+                cell = DayCell(day_num if in_month else 0, in_month)
 
-                cell = DayCell(display_num, in_month)
-
-                # Highlight today
                 if (in_month and day_num == self._today.day
                         and self._month == self._today.month
                         and self._year == self._today.year):
                     cell.setStyleSheet(
-                        f"QFrame {{ background: #1a2535; "
-                        f"border: 1px solid {theme.ACCENT}; }}"
+                        f"QFrame {{ background: #1a2535; border: 2px solid {theme.ACCENT}; }}"
+                    )
+                    cell._day_lbl.setStyleSheet(
+                        f"color: {theme.ACCENT}; font-size: 10px; font-weight: 800; background: transparent;"
                     )
 
                 if in_month:
                     date_str = f"{self._year:04d}-{self._month:02d}-{day_num:02d}"
-                    for e in all_events_this_month.get(date_str, []):
-                        bookmarked = e.get("id", "") in bookmarks_set
-                        cell.add_event(e, bookmarked)
+                    # Add premier events first (they appear at top)
+                    for e in self._day_events_map.get(date_str, []):
+                        if e.get("_premier_type"):
+                            cell.add_event(e, False)
+                    # Then local events
+                    for e in self._day_events_map.get(date_str, []):
+                        if not e.get("_premier_type"):
+                            bookmarked = e.get("id", "") in bookmarks_set
+                            cell.add_event(e, bookmarked)
+
+                    # Click to show detail panel
+                    cell.mousePressEvent = lambda ev, ds=date_str: self._show_day_detail(ds)
+                    cell.setCursor(Qt.CursorShape.PointingHandCursor)
 
                 self._grid.addWidget(cell, week_idx + 1, col)
 
-        # Stretch columns equally
         for col in range(7):
             self._grid.setColumnStretch(col, 1)
+
+    def _show_day_detail(self, date_str: str):
+        events = self._day_events_map.get(date_str, [])
+        if not events:
+            self._detail_panel.setMaximumHeight(0)
+            return
+        d = date.fromisoformat(date_str)
+        self._detail_title.setText(
+            f"{_cal.day_name[d.weekday()]}, {_cal.month_name[d.month]} {d.day}, {d.year}"
+            f"  —  {len(events)} event(s)"
+        )
+        lines = []
+        for e in events:
+            if e.get("_premier_type"):
+                color = _PREMIER_COLORS.get(e["_premier_type"], "#555")
+                location = e.get("location", "")
+                subtitle = e.get("subtitle", "")
+                lines.append(
+                    f'<span style="color:{color};font-weight:700">'
+                    f'{e.get("name",e.get("title","?"))}</span>'
+                    f' <span style="color:#aaa">— {subtitle} — {location}</span>'
+                )
+            else:
+                raw_tags = e.get("raw_tags", [])
+                if "regional_championship_qualifier" in raw_tags:
+                    color = _CHIP_COLORS["rcq"]
+                elif "store_championship" in raw_tags:
+                    color = _CHIP_COLORS["store_championship"]
+                elif "standard_showdown" in raw_tags:
+                    color = _CHIP_COLORS["standard_showdown"]
+                else:
+                    color = theme.TEXT_DIM
+                fee = f" — {e.get('fee')}" if e.get("fee") else ""
+                lines.append(
+                    f'<span style="color:{color}">{e.get("title","?")}</span>'
+                    f' <span style="color:#888">@ {e.get("store","?")}{fee}</span>'
+                )
+        self._detail_list.setText("<br>".join(lines))
+        self._detail_panel.setMaximumHeight(200)
+
+    def _go_today(self):
+        self._year  = self._today.year
+        self._month = self._today.month
+        self._render()
 
     def load_search_events(self, events: list[dict]):
         self._search_events = events
         self._render()
 
     def refresh(self):
+        self._premier_events = _load_premier_events()
         self._render()
 
     def _prev_month(self):
