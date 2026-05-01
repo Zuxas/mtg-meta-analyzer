@@ -49,6 +49,13 @@ Last updated: 2026-04-21
 
 ---
 
+## RECENTLY COMPLETED (2026-05-01)
+
+### Data Quality
+- [x] MTGTop8 date normalization — `scrapers/mtgtop8.py` now converts DD/MM/YY → YYYY-MM-DD at extraction; consistent with mtgdecks + mtgmelee scrapers; PT Strixhaven data will land correctly
+
+---
+
 ## RECENTLY COMPLETED (2026-04-08)
 
 ### Deck Intelligence System

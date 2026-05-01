@@ -48,6 +48,19 @@ def _abs_url(href):
     return f"{BASE_URL}/{href}"
 
 
+def _normalize_date(date_str):
+    """Convert DD/MM/YY or DD/MM/YYYY to YYYY-MM-DD. Pass through anything else."""
+    if not date_str or '/' not in date_str:
+        return date_str
+    parts = date_str.strip().split('/')
+    if len(parts) != 3:
+        return date_str
+    day, month, year = parts
+    if len(year) == 2:
+        year = '20' + year
+    return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+
+
 def scrape_format_events(format_name, pages=1):
     """
     Fetch recent event listings for a format.
@@ -88,7 +101,7 @@ def scrape_format_events(format_name, pages=1):
             events.append({
                 "source_id": source_id,
                 "name": name,
-                "date": date,
+                "date": _normalize_date(date),
                 "url": event_url,
             })
 
