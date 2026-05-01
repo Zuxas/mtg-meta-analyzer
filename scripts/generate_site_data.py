@@ -14,10 +14,12 @@ Output:
 """
 
 import sqlite3, json, os, sys
+from pathlib import Path
 from datetime import datetime, timezone
 
-DB_PATH     = r"E:\vscode ai project\mtg-meta-analyzer\data\mtg_meta.db"
-SITE_DATA   = r"E:\vscode ai project\My-Website\data"
+_HERE       = Path(__file__).resolve().parent.parent
+DB_PATH     = str(Path(os.environ.get("MTG_META_DB",   _HERE / "data" / "mtg_meta.db")))
+SITE_DATA   = str(Path(os.environ.get("WEBSITE_DATA",  _HERE.parent / "My-Website" / "data")))
 
 # The 6 decks we have playbooks for — map DB names to playbook accent colors
 OUR_DECKS = {
@@ -150,7 +152,11 @@ def generate_guides(conn):
     cur = conn.cursor()
     cur.execute("""
         SELECT archetype, type, author, url, date, comment
-        FROM guides WHERE format=? ORDER BY date DESC
+        FROM guides WHERE format=? ORDER BY (CASE WHEN instr(date,'/')>0 AND length(date)=10
+            THEN substr(date,7,4)||substr(date,4,2)||substr(date,1,2)
+            WHEN instr(date,'/')>0
+            THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2)
+            ELSE replace(date,'-','') END) DESC
     """, (FORMAT,))
     rows = cur.fetchall()
 

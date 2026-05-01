@@ -1,0 +1,178 @@
+name: mtg-meta-analyzer CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  MTG_META_DB: ${{ vars.MTG_META_DB || 'data/mtg_meta.db' }}
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: Python import check — verifies all modules load without error.
+  # Catches broken imports before anything else.
+  # ──────────────────────────────────────────────────────────────────────────
+  imports:
+    name: Module import check
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify core module imports
+        shell: bash
+        run: |
+          python -c "
+          import sys
+          modules = [
+              'analysis.win_rates',
+              'analysis.meta_scoring',
+              'analysis.deck_analysis',
+              'analysis.archetypes',
+              'analysis.predictions',
+              'analysis.ratings',
+              'scrapers.spicerack_scraper',
+              'scrapers.event_finder',
+              'db.database',
+              'db.event_hub_db',
+          ]
+          failed = []
+          for m in modules:
+              try:
+                  __import__(m)
+                  print(f'  OK  {m}')
+              except Exception as e:
+                  print(f'  FAIL {m}: {e}')
+                  failed.append(m)
+          if failed:
+              print(f'\nFailed imports: {failed}')
+              sys.exit(1)
+          print(f'\nAll {len(modules)} modules import cleanly.')
+          "
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Scraper validation — verifies key scrapers don't crash on import
+  # and have the expected public API surface.
+  # ──────────────────────────────────────────────────────────────────────────
+  scraper-api:
+    name: Scraper API surface
+    runs-on: self-hosted
+    needs: imports
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Spicerack scraper API
+        run: python -m scrapers.spicerack_scraper --counts
+
+      - name: Event finder geocode smoke test
+        shell: bash
+        run: |
+          # Geocode a known zip, verify it returns coordinates
+          python -c "
+          from scrapers.event_finder import geocode_zipcode
+          lat, lng = geocode_zipcode('98101')
+          assert 47 < lat < 48, f'Bad lat: {lat}'
+          assert -123 < lng < -122, f'Bad lng: {lng}'
+          print(f'Geocode OK: {lat:.4f}, {lng:.4f}')
+          "
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 3: Predictions accuracy gate — the novel AI-as-semantic-gate.
+  #
+  # If a commit changes win rate calculation, archetype normalization, or
+  # the scraper output format and quietly breaks the predictive model,
+  # this gate fires. That's a class of regression code tests can't catch
+  # because it requires domain knowledge to define "correct."
+  #
+  # Only runs when analysis/ or scrapers/ change. Skips if no validated
+  # predictions exist yet (new DB / fresh runner).
+  # ──────────────────────────────────────────────────────────────────────────
+  predictions-gate:
+    name: Predictions accuracy gate (AI semantic check)
+    runs-on: self-hosted
+    needs: imports
+    if: |
+      github.event_name == 'pull_request' &&
+      (contains(join(github.event.pull_request.changed_files, ','), 'analysis/') ||
+       contains(join(github.event.pull_request.changed_files, ','), 'scrapers/'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run predictions validation
+        shell: bash
+        run: |
+          python -c "
+          import json, sys
+
+          # Run validation
+          from analysis.predictions import validate_predictions
+          result = validate_predictions()
+
+          validated = result.get('validated', 0)
+          correct   = result.get('correct', 0)
+          wrong     = result.get('wrong', 0)
+
+          print(f'Predictions validated: {validated}')
+          print(f'  Correct: {correct}')
+          print(f'  Wrong:   {wrong}')
+
+          if validated == 0:
+              print('No predictions to validate -- gate skipped (first run or fresh DB)')
+              sys.exit(0)
+
+          accuracy = correct / validated
+          print(f'  Accuracy: {accuracy:.1%}')
+
+          MIN_ACCURACY = 0.55   # 55% floor -- random baseline is ~25% for 4-way prediction
+          MIN_VALIDATED = 5     # need at least 5 predictions to make the gate meaningful
+
+          if validated < MIN_VALIDATED:
+              print(f'Only {validated} predictions (need {MIN_VALIDATED}) -- gate skipped')
+              sys.exit(0)
+
+          if accuracy < MIN_ACCURACY:
+              print(f'FAIL: predictions accuracy {accuracy:.1%} below {MIN_ACCURACY:.0%} threshold')
+              print('This means a recent change to analysis/ or scrapers/ broke the predictive model.')
+              print('Check: archetype normalization, win rate calculation, scraper output format.')
+              sys.exit(1)
+
+          print(f'PASS: predictions accuracy {accuracy:.1%} >= {MIN_ACCURACY:.0%}')
+          "
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 4: GUI import sanity — verifies PyQt6 GUI modules load.
+  # Catches broken widget imports before they reach production.
+  # Only runs on changes to gui/.
+  # ──────────────────────────────────────────────────────────────────────────
+  gui-imports:
+    name: GUI import sanity
+    runs-on: self-hosted
+    needs: imports
+    if: |
+      contains(join(github.event.pull_request.changed_files, ','), 'gui/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GUI module imports
+        shell: bash
+        run: |
+          python -c "
+          import sys
+          gui_modules = [
+              'gui.tabs.event_hub_tab',
+              'gui.tabs.tournament_prep',
+              'gui.tabs.dashboard',
+              'db.event_hub_db',
+          ]
+          failed = []
+          for m in gui_modules:
+              try:
+                  __import__(m)
+                  print(f'  OK  {m}')
+              except Exception as e:
+                  print(f'  FAIL {m}: {e}')
+                  failed.append(m)
+          if failed:
+              sys.exit(1)
+          "

@@ -51,8 +51,15 @@ from pathlib import Path
 from typing import Optional
 
 # Defaults — override via CLI
-DEFAULT_DB = Path(r"E:/vscode ai project/mtg-meta-analyzer/data/mtg_meta.db")
-DEFAULT_SESSIONS = Path(r"E:/vscode ai project/harness/knowledge/mtg")
+import os as _os
+DEFAULT_DB = Path(_os.environ.get(
+    "MTG_META_DB",
+    Path(__file__).resolve().parent.parent / "data" / "mtg_meta.db"
+))
+DEFAULT_SESSIONS = Path(_os.environ.get(
+    "HARNESS_SESSIONS",
+    Path(__file__).resolve().parent.parent.parent / "harness" / "knowledge" / "mtg"
+))
 
 # Expected match_log columns (schema snapshot 2026-04-24). If schema
 # drifts, exit rather than silently write wrong rows.
