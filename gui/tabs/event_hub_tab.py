@@ -1,0 +1,1011 @@
+"""
+gui/tabs/event_hub_tab.py -- Event Hub
+
+Four views: Search, Calendar, My Events, My Stores.
+Replaces EventFinderTab in Tournament Prep.
+"""
+
+import json
+import calendar as _cal
+from datetime import date, datetime, timedelta
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
+    QPushButton, QComboBox, QTableWidget, QTableWidgetItem,
+    QHeaderView, QAbstractItemView, QFrame, QStackedWidget,
+    QGridLayout, QScrollArea, QFileDialog, QMessageBox,
+    QTextEdit, QSizePolicy, QMenu,
+)
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QColor, QFont, QAction
+
+import gui.theme as theme
+from gui.worker_threads import DataLoadWorker
+from gui.worker_utils import cancel_worker
+from db.event_hub_db import (
+    ensure_tables, upsert_event_bookmark, upsert_store_bookmark,
+    get_all_bookmarks, get_all_store_bookmarks,
+    update_bookmark_field, remove_event_bookmark, remove_store_bookmark,
+    is_bookmarked, export_ics,
+)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_TYPE_OPTIONS = [
+    ("All Types",         None),
+    ("RCQ",               "regional_championship_qualifier"),
+    ("Store Championship","store_championship"),
+]
+_FMT_OPTIONS = [
+    ("All Formats", None),
+    ("Modern",   "modern"),
+    ("Standard", "standard"),
+    ("Pioneer",  "pioneer"),
+    ("Legacy",   "legacy"),
+    ("Pauper",   "pauper"),
+]
+_RADIUS_OPTIONS = [25, 50, 75, 100, 150, 200]
+
+_STATUS_OPTIONS = ["interested", "going", "attended"]
+_STATUS_LABELS  = {"interested": "Interested", "going": "Going", "attended": "Attended"}
+
+_CHIP_COLORS = {
+    "rcq":                "#c0392b",
+    "store_championship": "#2471a3",
+    "fnm":                "#5d6d7e",
+    "other":              "#4a5568",
+}
+_CHIP_BOOKMARK_BORDER = "#f39c12"
+
+DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+
+# ---------------------------------------------------------------------------
+# Background worker
+# ---------------------------------------------------------------------------
+
+def _fetch_events(zipcode, radius, event_type, format_filter):
+    from scrapers.event_finder import geocode_zipcode, search_events, _format_event
+    lat, lng = geocode_zipcode(zipcode)
+    tags = [event_type] if event_type else None
+    raw  = search_events(lat, lng, radius_miles=radius, tags=tags, limit=200)
+    results = []
+    for e in raw:
+        fe = _format_event(e)
+        if fe["online"]:
+            continue
+        if format_filter and format_filter.lower() not in [t.lower() for t in fe["raw_tags"]]:
+            continue
+        results.append(fe)
+    results.sort(key=lambda x: (x["date"], x["dist_mi"]))
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _btn_style(color=None, text_color="#111"):
+    c = color or theme.ACCENT
+    return (
+        f"QPushButton {{ background: {c}; color: {text_color}; font-weight: 600; "
+        "font-size: 11px; border-radius: 3px; padding: 4px 10px; border: none; }}"
+        f"QPushButton:hover {{ opacity: 0.85; }}"
+        f"QPushButton:disabled {{ background: {theme.BORDER}; color: {theme.TEXT_OFF}; }}"
+    )
+
+def _combo_style():
+    return (
+        f"QComboBox {{ background: {theme.BG}; color: {theme.TEXT}; "
+        f"border: 1px solid {theme.BORDER}; border-radius: 3px; padding: 3px 8px; font-size: 11px; }}"
+        f"QComboBox QAbstractItemView {{ background: {theme.SURFACE}; color: {theme.TEXT}; "
+        f"selection-background-color: {theme.ACCENT_DK}; }}"
+    )
+
+def _input_style():
+    return (
+        f"QLineEdit {{ background: {theme.BG}; color: {theme.TEXT}; "
+        f"border: 1px solid {theme.BORDER}; border-radius: 3px; padding: 3px 8px; font-size: 11px; }}"
+        f"QLineEdit:focus {{ border-color: {theme.ACCENT}; }}"
+    )
+
+def _lbl(text, dim=False):
+    l = QLabel(text)
+    l.setStyleSheet(
+        f"color: {theme.TEXT_DIM if dim else theme.TEXT}; "
+        "font-size: 11px; font-weight: 600; background: transparent;"
+    )
+    return l
+
+def _tag_display(raw_tags):
+    fmt_tags = [t for t in raw_tags
+                if t not in ("magic:_the_gathering",)
+                and t not in ("regional_championship_qualifier", "store_championship",
+                               "friday_night_magic", "new_player_event", "magic_academy",
+                               "commander_party", "commander_nights", "magicpresents")]
+    return ", ".join(t.replace("_", " ").title() for t in fmt_tags) or "—"
+
+
+# ---------------------------------------------------------------------------
+# Search View
+# ---------------------------------------------------------------------------
+
+class SearchView(QWidget):
+    events_loaded = pyqtSignal(list)   # emitted when search completes
+    bookmark_added = pyqtSignal()      # notify My Events / Calendar to refresh
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._worker = None
+        self._events: list[dict] = []
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(theme.SPACE_SM)
+
+        root.addWidget(self._build_controls())
+
+        self._status = QLabel("")
+        self._status.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px; background: transparent;")
+        root.addWidget(self._status)
+
+        self._table = self._build_table()
+        root.addWidget(self._table, 1)
+
+        footer = QLabel("Click a row to open event page  |  Right-click to bookmark store")
+        footer.setStyleSheet(f"color: {theme.TEXT_OFF}; font-size: 10px; background: transparent;")
+        root.addWidget(footer)
+
+    def _build_controls(self):
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"QFrame {{ background: {theme.SURFACE}; border: 1px solid {theme.BORDER}; border-radius: 4px; }}"
+        )
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(12, 6, 12, 6)
+        row.setSpacing(theme.SPACE_MD)
+
+        row.addWidget(_lbl("Zip", True))
+        self._zip = QLineEdit()
+        self._zip.setPlaceholderText("e.g. 98367")
+        self._zip.setFixedWidth(80)
+        self._zip.setStyleSheet(_input_style())
+        self._zip.returnPressed.connect(self._search)
+        row.addWidget(self._zip)
+
+        row.addWidget(_lbl("Radius", True))
+        self._radius = QComboBox()
+        for mi in _RADIUS_OPTIONS:
+            self._radius.addItem(f"{mi} mi", mi)
+        self._radius.setCurrentIndex(3)
+        self._radius.setFixedWidth(75)
+        self._radius.setStyleSheet(_combo_style())
+        row.addWidget(self._radius)
+
+        row.addWidget(_lbl("Type", True))
+        self._etype = QComboBox()
+        for lbl, val in _TYPE_OPTIONS:
+            self._etype.addItem(lbl, val)
+        self._etype.setFixedWidth(145)
+        self._etype.setStyleSheet(_combo_style())
+        row.addWidget(self._etype)
+
+        row.addWidget(_lbl("Format", True))
+        self._fmt = QComboBox()
+        for lbl, val in _FMT_OPTIONS:
+            self._fmt.addItem(lbl, val)
+        self._fmt.setCurrentIndex(1)
+        self._fmt.setFixedWidth(100)
+        self._fmt.setStyleSheet(_combo_style())
+        row.addWidget(self._fmt)
+
+        row.addStretch()
+
+        self._btn = QPushButton("Find Events")
+        self._btn.setFixedWidth(105)
+        self._btn.setStyleSheet(_btn_style())
+        self._btn.clicked.connect(self._search)
+        row.addWidget(self._btn)
+
+        return frame
+
+    def _build_table(self):
+        tbl = QTableWidget(0, 7)
+        tbl.setHorizontalHeaderLabels(["", "Date", "Dist", "Store", "Event", "Entry", "Format"])
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tbl.setAlternatingRowColors(True)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setSortingEnabled(True)
+        tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tbl.customContextMenuRequested.connect(self._context_menu)
+
+        h = tbl.horizontalHeader()
+        h.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)           # star
+        tbl.setColumnWidth(0, 28)
+        h.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+
+        tbl.setStyleSheet(
+            f"QTableWidget {{ background: {theme.BG}; color: {theme.TEXT}; "
+            f"gridline-color: {theme.BORDER_LO}; border: 1px solid {theme.BORDER}; border-radius: 4px; font-size: 12px; }}"
+            f"QTableWidget::item:alternate {{ background: #161822; }}"
+            f"QTableWidget::item:selected {{ background: {theme.ACCENT_DK}; color: #fff; }}"
+            f"QHeaderView::section {{ background: {theme.SURFACE}; color: {theme.TEXT_DIM}; "
+            f"border: none; border-bottom: 1px solid {theme.BORDER}; padding: 3px 6px; font-size: 11px; }}"
+        )
+        tbl.cellDoubleClicked.connect(self._open_url)
+        return tbl
+
+    # ── search ───────────────────────────────────────────────────────────────
+
+    def _search(self):
+        zipcode = self._zip.text().strip()
+        if not zipcode:
+            self._set_status("Enter a zipcode.", True)
+            return
+        cancel_worker(self._worker)
+        self._btn.setEnabled(False)
+        self._btn.setText("Searching...")
+        self._table.setRowCount(0)
+        self._events = []
+        self._set_status(f"Geocoding {zipcode}...")
+        self._worker = DataLoadWorker(
+            _fetch_events,
+            kwargs={"zipcode": zipcode, "radius": self._radius.currentData(),
+                    "event_type": self._etype.currentData(),
+                    "format_filter": self._fmt.currentData()},
+        )
+        self._worker.result.connect(self._on_results)
+        self._worker.error.connect(self._on_error)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.start()
+
+    def _on_results(self, events):
+        self._events = events
+        self._btn.setEnabled(True)
+        self._btn.setText("Find Events")
+        self._populate(events)
+        self._set_status(
+            f"{len(events)} event(s) — {self._etype.currentText()}"
+            f"{' / ' + self._fmt.currentText() if self._fmt.currentData() else ''}"
+        )
+        self.events_loaded.emit(events)
+
+    def _on_error(self, msg):
+        self._btn.setEnabled(True)
+        self._btn.setText("Find Events")
+        self._set_status(f"Error: {msg}", True)
+
+    def _populate(self, events):
+        self._table.setSortingEnabled(False)
+        self._table.setRowCount(len(events))
+        for row, e in enumerate(events):
+            fmt_str = _tag_display(e.get("raw_tags", []))
+            bookmarked = is_bookmarked(e.get("id", ""))
+
+            # Star column
+            star_btn = QPushButton("★" if bookmarked else "☆")
+            star_btn.setFixedSize(24, 24)
+            star_btn.setStyleSheet(
+                f"QPushButton {{ background: transparent; color: "
+                f"{'#f39c12' if bookmarked else theme.TEXT_OFF}; "
+                "border: none; font-size: 14px; padding: 0; }}"
+                f"QPushButton:hover {{ color: #f39c12; }}"
+            )
+            star_btn.clicked.connect(lambda _, ev=e, b=star_btn: self._toggle_bookmark(ev, b))
+            self._table.setCellWidget(row, 0, star_btn)
+
+            cells = [
+                None,  # star (widget)
+                e["date"],
+                f"{e['dist_mi']:.0f} mi",
+                e["store"],
+                e["title"],
+                e["fee"] or "—",
+                fmt_str,
+            ]
+            for col in range(1, 7):
+                item = QTableWidgetItem(cells[col])
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if "regional_championship_qualifier" in e.get("raw_tags", []):
+                    item.setForeground(QColor(theme.ACCENT_LT))
+                self._table.setItem(row, col, item)
+
+        self._table.setSortingEnabled(True)
+        self._table.sortByColumn(1, Qt.SortOrder.AscendingOrder)
+
+    def _toggle_bookmark(self, event: dict, btn: QPushButton):
+        eid = event.get("id", "")
+        if is_bookmarked(eid):
+            remove_event_bookmark(eid)
+            btn.setText("☆")
+            btn.setStyleSheet(
+                f"QPushButton {{ background: transparent; color: {theme.TEXT_OFF}; "
+                "border: none; font-size: 14px; padding: 0; }}"
+                f"QPushButton:hover {{ color: #f39c12; }}"
+            )
+        else:
+            upsert_event_bookmark(event)
+            btn.setText("★")
+            btn.setStyleSheet(
+                "QPushButton { background: transparent; color: #f39c12; "
+                "border: none; font-size: 14px; padding: 0; }"
+                "QPushButton:hover { color: #f39c12; }"
+            )
+            self.bookmark_added.emit()
+
+    def _context_menu(self, pos):
+        row = self._table.rowAt(pos.y())
+        if row < 0 or row >= len(self._events):
+            return
+        e = self._events[row]
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            f"QMenu {{ background: {theme.SURFACE}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; }}"
+            f"QMenu::item:selected {{ background: {theme.ACCENT_DK}; }}"
+        )
+        bm_action = QAction(
+            "Remove Bookmark" if is_bookmarked(e.get("id", "")) else "Bookmark Event", menu
+        )
+        bm_action.triggered.connect(lambda: self._toggle_bookmark(
+            e, self._table.cellWidget(row, 0)
+        ))
+        store_action = QAction("Bookmark Store", menu)
+        store_action.triggered.connect(lambda: self._bookmark_store(e))
+        menu.addAction(bm_action)
+        menu.addSeparator()
+        menu.addAction(store_action)
+        menu.exec(self._table.viewport().mapToGlobal(pos))
+
+    def _bookmark_store(self, event: dict):
+        upsert_store_bookmark({
+            "org_id":  event.get("org_id") or event.get("store", ""),
+            "name":    event.get("store", "Unknown"),
+            "lat":     event.get("lat"),
+            "lng":     event.get("lng"),
+            "dist_mi": event.get("dist_mi"),
+        })
+        self.bookmark_added.emit()
+
+    def _open_url(self, row, _col):
+        if row < len(self._events):
+            eid = self._events[row].get("id", "")
+            if eid:
+                QDesktopServices.openUrl(QUrl(f"https://locator.wizards.com/event/{eid}"))
+
+    def _set_status(self, msg, error=False):
+        self._status.setStyleSheet(
+            f"color: {'#e74c3c' if error else theme.TEXT_DIM}; font-size: 11px; background: transparent;"
+        )
+        self._status.setText(msg)
+
+    def set_zipcode(self, zipcode: str):
+        """Called when user taps 'Show Events' from My Stores."""
+        self._zip.setText(zipcode)
+        self._search()
+
+
+# ---------------------------------------------------------------------------
+# Calendar View
+# ---------------------------------------------------------------------------
+
+class DayCell(QFrame):
+    def __init__(self, day_num: int, in_month: bool, parent=None):
+        super().__init__(parent)
+        self.day_num = day_num
+        self.in_month = in_month
+        self._events: list[dict] = []
+
+        self.setFixedHeight(90)
+        self.setStyleSheet(
+            f"QFrame {{ background: {'#161822' if in_month else theme.BG}; "
+            f"border: 1px solid {theme.BORDER_LO}; }}"
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(3, 3, 3, 3)
+        layout.setSpacing(1)
+
+        lbl_color = theme.TEXT_DIM if in_month else theme.TEXT_OFF
+        self._day_lbl = QLabel(str(day_num) if day_num else "")
+        self._day_lbl.setStyleSheet(
+            f"color: {lbl_color}; font-size: 10px; font-weight: 600; background: transparent;"
+        )
+        self._day_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self._day_lbl)
+        layout.addStretch()
+
+    def add_event(self, event: dict, bookmarked: bool):
+        self._events.append(event)
+        layout = self.layout()
+        # Remove stretch before adding chip
+        item = layout.itemAt(layout.count() - 1)
+        if item and item.spacerItem():
+            layout.removeItem(item)
+
+        if layout.count() - 1 >= 3:  # max 3 chips (1 day label + up to 3 chips)
+            overflow = layout.itemAt(layout.count() - 1)
+            if overflow and isinstance(overflow.widget(), QLabel) and "+" in overflow.widget().text():
+                n = int(overflow.widget().text().strip("+").split()[0]) + 1
+                overflow.widget().setText(f"+{n} more")
+            else:
+                lbl = QLabel("+1 more")
+                lbl.setStyleSheet(
+                    f"color: {theme.TEXT_OFF}; font-size: 9px; background: transparent;"
+                )
+                layout.addWidget(lbl)
+            layout.addStretch()
+            return
+
+        raw_tags = event.get("raw_tags") or []
+        if "regional_championship_qualifier" in raw_tags:
+            chip_color = _CHIP_COLORS["rcq"]
+        elif "store_championship" in raw_tags:
+            chip_color = _CHIP_COLORS["store_championship"]
+        elif "friday_night_magic" in raw_tags:
+            chip_color = _CHIP_COLORS["fnm"]
+        else:
+            chip_color = _CHIP_COLORS["other"]
+
+        border = f"2px solid {_CHIP_BOOKMARK_BORDER}" if bookmarked else "none"
+        chip = QLabel(event.get("title", "?")[:22])
+        chip.setStyleSheet(
+            f"background: {chip_color}; color: #fff; font-size: 9px; "
+            f"border-radius: 2px; padding: 1px 3px; border: {border};"
+        )
+        chip.setToolTip(
+            f"{event.get('title')}\n{event.get('store')}\n"
+            f"Entry: {event.get('fee') or '?'}"
+        )
+        layout.addWidget(chip)
+        layout.addStretch()
+
+
+class CalendarView(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._today = date.today()
+        self._year  = self._today.year
+        self._month = self._today.month
+        self._search_events: list[dict] = []
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(theme.SPACE_SM)
+
+        # Nav row
+        nav = QHBoxLayout()
+        self._prev_btn = QPushButton("< Prev")
+        self._prev_btn.setFixedWidth(70)
+        self._prev_btn.setStyleSheet(_btn_style(theme.SURFACE, theme.TEXT))
+        self._prev_btn.clicked.connect(self._prev_month)
+        nav.addWidget(self._prev_btn)
+
+        self._month_lbl = QLabel()
+        self._month_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._month_lbl.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 14px; font-weight: 600; background: transparent;"
+        )
+        nav.addWidget(self._month_lbl, 1)
+
+        self._next_btn = QPushButton("Next >")
+        self._next_btn.setFixedWidth(70)
+        self._next_btn.setStyleSheet(_btn_style(theme.SURFACE, theme.TEXT))
+        self._next_btn.clicked.connect(self._next_month)
+        nav.addWidget(self._next_btn)
+
+        root.addLayout(nav)
+
+        # Legend
+        legend = QHBoxLayout()
+        legend.setSpacing(theme.SPACE_MD)
+        legend.addStretch()
+        for label, color in [("RCQ", _CHIP_COLORS["rcq"]),
+                              ("Store Champ", _CHIP_COLORS["store_championship"]),
+                              ("FNM/Weekly", _CHIP_COLORS["fnm"]),
+                              ("Other", _CHIP_COLORS["other"])]:
+            chip = QLabel(f"  {label}  ")
+            chip.setStyleSheet(
+                f"background: {color}; color: #fff; font-size: 10px; "
+                "border-radius: 2px; padding: 1px 6px;"
+            )
+            legend.addWidget(chip)
+        bm_chip = QLabel("  Bookmarked  ")
+        bm_chip.setStyleSheet(
+            f"background: {_CHIP_COLORS['other']}; color: #fff; font-size: 10px; "
+            f"border-radius: 2px; padding: 1px 6px; border: 2px solid {_CHIP_BOOKMARK_BORDER};"
+        )
+        legend.addWidget(bm_chip)
+        legend.addStretch()
+        root.addLayout(legend)
+
+        # Grid container
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(f"QScrollArea {{ border: none; background: {theme.BG}; }}")
+        self._grid_widget = QWidget()
+        self._grid = QGridLayout(self._grid_widget)
+        self._grid.setSpacing(1)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        scroll.setWidget(self._grid_widget)
+        root.addWidget(scroll, 1)
+
+        self._render()
+
+    def _render(self):
+        # Clear grid
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self._month_lbl.setText(
+            f"{_cal.month_name[self._month]} {self._year}"
+        )
+
+        # Day headers
+        for col, day_name in enumerate(DAYS_OF_WEEK):
+            hdr = QLabel(day_name)
+            hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            hdr.setStyleSheet(
+                f"color: {theme.TEXT_DIM}; font-size: 10px; font-weight: 600; "
+                f"background: {theme.SURFACE}; padding: 4px;"
+            )
+            hdr.setFixedHeight(22)
+            self._grid.addWidget(hdr, 0, col)
+
+        # Build event index: date_str -> [events]
+        bookmarks_set: set[str] = {b["event_id"] for b in get_all_bookmarks()}
+        all_events_this_month: dict[str, list] = {}
+
+        def add_event(e):
+            d = e.get("date", "")
+            if d:
+                all_events_this_month.setdefault(d, []).append(e)
+
+        for e in self._search_events:
+            add_event(e)
+        for b in get_all_bookmarks():
+            b_as_event = {
+                "id": b["event_id"], "title": b["title"], "store": b["store_name"],
+                "date": b["event_date"], "fee": f"${b['entry_fee_cents']//100}" if b.get("entry_fee_cents") else "",
+                "raw_tags": json.loads(b.get("format_tags") or "[]"),
+            }
+            add_event(b_as_event)
+
+        # Month calendar matrix
+        weeks = _cal.monthcalendar(self._year, self._month)
+        # _cal.monthcalendar uses Monday=0, Sunday=6; we want Sunday=0 so adjust
+        # Actually Python calendar Monday=0 by default. Rearrange to Sun-Sat:
+        for week_idx, week in enumerate(weeks):
+            # week: [Mon, Tue, Wed, Thu, Fri, Sat, Sun] -> reorder to [Sun, Mon, ..., Sat]
+            sun_first = [week[6]] + week[:6]
+            for col, day_num in enumerate(sun_first):
+                in_month = day_num != 0
+                display_num = day_num if in_month else 0
+
+                cell = DayCell(display_num, in_month)
+
+                # Highlight today
+                if (in_month and day_num == self._today.day
+                        and self._month == self._today.month
+                        and self._year == self._today.year):
+                    cell.setStyleSheet(
+                        f"QFrame {{ background: #1a2535; "
+                        f"border: 1px solid {theme.ACCENT}; }}"
+                    )
+
+                if in_month:
+                    date_str = f"{self._year:04d}-{self._month:02d}-{day_num:02d}"
+                    for e in all_events_this_month.get(date_str, []):
+                        bookmarked = e.get("id", "") in bookmarks_set
+                        cell.add_event(e, bookmarked)
+
+                self._grid.addWidget(cell, week_idx + 1, col)
+
+        # Stretch columns equally
+        for col in range(7):
+            self._grid.setColumnStretch(col, 1)
+
+    def load_search_events(self, events: list[dict]):
+        self._search_events = events
+        self._render()
+
+    def refresh(self):
+        self._render()
+
+    def _prev_month(self):
+        if self._month == 1:
+            self._month = 12
+            self._year -= 1
+        else:
+            self._month -= 1
+        self._render()
+
+    def _next_month(self):
+        if self._month == 12:
+            self._month = 1
+            self._year += 1
+        else:
+            self._month += 1
+        self._render()
+
+
+# ---------------------------------------------------------------------------
+# My Events View
+# ---------------------------------------------------------------------------
+
+class MyEventsView(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(theme.SPACE_SM)
+
+        # Toolbar
+        bar = QHBoxLayout()
+        bar.setSpacing(theme.SPACE_SM)
+
+        self._filter = QComboBox()
+        for label in ["All Statuses", "Interested", "Going", "Attended"]:
+            self._filter.addItem(label, label.lower() if label != "All Statuses" else None)
+        self._filter.setFixedWidth(130)
+        self._filter.setStyleSheet(_combo_style())
+        self._filter.currentIndexChanged.connect(self.refresh)
+        bar.addWidget(_lbl("Filter:", True))
+        bar.addWidget(self._filter)
+
+        bar.addStretch()
+
+        self._export_btn = QPushButton("Export .ics")
+        self._export_btn.setFixedWidth(100)
+        self._export_btn.setStyleSheet(_btn_style("#27ae60", "#fff"))
+        self._export_btn.clicked.connect(self._export_ics)
+        bar.addWidget(self._export_btn)
+
+        root.addLayout(bar)
+
+        self._table = self._build_table()
+        root.addWidget(self._table, 1)
+
+        hint = QLabel("Double-click Notes / Result / Deck to edit  |  Click status to change  |  Del key to remove bookmark")
+        hint.setStyleSheet(f"color: {theme.TEXT_OFF}; font-size: 10px; background: transparent;")
+        root.addWidget(hint)
+
+    def _build_table(self):
+        cols = ["Date", "Dist", "Store", "Event", "Status", "Notes", "Result", "Deck", ""]
+        tbl = QTableWidget(0, len(cols))
+        tbl.setHorizontalHeaderLabels(cols)
+        tbl.setAlternatingRowColors(True)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tbl.setStyleSheet(
+            f"QTableWidget {{ background: {theme.BG}; color: {theme.TEXT}; "
+            f"gridline-color: {theme.BORDER_LO}; border: 1px solid {theme.BORDER}; border-radius: 4px; font-size: 11px; }}"
+            f"QTableWidget::item:alternate {{ background: #161822; }}"
+            f"QTableWidget::item:selected {{ background: {theme.ACCENT_DK}; color: #fff; }}"
+            f"QHeaderView::section {{ background: {theme.SURFACE}; color: {theme.TEXT_DIM}; "
+            f"border: none; border-bottom: 1px solid {theme.BORDER}; padding: 3px 6px; font-size: 10px; }}"
+        )
+
+        h = tbl.horizontalHeader()
+        h.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        tbl.setColumnWidth(4, 100)
+        h.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        tbl.setColumnWidth(8, 28)
+
+        tbl.itemChanged.connect(self._on_item_changed)
+        tbl.keyPressEvent = self._key_press
+        return tbl
+
+    def refresh(self):
+        bookmarks = get_all_bookmarks()
+        status_filter = self._filter.currentData()
+        if status_filter:
+            bookmarks = [b for b in bookmarks if b["status"] == status_filter]
+
+        self._table.blockSignals(True)
+        self._table.setRowCount(len(bookmarks))
+        self._bm_data = bookmarks
+
+        for row, b in enumerate(bookmarks):
+            fee_str = f"${b['entry_fee_cents']//100}" if b.get("entry_fee_cents") else "—"
+            tags = json.loads(b.get("format_tags") or "[]")
+            fmt_str = _tag_display(tags)
+
+            # Fixed columns
+            for col, text in enumerate([
+                b.get("event_date") or "—",
+                f"{b['dist_mi']:.0f} mi" if b.get("dist_mi") else "—",
+                b.get("store_name") or "—",
+                b.get("title") or "—",
+            ]):
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self._table.setItem(row, col, item)
+
+            # Status dropdown
+            status_cb = QComboBox()
+            status_cb.addItems([_STATUS_LABELS[s] for s in _STATUS_OPTIONS])
+            status_cb.setCurrentText(_STATUS_LABELS.get(b["status"], "Interested"))
+            status_cb.setStyleSheet(_combo_style())
+            status_cb.currentTextChanged.connect(
+                lambda txt, eid=b["event_id"]: update_bookmark_field(
+                    eid, "status", {v: k for k, v in _STATUS_LABELS.items()}.get(txt, "interested")
+                )
+            )
+            self._table.setCellWidget(row, 4, status_cb)
+
+            # Editable columns: Notes, Result, Deck
+            for col, key in [(5, "personal_notes"), (6, "result"), (7, "deck_played")]:
+                item = QTableWidgetItem(b.get(key) or "")
+                item.setData(Qt.ItemDataRole.UserRole, (b["event_id"], key))
+                self._table.setItem(row, col, item)
+
+            # Remove button
+            del_btn = QPushButton("✕")
+            del_btn.setFixedSize(24, 24)
+            del_btn.setStyleSheet(
+                f"QPushButton {{ background: transparent; color: {theme.TEXT_OFF}; "
+                "border: none; font-size: 12px; }}"
+                "QPushButton:hover { color: #e74c3c; }"
+            )
+            del_btn.clicked.connect(lambda _, eid=b["event_id"]: self._remove(eid))
+            self._table.setCellWidget(row, 8, del_btn)
+
+        self._table.blockSignals(False)
+
+    def _on_item_changed(self, item: QTableWidgetItem):
+        data = item.data(Qt.ItemDataRole.UserRole)
+        if data:
+            event_id, field = data
+            update_bookmark_field(event_id, field, item.text())
+
+    def _remove(self, event_id: str):
+        remove_event_bookmark(event_id)
+        self.refresh()
+
+    def _key_press(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            row = self._table.currentRow()
+            if 0 <= row < len(self._bm_data):
+                self._remove(self._bm_data[row]["event_id"])
+        else:
+            QTableWidget.keyPressEvent(self._table, event)
+
+    def _export_ics(self):
+        bookmarks = get_all_bookmarks()
+        going = [b for b in bookmarks if b["status"] in ("going", "interested")]
+        if not going:
+            QMessageBox.information(self, "No Events", "No Going or Interested events to export.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Calendar", "mtg_events.ics", "iCalendar Files (*.ics)"
+        )
+        if path:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(export_ics(going))
+            QMessageBox.information(self, "Exported",
+                f"Exported {len(going)} event(s) to {path}\n\n"
+                "Open the file to import into Google Calendar, Outlook, or Apple Calendar.")
+
+
+# ---------------------------------------------------------------------------
+# My Stores View
+# ---------------------------------------------------------------------------
+
+class MyStoresView(QWidget):
+    show_store_events = pyqtSignal(str)   # store name, triggers search in Search view
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(theme.SPACE_SM)
+
+        hint = QLabel(
+            "Bookmark stores from the Search view (right-click a row). "
+            "Click 'Show Events' to filter the search to that store."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px; background: transparent;")
+        root.addWidget(hint)
+
+        cols = ["Store", "Distance", "Notes", "Added", ""]
+        self._table = QTableWidget(0, len(cols))
+        self._table.setHorizontalHeaderLabels(cols)
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
+        self._table.setStyleSheet(
+            f"QTableWidget {{ background: {theme.BG}; color: {theme.TEXT}; "
+            f"gridline-color: {theme.BORDER_LO}; border: 1px solid {theme.BORDER}; border-radius: 4px; font-size: 12px; }}"
+            f"QTableWidget::item:alternate {{ background: #161822; }}"
+            f"QTableWidget::item:selected {{ background: {theme.ACCENT_DK}; color: #fff; }}"
+            f"QHeaderView::section {{ background: {theme.SURFACE}; color: {theme.TEXT_DIM}; "
+            f"border: none; border-bottom: 1px solid {theme.BORDER}; padding: 3px 6px; font-size: 11px; }}"
+        )
+
+        h = self._table.horizontalHeader()
+        h.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        h.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        h.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        self._table.setColumnWidth(4, 110)
+
+        self._table.itemChanged.connect(self._on_notes_changed)
+        root.addWidget(self._table, 1)
+
+    def refresh(self):
+        stores = get_all_store_bookmarks()
+        self._stores = stores
+
+        self._table.blockSignals(True)
+        self._table.setRowCount(len(stores))
+        for row, s in enumerate(stores):
+            for col, text in enumerate([
+                s["name"],
+                f"{s['dist_mi']:.0f} mi" if s.get("dist_mi") else "—",
+            ]):
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self._table.setItem(row, col, item)
+
+            notes_item = QTableWidgetItem(s.get("notes") or "")
+            notes_item.setData(Qt.ItemDataRole.UserRole, s["org_id"])
+            self._table.setItem(row, 2, notes_item)
+
+            date_item = QTableWidgetItem((s.get("added_at") or "")[:10])
+            date_item.setFlags(date_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._table.setItem(row, 3, date_item)
+
+            # Show Events button
+            show_btn = QPushButton("Show Events")
+            show_btn.setFixedHeight(22)
+            show_btn.setStyleSheet(_btn_style(theme.ACCENT_DK, "#fff"))
+            show_btn.clicked.connect(
+                lambda _, name=s["name"]: self.show_store_events.emit(name)
+            )
+            self._table.setCellWidget(row, 4, show_btn)
+
+        self._table.blockSignals(False)
+
+    def _on_notes_changed(self, item: QTableWidgetItem):
+        org_id = item.data(Qt.ItemDataRole.UserRole)
+        if org_id:
+            with __import__("db.database", fromlist=["get_connection"]).get_connection() as conn:
+                conn.execute(
+                    "UPDATE store_bookmarks SET notes=? WHERE org_id=?",
+                    (item.text(), org_id)
+                )
+
+
+# ---------------------------------------------------------------------------
+# Event Hub Tab (main container)
+# ---------------------------------------------------------------------------
+
+class EventHubTab(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        ensure_tables()
+        self._build_ui()
+
+    def _build_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(theme.SPACE_MD, theme.SPACE_MD,
+                                theme.SPACE_MD, theme.SPACE_MD)
+        root.setSpacing(theme.SPACE_SM)
+
+        # Title
+        title_row = QHBoxLayout()
+        title = QLabel("Event Hub")
+        title.setStyleSheet(
+            f"font-size: 15px; font-weight: 700; color: {theme.TEXT}; background: transparent;"
+        )
+        title_row.addWidget(title)
+        title_row.addStretch()
+        root.addLayout(title_row)
+
+        # View selector
+        nav_frame = QFrame()
+        nav_frame.setFixedHeight(34)
+        nav_frame.setStyleSheet(
+            f"QFrame {{ background: {theme.SURFACE}; border: 1px solid {theme.BORDER}; border-radius: 4px; }}"
+        )
+        nav = QHBoxLayout(nav_frame)
+        nav.setContentsMargins(4, 2, 4, 2)
+        nav.setSpacing(2)
+
+        self._nav_btns: list[QPushButton] = []
+        for i, label in enumerate(["Search", "Calendar", "My Events", "My Stores"]):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setFixedHeight(26)
+            btn.clicked.connect(lambda _, idx=i: self._switch(idx))
+            self._nav_btns.append(btn)
+            nav.addWidget(btn)
+        nav.addStretch()
+        root.addWidget(nav_frame)
+
+        # Views
+        self._stack = QStackedWidget()
+        self._search_view   = SearchView()
+        self._calendar_view = CalendarView()
+        self._my_events     = MyEventsView()
+        self._my_stores     = MyStoresView()
+
+        for view in [self._search_view, self._calendar_view,
+                     self._my_events, self._my_stores]:
+            self._stack.addWidget(view)
+
+        root.addWidget(self._stack, 1)
+
+        # Wire signals
+        self._search_view.events_loaded.connect(self._calendar_view.load_search_events)
+        self._search_view.bookmark_added.connect(self._on_bookmark_changed)
+        self._my_stores.show_store_events.connect(self._on_show_store_events)
+
+        self._switch(0)
+
+    def _switch(self, idx: int):
+        self._stack.setCurrentIndex(idx)
+        for i, btn in enumerate(self._nav_btns):
+            active = i == idx
+            btn.setChecked(active)
+            btn.setStyleSheet(
+                f"QPushButton {{ background: {theme.ACCENT_DK if active else 'transparent'}; "
+                f"color: {'#fff' if active else theme.TEXT_DIM}; "
+                "border: none; border-radius: 3px; font-size: 11px; "
+                "font-weight: 600; padding: 3px 12px; }}"
+                f"QPushButton:hover {{ background: {theme.ACCENT_DK}; color: #fff; }}"
+            )
+        # Refresh data-driven views on switch
+        if idx == 2:
+            self._my_events.refresh()
+        elif idx == 3:
+            self._my_stores.refresh()
+        elif idx == 1:
+            self._calendar_view.refresh()
+
+    def _on_bookmark_changed(self):
+        self._calendar_view.refresh()
+        if self._stack.currentIndex() == 2:
+            self._my_events.refresh()
+        if self._stack.currentIndex() == 3:
+            self._my_stores.refresh()
+
+    def _on_show_store_events(self, store_name: str):
+        """My Stores -> Show Events: switch to Search, filter by store name."""
+        self._switch(0)
+        # Pre-populate a note — full store filtering would need store org search
+        self._search_view._status.setText(
+            f"Showing search results — search near this store's zip to find their events."
+        )
