@@ -6,22 +6,21 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  MTG_META_DB: ${{ vars.MTG_META_DB || 'data/mtg_meta.db' }}
-
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 1: Python import check — verifies all modules load without error.
-  # Catches broken imports before anything else.
+  # Job 1: Module import check — runs on GitHub infrastructure.
   # ──────────────────────────────────────────────────────────────────────────
   imports:
     name: Module import check
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install requests
       - name: Verify core module imports
-        shell: bash
         run: |
           python -c "
           import sys
@@ -52,23 +51,23 @@ jobs:
           "
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 2: Scraper validation — verifies key scrapers don't crash on import
-  # and have the expected public API surface.
+  # Job 2: Scraper API surface — runs on GitHub infrastructure.
   # ──────────────────────────────────────────────────────────────────────────
   scraper-api:
     name: Scraper API surface
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: imports
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install requests
       - name: Spicerack scraper API
         run: python -m scrapers.spicerack_scraper --counts
-
       - name: Event finder geocode smoke test
-        shell: bash
         run: |
-          # Geocode a known zip, verify it returns coordinates
           python -c "
           from scrapers.event_finder import geocode_zipcode
           lat, lng = geocode_zipcode('98101')
@@ -78,15 +77,7 @@ jobs:
           "
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 3: Predictions accuracy gate — the novel AI-as-semantic-gate.
-  #
-  # If a commit changes win rate calculation, archetype normalization, or
-  # the scraper output format and quietly breaks the predictive model,
-  # this gate fires. That's a class of regression code tests can't catch
-  # because it requires domain knowledge to define "correct."
-  #
-  # Only runs when analysis/ or scrapers/ change. Skips if no validated
-  # predictions exist yet (new DB / fresh runner).
+  # Job 3: Predictions accuracy gate — self-hosted only (needs local DB).
   # ──────────────────────────────────────────────────────────────────────────
   predictions-gate:
     name: Predictions accuracy gate (AI semantic check)
@@ -96,54 +87,42 @@ jobs:
       github.event_name == 'pull_request' &&
       (contains(join(github.event.pull_request.changed_files, ','), 'analysis/') ||
        contains(join(github.event.pull_request.changed_files, ','), 'scrapers/'))
+    env:
+      MTG_META_DB: ${{ vars.MTG_META_DB || 'E:/vscode ai project/mtg-meta-analyzer/data/mtg_meta.db' }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Run predictions validation
         shell: bash
         run: |
           python -c "
           import json, sys
-
-          # Run validation
           from analysis.predictions import validate_predictions
           result = validate_predictions()
-
           validated = result.get('validated', 0)
           correct   = result.get('correct', 0)
           wrong     = result.get('wrong', 0)
-
           print(f'Predictions validated: {validated}')
           print(f'  Correct: {correct}')
           print(f'  Wrong:   {wrong}')
-
           if validated == 0:
-              print('No predictions to validate -- gate skipped (first run or fresh DB)')
+              print('No predictions to validate -- gate skipped')
               sys.exit(0)
-
           accuracy = correct / validated
           print(f'  Accuracy: {accuracy:.1%}')
-
-          MIN_ACCURACY = 0.55   # 55% floor -- random baseline is ~25% for 4-way prediction
-          MIN_VALIDATED = 5     # need at least 5 predictions to make the gate meaningful
-
+          MIN_ACCURACY = 0.55
+          MIN_VALIDATED = 5
           if validated < MIN_VALIDATED:
               print(f'Only {validated} predictions (need {MIN_VALIDATED}) -- gate skipped')
               sys.exit(0)
-
           if accuracy < MIN_ACCURACY:
-              print(f'FAIL: predictions accuracy {accuracy:.1%} below {MIN_ACCURACY:.0%} threshold')
-              print('This means a recent change to analysis/ or scrapers/ broke the predictive model.')
-              print('Check: archetype normalization, win rate calculation, scraper output format.')
+              print(f'FAIL: accuracy {accuracy:.1%} below {MIN_ACCURACY:.0%} threshold')
               sys.exit(1)
-
-          print(f'PASS: predictions accuracy {accuracy:.1%} >= {MIN_ACCURACY:.0%}')
+          print(f'PASS: accuracy {accuracy:.1%} >= {MIN_ACCURACY:.0%}')
           "
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 4: GUI import sanity — verifies PyQt6 GUI modules load.
-  # Catches broken widget imports before they reach production.
-  # Only runs on changes to gui/.
+  # Job 4: GUI import sanity — self-hosted only (needs PyQt6 + display).
+  # Only runs on PRs touching gui/.
   # ──────────────────────────────────────────────────────────────────────────
   gui-imports:
     name: GUI import sanity
@@ -153,7 +132,6 @@ jobs:
       contains(join(github.event.pull_request.changed_files, ','), 'gui/')
     steps:
       - uses: actions/checkout@v4
-
       - name: GUI module imports
         shell: bash
         run: |
