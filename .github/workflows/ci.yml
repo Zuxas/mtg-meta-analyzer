@@ -87,7 +87,15 @@ jobs:
       - name: Install dependencies
         run: pip install requests
       - name: Spicerack scraper API
-        run: python -m scrapers.spicerack_scraper --counts
+        run: |
+          python -c "
+          from scrapers.spicerack_scraper import scrape_events, show_counts
+          import inspect, sys
+          assert callable(scrape_events), 'scrape_events missing'
+          assert callable(show_counts), 'show_counts missing'
+          assert 'format_name' in inspect.signature(scrape_events).parameters, 'scrape_events missing format_name param'
+          print('Spicerack scraper API surface OK')
+          "
       - name: Event finder geocode smoke test
         run: |
           python -c "
