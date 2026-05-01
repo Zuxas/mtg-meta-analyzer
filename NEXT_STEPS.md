@@ -66,7 +66,7 @@ Last updated: 2026-04-21
 ### CI/CD + Infrastructure
 - [x] GitHub Actions CI/CD for both repos (lint + tests on ubuntu-latest, sim/GUI gates on self-hosted)
 - [x] Failure reporter: auto-creates GitHub issues on CI failure, deduplicates recurrences
-- [x] Self-hosted runners registered on Windows box (JERMEY on both repos)
+- [x] Self-hosted runners registered on Windows box (both repos)
 
 ### Scrapers
 - [x] Spicerack historical scraper (`scrapers/spicerack_scraper.py`) — tournament + top-8 data
