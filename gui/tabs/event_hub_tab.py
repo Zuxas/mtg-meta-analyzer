@@ -107,6 +107,64 @@ def _load_premier_events() -> list[dict]:
 # Background worker
 # ---------------------------------------------------------------------------
 
+def _fetch_mtgo_events() -> list[dict]:
+    """Fetch and parse the official MTGO calendar ICS. Returns list of event dicts."""
+    import urllib.request, re
+    from datetime import datetime, timezone
+
+    url = "https://www.mtgo.com/calendar.ics"
+    req = urllib.request.Request(url, headers={"User-Agent": "mtg-meta-analyzer/1.0"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        data = r.read().decode("utf-8", errors="replace")
+
+    events = []
+    current: dict = {}
+    for line in data.splitlines():
+        line = line.strip()
+        if line == "BEGIN:VEVENT":
+            current = {}
+        elif line == "END:VEVENT":
+            if current.get("SUMMARY") and current.get("DTSTART"):
+                events.append(current.copy())
+            current = {}
+        elif ":" in line:
+            key, _, val = line.partition(":")
+            key = key.split(";")[0]
+            current[key] = val.strip()
+
+    result = []
+    local_tz = datetime.now().astimezone().tzinfo
+    for e in events:
+        raw_dt = e["DTSTART"].replace("Z", "")
+        try:
+            if "T" in raw_dt:
+                utc_dt = datetime.strptime(raw_dt, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+                local_dt = utc_dt.astimezone(local_tz)
+                d_str = local_dt.strftime("%Y-%m-%d")
+                # Windows-compatible 12-hour time (no %-I)
+                t_str = local_dt.strftime("%I:%M %p").lstrip("0") or "12:00 AM"
+            else:
+                d_str = f"{raw_dt[:4]}-{raw_dt[4:6]}-{raw_dt[6:8]}"
+                t_str = ""
+        except Exception:
+            continue
+
+        title = e["SUMMARY"]
+        uid   = e.get("UID", "")
+        result.append({
+            "id":         f"mtgo-{uid}",
+            "title":      title,
+            "date":       d_str,
+            "local_time": t_str,
+            "store":      "MTGO",
+            "fee":        "",
+            "raw_tags":   [],
+            "_mtgo":      True,
+        })
+
+    return result
+
+
 def _fetch_events(zipcode, radius, event_type, format_filter):
     from scrapers.event_finder import geocode_zipcode, search_events, _format_event
     lat, lng = geocode_zipcode(zipcode)
@@ -502,6 +560,15 @@ class DayCell(QFrame):
             chip_color = _CHIP_COLORS["magicpresents"]
         elif "friday_night_magic" in raw_tags:
             chip_color = _CHIP_COLORS["fnm"]
+        elif event.get("_mtgo"):
+            # MTGO events: color by competitive level
+            title = event.get("title", "").lower()
+            if any(k in title for k in ("qualifier", "super qualifier", "mocs", "showcase")):
+                chip_color = "#0e6655"   # teal — high stakes
+            elif "challenge 64" in title or "challenge 32" in title:
+                chip_color = "#1a6b9a"   # blue — weekly challenge
+            else:
+                chip_color = "#424949"   # dark gray — preliminary/trial
         else:
             chip_color = _CHIP_COLORS["other"]
 
@@ -530,9 +597,12 @@ class CalendarView(QWidget):
         self._month = self._today.month
         self._search_events: list[dict] = []
         self._premier_events: list[dict] = _load_premier_events()
+        self._mtgo_events: list[dict] = []
+        self._show_mtgo: bool = True
         self._selected_day: str | None = None
         self._day_events_map: dict[str, list] = {}
         self._build_ui()
+        self._refresh_mtgo()
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -572,6 +642,20 @@ class CalendarView(QWidget):
         self._next_btn.setStyleSheet(_btn_style(theme.SURFACE, theme.TEXT))
         self._next_btn.clicked.connect(self._next_month)
         nav.addWidget(self._next_btn)
+
+        self._mtgo_btn = QPushButton("MTGO: ON")
+        self._mtgo_btn.setFixedWidth(85)
+        self._mtgo_btn.setStyleSheet(_btn_style("#1a5276", "#7fc3e8"))
+        self._mtgo_btn.clicked.connect(self._toggle_mtgo)
+        nav.addWidget(self._mtgo_btn)
+
+        self._refresh_mtgo_btn = QPushButton("↻")
+        self._refresh_mtgo_btn.setFixedWidth(28)
+        self._refresh_mtgo_btn.setToolTip("Refresh MTGO schedule (updates every 3 hours)")
+        self._refresh_mtgo_btn.setStyleSheet(_btn_style(theme.SURFACE, theme.TEXT_DIM))
+        self._refresh_mtgo_btn.clicked.connect(lambda: self._refresh_mtgo(force=True))
+        nav.addWidget(self._refresh_mtgo_btn)
+
         root.addLayout(nav)
 
         # Legend
@@ -587,6 +671,8 @@ class CalendarView(QWidget):
             ("Store Champ", _CHIP_COLORS["store_championship"]),
             ("Showdown", _CHIP_COLORS["standard_showdown"]),
             ("FNM/Other", _CHIP_COLORS["fnm"]),
+            ("MTGO Challenge", "#1a6b9a"),
+            ("MTGO Qualifier", "#0e6655"),
         ]
         for label, color in legend_items:
             chip = QLabel(f"  {label}  ")
@@ -694,6 +780,12 @@ class CalendarView(QWidget):
             except Exception:
                 pass
 
+        # MTGO events from official ICS feed
+        if self._show_mtgo:
+            for e in self._mtgo_events:
+                if e.get("date"):
+                    add_to_map(e["date"], e)
+
         # Count notable events this month for summary
         month_str = f"{self._year:04d}-{self._month:02d}"
         rcq_count    = sum(1 for events in self._day_events_map.values()
@@ -773,6 +865,20 @@ class CalendarView(QWidget):
                     f'{e.get("name",e.get("title","?"))}</span>'
                     f' <span style="color:#aaa">— {subtitle} — {location}</span>'
                 )
+            elif e.get("_mtgo"):
+                title = e.get("title", "?")
+                time_str = e.get("local_time", "")
+                t_lower = title.lower()
+                if any(k in t_lower for k in ("qualifier", "mocs", "showcase")):
+                    color = "#0e6655"
+                elif "challenge" in t_lower:
+                    color = "#1a6b9a"
+                else:
+                    color = "#5d6d7e"
+                lines.append(
+                    f'<span style="color:{color}">[MTGO] {title}</span>'
+                    f'<span style="color:#888"> {time_str}</span>'
+                )
             else:
                 raw_tags = e.get("raw_tags", [])
                 if "regional_championship_qualifier" in raw_tags:
@@ -794,6 +900,33 @@ class CalendarView(QWidget):
     def _go_today(self):
         self._year  = self._today.year
         self._month = self._today.month
+        self._render()
+
+    def _toggle_mtgo(self):
+        self._show_mtgo = not self._show_mtgo
+        self._mtgo_btn.setText(f"MTGO: {'ON' if self._show_mtgo else 'OFF'}")
+        self._mtgo_btn.setStyleSheet(
+            _btn_style("#1a5276" if self._show_mtgo else theme.SURFACE,
+                       "#7fc3e8" if self._show_mtgo else theme.TEXT_OFF)
+        )
+        self._render()
+
+    def _refresh_mtgo(self, force: bool = False):
+        """Fetch MTGO calendar ICS in background."""
+        if not force and self._mtgo_events:
+            return  # already loaded this session
+        self._refresh_mtgo_btn.setEnabled(False)
+        worker = DataLoadWorker(_fetch_mtgo_events)
+        worker.result.connect(self._on_mtgo_loaded)
+        worker.error.connect(lambda _: self._refresh_mtgo_btn.setEnabled(True))
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_mtgo_loaded(self, events: list[dict]):
+        self._mtgo_events = events
+        self._refresh_mtgo_btn.setEnabled(True)
+        count = len(events)
+        self._mtgo_btn.setToolTip(f"{count} MTGO events loaded  (refreshes every 3h)")
         self._render()
 
     def load_search_events(self, events: list[dict]):
