@@ -68,6 +68,13 @@ def main():
         run(f"-m scrapers.mtgmelee_scraper --format {fmt} --pages 3",
             f"MTGMelee — {fmt}")
 
+    # Spicerack — RCQs, Store Championships, large paper events
+    spice_formats = [f for f in formats if f.lower() in
+                     ("modern", "standard", "pioneer", "legacy", "pauper")]
+    for fmt in spice_formats:
+        run(f"-m scrapers.spicerack_scraper --format {fmt} --days 30 --top-n 8",
+            f"Spicerack RCQs -- {fmt}")
+
     # Scryfall enrichment (always)
     run("-m scrapers.scryfall", "Scryfall enrichment")
 
