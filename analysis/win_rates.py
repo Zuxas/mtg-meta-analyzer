@@ -143,6 +143,17 @@ _DATE_KEY = (
     "ELSE replace(e.date,'-','') END"
 )
 
+# Same normalization for the matches table's event_date column.
+# The matches scraper may write DD/MM/YY (MTGTop8 origin) or YYYY-MM-DD
+# (MTGMelee). Plain string comparison against a YYYY-MM-DD 'since' string
+# produces wrong results for any DD/MM/YY date whose day ≥ 20 (e.g.
+# '21/03/24' compares as '21...' > '2026...' = True, pulling in old data).
+_MATCH_DATE_KEY = (
+    "CASE WHEN instr(event_date,'/')>0 "
+    "THEN '20'||substr(event_date,7,2)||substr(event_date,4,2)||substr(event_date,1,2) "
+    "ELSE replace(event_date,'-','') END"
+)
+
 
 # ---------------------------------------------------------------------------
 # Core DB queries
@@ -979,8 +990,9 @@ def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_ap
     """.format(excl_ph=",".join("?" * len(EXCLUDE_ARCHETYPES)))
     params = [format_name] + list(EXCLUDE_ARCHETYPES) + list(EXCLUDE_ARCHETYPES)
     if since:
-        q += " AND event_date >= ?"
-        params.append(since.strftime("%Y-%m-%d") if hasattr(since, "strftime") else str(since))
+        # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
+        q += f" AND ({_MATCH_DATE_KEY}) >= ?"
+        params.append(_dt_to_db_str(since))   # YYYYMMDD string
     q += " GROUP BY arch_a, arch_b HAVING total >= ?"
     params.append(min_matches)
 
@@ -1060,8 +1072,9 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     since_clause = ""
     params_base  = [format_name]
     if since:
-        since_str    = since.strftime("%Y-%m-%d") if hasattr(since, "strftime") else str(since)
-        since_clause = " AND event_date >= ?"
+        # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
+        since_str    = _dt_to_db_str(since)   # YYYYMMDD string
+        since_clause = f" AND ({_MATCH_DATE_KEY}) >= ?"
         params_base.append(since_str)
 
     q = f"""
