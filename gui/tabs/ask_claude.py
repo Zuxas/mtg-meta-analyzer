@@ -150,12 +150,9 @@ class AskClaudeTab(QWidget):
 
     def cleanup(self):
         """Stop streaming worker. Called by MainWindow on app exit."""
-        if self._worker is not None:
-            try:
-                self._worker.blockSignals(True)
-            except RuntimeError:
-                pass
-            self._worker = None
+        from gui.worker_utils import stop_worker
+        stop_worker(self._worker)
+        self._worker = None
 
     # ------------------------------------------------------------------
     # UI

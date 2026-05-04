@@ -510,7 +510,9 @@ class HeatmapTab(QWidget):
 
     def cleanup(self):
         """Stop running worker. Called by MainWindow on app exit."""
-        self._cancel_worker()
+        from gui.worker_utils import stop_worker
+        stop_worker(self._worker)
+        self._worker = None
 
     def _cancel_worker(self):
         """Block signals on any running worker so its callbacks are ignored."""

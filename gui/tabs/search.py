@@ -279,9 +279,9 @@ class SearchTab(QWidget):
         self._build_ui()
 
     def cleanup(self):
-        from gui.worker_utils import cancel_worker
+        from gui.worker_utils import stop_worker
         for w in self._workers:
-            cancel_worker(w)
+            stop_worker(w)
         self._workers.clear()
         if self._card_browser and hasattr(self._card_browser, "cleanup"):
             self._card_browser.cleanup()

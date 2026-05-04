@@ -388,8 +388,14 @@ class MainWindow(QMainWindow):
             except RuntimeError:
                 pass
             self._scrape_worker = None
-        # Delegate cleanup to tabs that hold their own workers
-        for tab in (self._dash, self._deck, self._heatmap, self._charts, self._claude, self._set_analysis, self._search, self._my_decks, self._match_log):
+        # Delegate cleanup to ALL tabs that hold workers
+        for tab in (
+            self._dash, self._deck, self._heatmap, self._charts,
+            self._simulate, self._calibration, self._preds,
+            self._claude, self._set_analysis, self._search,
+            self._my_decks, self._match_log, self._kb,
+            self._tourney, self._settings,
+        ):
             if hasattr(tab, "cleanup"):
                 try:
                     tab.cleanup()

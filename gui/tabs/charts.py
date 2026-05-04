@@ -34,20 +34,13 @@ class ChartsTab(QWidget):
         self._refresh_archetypes()
 
     def cleanup(self):
-        """Block signals on any running workers. Called by MainWindow on app exit."""
+        """Stop all running workers. Called by MainWindow on app exit."""
+        from gui.worker_utils import stop_worker
         for w in self._workers:
-            try:
-                w.blockSignals(True)
-            except RuntimeError:
-                pass
+            stop_worker(w)
         self._workers.clear()
-        # Also clean up the chart canvas's internal loader worker
         if hasattr(self, "_canvas") and hasattr(self._canvas, "_worker"):
-            try:
-                if self._canvas._worker is not None:
-                    self._canvas._worker.blockSignals(True)
-            except RuntimeError:
-                pass
+            stop_worker(getattr(self._canvas, "_worker", None))
 
     def _build_ui(self):
         outer = QHBoxLayout(self)

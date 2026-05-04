@@ -58,8 +58,17 @@ class SettingsTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._backfill_worker = None
+        self._ml_worker = None
         self._build_ui()
         self._load()
+
+    def cleanup(self):
+        from gui.worker_utils import stop_worker
+        stop_worker(self._backfill_worker)
+        stop_worker(self._ml_worker)
+        self._backfill_worker = None
+        self._ml_worker = None
 
     # ------------------------------------------------------------------
     # UI

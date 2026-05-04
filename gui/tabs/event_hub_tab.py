@@ -627,8 +627,14 @@ class CalendarView(QWidget):
         self._show_mtgo: bool = True
         self._selected_day: str | None = None
         self._day_events_map: dict[str, list] = {}
+        self._mtgo_worker = None
         self._build_ui()
         self._refresh_mtgo()
+
+    def cleanup(self):
+        from gui.worker_utils import stop_worker
+        stop_worker(self._mtgo_worker)
+        self._mtgo_worker = None
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -941,12 +947,16 @@ class CalendarView(QWidget):
         """Fetch MTGO calendar ICS in background."""
         if not force and self._mtgo_events:
             return  # already loaded this session
+        from gui.worker_utils import stop_worker
+        stop_worker(self._mtgo_worker)
         self._refresh_mtgo_btn.setEnabled(False)
         worker = DataLoadWorker(_fetch_mtgo_events)
         worker.result.connect(self._on_mtgo_loaded)
         worker.error.connect(lambda _: self._refresh_mtgo_btn.setEnabled(True))
         worker.finished.connect(worker.deleteLater)
+        worker.finished.connect(lambda: setattr(self, "_mtgo_worker", None))
         worker.start()
+        self._mtgo_worker = worker
 
     def _on_mtgo_loaded(self, events: list[dict]):
         self._mtgo_events = events
@@ -1382,6 +1392,11 @@ class EventHubTab(QWidget):
         super().__init__(parent)
         ensure_tables()
         self._build_ui()
+
+    def cleanup(self):
+        for view in (self._calendar_view, self._search_view):
+            if hasattr(view, "cleanup"):
+                view.cleanup()
 
     def _build_ui(self):
         root = QVBoxLayout(self)

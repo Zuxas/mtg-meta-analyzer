@@ -172,14 +172,10 @@ class SetAnalysisTab(QWidget):
         self._build_ui()
 
     def cleanup(self):
+        from gui.worker_utils import stop_worker
         for attr in ("_worker", "_fetch_worker"):
-            w = getattr(self, attr, None)
-            if w is not None:
-                try:
-                    w.blockSignals(True)
-                except RuntimeError:
-                    pass
-                setattr(self, attr, None)
+            stop_worker(getattr(self, attr, None))
+            setattr(self, attr, None)
 
     # ------------------------------------------------------------------
     # UI

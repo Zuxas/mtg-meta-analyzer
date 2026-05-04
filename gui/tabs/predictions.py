@@ -22,6 +22,12 @@ class PredictionsTab(QWidget):
         self._workers = []
         self._build_ui()
 
+    def cleanup(self):
+        from gui.worker_utils import stop_worker
+        for w in self._workers:
+            stop_worker(w)
+        self._workers.clear()
+
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)

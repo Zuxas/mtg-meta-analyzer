@@ -209,11 +209,9 @@ class MatchLogTab(QWidget):
         QTimer.singleShot(200, self._load_matches)
 
     def cleanup(self):
+        from gui.worker_utils import stop_worker
         for w in self._workers:
-            try:
-                w.blockSignals(True)
-            except RuntimeError:
-                pass
+            stop_worker(w)
         self._workers.clear()
 
     def _build_ui(self):

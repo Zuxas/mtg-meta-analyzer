@@ -56,6 +56,12 @@ class KnowledgeBaseTab(QWidget):
         QTimer.singleShot(200, self._load_all)
 
     # ------------------------------------------------------------------
+    def cleanup(self):
+        from gui.worker_utils import stop_worker
+        for w in self._workers:
+            stop_worker(w)
+        self._workers.clear()
+
     # UI
     # ------------------------------------------------------------------
 

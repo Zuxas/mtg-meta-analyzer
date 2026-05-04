@@ -129,13 +129,19 @@ class TournamentPrepTab(QWidget):
 
         inner = QTabWidget()
         inner.setTabPosition(QTabWidget.TabPosition.North)
-        self._rcq = EventWidget()
+        self._rcq       = EventWidget()
+        self._event_hub = EventHubTab()
         inner.addTab(PrepChecklistTab(), "PREP CHECKLIST")
-        inner.addTab(self._rcq, "EVENT OPTIMIZER")
-        inner.addTab(EventHubTab(), "EVENT HUB")
-        inner.addTab(BreakerWidget(), "BREAKER MATH")
-        inner.addTab(HypothesesTab(), "HYPOTHESES")
+        inner.addTab(self._rcq,          "EVENT OPTIMIZER")
+        inner.addTab(self._event_hub,    "EVENT HUB")
+        inner.addTab(BreakerWidget(),    "BREAKER MATH")
+        inner.addTab(HypothesesTab(),    "HYPOTHESES")
         layout.addWidget(inner)
+
+    def cleanup(self):
+        for sub in (self._rcq, self._event_hub):
+            if hasattr(sub, "cleanup"):
+                sub.cleanup()
 
     def load_deck(self, deck: dict):
         """Called by MainWindow when user clicks 'Open in Event Optimizer' from My Decks."""

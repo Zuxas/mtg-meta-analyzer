@@ -33,6 +33,12 @@ class EventWidget(QWidget):
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(300, self._refresh_deck_combo)
 
+    def cleanup(self):
+        from gui.worker_utils import stop_worker
+        for w in self._workers:
+            stop_worker(w)
+        self._workers.clear()
+
     def _build_ui(self):
         outer = QHBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
