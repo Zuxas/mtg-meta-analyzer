@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-04-09
+Last updated: 2026-05-03
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -343,7 +343,7 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
 | `grill-me` | Stress-test a plan or design decision |
 
 ---
-*Last documentation update: 2026-04-08 — Deck Intelligence system (card adoption, baseline comparison, slot analysis, deck recommender). Meta change detection, deck role classification, cross-source dedup. Codebase consolidation (shared utilities, file splits). Tab consolidation 13→7. UX improvements (tooltips, empty states, friendly errors, progress bars). UI/UX overhaul (Inter font, dark theme, Team Resolve branding).*
+*Last documentation update: 2026-05-03 — Qt 6.10 crash fix (QThread teardown), Best Deck timeframe bug fix (_MATCH_DATE_KEY), predictions timeframe selector, Sync Guides multi-tab + count feedback.*
 
 ## graphify
 

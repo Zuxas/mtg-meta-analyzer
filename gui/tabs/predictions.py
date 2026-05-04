@@ -43,6 +43,22 @@ class PredictionsTab(QWidget):
         self._fmt.setFixedWidth(120)
         ctrl.addWidget(self._fmt)
 
+        ctrl.addWidget(QLabel("Timeframe:"))
+        self._weeks = QComboBox()
+        for label, weeks in theme.TIMEFRAME_OPTIONS:
+            if weeks is None:
+                continue  # skip All Time — predictions need a bounded window
+            self._weeks.addItem(label, weeks)
+        # default to 4 weeks
+        idx = self._weeks.findData(4)
+        if idx >= 0:
+            self._weeks.setCurrentIndex(idx)
+        self._weeks.setFixedWidth(110)
+        self._weeks.setToolTip(
+            "How many weeks of recent meta data to use when generating predictions"
+        )
+        ctrl.addWidget(self._weeks)
+
         self._pending_only = QCheckBox("Pending only")
         ctrl.addWidget(self._pending_only)
 
@@ -122,12 +138,13 @@ class PredictionsTab(QWidget):
 
     def _generate(self):
         fmt = self._fmt.currentText()
+        weeks = self._weeks.currentData() or 4
         self._status.setText("Generating predictions\u2026")
         self._gen_btn.setEnabled(False)
 
         def _do():
             from analysis.predictions import generate_predictions
-            return generate_predictions(fmt, commit=True)
+            return generate_predictions(fmt, weeks_back=weeks, commit=True)
 
         def _done(preds):
             n = len(preds) if preds else 0

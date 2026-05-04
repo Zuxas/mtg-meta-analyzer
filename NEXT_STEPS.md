@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-04-21
+Last updated: 2026-05-03
 
 ---
 
@@ -43,6 +43,12 @@ Last updated: 2026-04-21
 - [ ] Dashboard + Heatmap empty-state polish
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
       / card_browser Search button / h2h / vs-field forms)
+
+### Bug Fixes Applied (2026-05-03)
+- [x] Qt 6.10 crash on exit — QThread destroyed while running (all 13 tabs patched, stop_worker() added)
+- [x] Best Deck button used all-time data — matches table DD/MM/YY date comparison bug fixed (_MATCH_DATE_KEY)
+- [x] Predictions timeframe selector added (was hardcoded 4 weeks)
+- [x] Sync Guides now shows count of added/skipped guides + fetches up to 3 sheet tabs
 
 ### Packaging
 - [ ] PyInstaller .exe packaging + clean machine testing

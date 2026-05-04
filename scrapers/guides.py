@@ -16,10 +16,14 @@ import sys
 from datetime import datetime
 
 _SHEET_ID = "1xuOdKC3-LzH-wgmAnwsN1bxJZEEc00HqftWmI-RfA-Q"
-_CSV_URL  = (
-    f"https://docs.google.com/spreadsheets/d/{_SHEET_ID}"
-    "/export?format=csv&gid=0"
-)
+# gid=0 is the main tab. Try additional tabs if they exist.
+_SHEET_TABS = [
+    f"https://docs.google.com/spreadsheets/d/{_SHEET_ID}/export?format=csv&gid=0",
+    f"https://docs.google.com/spreadsheets/d/{_SHEET_ID}/export?format=csv&gid=1",
+    f"https://docs.google.com/spreadsheets/d/{_SHEET_ID}/export?format=csv&gid=2",
+]
+# Keep the original single URL for backwards compatibility
+_CSV_URL  = _SHEET_TABS[0]
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
@@ -30,19 +34,20 @@ if _ROOT not in sys.path:
 # Fetch
 # ---------------------------------------------------------------------------
 
-def fetch_guides_csv() -> list[dict]:
-    """Download the Google Sheet as CSV and return list of normalised row dicts.
-
-    Row 0 of the sheet is a metadata row (updated date etc.); row 1 is the
-    real header (Date, Link, Format, Deck, Type, Author, Source, Comment).
-    We skip row 0 and parse from row 1 onwards.
-    """
+def _fetch_tab(url: str) -> list[dict]:
+    """Fetch a single sheet tab CSV. Returns [] on error (tab may not exist)."""
     import requests
-    resp = requests.get(_CSV_URL, timeout=30)
-    resp.raise_for_status()
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+    except Exception:
+        return []
     lines = resp.text.splitlines()
     # Row 0 = metadata, row 1 = real headers, row 2+ = data
     if len(lines) < 2:
+        return []
+    # Detect tabs that don't exist: Google returns a single-row HTML error page
+    if "<html" in lines[0].lower():
         return []
     content = "\n".join(lines[1:])   # drop the metadata row
     reader = csv.DictReader(io.StringIO(content))
@@ -50,6 +55,23 @@ def fetch_guides_csv() -> list[dict]:
     for row in reader:
         rows.append({k.strip(): (v.strip() if v else "") for k, v in row.items()})
     return rows
+
+
+def fetch_guides_csv() -> list[dict]:
+    """Download all sheet tabs as CSV and return combined list of row dicts.
+
+    Row 0 of each tab is a metadata row; row 1 is the real header.
+    Tabs that don't exist are silently skipped.
+    """
+    all_rows: list[dict] = []
+    seen_urls: set[str] = set()
+    for url in _SHEET_TABS:
+        for row in _fetch_tab(url):
+            link = row.get("Link", "").strip()
+            if link and link not in seen_urls:
+                seen_urls.add(link)
+                all_rows.append(row)
+    return all_rows
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +147,7 @@ def run_scraper():
         conn.close()
     print(f"  Added: {added} new guides | Already in DB: {skipped}")
     print("Done.")
+    return {"added": added, "skipped": skipped, "total_in_sheet": len(rows)}
 
 
 # ---------------------------------------------------------------------------

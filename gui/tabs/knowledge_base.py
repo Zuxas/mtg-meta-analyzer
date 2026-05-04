@@ -444,14 +444,29 @@ class KnowledgeBaseTab(QWidget):
 
         def _do():
             from scrapers.guides import run_scraper
-            run_scraper()
-            return True
+            return run_scraper()
+
+        def _done(result):
+            self._run_scraper_btn.setEnabled(True)
+            if isinstance(result, dict):
+                added   = result.get("added", 0)
+                skipped = result.get("skipped", 0)
+                total   = result.get("total_in_sheet", 0)
+                if added > 0:
+                    self._table_status.setText(
+                        f"Sync complete — {added} new guide{'s' if added != 1 else ''} added "
+                        f"({skipped} already in DB, {total} in sheet)."
+                    )
+                else:
+                    self._table_status.setText(
+                        f"Already up to date — {skipped} guides in DB, {total} in sheet."
+                    )
+            else:
+                self._table_status.setText("Sync complete.")
+            self._load_all()
 
         w = DataLoadWorker(_do)
-        w.result.connect(lambda _: (
-            self._run_scraper_btn.setEnabled(True),
-            self._load_all(),
-        ))
+        w.result.connect(_done)
         w.error.connect(lambda e: (
             self._table_status.setText(f"Sync failed: {e}"),
             self._run_scraper_btn.setEnabled(True),

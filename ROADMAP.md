@@ -47,6 +47,12 @@
 
 ## COMPLETED
 
+### 2026-05-03 — Bug Fixes + Qt 6.10 Compatibility
+- [x] Qt 6.10 crash fix: QThread destroyed while running — all cleanup() methods upgraded to stop_worker() (quit+wait+terminate), main_window cleanup loop expanded from 9 to 15 tabs
+- [x] Best Deck timeframe bug: matches table DD/MM/YY dates compared as plain strings; _MATCH_DATE_KEY normalization applied to both real matchup and archetype winrate queries
+- [x] Predictions tab: timeframe selector added (was hardcoded to 4 weeks), weeks_back now passed to generate_predictions
+- [x] Sync Guides: now fetches up to 3 sheet tabs (not just gid=0), shows added/skipped counts in status bar
+
 ### 2026-05-01 — Event Hub + CI/CD + Scrapers
 - [x] Event Hub tab (Session 1): Search, Calendar, My Events, My Stores, .ics export, MTGO calendar
 - [x] Event Hub tab (Session 2): RC countdown, drive time, conflict detection, Spicerack enrichment
