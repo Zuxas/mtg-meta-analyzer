@@ -12,6 +12,7 @@ import io
 import os
 import json
 import subprocess
+import datetime as _dt
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
@@ -57,10 +58,17 @@ def main():
         run(f"main.py --format {fmt} --pages 2 --max-events 50",
             f"MTGTop8 — {fmt}")
 
-    # MTGDecks — selected formats only
-    for fmt in formats:
-        run(f"-m scrapers.mtgdecks --format {fmt} --pages 3",
-            f"MTGDecks — {fmt}")
+    # MTGDecks — selected formats only, throttled to Mon/Wed/Fri (~3x/week)
+    # Reason: site requested less aggressive scraping. Other sources stay daily.
+    today_dow = _dt.date.today().weekday()   # Mon=0, Sun=6
+    MTGDECKS_DAYS = (0, 2, 4)                # Mon, Wed, Fri
+    if today_dow in MTGDECKS_DAYS:
+        for fmt in formats:
+            run(f"-m scrapers.mtgdecks --format {fmt} --pages 3",
+                f"MTGDecks — {fmt}")
+    else:
+        day_name = _dt.date.today().strftime("%a")
+        print(f"\n-- MTGDecks SKIPPED (throttled to M/W/F, today is {day_name}) --")
 
     # MTGMelee — selected formats + always-on extras
     melee_formats = list(dict.fromkeys(formats + _MELEE_ALWAYS))
@@ -77,6 +85,19 @@ def main():
 
     # Scryfall enrichment (always)
     run("-m scrapers.scryfall", "Scryfall enrichment")
+
+    # Untapped.gg — mythic leaderboard + premium per-archetype data
+    # Throttled to Mon/Wed/Fri (~3x/week) to match MTGDecks cadence.
+    # Mythic is public/unauthenticated; premium needs session credentials (see UNTAPPED_README).
+    UNTAPPED_DAYS = (0, 2, 4)                # Mon, Wed, Fri
+    if today_dow in UNTAPPED_DAYS:
+        run("-m scrapers.untapped_mythic_scraper --notes background_fill",
+            "Untapped mythic leaderboard")
+        run("-m scrapers.untapped_premium_scraper --last-7-days",
+            "Untapped premium (last 7 days)")
+    else:
+        day_name = _dt.date.today().strftime("%a")
+        print(f"\n-- Untapped SKIPPED (throttled to M/W/F, today is {day_name}) --")
 
     # Archetype normalization (always)
     run("-m analysis.archetypes --apply", "Archetype normalization")
