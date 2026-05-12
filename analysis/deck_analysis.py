@@ -400,7 +400,9 @@ def get_recent_event(format_name="standard", event_type=None):
         if event_type:
             q += " AND event_type=?"
             params.append(event_type)
-        q += " ORDER BY date DESC LIMIT 1"
+        q += (" ORDER BY (CASE WHEN instr(date,'/')>0 "
+              "THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2) "
+              "ELSE replace(date,'-','') END) DESC LIMIT 1")
         row = conn.execute(q, params).fetchone()
     return dict(row) if row else None
 

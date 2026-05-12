@@ -106,7 +106,9 @@ def get_latest_challenge(format_name="pioneer", event_type="mtgo_challenge_32"):
         row = conn.execute("""
             SELECT * FROM events
             WHERE format = ? AND event_type = ?
-            ORDER BY date DESC
+            ORDER BY (CASE WHEN instr(date,'/')>0
+                          THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2)
+                          ELSE replace(date,'-','') END) DESC
             LIMIT 1
         """, (format_name, event_type)).fetchone()
     return dict(row) if row else None

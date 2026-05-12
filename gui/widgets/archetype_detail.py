@@ -148,7 +148,11 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
                    type, author AS title, source, comment, 'guide' AS origin
             FROM guides
             WHERE {_arch_match}
-            ORDER BY {_fmt_order}, date DESC
+            ORDER BY {_fmt_order}, (CASE WHEN instr(date,'/')>0 AND length(date)=10
+                THEN substr(date,7,4)||substr(date,4,2)||substr(date,1,2)
+                WHEN instr(date,'/')>0
+                THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2)
+                ELSE replace(date,'-','') END) DESC
         """, [archetype, archetype]).fetchall()
         bm_rows = conn2.execute(f"""
             SELECT added_at AS date_str, url, format, archetype,

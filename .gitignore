@@ -22,6 +22,8 @@ env/
 .env
 .env.local
 config.ini
+untapped_cookies.txt
+data/untapped/untapped_cookies.txt
 
 # Daily scraper logs
 logs/
@@ -31,11 +33,15 @@ logs/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+db/*.db
+db/*.db-shm
+db/*.db-wal
 
 # Runtime data dumps
 data/*.json
 data/*.csv
 data/*.parquet
+data/untapped/
 
 # Preferences contains local API key; explicit by filename
 data/preferences.json
@@ -62,6 +68,12 @@ graphify-out/
 # Dev scratch
 scripts/scratch/
 _*.txt
+scrapers/*.bak_v*
+
+# External skill repos cloned into this dir (canonical home is ../claude-skills/)
+auto-github-contributor/
+nexu/
+open-design/
 
 # Legacy scratch/export files kept from prior .gitignore
 debug_response.html

@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-03
+Last updated: 2026-05-12
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -67,6 +67,12 @@ Setup wizard page 0 saves formats immediately. `fill_database.py` and `scripts/r
 | MTG-Meta-Analyzer-Daily | `run_daily.bat` | 5 PM daily |
 | MTG-Meta-Analyzer-Scryfall-Weekly | `run_scryfall_weekly.bat` | Sunday midnight |
 
+**Per-source throttling** (inside `scripts/run_fill_from_prefs.py`):
+- **MTGDecks: Mon/Wed/Fri only** (added 2026-05-10) — Task Scheduler still fires
+  daily at 6 AM, but MTGDecks block is gated by `_dt.date.today().weekday() in (0, 2, 4)`
+  to reduce load on the source. Other scrapers (MTGTop8, MTGMelee, Spicerack, Scryfall)
+  remain daily. Skipped runs print `MTGDecks SKIPPED (throttled to M/W/F)` to the log.
+
 ---
 
 ## 3. DATABASE
@@ -101,6 +107,8 @@ Standard is primary. Pioneer, Modern, Legacy, and Pauper actively scraped.
 - **Matchup scraper** (`scrapers/matchup_scraper.py`) — MTGDecks.net `/winrates` table
 - **Mythic Spoiler** (`scrapers/mythicspoiler_scraper.py`) — set card lists + Scryfall enrichment
 - **Guides** (`scrapers/guides.py`) — Skill Issue Magic Google Sheet → guides table
+- **Untapped.gg pipeline** (`scrapers/untapped_*.py`) — mythic ladder, archetype/matchup matrices, replays, sideboard plans. Public endpoints unauthenticated; premium per-archetype data needs `data/untapped/untapped_cookies.txt`. See `scrapers/UNTAPPED_README.md`. Throttled to M/W/F.
+- **Player handles** (`scrapers/player_handles.py`) — Twitter/X handle discovery + tweet fetching for top finishers
 
 ### MTGMelee Endpoints (verified 2026-03-25)
 - Tournament list: `POST https://melee.gg/Tournament/TournamentSearch`
@@ -131,6 +139,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/card_embeddings.py` | 768-dim ModernBERT vectors for 32k cards (HuggingFace parquet) |
 | `analysis/cooccurrence_embeddings.py` | Card2Vec — Word2Vec trained on local decklists |
 | `analysis/knn_classifier.py` | KNN archetype classifier using deck embeddings |
+| `analysis/nbac_classifier.py` | NBAC API wrapper (Videre Project Naive Bayes archetype classifier) |
 
 ### Sideboard WR Model (calibration constants)
 `opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84]`
@@ -343,7 +352,7 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
 | `grill-me` | Stress-test a plan or design decision |
 
 ---
-*Last documentation update: 2026-05-03 — Qt 6.10 crash fix (QThread teardown), Best Deck timeframe bug fix (_MATCH_DATE_KEY), predictions timeframe selector, Sync Guides multi-tab + count feedback.*
+*Last documentation update: 2026-05-12 — Untapped.gg scraper pipeline (mythic ladder + premium archetype/matchup + replays + SB extractor), player_handles for top-finisher Twitter discovery, NBAC API classifier, DD/MM/YY date-sort fixes for archetype detail + challenges + recent-event queries, MTGDecks+Untapped M/W/F throttling.*
 
 ## graphify
 

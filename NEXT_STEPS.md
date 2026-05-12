@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-03
+Last updated: 2026-05-12
 
 ---
 
@@ -44,11 +44,19 @@ Last updated: 2026-05-03
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
       / card_browser Search button / h2h / vs-field forms)
 
+### Bug Fixes Applied (2026-05-12)
+- [x] DD/MM/YY date-sort regressions on `ORDER BY date DESC` — `analysis/deck_analysis.py::get_recent_event`, `gui/widgets/archetype_detail.py::_load_archetype_data`, `scrapers/challenges.py::get_latest_challenge` now normalize mixed DD/MM/YY + YYYY-MM-DD ordering via CASE WHEN
+
 ### Bug Fixes Applied (2026-05-03)
 - [x] Qt 6.10 crash on exit — QThread destroyed while running (all 13 tabs patched, stop_worker() added)
 - [x] Best Deck button used all-time data — matches table DD/MM/YY date comparison bug fixed (_MATCH_DATE_KEY)
 - [x] Predictions timeframe selector added (was hardcoded 4 weeks)
 - [x] Sync Guides now shows count of added/skipped guides + fetches up to 3 sheet tabs
+
+### Data Sources Added (2026-05-12)
+- [x] Untapped.gg scraper pipeline — mythic leaderboard, premium archetype WR/matchup matrices, replay fetcher + sideboard plan extractor, MTGA card db loader. Public endpoints free; premium needs cookies. M/W/F throttling.
+- [x] Player handle DB — `scrapers/player_handles.py` discovers top finishers' Twitter/X handles + fetches recent MTG tweets
+- [x] NBAC archetype classifier wrapper — `analysis/nbac_classifier.py` calls Videre Project's Naive Bayes API (free, no key)
 
 ### Packaging
 - [ ] PyInstaller .exe packaging + clean machine testing

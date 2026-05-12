@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-01
+> Last updated: 2026-05-12
 
 ---
 
@@ -46,6 +46,13 @@
 ---
 
 ## COMPLETED
+
+### 2026-05-12 — Untapped.gg Pipeline + DD/MM/YY Sort Fixes
+- [x] Untapped scraper suite: mythic ladder, archetype meta WR, matchup matrix, MTGA card db, replay fetcher, sideboard plan extractor
+- [x] Player handle DB — top finisher Twitter/X discovery + tweet fetch
+- [x] NBAC API classifier (Videre Project) — alternative to local KNN classifier
+- [x] DD/MM/YY date-sort regressions fixed in 3 sites (deck_analysis, archetype_detail, challenges)
+- [x] MTGDecks + Untapped throttled to Mon/Wed/Fri in `run_fill_from_prefs.py`
 
 ### 2026-05-03 — Bug Fixes + Qt 6.10 Compatibility
 - [x] Qt 6.10 crash fix: QThread destroyed while running — all cleanup() methods upgraded to stop_worker() (quit+wait+terminate), main_window cleanup loop expanded from 9 to 15 tabs
