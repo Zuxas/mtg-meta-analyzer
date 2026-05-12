@@ -349,6 +349,160 @@ def _make_recent_grid(recent_decks: list) -> QTableWidget:
     return tbl
 
 
+def _make_sb_plans_tab(archetype: str) -> QWidget:
+    """
+    Bo3 sideboard plans extracted from Untapped replays whose color
+    identity matches this archetype. Top: aggregated frequency of cards
+    boarded IN and OUT. Below: each individual plan (deck name, pilot,
+    game transition, IN/OUT lists).
+    """
+    from gui.widgets.card_tooltip import install_card_tooltip
+    from db.untapped_queries import get_sideboard_plans_for_archetype, archetype_colors
+
+    container = QWidget()
+    vl = QVBoxLayout(container)
+    vl.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
+    vl.setSpacing(8)
+
+    colors = archetype_colors(archetype)
+    plans  = get_sideboard_plans_for_archetype(archetype, limit=50)
+    # Drop no-op plans (n_cards_swapped == 0 — the diff for an unchanged game)
+    plans = [p for p in plans if p.get("n_cards_swapped")]
+
+    if not colors:
+        note = QLabel(
+            "Couldn't resolve a color identity for this archetype, so no\n"
+            "Untapped SB plans can be matched. (SB plans are tagged by\n"
+            "color combo, not full archetype name.)"
+        )
+        note.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
+        vl.addWidget(note)
+        return container
+
+    header = QLabel(
+        f"<b>{len(plans)}</b> Bo3 SB plans  ·  color: <b>{colors}</b>  ·  "
+        f"from Untapped Mythic-level ladder replays"
+    )
+    header.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+    header.setWordWrap(True)
+    vl.addWidget(header)
+
+    if not plans:
+        empty = QLabel(
+            f"No SB plans yet for color identity {colors}. Plans are extracted\n"
+            f"from multi-game Untapped replays via game-to-game decklist diffs;\n"
+            f"more will appear as the replay scraper runs."
+        )
+        empty.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
+        empty.setWordWrap(True)
+        vl.addWidget(empty)
+        return container
+
+    # ── Aggregate IN/OUT frequency tables ───────────────────────────
+    in_freq:  dict = {}
+    out_freq: dict = {}
+    for p in plans:
+        for c in p["cards_in"]:
+            in_freq[c["name"]] = in_freq.get(c["name"], 0) + 1
+        for c in p["cards_out"]:
+            out_freq[c["name"]] = out_freq.get(c["name"], 0) + 1
+    n_plans = len(plans)
+
+    def _make_freq_table(title: str, freq: dict) -> QWidget:
+        wrap = QWidget()
+        wl = QVBoxLayout(wrap)
+        wl.setContentsMargins(0, 0, 0, 0)
+        wl.setSpacing(2)
+        lbl = QLabel(f"<b>{title}</b>")
+        lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        wl.addWidget(lbl)
+        rows = sorted(freq.items(), key=lambda x: (-x[1], x[0]))[:12]
+        tbl = QTableWidget(len(rows) or 1, 2)
+        tbl.setHorizontalHeaderLabels(["Card", "% of plans"])
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        tbl.verticalHeader().setVisible(False)
+        tbl.setAlternatingRowColors(False)
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        if not rows:
+            tbl.setItem(0, 0, QTableWidgetItem("(none)"))
+        for ri, (name, n) in enumerate(rows):
+            pct = round(100 * n / n_plans)
+            name_item = QTableWidgetItem(name)
+            pct_item  = QTableWidgetItem(f"{pct}%  ({n})")
+            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 0, name_item)
+            tbl.setItem(ri, 1, pct_item)
+        install_card_tooltip(tbl, card_name_column=0)
+        tbl.setFixedHeight(min(320, 26 * (len(rows) + 1) + 8))
+        wl.addWidget(tbl)
+        return wrap
+
+    agg_row = QHBoxLayout()
+    agg_row.setSpacing(theme.SPACE_SM)
+    agg_row.addWidget(_make_freq_table("Most common IN", in_freq), 1)
+    agg_row.addWidget(_make_freq_table("Most common OUT", out_freq), 1)
+    vl.addLayout(agg_row)
+
+    # ── Individual plans (scrollable) ───────────────────────────────
+    plans_lbl = QLabel("<b>Individual plans</b>")
+    plans_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+    vl.addWidget(plans_lbl)
+
+    scroll = QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QFrame.Shape.NoFrame)
+    inner = QWidget()
+    il = QVBoxLayout(inner)
+    il.setContentsMargins(0, 0, 0, 0)
+    il.setSpacing(6)
+
+    for p in plans:
+        card = QFrame()
+        card.setStyleSheet(
+            f"background: {theme.PANEL}; border-radius: 4px; padding: 6px;"
+        )
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(8, 6, 8, 6)
+        cl.setSpacing(2)
+        title = QLabel(
+            f"<b>{p['deck_name']}</b>  ·  {p['player_name']}  ·  "
+            f"G{p['from_game']}→G{p['to_game']}  ·  "
+            f"{p['n_cards_swapped']} swaps"
+        )
+        title.setStyleSheet("font-size: 12px;")
+        title.setWordWrap(True)
+        cl.addWidget(title)
+
+        if p["cards_in"]:
+            in_text = ", ".join(
+                f"{c['count']}x {c['name']}" if c.get("count", 1) > 1 else c["name"]
+                for c in p["cards_in"]
+            )
+            in_lbl = QLabel(f"<span style='color:{theme.OK};'>IN:</span>  {in_text}")
+            in_lbl.setWordWrap(True)
+            in_lbl.setStyleSheet("font-size: 11px;")
+            cl.addWidget(in_lbl)
+        if p["cards_out"]:
+            out_text = ", ".join(
+                f"{c['count']}x {c['name']}" if c.get("count", 1) > 1 else c["name"]
+                for c in p["cards_out"]
+            )
+            out_lbl = QLabel(f"<span style='color:{theme.WARN};'>OUT:</span>  {out_text}")
+            out_lbl.setWordWrap(True)
+            out_lbl.setStyleSheet("font-size: 11px;")
+            cl.addWidget(out_lbl)
+
+        il.addWidget(card)
+
+    il.addStretch()
+    scroll.setWidget(inner)
+    vl.addWidget(scroll, 1)
+    return container
+
+
 def _make_resources_tab(resources: list) -> QWidget:
     """
     Clickable table of guides and manual bookmarks for this archetype.
@@ -891,7 +1045,22 @@ class ArchetypeDetailDialog(QDialog):
                           if 0.15 <= c["inclusion_rate"] <= 0.80])
         self._tabs.addTab(tech_widget, f"Tech Choices ({tech_count})")
 
-        # Tab 4 — Card Trends (adoption changes)
+        # Tab 4 — Bo3 SB Plans (Untapped Mythic-level ladder replays)
+        try:
+            sb_widget = _make_sb_plans_tab(self._archetype)
+            from db.untapped_queries import (
+                get_sideboard_plans_for_archetype as _gsb,
+            )
+            sb_count = len([
+                p for p in _gsb(self._archetype, limit=50)
+                if p.get("n_cards_swapped")
+            ])
+            label = f"Bo3 SB Plans ({sb_count})" if sb_count else "Bo3 SB Plans"
+            self._tabs.addTab(sb_widget, label)
+        except Exception:
+            pass  # graceful no-op if untapped tables missing
+
+        # Tab 5 — Card Trends (adoption changes)
         trend_tab = self._make_card_trends_tab(data["mainboard"], data["sideboard"])
         if trend_tab:
             self._tabs.addTab(trend_tab, "Card Trends")

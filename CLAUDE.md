@@ -140,6 +140,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/cooccurrence_embeddings.py` | Card2Vec — Word2Vec trained on local decklists |
 | `analysis/knn_classifier.py` | KNN archetype classifier using deck embeddings |
 | `analysis/nbac_classifier.py` | NBAC API wrapper (Videre Project Naive Bayes archetype classifier) |
+| `db/untapped_queries.py` | Untapped Bo3 matchup matrix + archetype-color resolver + SB plans by color identity |
 
 ### Sideboard WR Model (calibration constants)
 `opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84]`
@@ -161,7 +162,8 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - Dedup-aware Meta Impact bar shows filter effects
 
 ### Key GUI Features
-- **Archetype detail dialog:** 6 tabs (This List / Average Deck / Recent Lists / Tech Choices / Card Trends / Resources) + "View Event" + Export
+- **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export
+- **Bo3 SB Plans tab:** Sideboard plans extracted from Untapped Mythic-level ladder replays via game-to-game decklist diffs. Matched to archetype by color identity. Top section aggregates most-common cards IN/OUT; below lists individual plans (deck name, pilot, G1→G2 / G2→G3 transitions).
 - **Tech Choices:** Flex slots (15-80% inclusion) grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
