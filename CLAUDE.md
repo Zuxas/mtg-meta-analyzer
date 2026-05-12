@@ -348,11 +348,19 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
 
 ## Installed Skills
 
-| Skill | Trigger |
-|---|---|
-| `triage-issue` | Bug reports, "triage", investigate and plan a fix |
-| `improve-codebase-architecture` | Architecture review, refactoring opportunities |
-| `grill-me` | Stress-test a plan or design decision |
+Project-scoped (in `.agents/skills/`, managed via `npx skills`):
+
+| Skill | Source | Trigger |
+|---|---|---|
+| `triage-issue` | local | Bug reports, "triage", investigate and plan a fix |
+| `improve-codebase-architecture` | local | Architecture review, refactoring opportunities |
+| `grill-me` | local | Stress-test a plan or design decision |
+| `modern-python` | trailofbits/skills | Configuring pyproject.toml, ruff/uv/pytest, migrating off Poetry/black |
+| `pdf` | anthropics/skills | Reading + manipulating PDFs (MTG Comp Rules in `data/rules_reference/`) |
+| `xlsx` | anthropics/skills | Excel/tabular work (Skill Issue Magic guide exports, .csv data) |
+| `query` | duckdb/duckdb-skills | DuckDB SQL queries — can `ATTACH 'data/mtg_meta.db'` for fast OLAP on the project DB without writing Python |
+
+To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 
 ---
 *Last documentation update: 2026-05-12 — Untapped.gg pipeline session.
