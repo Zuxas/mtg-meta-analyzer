@@ -192,3 +192,94 @@ def get_sideboard_plans_for_archetype(
             "match_timestamp": r["match_timestamp"],
         })
     return out
+
+
+# Skill-curve format mapping — Untapped only reports per-tier WR for Bo1
+# meta data ("Ladder", "Explorer_Ladder", etc.).  Bo3 ("Traditional_*")
+# rows have NULL win_rate at all tiers.
+_SKILL_CURVE_FORMAT_MAP = {
+    "standard": "Ladder",
+    "pioneer":  "Explorer_Ladder",
+    "historic": "Historic_Ladder",
+    "timeless": "Timeless_Ladder",
+    "alchemy":  "Alchemy_Ladder",
+}
+
+
+def get_skill_curve(
+    format_name: str,
+    min_plat_matches: int = 100,
+    limit: int = 50,
+) -> List[dict]:
+    """
+    Per-archetype Bo1 ladder skill curve: WR by rank tier
+    (bronze/silver/gold/platinum) and the bronze->plat WR delta.
+
+    Positive climb_delta_wr means the archetype scales with skill
+    (better players win more with it); negative means it's a
+    "low-skill trap" that drops off as opponents improve.
+
+    Returns rows sorted by climb_delta_wr DESC. Filters to archetypes
+    with at least `min_plat_matches` matches at Platinum tier.
+    """
+    event_name = _SKILL_CURVE_FORMAT_MAP.get(format_name.lower())
+    if not event_name:
+        return []
+
+    with sqlite3.connect(str(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute("""
+            SELECT archetype_name, colors_str,
+                   bronze_wr, silver_wr, gold_wr, plat_wr,
+                   bronze_matches, plat_matches,
+                   climb_delta_wr
+            FROM v_untapped_meta_skill_curve
+            WHERE format = ?
+              AND last_7_days = 0
+              AND bronze_wr IS NOT NULL
+              AND plat_wr   IS NOT NULL
+              AND plat_matches >= ?
+            ORDER BY climb_delta_wr DESC
+            LIMIT ?
+        """, (event_name, min_plat_matches, limit)).fetchall()
+
+    return [dict(r) for r in rows]
+
+
+def get_mythic_leaderboard(limit: int = 30) -> List[dict]:
+    """
+    Top-N entries from the latest mythic ladder snapshot, sorted by
+    rank_approx ASC (top ranks first). Each row has:
+        player_name, archetype_primary (color combo), colors_str,
+        matches_count, win_rate, rank_approx
+    """
+    with sqlite3.connect(str(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute("""
+            SELECT player_name, archetype_primary, colors_str,
+                   matches_count, win_rate, rank_approx
+            FROM v_untapped_latest_entries
+            WHERE rank_approx IS NOT NULL
+            ORDER BY rank_approx ASC
+            LIMIT ?
+        """, (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_mythic_archetype_rollup(limit: int = 12) -> List[dict]:
+    """
+    Aggregated archetype data from the latest mythic snapshot:
+    archetype, colors, n_players, total_matches, weighted_wr, as_of_utc.
+    Sorted by n_players DESC.
+    """
+    with sqlite3.connect(str(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute("""
+            SELECT archetype, colors,
+                   n_players, total_matches, weighted_wr,
+                   as_of_utc
+            FROM v_untapped_latest_archetypes
+            ORDER BY n_players DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+    return [dict(r) for r in rows]

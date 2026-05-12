@@ -29,6 +29,7 @@ from gui.tabs.ask_claude        import AskClaudeTab
 from gui.tabs.set_analysis      import SetAnalysisTab
 from gui.tabs.tournament_prep   import TournamentPrepTab
 from gui.tabs.heatmap_tab       import HeatmapTab
+from gui.tabs.ladder_meta       import LadderMetaTab
 from gui.tabs.my_decks          import MyDecksTab
 from gui.tabs.match_log         import MatchLogTab
 from gui.tabs.simulate          import SimulateTab
@@ -144,6 +145,7 @@ class MainWindow(QMainWindow):
         self._kb        = KnowledgeBaseTab()
         self._tourney   = TournamentPrepTab()
         self._heatmap   = HeatmapTab()
+        self._ladder    = LadderMetaTab()
         self._simulate  = SimulateTab()
         self._calibration = CalibrationTab(on_cell_activate=_jump_to_simulate_matchup)
         self._my_decks  = MyDecksTab()
@@ -153,13 +155,14 @@ class MainWindow(QMainWindow):
         self._settings  = SettingsTab()
 
         # ── Compose merged tabs ───────────────────────────────────
-        # META = Charts + Matchup Data + Predictions
+        # META = Charts + Matchup Data + Predictions + Sim + Cal + Ladder
         self._meta_tab = QTabWidget()
         self._meta_tab.addTab(self._charts,  "CHARTS")
         self._meta_tab.addTab(self._heatmap, "MATCHUP DATA")
         self._meta_tab.addTab(self._preds,   "PREDICTIONS")
         self._meta_tab.addTab(self._simulate, "SIMULATE")
         self._meta_tab.addTab(self._calibration, "CALIBRATION")
+        self._meta_tab.addTab(self._ladder,  "LADDER")
 
         # DECKS = Deck Analyzer + My Decks
         self._decks_tab = QTabWidget()

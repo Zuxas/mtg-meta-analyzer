@@ -51,6 +51,7 @@
 - [x] Untapped scraper suite: mythic ladder, archetype meta WR, matchup matrix, MTGA card db, replay fetcher, sideboard plan extractor
 - [x] Untapped Bo3 ladder wired into Matchup Data heatmap as gap-fill 4th source
 - [x] Bo3 SB Plans tab in Archetype Detail dialog (real game-to-game SB diffs from Untapped replays)
+- [x] Ladder sub-tab in Meta group: mythic rollup + Bo1 skill curve + leaderboard
 - [x] Player handle DB — top finisher Twitter/X discovery + tweet fetch
 - [x] NBAC API classifier (Videre Project) — alternative to local KNN classifier
 - [x] DD/MM/YY date-sort regressions fixed in 3 sites (deck_analysis, archetype_detail, challenges)

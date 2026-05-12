@@ -150,7 +150,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 ## 6. GUI
 
 **Entry point:** `run_gui.py` | **Theme:** `gui/theme.py` — modern dark theme, Inter font, Team Resolve branding
-**7 top-level tabs** (consolidated from 13): Dashboard, Meta (Charts/Matchup Data/Predictions), Decks (Analyze/My Decks), Search, Tournament (Event Optimizer/Match Log), Resources (Guides/Ask Claude/Set Analysis), Settings
+**7 top-level tabs** (consolidated from 13): Dashboard, Meta (Charts/Matchup Data/Predictions/Simulate/Calibration/Ladder), Decks (Analyze/My Decks), Search, Tournament (Event Optimizer/Match Log), Resources (Guides/Ask Claude/Set Analysis), Settings
 
 ### Dashboard (Untapped.gg-inspired)
 - Three-column top: Recent Top Finishes / Win Rate / Popular
@@ -164,6 +164,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 ### Key GUI Features
 - **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export
 - **Bo3 SB Plans tab:** Sideboard plans extracted from Untapped Mythic-level ladder replays via game-to-game decklist diffs. Matched to archetype by color identity. Top section aggregates most-common cards IN/OUT; below lists individual plans (deck name, pilot, G1→G2 / G2→G3 transitions).
+- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top, Bo1 skill curve (Bronze→Silver→Gold→Plat WR per archetype + climb delta) on the left, Mythic leaderboard top-30 on the right. Bo3 ranked WR is NULL in the public Untapped meta endpoint, so the skill curve uses Bo1.
 - **Tech Choices:** Flex slots (15-80% inclusion) grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
