@@ -355,7 +355,14 @@ pyinstaller --onefile --windowed run_gui.py --name "MTG Meta Analyzer" \
 | `grill-me` | Stress-test a plan or design decision |
 
 ---
-*Last documentation update: 2026-05-12 — Untapped.gg scraper pipeline (mythic ladder + premium archetype/matchup + replays + SB extractor), Untapped Bo3 ladder wired as 4th heatmap source via `db/untapped_queries.py`, player_handles for top-finisher Twitter discovery, NBAC API classifier, DD/MM/YY date-sort fixes for archetype detail + challenges + recent-event queries, MTGDecks+Untapped M/W/F throttling.*
+*Last documentation update: 2026-05-12 — Untapped.gg pipeline session.
+  Shipped: scraper suite (mythic ladder + premium archetype/matchup +
+  replays + SB extractor), `db/untapped_queries.py` query layer,
+  3 GUI surfaces (Matchup Data heatmap 4th source, Bo3 SB Plans tab in
+  Archetype Detail, Meta→Ladder sub-tab with skill curve + leaderboard),
+  player_handles (Twitter/X discovery), NBAC API classifier, DD/MM/YY
+  date-sort fixes, MTGDecks+Untapped M/W/F throttling, pre-push hook
+  hardened with cookies-file-aware skip-list. 7 commits.*
 
 ## graphify
 

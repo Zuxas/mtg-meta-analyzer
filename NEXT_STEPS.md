@@ -4,45 +4,61 @@ Last updated: 2026-05-12
 
 ---
 
+## TOP OF MIND
+
+**May 29 Standard RC DC (Day 1 qualified).** Deck lock window per
+post-PT analysis (PT SOS findings 2026-05-03):
+- Selesnya Landfall is the data call (63.81% PT WR, best deck)
+- Izzet Lessons beats Selesnya 75% but is -WR overall vs Mono-Green field
+- Izzet Spellementals is the sleeper: beats Prowess, Mono-Green; even vs Selesnya
+
+**Outstanding from May 11-12 RC:** post-event debrief not yet logged.
+Time-sensitive while memory is fresh — log matches, capture which SB plans
+worked / didn't, expected vs actual matchups.
+
+---
+
 ## OPEN PRIORITIES
 
-### Deck Intelligence
-- [x] Meta clustering by playstyle (Dashboard → Clusters dialog)
+### Untapped Follow-Ups (after 2026-05-12 pipeline landed)
+- [ ] **Time-series chart of Untapped meta share + WR** — 16 snapshots over
+      ~2 weeks. Add as series on existing Charts tab so paper-meta and
+      ladder-meta sit side by side. Early-signal use case: "is this deck
+      rising on MTGA before paper catches up?"
+- [ ] **Opponent archetype on SB plans** — `untapped_sideboard_plans` has
+      no opponent reference. Plans are keyed only on the friendly player's
+      color combo. To enable per-matchup SB advice, parse the raw replay
+      JSON for opponent deck data and write an `opponent_pgid` column.
+- [ ] **Finer archetype matching for SB plans** — currently color-only
+      (`Azorius Control` → WU pulls in *every* WU plan). Try matching on
+      deck_name substring or pass plans through the KNN/NBAC classifier
+      using the friendly player's game-1 list.
+- [ ] **Card-level Untapped data** — which cards have the highest WR at
+      Mythic? `untapped_meta_archetypes.key_cards` is grpid-indexed; joining
+      to `untapped_card_db` gives names. Surface in Card Browser or
+      slot_analysis substitutes view.
+- [ ] **Untapped premium ranks scrape cadence** — `last_7_days` flag has
+      tiny samples right now (1-18 rows per tier). Confirm the scraper is
+      cycling enough to keep the recent window populated.
+- [ ] **Filter SB plans by recency** — drop plans older than N days
+      (data is timestamped via `replay.match_timestamp`).
 
-### Query & Discovery
-- [x] Card-name decklist search (Deck Search → Cards filter, AND + OR)
-- [x] Global "All Formats" option (Dashboard). Broader rollout to Charts
-      / Predictions / Card Browser filters is the next step.
-
-### Sim Integration
-- [x] Standard-format support end-to-end (format dropdowns,
-      cross-tab format_hint, fuzzy match lookups, Top-N field,
-      sim history)
-- [x] Standard goldfish auto-detect (Dimir Midrange Standard wired;
-      future mtg-sim goldfish APLs pick up automatically)
+### Sim Integration (cross-repo mtg-sim)
 - [ ] Author Standard goldfish APLs for the remaining 6 archetypes
-      (cross-repo mtg-sim authoring)
+      (Selesnya Landfall, Mono-Green Landfall, Izzet Spellementals,
+      Izzet Prowess, Selesnya Ouroboroid, Azorius Tempo).
+- [ ] Standard match APLs (not just goldfish) — IMPERFECTION filed
+      2026-05-03: goldfish-only Standard APLs are not suitable for
+      matchup WR. PT official matrix is the only authoritative source
+      until match APLs exist.
 
-### Match Logging
-- [x] Event-type summary, trend chart, SB Advice, card-swap tracker
-
-### Testing & Iteration
-- [x] Matchup hypothesis tracker (Tournament → Hypotheses)
-
-### Tournament System
-- [x] Pre-event prep checklist (Tournament → Prep Checklist)
-- [x] Generate Prep Package HTML export (Event Optimizer)
-- [x] Round tracking during event (Match Log live event banner)
-- [x] Post-event analysis (Match Log → Post-Event dialog)
-
-### UI/UX (audit rollout)
-- [x] All 8 audit fixes shipped (colors / spacing / empty state / headers
-      / density / dialog sizes / icons / StatusRow helper)
-- [x] Deck legality watchdog, card-trend sparkline, similar-decks click
+### UI/UX
 - [ ] Interaction speed — filters update in place (no full refresh)
 - [ ] Dashboard + Heatmap empty-state polish
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
       / card_browser Search button / h2h / vs-field forms)
+- [ ] Global "All Formats" option rollout to Charts / Predictions /
+      Card Browser filters (Dashboard already has it).
 
 ### Bug Fixes Applied (2026-05-12)
 - [x] DD/MM/YY date-sort regressions on `ORDER BY date DESC` — `analysis/deck_analysis.py::get_recent_event`, `gui/widgets/archetype_detail.py::_load_archetype_data`, `scrapers/challenges.py::get_latest_challenge` now normalize mixed DD/MM/YY + YYYY-MM-DD ordering via CASE WHEN
@@ -95,7 +111,7 @@ Last updated: 2026-05-12
 - [x] MTGTop8 date normalization — `scrapers/mtgtop8.py` now converts DD/MM/YY → YYYY-MM-DD at extraction; consistent with mtgdecks + mtgmelee scrapers; PT Strixhaven data lands correctly
 
 ### Open
-- [ ] Update GitHub Actions to Node 24 (actions/checkout@v4, setup-python@v5, github-script@v7) — mandatory before 2026-06-02
+- [x] Update GitHub Actions to Node 24 (checkout@v5, setup-python@v6, github-script@v8) — shipped 2026-05-03
 - [ ] Event Hub Session 3 — format health dashboard, team events view, competitive history analysis
 
 ---
