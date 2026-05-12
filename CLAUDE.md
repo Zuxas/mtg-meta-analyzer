@@ -359,6 +359,8 @@ Project-scoped (in `.agents/skills/`, managed via `npx skills`):
 | `pdf` | anthropics/skills | Reading + manipulating PDFs (MTG Comp Rules in `data/rules_reference/`) |
 | `xlsx` | anthropics/skills | Excel/tabular work (Skill Issue Magic guide exports, .csv data) |
 | `query` | duckdb/duckdb-skills | DuckDB SQL queries — can `ATTACH 'data/mtg_meta.db'` for fast OLAP on the project DB without writing Python |
+| `playwright` | openai/skills | Real-browser scraping via playwright-cli. For sites the cloudscraper path can't handle (JS-rendered, complex session capture) |
+| `mcp-builder` | anthropics/skills | Patterns for building MCP servers — if/when `mtg_meta.db` gets exposed as an MCP so Claude can query the data layer directly |
 
 To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 
