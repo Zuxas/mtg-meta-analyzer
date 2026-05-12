@@ -1,14 +1,18 @@
 """
 Tab — Matchup Data Heatmap
 
-Displays win-rate data as a colour-coded grid. Three data sources merged:
+Displays win-rate data as a colour-coded grid. Four data sources merged:
 
   1. **Real Match Data (DB)** — 221k+ actual match results from MTGMelee.
      Uses get_real_matchup_winrates() with min_matches=20.  Highest priority.
   2. **MTGDecks Live** — scraped from MTGDecks.net /winrates.  Fills gaps.
-  3. **Paste Data** — manual CSV / JSON paste (Frank Karsten, etc.)
+  3. **Untapped MTGA Bo3 ladder** — Traditional_Ladder data via
+     get_untapped_matchup_matrix(); aggregated across rank tiers.
+     Different population (online ladder, not paper), used only when
+     real + scraped have no data for the matchup.
+  4. **Paste Data** — manual CSV / JSON paste (Frank Karsten, etc.)
 
-Combined view:  real data (★) takes priority;  scraped data fills gaps.
+Combined view:  real (★) > scraped > untapped (•).  Paste replaces all.
 Only archetypes in get_meta_standings(top=30) are shown; sorted by meta share.
 
 Color scale:
@@ -141,15 +145,20 @@ class _CombinedWorker(QThread):
                 for b, v in opps.items():
                     scraped[na][norm_arch(b)] = v
 
-            # 3) Merge: real takes priority, scraped fills gaps
+            # 3) Untapped MTGA Bo3 ladder (already normalized by the query layer)
+            from db.untapped_queries import get_untapped_matchup_matrix
+            untapped = get_untapped_matchup_matrix(self.format_name)
+
+            # 4) Merge priority: real > scraped > untapped
             combined = {}
-            source   = {}   # {(a,b): "real"|"scraped"}
-            all_archs = set(real_matrix) | set(scraped)
+            source   = {}   # {(a,b): "real"|"scraped"|"untapped"}
+            all_archs = set(real_matrix) | set(scraped) | set(untapped)
 
             for a in all_archs:
                 combined[a] = {}
-                real_opps    = real_matrix.get(a, {})
-                scraped_opps = scraped.get(a, {})
+                real_opps     = real_matrix.get(a, {})
+                scraped_opps  = scraped.get(a, {})
+                untapped_opps = untapped.get(a, {})
                 for b in all_archs:
                     if a == b:
                         continue
@@ -159,6 +168,9 @@ class _CombinedWorker(QThread):
                     elif b in scraped_opps:
                         combined[a][b] = scraped_opps[b]
                         source[(a, b)] = "scraped"
+                    elif b in untapped_opps:
+                        combined[a][b] = untapped_opps[b]
+                        source[(a, b)] = "untapped"
 
             self.done.emit(self.format_name, combined, source)
         except Exception as exc:
@@ -300,7 +312,7 @@ class HeatmapTab(QWidget):
         self._worker = None
         self._load_gen: int = 0          # monotonic counter — stale callbacks ignored
         self._current_matrix: dict = {}
-        self._source_map: dict = {}      # {(a,b): "real"|"scraped"}
+        self._source_map: dict = {}      # {(a,b): "real"|"scraped"|"untapped"}
         self._loaded_format: str = ""    # format that _current_matrix belongs to
         self._load_source: str = ""      # "combined"|"fetch"|"cache"|"paste"
         self._build_ui()
@@ -344,7 +356,9 @@ class HeatmapTab(QWidget):
         self._combined_btn.setStyleSheet(theme.btn_primary())
         self._combined_btn.setToolTip(
             "Build heatmap from 221k+ real match results.\n"
-            "Scraped MTGDecks data fills gaps where real data is thin."
+            "Scraped MTGDecks data fills gaps where real data is thin.\n"
+            "Untapped MTGA Bo3 ladder data fills remaining gaps "
+            "(Standard / Pioneer only)."
         )
         self._combined_btn.clicked.connect(self._load_combined)
         tl.addWidget(self._combined_btn)
@@ -479,9 +493,13 @@ class HeatmapTab(QWidget):
             hl.addWidget(lbl)
 
         # Source legend
-        star_lbl = QLabel("\u2605 = real match data   (no star) = scraped")
-        star_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 10px;")
-        hl.addWidget(star_lbl)
+        src_lbl = QLabel(
+            "\u2605 = real match data   "
+            "(no marker) = scraped   "
+            "\u2022 = MTGA Bo3 ladder"
+        )
+        src_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 10px;")
+        hl.addWidget(src_lbl)
 
         hl.addStretch()
         return row
@@ -752,10 +770,13 @@ class HeatmapTab(QWidget):
         if self._load_source == "combined":
             real_ct = sum(1 for v in self._source_map.values() if v == "real")
             scr_ct  = sum(1 for v in self._source_map.values() if v == "scraped")
+            unt_ct  = sum(1 for v in self._source_map.values() if v == "untapped")
             parts = [f"{fmt.upper()}  \u2022  \u2605 {real_ct} real cells"]
             if scr_ct:
                 parts.append(f"{scr_ct} scraped cells")
-            else:
+            if unt_ct:
+                parts.append(f"\u2022 {unt_ct} untapped cells")
+            if not (scr_ct or unt_ct):
                 parts.append("no cached scrapes \u2014 click MTGDecks Live to fill gaps")
             self._updated_lbl.setText("  |  ".join(parts))
         else:
@@ -945,14 +966,18 @@ class HeatmapTab(QWidget):
                         wr = matchup["winrate"]
                         matches = matchup.get("matches", 0)
                         pct = round(wr * 100)
-                        is_real = source_map.get((arch_a, arch_b)) == "real"
-                        star = "\u2605" if is_real else ""
-                        item = QTableWidgetItem(f"{pct}%{star}")
+                        src = source_map.get((arch_a, arch_b))
+                        marker = {"real": "\u2605", "untapped": "\u2022"}.get(src, "")
+                        item = QTableWidgetItem(f"{pct}%{marker}")
                         item.setBackground(_wr_bg(wr))
                         item.setForeground(_wr_fg(wr))
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         verdict = _wr_label(wr)
-                        src_tag = "Real match data" if is_real else "Scraped (MTGDecks)"
+                        src_tag = {
+                            "real":     "Real match data",
+                            "scraped":  "Scraped (MTGDecks)",
+                            "untapped": "Untapped MTGA Bo3 ladder",
+                        }.get(src, "Scraped (MTGDecks)")
                         tooltip = (
                             f"{arch_a}  vs  {arch_b}\n"
                             f"Win rate: {pct}%  ({verdict})\n"
