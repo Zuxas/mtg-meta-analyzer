@@ -374,40 +374,66 @@ def get_bo3_tier_wrs(format_name: str = "standard") -> dict:
     return out
 
 
-def get_mythic_leaderboard(limit: int = 30) -> List[dict]:
+def get_mythic_leaderboard(limit: int = 30, format_name: str = "standard") -> List[dict]:
     """
-    Top-N entries from the latest mythic ladder snapshot, sorted by
-    rank_approx ASC (top ranks first). Each row has:
+    Top-N entries from the latest Bo3 mythic ladder snapshot for the
+    given format, sorted by rank_approx ASC (top ranks first).
+
+    Filtered to Bo3 only ('Traditional_*') -- Bo1 mythic entries are
+    excluded. Cross-format entries are excluded too.
+
+    Each row has:
         player_name, archetype_primary (color combo), colors_str,
         matches_count, win_rate, rank_approx
     """
+    event_name = _FORMAT_MAP.get(format_name.lower())
+    if not event_name:
+        return []
     with sqlite3.connect(str(DB_PATH)) as con:
         con.row_factory = sqlite3.Row
         rows = con.execute("""
-            SELECT player_name, archetype_primary, colors_str,
-                   matches_count, win_rate, rank_approx
-            FROM v_untapped_latest_entries
-            WHERE rank_approx IS NOT NULL
-            ORDER BY rank_approx ASC
+            SELECT e.player_name, e.archetype_primary, e.colors_str,
+                   e.matches_count, e.win_rate, e.rank_approx
+            FROM untapped_entries e
+            JOIN untapped_meta_periods mp ON mp.id = e.meta_period_id
+            JOIN untapped_snapshots s ON s.id = e.snapshot_id
+            WHERE e.rank_approx IS NOT NULL
+              AND mp.event_name = ?
+              AND s.id = (SELECT MAX(id) FROM untapped_snapshots)
+            ORDER BY e.rank_approx ASC
             LIMIT ?
-        """, (limit,)).fetchall()
+        """, (event_name, limit)).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_mythic_archetype_rollup(limit: int = 12) -> List[dict]:
+def get_mythic_archetype_rollup(limit: int = 12, format_name: str = "standard") -> List[dict]:
     """
-    Aggregated archetype data from the latest mythic snapshot:
-    archetype, colors, n_players, total_matches, weighted_wr, as_of_utc.
-    Sorted by n_players DESC.
+    Aggregated archetype data from the latest Bo3 mythic snapshot for
+    the given format: archetype, colors, n_players, total_matches,
+    weighted_wr, as_of_utc. Sorted by n_players DESC.
+
+    Filtered to Bo3 only ('Traditional_*'). Bo1 entries excluded.
     """
+    event_name = _FORMAT_MAP.get(format_name.lower())
+    if not event_name:
+        return []
     with sqlite3.connect(str(DB_PATH)) as con:
         con.row_factory = sqlite3.Row
         rows = con.execute("""
-            SELECT archetype, colors,
-                   n_players, total_matches, weighted_wr,
-                   as_of_utc
-            FROM v_untapped_latest_archetypes
+            SELECT e.archetype_primary AS archetype,
+                   e.colors_str AS colors,
+                   COUNT(*) AS n_players,
+                   SUM(e.matches_count) AS total_matches,
+                   ROUND(SUM(e.matches_count * e.win_rate)
+                         / NULLIF(SUM(e.matches_count), 0), 2) AS weighted_wr,
+                   MAX(s.captured_at_utc) AS as_of_utc
+            FROM untapped_entries e
+            JOIN untapped_meta_periods mp ON mp.id = e.meta_period_id
+            JOIN untapped_snapshots s ON s.id = e.snapshot_id
+            WHERE mp.event_name = ?
+              AND s.id = (SELECT MAX(id) FROM untapped_snapshots)
+            GROUP BY e.archetype_primary, e.colors_str
             ORDER BY n_players DESC
             LIMIT ?
-        """, (limit,)).fetchall()
+        """, (event_name, limit)).fetchall()
     return [dict(r) for r in rows]

@@ -209,7 +209,7 @@ class LadderMetaTab(QWidget):
 
         fmt = self._fmt.currentText()
 
-        rollup = get_mythic_archetype_rollup(limit=12)
+        rollup = get_mythic_archetype_rollup(limit=12, format_name=fmt)
         # Bo3-only: Plat / Diamond / Mythic from the premium endpoint.
         bo3_wrs = get_bo3_tier_wrs(fmt)
 
@@ -232,7 +232,7 @@ class LadderMetaTab(QWidget):
                     return (-1 if k == "mythic_wr" else (0 if k == "diamond_wr" else 1), -r[k])
             return (2, 0)
         skill.sort(key=_sort_key)
-        board  = get_mythic_leaderboard(limit=30)
+        board  = get_mythic_leaderboard(limit=30, format_name=fmt)
 
         if not (rollup or skill or board):
             self._status.setText(
