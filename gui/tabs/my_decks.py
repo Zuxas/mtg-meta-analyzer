@@ -1486,36 +1486,81 @@ def _card_list_html(cards: list, label: str, color: str) -> str:
     return f'<span style="color:{color}; font-weight:bold;">{label}:</span> {items}<br>\n'
 
 
+def _consolidate(cards: list) -> str:
+    """[A, A, B, A] -> '3× A, 1× B' preserving first-seen order."""
+    counts: dict = {}
+    order: list = []
+    for c in cards:
+        if c not in counts:
+            order.append(c)
+        counts[c] = counts.get(c, 0) + 1
+    return ", ".join(
+        f"{counts[c]}× {c}" if counts[c] > 1 else c for c in order
+    )
+
+
+# General mulligan rules from the Worldly Council Izzet Prowess primer's
+# "Keep or Mulligan?" section. Universal -- not per-matchup.
+_GENERAL_MULL_RULES = """
+<b>One-landers:</b> on the draw, double-cantrip hand is 95% to hit land 2; single-cantrip 86%. On the play, you spend turn 1 cantripping so the math is worse — be choosier.<br>
+<b>Mirror & Spellementals:</b> cantrip-heavy hands are best; bottom-most-of-range, a hand with no cantrips needs to be very good. Stormchaser's Talent is the best card to have in your opening on the play.<br>
+<b>vs Landfall:</b> don't keep one-landers liberally — you need to impact the board, not dig for lands. Must kill turn-one Llanowar Elves on the draw.<br>
+<b>Threat-less hands:</b> keepable IF you have a way to pull ahead (Flow State to find threats, Steaming Sauna fallback). Burst Lightning vs Sapling Nursery is dead.<br>
+<b>Resource discipline:</b> cantrips are a resource. Ask "what do I want to find?" If it's a common card (land 3), wait to dig naturally and preserve selection late.
+""".strip()
+
+
 def _generate_sb_print_html(deck: dict, plans: list[dict]) -> str:
-    """Generate a compact, print-friendly HTML with SB plans only (no decklist).
-    Two-column grid layout that fits on one printed page."""
+    """Generate a print-friendly HTML: general mulligan rules at top,
+    per-matchup play patterns + SB swaps in a two-column grid.
+    Fits on one printed page (or two with long primer notes)."""
     name = deck.get("name", "Deck")
     fmt  = deck.get("format", "").capitalize()
     arch = deck.get("archetype", "")
 
+    # Sort: Easy → Hard so the rough matchups are at the bottom (where you
+    # have time to read carefully); easy matchups quick to scan at top.
+    diff_rank = {"Easy": 0, "Medium": 1, "Hard": 2}
+    plans = sorted(
+        plans,
+        key=lambda p: (diff_rank.get(p.get("difficulty", "Medium"), 1),
+                       (p.get("opponent_archetype") or "").lower()),
+    )
+
     parts = [f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>{name} — SB Guide</title>
+<title>{name} — Play & SB Guide</title>
 <style>
-  body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 10px; color: #222; }}
-  h1 {{ font-size: 16px; margin: 0 0 6px 0; border-bottom: 2px solid #333; padding-bottom: 4px; }}
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 10px; color: #1a1a1a; line-height: 1.35; }}
+  h1 {{ font-size: 16px; margin: 0 0 4px 0; border-bottom: 2px solid #333; padding-bottom: 3px; }}
+  h2 {{ font-size: 12px; margin: 10px 0 4px 0; color: #444; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #ccc; }}
   .meta {{ color: #666; font-size: 11px; margin-bottom: 8px; }}
+  .mull {{ background: #f5f3eb; border-left: 3px solid #b87800; padding: 6px 10px; font-size: 11px; margin-bottom: 10px; break-inside: avoid; }}
   .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }}
-  .mu {{ border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; font-size: 11px; break-inside: avoid; }}
+  .mu {{ border: 1px solid #aaa; border-radius: 4px; padding: 6px 8px; font-size: 11px; break-inside: avoid; }}
   .mu-name {{ font-weight: bold; font-size: 12px; margin-bottom: 3px; }}
-  .diff {{ font-size: 10px; font-weight: bold; }}
-  .easy {{ color: #2a7a2a; }} .medium {{ color: #b87800; }} .hard {{ color: #c22; }}
-  .label {{ font-weight: bold; font-size: 10px; }}
-  .in {{ color: #2a7a2a; }} .out {{ color: #c22; }}
-  .notes {{ color: #666; font-style: italic; font-size: 10px; margin-top: 2px; }}
+  .diff {{ font-size: 10px; font-weight: bold; padding: 1px 6px; border-radius: 8px; }}
+  .easy   {{ color: #2a7a2a; background: #e6f5e6; border: 1px solid #2a7a2a; }}
+  .medium {{ color: #b87800; background: #fbf3e0; border: 1px solid #b87800; }}
+  .hard   {{ color: #c22;    background: #fbe6e6; border: 1px solid #c22; }}
+  .sb-line {{ font-size: 11px; margin: 2px 0; }}
+  .in  {{ color: #1a7a1a; font-weight: 600; }}
+  .out {{ color: #c22;   font-weight: 600; }}
+  .notes {{ color: #333; font-size: 10.5px; margin-top: 5px; padding-top: 4px; border-top: 1px dashed #ccc; }}
   @media print {{
     body {{ margin: 0; }} .grid {{ gap: 6px; }}
     .mu {{ border: 1px solid #999; padding: 4px 6px; }}
+    .mull {{ break-after: avoid; }}
   }}
 </style>
 </head><body>
-<h1>{name} SB Guide</h1>
+<h1>{name}</h1>
 <div class="meta">{fmt} &bull; {arch} &bull; {len(plans)} matchups</div>
+
+<h2>General mulligan rules</h2>
+<div class="mull">{_GENERAL_MULL_RULES}</div>
+
+<h2>Per-matchup play patterns + SB swaps</h2>
 <div class="grid">
 """]
 
@@ -1523,32 +1568,51 @@ def _generate_sb_print_html(deck: dict, plans: list[dict]) -> str:
         opp  = p.get("opponent_archetype", "?")
         diff = p.get("difficulty", "Medium")
         dc   = {"Easy": "easy", "Medium": "medium", "Hard": "hard"}.get(diff, "medium")
-        pn   = p.get("notes", "")
+        pn   = (p.get("notes", "") or "").strip()
         play_in  = p.get("play_in", [])
         play_out = p.get("play_out", [])
         draw_in  = p.get("draw_in", [])
         draw_out = p.get("draw_out", [])
 
-        parts.append(f'<div class="mu">')
-        parts.append(f'<div class="mu-name">{opp} <span class="diff {dc}">[{diff}]</span></div>')
+        parts.append('<div class="mu">')
+        parts.append(
+            f'<div class="mu-name">{opp} '
+            f'<span class="diff {dc}">{diff.upper()}</span></div>'
+        )
+
+        same_pd = (play_in == draw_in and play_out == draw_out)
+
         if play_in or play_out:
-            parts.append(f'<b>Play:</b> ')
+            label = "Play+Draw" if same_pd else "Play"
+            parts.append(f'<div class="sb-line"><b>{label}:</b> ')
             if play_in:
-                parts.append(f'<span class="in">+{", +".join(play_in)}</span> ')
+                parts.append(f'<span class="in">+ {_consolidate(play_in)}</span>')
+            if play_in and play_out:
+                parts.append('&nbsp;&nbsp; ')
             if play_out:
-                parts.append(f'<span class="out">-{", -".join(play_out)}</span>')
-            parts.append('<br>')
-        if draw_in or draw_out:
-            parts.append(f'<b>Draw:</b> ')
+                parts.append(f'<span class="out">− {_consolidate(play_out)}</span>')
+            parts.append('</div>')
+
+        if (draw_in or draw_out) and not same_pd:
+            parts.append('<div class="sb-line"><b>Draw:</b> ')
             if draw_in:
-                parts.append(f'<span class="in">+{", +".join(draw_in)}</span> ')
+                parts.append(f'<span class="in">+ {_consolidate(draw_in)}</span>')
+            if draw_in and draw_out:
+                parts.append('&nbsp;&nbsp; ')
             if draw_out:
-                parts.append(f'<span class="out">-{", -".join(draw_out)}</span>')
-            parts.append('<br>')
+                parts.append(f'<span class="out">− {_consolidate(draw_out)}</span>')
+            parts.append('</div>')
+
         if not (play_in or play_out or draw_in or draw_out):
-            parts.append('<span class="notes">No IN/OUT saved</span><br>')
+            parts.append('<div class="sb-line"><i>No swaps (matchup is even, '
+                         'or plan not entered).</i></div>')
+
+        # Notes -- primer prose for most matchups (after backfill_prowess_primer_notes.py)
         if pn:
-            parts.append(f'<div class="notes">{pn}</div>')
+            # Trim "Prior notes:" separator if it's the only thing left
+            display = pn.replace("\n\n", "<br><br>")
+            parts.append(f'<div class="notes">{display}</div>')
+
         parts.append('</div>\n')
 
     parts.append('</div></body></html>')
