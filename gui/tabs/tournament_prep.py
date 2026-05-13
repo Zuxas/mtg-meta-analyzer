@@ -20,6 +20,7 @@ from gui.tabs.breaker_math import BreakerWidget
 from gui.tabs.hypotheses import HypothesesTab
 from gui.tabs.prep_checklist import PrepChecklistTab
 from gui.tabs.event_hub_tab import EventHubTab
+from gui.tabs.scout import ScoutTab
 
 
 # ---------------------------------------------------------------------------
@@ -131,9 +132,11 @@ class TournamentPrepTab(QWidget):
         inner.setTabPosition(QTabWidget.TabPosition.North)
         self._rcq       = EventWidget()
         self._event_hub = EventHubTab()
+        self._scout     = ScoutTab()
         inner.addTab(PrepChecklistTab(), "PREP CHECKLIST")
         inner.addTab(self._rcq,          "EVENT OPTIMIZER")
         inner.addTab(self._event_hub,    "EVENT HUB")
+        inner.addTab(self._scout,        "SCOUT")
         inner.addTab(BreakerWidget(),    "BREAKER MATH")
         inner.addTab(HypothesesTab(),    "HYPOTHESES")
         layout.addWidget(inner)
