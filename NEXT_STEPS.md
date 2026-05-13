@@ -54,6 +54,9 @@ worked / didn't, expected vs actual matchups.
 - [ ] Filter SB plans by recency — drop plans older than N days
       (data is timestamped via `replay.match_timestamp`).
 
+### Bug Fixes Applied (2026-05-13)
+- [x] Print SB Guide blew past 1 page after primer-prose backfill — `_summarize_notes()` in `gui/tabs/my_decks.py` strips `---` prior-notes appendage, prefers `PLAN:` markers, caps at 170 chars on word boundary. Tokyo guide: 50KB → 12KB, longest notes block 165 chars
+
 ### Bug Fixes Applied (2026-05-12)
 - [x] DD/MM/YY date-sort regressions on `ORDER BY date DESC` — `analysis/deck_analysis.py::get_recent_event`, `gui/widgets/archetype_detail.py::_load_archetype_data`, `scrapers/challenges.py::get_latest_challenge` now normalize mixed DD/MM/YY + YYYY-MM-DD ordering via CASE WHEN
 

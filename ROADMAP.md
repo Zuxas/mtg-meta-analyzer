@@ -48,6 +48,7 @@
 ## COMPLETED
 
 ### 2026-05-13 — RC May 29 Prep Toolkit
+- [x] Print SB Guide 1-page fix — `_summarize_notes()` clips primer prose to TL;DR per matchup (Tokyo guide 50KB → 12KB)
 - [x] Tokyo Prowess saved (saved_decks.id=17) + 17 SB plans + primer prose backfill
 - [x] `analysis/deck_ev.py` — field-weighted EV calculator (paper + Untapped Bo3 + SB difficulty bumps)
 - [x] EV vs Field sub-tab in My Decks (`gui/widgets/deck_ev_widget.py`)
