@@ -352,12 +352,20 @@ def _make_recent_grid(recent_decks: list) -> QTableWidget:
 def _make_sb_plans_tab(archetype: str) -> QWidget:
     """
     Bo3 sideboard plans extracted from Untapped replays whose color
-    identity matches this archetype. Top: aggregated frequency of cards
-    boarded IN and OUT. Below: each individual plan (deck name, pilot,
-    game transition, IN/OUT lists).
+    identity matches this archetype.
+
+    Layout:
+      Top: matchup filter dropdown (rebuilds content on change)
+      Middle: aggregated frequency of cards boarded IN and OUT (per-filter)
+      Bottom: each individual plan (deck name, pilot, vs opponent, IN/OUT)
     """
+    from PyQt6.QtWidgets import QComboBox
     from gui.widgets.card_tooltip import install_card_tooltip
-    from db.untapped_queries import get_sideboard_plans_for_archetype, archetype_colors
+    from db.untapped_queries import (
+        get_sideboard_plans_for_archetype,
+        get_known_sb_opponents,
+        archetype_colors,
+    )
 
     container = QWidget()
     vl = QVBoxLayout(container)
@@ -365,38 +373,80 @@ def _make_sb_plans_tab(archetype: str) -> QWidget:
     vl.setSpacing(8)
 
     colors = archetype_colors(archetype)
-    plans  = get_sideboard_plans_for_archetype(archetype, limit=50)
-    # Drop no-op plans (n_cards_swapped == 0 — the diff for an unchanged game)
-    plans = [p for p in plans if p.get("n_cards_swapped")]
-
     if not colors:
         note = QLabel(
             "Couldn't resolve a color identity for this archetype, so no\n"
             "Untapped SB plans can be matched. (SB plans are tagged by\n"
-            "color combo, not full archetype name.)"
+            "color combo plus classified opponent archetype.)"
         )
         note.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
         vl.addWidget(note)
         return container
 
-    header = QLabel(
-        f"<b>{len(plans)}</b> Bo3 SB plans  ·  color: <b>{colors}</b>  ·  "
-        f"from Untapped Mythic-level ladder replays"
-    )
-    header.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
-    header.setWordWrap(True)
-    vl.addWidget(header)
+    # ── Filter row: matchup dropdown ───────────────────────────────
+    filt_row = QHBoxLayout()
+    filt_row.setSpacing(theme.SPACE_SM)
+    filt_row.addWidget(QLabel("Matchup:"))
+    opp_combo = QComboBox()
+    opp_combo.addItem("All matchups", "")
+    for opp in get_known_sb_opponents(archetype):
+        opp_combo.addItem(opp, opp)
+    opp_combo.setFixedWidth(220)
+    filt_row.addWidget(opp_combo)
+    filt_row.addStretch()
+    vl.addLayout(filt_row)
 
-    if not plans:
-        empty = QLabel(
-            f"No SB plans yet for color identity {colors}. Plans are extracted\n"
-            f"from multi-game Untapped replays via game-to-game decklist diffs;\n"
-            f"more will appear as the replay scraper runs."
+    # ── Dynamic content widget (rebuilt on filter change) ──────────
+    content_holder = QWidget()
+    content_layout = QVBoxLayout(content_holder)
+    content_layout.setContentsMargins(0, 0, 0, 0)
+    content_layout.setSpacing(8)
+    vl.addWidget(content_holder, 1)
+
+    def _rebuild_content():
+        # Clear existing
+        while content_layout.count():
+            item = content_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        opp_filter = opp_combo.currentData() or None
+        plans = get_sideboard_plans_for_archetype(
+            archetype, opponent_archetype=opp_filter, limit=50,
         )
-        empty.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
-        empty.setWordWrap(True)
-        vl.addWidget(empty)
-        return container
+        plans = [p for p in plans if p.get("n_cards_swapped")]
+
+        scope = f" vs <b>{opp_filter}</b>" if opp_filter else ""
+        header = QLabel(
+            f"<b>{len(plans)}</b> Bo3 SB plans{scope}  ·  color: <b>{colors}</b>  ·  "
+            f"from Untapped Mythic-level ladder replays"
+        )
+        header.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        header.setWordWrap(True)
+        content_layout.addWidget(header)
+
+        if not plans:
+            empty = QLabel(
+                f"No SB plans for {colors}" + (f" vs {opp_filter}" if opp_filter else "") + "."
+            )
+            empty.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
+            empty.setWordWrap(True)
+            content_layout.addWidget(empty)
+            content_layout.addStretch()
+            return
+
+        _build_sb_aggregates_and_list(content_layout, plans)
+
+    opp_combo.currentIndexChanged.connect(lambda _: _rebuild_content())
+    _rebuild_content()
+    return container
+
+
+def _build_sb_aggregates_and_list(vl, plans: list):
+    """Build aggregate IN/OUT frequency tables + individual plan cards."""
+    from gui.widgets.card_tooltip import install_card_tooltip
+    n_plans = len(plans)
 
     # ── Aggregate IN/OUT frequency tables ───────────────────────────
     in_freq:  dict = {}
@@ -406,7 +456,6 @@ def _make_sb_plans_tab(archetype: str) -> QWidget:
             in_freq[c["name"]] = in_freq.get(c["name"], 0) + 1
         for c in p["cards_out"]:
             out_freq[c["name"]] = out_freq.get(c["name"], 0) + 1
-    n_plans = len(plans)
 
     def _make_freq_table(title: str, freq: dict) -> QWidget:
         wrap = QWidget()
@@ -467,8 +516,11 @@ def _make_sb_plans_tab(archetype: str) -> QWidget:
         cl = QVBoxLayout(card)
         cl.setContentsMargins(8, 6, 8, 6)
         cl.setSpacing(2)
+        opp = p.get("opponent_archetype") or ""
+        vs_line = (f"<span style='color:{theme.ACCENT};'>vs {opp}</span>  ·  "
+                   if opp and opp != "Unknown" else "")
         title = QLabel(
-            f"<b>{p['deck_name']}</b>  ·  {p['player_name']}  ·  "
+            f"<b>{p['deck_name']}</b>  ·  {p['player_name']}  ·  {vs_line}"
             f"G{p['from_game']}→G{p['to_game']}  ·  "
             f"{p['n_cards_swapped']} swaps"
         )
@@ -500,7 +552,6 @@ def _make_sb_plans_tab(archetype: str) -> QWidget:
     il.addStretch()
     scroll.setWidget(inner)
     vl.addWidget(scroll, 1)
-    return container
 
 
 def _make_resources_tab(resources: list) -> QWidget:

@@ -132,11 +132,13 @@ def get_untapped_matchup_matrix(
 
 def get_sideboard_plans_for_archetype(
     archetype: str,
+    opponent_archetype: str = None,
     limit: int = 20,
 ) -> List[dict]:
     """
     Return Bo3 sideboard plans extracted from Untapped replays whose
-    color identity matches the given archetype.
+    color identity matches the given archetype, optionally filtered by
+    opponent matchup.
 
     Each plan represents a real game-to-game transition (diff of decklists
     between game 1->2 or 2->3) from a Mythic-level Bo3 match.
@@ -145,30 +147,45 @@ def get_sideboard_plans_for_archetype(
     -> 'WU'), then filter SB plans by colors_str. Returns empty list if
     archetype color can't be derived.
 
+    When opponent_archetype is provided, filter to plans where the
+    opponent's classified archetype matches (case-insensitive, substring
+    match -- so "Selesnya Landfall" matches "Selesnya" and vice versa).
+
     Each result dict has:
         deck_name, player_name, from_game, to_game, n_cards_swapped,
-        cards_in: [{name, count}, ...], cards_out: [{name, count}, ...]
+        cards_in: [{name, count}, ...], cards_out: [{name, count}, ...],
+        opponent_archetype: str (classified from replay log)
     """
     colors = archetype_colors(archetype)
     if not colors:
         return []
 
+    sql = """
+        SELECT
+            v.deck_name, v.player_name,
+            v.from_game, v.to_game,
+            v.n_cards_swapped,
+            v.cards_in_json, v.cards_out_json,
+            v.colors_str,
+            r.match_timestamp,
+            p.opponent_archetype
+        FROM v_untapped_sideboard_plans_with_meta v
+        LEFT JOIN untapped_replays r ON v.replay_short_id = r.short_id
+        LEFT JOIN untapped_sideboard_plans p ON p.id = v.id
+        WHERE v.colors_str = ?
+    """
+    params = [colors]
+    if opponent_archetype:
+        # Match against either substring direction so "Selesnya" filters
+        # "Selesnya Landfall" / "Selesnya Aggro" etc. without forcing exact.
+        sql += " AND (lower(p.opponent_archetype) LIKE ? OR ? LIKE '%' || lower(p.opponent_archetype) || '%')"
+        params.extend([f"%{opponent_archetype.lower()}%", opponent_archetype.lower()])
+    sql += " ORDER BY COALESCE(r.match_timestamp, '') DESC LIMIT ?"
+    params.append(limit)
+
     with sqlite3.connect(str(DB_PATH)) as con:
         con.row_factory = sqlite3.Row
-        rows = con.execute("""
-            SELECT
-                v.deck_name, v.player_name,
-                v.from_game, v.to_game,
-                v.n_cards_swapped,
-                v.cards_in_json, v.cards_out_json,
-                v.colors_str,
-                r.match_timestamp
-            FROM v_untapped_sideboard_plans_with_meta v
-            LEFT JOIN untapped_replays r ON v.replay_short_id = r.short_id
-            WHERE v.colors_str = ?
-            ORDER BY COALESCE(r.match_timestamp, '') DESC
-            LIMIT ?
-        """, (colors, limit)).fetchall()
+        rows = con.execute(sql, params).fetchall()
 
     out: List[dict] = []
     for r in rows:
@@ -190,8 +207,32 @@ def get_sideboard_plans_for_archetype(
             "cards_out":       cards_out,
             "colors_str":      r["colors_str"],
             "match_timestamp": r["match_timestamp"],
+            "opponent_archetype": (r["opponent_archetype"] if "opponent_archetype" in r.keys() else "") or "",
         })
     return out
+
+
+def get_known_sb_opponents(archetype: str) -> List[str]:
+    """Return distinct opponent archetypes that exist in SB plans for the
+    given (color-matched) archetype, sorted by frequency. Used to populate
+    a 'filter by matchup' dropdown in the archetype-detail SB plans tab."""
+    colors = archetype_colors(archetype)
+    if not colors:
+        return []
+
+    with sqlite3.connect(str(DB_PATH)) as con:
+        rows = con.execute("""
+            SELECT p.opponent_archetype, COUNT(*) as n
+            FROM untapped_sideboard_plans p
+            JOIN v_untapped_sideboard_plans_with_meta v ON v.id = p.id
+            WHERE v.colors_str = ?
+              AND COALESCE(p.opponent_archetype, '') != ''
+              AND COALESCE(p.opponent_archetype, '') != 'Unknown'
+              AND p.n_cards_swapped > 0
+            GROUP BY p.opponent_archetype
+            ORDER BY n DESC
+        """, (colors,)).fetchall()
+    return [r[0] for r in rows]
 
 
 # Skill-curve format mapping — Untapped only reports per-tier WR for Bo1
