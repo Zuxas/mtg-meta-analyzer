@@ -160,7 +160,12 @@ def get_sideboard_plans_for_archetype(
     if not colors:
         return []
 
-    sql = """
+    # Two-pass filter: first try the classified friendly_archetype column
+    # (substring match either direction). If we get plans, use those -- they're
+    # the most specific signal. Otherwise fall back to color-only matching,
+    # preserving backward-compatible behavior for archetypes whose plans
+    # haven't been classified yet (or whose classified value disagrees).
+    base_sql = """
         SELECT
             v.deck_name, v.player_name,
             v.from_game, v.to_game,
@@ -168,24 +173,48 @@ def get_sideboard_plans_for_archetype(
             v.cards_in_json, v.cards_out_json,
             v.colors_str,
             r.match_timestamp,
-            p.opponent_archetype
+            p.opponent_archetype,
+            p.friendly_archetype
         FROM v_untapped_sideboard_plans_with_meta v
         LEFT JOIN untapped_replays r ON v.replay_short_id = r.short_id
         LEFT JOIN untapped_sideboard_plans p ON p.id = v.id
-        WHERE v.colors_str = ?
     """
-    params = [colors]
-    if opponent_archetype:
-        # Match against either substring direction so "Selesnya" filters
-        # "Selesnya Landfall" / "Selesnya Aggro" etc. without forcing exact.
-        sql += " AND (lower(p.opponent_archetype) LIKE ? OR ? LIKE '%' || lower(p.opponent_archetype) || '%')"
-        params.extend([f"%{opponent_archetype.lower()}%", opponent_archetype.lower()])
-    sql += " ORDER BY COALESCE(r.match_timestamp, '') DESC LIMIT ?"
-    params.append(limit)
 
-    with sqlite3.connect(str(DB_PATH)) as con:
-        con.row_factory = sqlite3.Row
-        rows = con.execute(sql, params).fetchall()
+    def _run(sql: str, params: list):
+        with sqlite3.connect(str(DB_PATH)) as con:
+            con.row_factory = sqlite3.Row
+            return con.execute(sql, params).fetchall()
+
+    def _opp_clause():
+        if opponent_archetype:
+            return (
+                " AND (lower(p.opponent_archetype) LIKE ? "
+                "OR ? LIKE '%' || lower(p.opponent_archetype) || '%')",
+                [f"%{opponent_archetype.lower()}%", opponent_archetype.lower()],
+            )
+        return "", []
+
+    # Pass 1: classified friendly_archetype substring match
+    arch_lower = archetype.lower()
+    where1 = (
+        " WHERE (lower(p.friendly_archetype) LIKE ? "
+        "OR ? LIKE '%' || lower(p.friendly_archetype) || '%') "
+        "AND COALESCE(p.friendly_archetype, '') NOT IN ('', 'Unknown')"
+    )
+    params1 = [f"%{arch_lower}%", arch_lower]
+    opp_sql, opp_params = _opp_clause()
+    sql1 = base_sql + where1 + opp_sql + " ORDER BY COALESCE(r.match_timestamp, '') DESC LIMIT ?"
+    rows = _run(sql1, params1 + opp_params + [limit])
+
+    # Pass 2 (fallback): color-only matching
+    if not rows:
+        opp_sql, opp_params = _opp_clause()
+        sql2 = (base_sql + " WHERE v.colors_str = ?" + opp_sql +
+                " ORDER BY COALESCE(r.match_timestamp, '') DESC LIMIT ?")
+        rows = _run(sql2, [colors] + opp_params + [limit])
+
+    sql = None  # legacy var to satisfy old code path below; not used
+    params = None
 
     out: List[dict] = []
     for r in rows:
@@ -208,6 +237,7 @@ def get_sideboard_plans_for_archetype(
             "colors_str":      r["colors_str"],
             "match_timestamp": r["match_timestamp"],
             "opponent_archetype": (r["opponent_archetype"] if "opponent_archetype" in r.keys() else "") or "",
+            "friendly_archetype": (r["friendly_archetype"] if "friendly_archetype" in r.keys() else "") or "",
         })
     return out
 

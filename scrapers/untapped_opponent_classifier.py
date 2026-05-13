@@ -106,9 +106,8 @@ def extract_opp_grp_ids(replay_path: Path, my_user_id: str) -> tuple:
 
 
 def _ensure_schema(con: sqlite3.Connection):
-    """Add opponent_archetype + opp_grp_ids_json columns to
-    untapped_sideboard_plans if absent (and untapped_replays user_id if
-    we need it for opp-seat resolution)."""
+    """Add opponent_archetype + opp_grp_ids_json + friendly_archetype
+    columns to untapped_sideboard_plans if absent."""
     cols = {r[1] for r in con.execute("PRAGMA table_info(untapped_sideboard_plans)")}
     if "opponent_archetype" not in cols:
         con.execute(
@@ -120,7 +119,81 @@ def _ensure_schema(con: sqlite3.Connection):
             "ALTER TABLE untapped_sideboard_plans "
             "ADD COLUMN opp_grp_ids_json TEXT DEFAULT '[]'"
         )
+    if "friendly_archetype" not in cols:
+        con.execute(
+            "ALTER TABLE untapped_sideboard_plans "
+            "ADD COLUMN friendly_archetype TEXT DEFAULT ''"
+        )
     con.commit()
+
+
+def classify_friendly_deck(replay_path: Path) -> str:
+    """Classify the friendly player's game-1 deck via the KNN classifier.
+
+    Returns archetype name (e.g. "Izzet Prowess") or "" if classification
+    fails (no model, no card data, or low confidence).
+    """
+    if not Path(replay_path).exists():
+        return ""
+    try:
+        with gzip.open(replay_path, "rt", encoding="utf-8", errors="replace") as f:
+            data = json.load(f)
+    except Exception:
+        return ""
+
+    decks = data.get("decks", []) or []
+    if not decks:
+        return ""
+
+    # decks[0] is a dict: {"game": 1, "deck": {"name", "mainDeck": [grpIds], "sideboard": [grpIds]}}
+    # Cards repeat in mainDeck list for quantities.
+    first = decks[0]
+    if not isinstance(first, dict):
+        return ""
+    main_grp_ids = (first.get("deck", {}) or {}).get("mainDeck", []) or []
+
+    grp_counts = {}
+    for grp in main_grp_ids:
+        if isinstance(grp, int) and grp > 0:
+            grp_counts[grp] = grp_counts.get(grp, 0) + 1
+
+    if not grp_counts:
+        return ""
+
+    # Resolve grpIds -> card names via untapped_card_db
+    con = sqlite3.connect(str(DB_PATH))
+    try:
+        ph = ",".join("?" * len(grp_counts))
+        rows = con.execute(
+            f"SELECT grpid, name FROM untapped_card_db "
+            f"WHERE grpid IN ({ph}) AND name IS NOT NULL",
+            list(grp_counts.keys()),
+        ).fetchall()
+    finally:
+        con.close()
+
+    if not rows:
+        return ""
+
+    name_counts = {}
+    for grpid, name in rows:
+        name_counts[name] = name_counts.get(name, 0) + grp_counts[grpid]
+
+    if len(name_counts) < 10:
+        # Too few unique cards to classify
+        return ""
+
+    try:
+        from analysis.knn_classifier import classify_deck
+        result = classify_deck(name_counts, format_name="standard")
+        if result is None:
+            return ""
+        archetype, confidence = result
+        if confidence < 0.40:
+            return ""
+        return archetype
+    except Exception:
+        return ""
 
 
 def _resolve_grp_ids_to_names(con: sqlite3.Connection, grp_ids: list) -> list:
@@ -195,27 +268,28 @@ def backfill_sb_plans(format_name: str = "standard", limit: int = None) -> dict:
     con.row_factory = sqlite3.Row
     _ensure_schema(con)
 
-    # Find replays needing classification (have plans, no opp_archetype set)
+    # Find replays needing classification (have plans, missing opp OR friendly)
     rows = con.execute(
         """
         SELECT DISTINCT p.replay_short_id AS short_id, r.user_id, r.file_path
         FROM untapped_sideboard_plans p
         JOIN untapped_replays r ON r.short_id = p.replay_short_id
         WHERE COALESCE(p.opponent_archetype, '') = ''
+           OR COALESCE(p.friendly_archetype, '') = ''
         """
     ).fetchall()
 
     if limit:
         rows = rows[:limit]
 
-    stats = {"processed": 0, "classified": 0, "unknown": 0, "missing_replay": 0}
+    stats = {"processed": 0, "opp_classified": 0, "opp_unknown": 0,
+             "friend_classified": 0, "friend_unknown": 0, "missing_replay": 0}
 
     for r in rows:
         short_id = r["short_id"]
         user_id = r["user_id"]
         stored_path = r["file_path"] or ""
 
-        # Resolve replay path -- prefer DB stored path, fall back to canonical layout
         replay_path = Path(stored_path) if stored_path else REPLAY_DIR / f"{short_id}.json.gz"
         if not replay_path.exists():
             replay_path = REPLAY_DIR / f"{short_id}.json.gz"
@@ -223,22 +297,31 @@ def backfill_sb_plans(format_name: str = "standard", limit: int = None) -> dict:
             stats["missing_replay"] += 1
             continue
 
+        # 1) Opponent classification (from log card observations)
         opp_name, opp_grp_ids = extract_opp_grp_ids(replay_path, user_id or "")
         card_names = _resolve_grp_ids_to_names(con, opp_grp_ids)
-        archetype = _classify_from_card_names(con, card_names, format_name) or "Unknown"
+        opp_arch = _classify_from_card_names(con, card_names, format_name) or "Unknown"
+
+        # 2) Friendly classification (KNN on game-1 deck)
+        friend_arch = classify_friendly_deck(replay_path) or "Unknown"
 
         con.execute(
             "UPDATE untapped_sideboard_plans "
-            "SET opponent_archetype = ?, opp_grp_ids_json = ? "
+            "SET opponent_archetype = ?, opp_grp_ids_json = ?, "
+            "    friendly_archetype = ? "
             "WHERE replay_short_id = ?",
-            (archetype, json.dumps(opp_grp_ids), short_id),
+            (opp_arch, json.dumps(opp_grp_ids), friend_arch, short_id),
         )
 
         stats["processed"] += 1
-        if archetype and archetype != "Unknown":
-            stats["classified"] += 1
+        if opp_arch and opp_arch != "Unknown":
+            stats["opp_classified"] += 1
         else:
-            stats["unknown"] += 1
+            stats["opp_unknown"] += 1
+        if friend_arch and friend_arch != "Unknown":
+            stats["friend_classified"] += 1
+        else:
+            stats["friend_unknown"] += 1
 
     con.commit()
     con.close()
