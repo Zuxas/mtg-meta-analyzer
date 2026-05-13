@@ -654,21 +654,21 @@ class ChartCanvas(QWidget):
     # ------------------------------------------------------------------
 
     def plot_untapped_trend(self, archetype: str, format_name: str = "standard"):
-        """Plot MTGA ladder match-count + WR over time from the
-        untapped_meta_archetypes snapshots. Sparse at first; fills in as
-        the M/W/F nightly scraper accumulates snapshots."""
-        # mtg-meta-analyzer format -> Untapped event_name pair (Bo1 + Bo3)
-        fmt_pairs = {
-            "standard": ("Ladder", "Traditional_Ladder"),
-            "pioneer":  ("Explorer_Ladder", "Traditional_Explorer_Ladder"),
-            "historic": ("Historic_Ladder", "Traditional_Historic_Ladder"),
-            "timeless": ("Timeless_Ladder", "Traditional_Timeless_Ladder"),
-            "alchemy":  ("Alchemy_Ladder", "Traditional_Alchemy_Ladder"),
+        """Plot MTGA Bo3 ladder per-tier WR (Platinum / Diamond / Mythic)
+        over time per archetype. Sparse at first; fills in as the M/W/F
+        nightly scraper accumulates snapshots."""
+        # mtg-meta-analyzer format -> Untapped Bo3 event_name
+        fmt_map = {
+            "standard": "Traditional_Ladder",
+            "pioneer":  "Traditional_Explorer_Ladder",
+            "historic": "Traditional_Historic_Ladder",
+            "timeless": "Traditional_Timeless_Ladder",
+            "alchemy":  "Traditional_Alchemy_Ladder",
         }
-        events = fmt_pairs.get(format_name.lower())
-        if not events:
+        event_name = fmt_map.get(format_name.lower())
+        if not event_name:
             self.show_message(
-                f"Untapped ladder data only covers Standard / Pioneer / Historic / "
+                f"Untapped Bo3 data only covers Standard / Pioneer / Historic / "
                 f"Timeless / Alchemy. {format_name} not on MTGA.", "#f0a030"
             )
             return
@@ -676,21 +676,9 @@ class ChartCanvas(QWidget):
         import sqlite3
         from pathlib import Path
         db_path = Path(__file__).resolve().parent.parent.parent / "data" / "mtg_meta.db"
-        with sqlite3.connect(str(db_path)) as con:
-            rows = con.execute("""
-                SELECT s.captured_at_utc, s.event_name, a.rank_tier,
-                       a.total_matches, a.win_rate
-                FROM untapped_meta_archetypes a
-                JOIN untapped_meta_snapshots s ON s.id = a.snapshot_id
-                WHERE s.event_name IN (?, ?)
-                  AND a.archetype_name = ?
-                  AND s.last_7_days = 0
-                ORDER BY s.captured_at_utc
-            """, (events[0], events[1], archetype)).fetchall()
 
-        # Pass 2: Plat/Diamond/Mythic from premium matchup data.
-        # Aggregate per-archetype, per-tier, per-snapshot from
-        # v_untapped_premium_matchups_named (sums across all opponents).
+        # Plat/Diamond/Mythic from premium matchup data, aggregated across
+        # opponents per (archetype, snapshot, tier).
         with sqlite3.connect(str(db_path)) as con:
             premium = con.execute("""
                 SELECT m.as_of, m.rank_tier,
@@ -703,45 +691,38 @@ class ChartCanvas(QWidget):
                   AND m.rank_tier IN ('Platinum', 'Diamond', 'Mythic')
                 GROUP BY m.as_of, m.rank_tier
                 ORDER BY m.as_of
-            """, (events[1], archetype)).fetchall()
+            """, (event_name, archetype)).fetchall()
 
-        if not rows and not premium:
+        if not premium:
             self.show_message(
-                f"No Untapped snapshots for ‘{archetype}’. "
+                f"No Untapped Bo3 snapshots for ‘{archetype}’. "
                 f"Archetype names must match MTGA ladder names exactly "
                 f"(case-sensitive). Snapshots accumulate M/W/F via the nightly scraper.",
                 "#f0a030"
             )
             return
 
-        # Aggregate Bo1 meta data per snapshot date: total matches across tiers,
-        # match-weighted average WR (Bo1 only -- Bo3 has NULL win_rate)
         from collections import defaultdict
-        per_date = defaultdict(lambda: {"matches": 0, "wr_num": 0.0, "wr_den": 0})
-        for captured, event, tier, total, wr in rows:
-            day = captured[:10]
-            per_date[day]["matches"] += (total or 0)
-            if wr is not None and (total or 0) > 0:
-                per_date[day]["wr_num"] += wr * total
-                per_date[day]["wr_den"] += total
-
-        # Per-tier premium WR aggregations
         per_tier = defaultdict(lambda: defaultdict(lambda: {"matches": 0, "wins": 0.0}))
         for captured, tier, matches_n, wins_n in premium:
             day = captured[:10]
             per_tier[tier][day]["matches"] += (matches_n or 0)
             per_tier[tier][day]["wins"]    += (wins_n or 0.0)
 
-        all_dates = set(per_date.keys())
+        all_dates = set()
         for tier_dict in per_tier.values():
             all_dates.update(tier_dict.keys())
         dates = sorted(all_dates)
 
-        matches = [per_date[d]["matches"] for d in dates]
-        wrs = []
+        # Match counts: sum across tiers per snapshot date
+        matches = []
         for d in dates:
-            den = per_date[d]["wr_den"]
-            wrs.append(per_date[d]["wr_num"] / den if den > 0 else None)
+            m = 0
+            for tier_dict in per_tier.values():
+                cell = tier_dict.get(d)
+                if cell:
+                    m += cell["matches"]
+            matches.append(m)
 
         def _tier_wrs(tier: str):
             ys = []
@@ -784,10 +765,9 @@ class ChartCanvas(QWidget):
                           linewidth=lw, linestyle=linestyle, label=label)
             line_handles.append(h); line_labels.append(label)
 
-        _plot_series(wrs,         "#3cb44b", "o", "Bo1 (Plat avg)",     "--", 1.5)
-        _plot_series(plat_wrs,    "#5eb5cf", "s", "Bo3 Platinum")
-        _plot_series(diamond_wrs, "#e6194b", "^", "Bo3 Diamond")
-        _plot_series(mythic_wrs,  "#f0a030", "D", "Bo3 Mythic")
+        _plot_series(plat_wrs,    "#5eb5cf", "s", "Platinum")
+        _plot_series(diamond_wrs, "#e6194b", "^", "Diamond")
+        _plot_series(mythic_wrs,  "#f0a030", "D", "Mythic")
 
         if line_handles:
             ax2.set_ylabel("Win Rate %", color="white", fontsize=9)
@@ -802,12 +782,12 @@ class ChartCanvas(QWidget):
 
         total_matches = sum(matches)
         ax1.set_title(
-            f"{_shorten(archetype, 40)} — MTGA Ladder Trend ({format_name.upper()})",
+            f"{_shorten(archetype, 40)} — MTGA Bo3 Ladder Trend ({format_name.upper()})",
             color="white", fontsize=12, pad=14,
         )
         _subtitle(ax1,
             f"{total_matches:,} matches across {len(dates)} snapshot(s)  ·  "
-            f"Untapped Bo1+Bo3 combined"
+            f"Plat / Diamond / Mythic"
         )
 
         bar_proxy = ax1.bar([], [], color=bar_color, alpha=0.45, label="Matches")
