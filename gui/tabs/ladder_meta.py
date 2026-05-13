@@ -123,15 +123,17 @@ class LadderMetaTab(QWidget):
         sc_v.setContentsMargins(0, 0, 0, 0)
         sc_v.setSpacing(2)
         sc_lbl = QLabel(
-            "<b>Bo1 skill curve</b>  "
+            "<b>Skill curve</b>  "
             "<span style='color:%s;font-size:10px;'>"
-            "(climbers = scales with skill)</span>" % theme.TEXT_DIM
+            "(Bo1: Bronze→Plat   Bo3: Plat→Mythic)</span>" % theme.TEXT_DIM
         )
         sc_lbl.setStyleSheet("font-size: 11px;")
         sc_v.addWidget(sc_lbl)
-        self._skill_tbl = QTableWidget(0, 6)
+        self._skill_tbl = QTableWidget(0, 9)
         self._skill_tbl.setHorizontalHeaderLabels(
-            ["Archetype", "Bronze", "Silver", "Gold", "Plat", "Δ Br→Plat"]
+            ["Archetype",
+             "Br¹", "Si¹", "Go¹", "Pl¹", "Δ¹",
+             "Pl³", "Di³", "My³"]
         )
         self._skill_tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._skill_tbl.setSelectionBehavior(
@@ -140,9 +142,14 @@ class LadderMetaTab(QWidget):
         self._skill_tbl.verticalHeader().setVisible(False)
         self._skill_tbl.setAlternatingRowColors(False)
         self._skill_tbl.setSortingEnabled(True)
+        self._skill_tbl.setToolTip(
+            "Br¹ Si¹ Go¹ Pl¹ Δ¹  = Bo1 ladder per-tier WR (Bronze, Silver, Gold, Platinum, climb delta)\n"
+            "Pl³ Di³ My³        = Bo3 ladder per-tier WR (Platinum, Diamond, Mythic)\n"
+            "Mythic only has data for the top ~2 archetypes per snapshot."
+        )
         hh2 = self._skill_tbl.horizontalHeader()
         hh2.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for ci in range(1, 6):
+        for ci in range(1, 9):
             hh2.setSectionResizeMode(ci, QHeaderView.ResizeMode.ResizeToContents)
         sc_v.addWidget(self._skill_tbl, 1)
         split.addWidget(sc_wrap)
@@ -191,7 +198,7 @@ class LadderMetaTab(QWidget):
         try:
             from db.untapped_queries import (
                 get_skill_curve, get_mythic_leaderboard,
-                get_mythic_archetype_rollup,
+                get_mythic_archetype_rollup, get_bo3_tier_wrs,
             )
         except Exception as exc:
             self._status.setText(f"Untapped tables not available: {exc}")
@@ -204,6 +211,30 @@ class LadderMetaTab(QWidget):
         # Pioneer / historic etc. have tiny samples — relax for non-Standard
         if not skill and fmt != "standard":
             skill = get_skill_curve(fmt, limit=30, min_plat_matches=20)
+        bo3_wrs = get_bo3_tier_wrs(fmt)
+        # Merge Bo3 columns into skill rows (key on archetype name)
+        for row in skill:
+            arch = row.get("archetype_name", "")
+            extra = bo3_wrs.get(arch) or {}
+            row["bo3_plat_wr"]    = extra.get("plat_wr")
+            row["bo3_diamond_wr"] = extra.get("diamond_wr")
+            row["bo3_mythic_wr"]  = extra.get("mythic_wr")
+        # Also surface archetypes that have Bo3 data but no Bo1 skill curve row
+        present = {row.get("archetype_name") for row in skill}
+        for arch, extra in bo3_wrs.items():
+            if arch in present:
+                continue
+            if (extra.get("plat_matches") or 0) < 50:
+                continue
+            skill.append({
+                "archetype_name": arch, "colors_str": "",
+                "bronze_wr": None, "silver_wr": None,
+                "gold_wr":   None, "plat_wr":   None,
+                "climb_delta_wr": None,
+                "bo3_plat_wr":    extra.get("plat_wr"),
+                "bo3_diamond_wr": extra.get("diamond_wr"),
+                "bo3_mythic_wr":  extra.get("mythic_wr"),
+            })
         board  = get_mythic_leaderboard(limit=30)
 
         if not (rollup or skill or board):
@@ -256,20 +287,21 @@ class LadderMetaTab(QWidget):
         for ri, r in enumerate(rows):
             self._skill_tbl.setItem(ri, 0,
                 QTableWidgetItem(r["archetype_name"]))
+            # Bo1 tier cols 1-4 (Bronze, Silver, Gold, Plat)
             for ci, key in enumerate(
                 ["bronze_wr", "silver_wr", "gold_wr", "plat_wr"], start=1
             ):
-                v = r[key]
+                v = r.get(key) if hasattr(r, "get") else r[key]
                 cell = QTableWidgetItem(f"{v:.1f}%" if v is not None else "—")
                 cell.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if v is not None:
                     cell.setForeground(_wr_color(v / 100.0))
                 self._skill_tbl.setItem(ri, ci, cell)
-            d = r["climb_delta_wr"]
+            # Bo1 climb delta col 5
+            d = r.get("climb_delta_wr") if hasattr(r, "get") else r["climb_delta_wr"]
             d_item = QTableWidgetItem(f"{d:+.1f}" if d is not None else "—")
             d_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if d is not None:
-                # Strong positive = green, strong negative = red
                 if d >= 5:
                     d_item.setForeground(QColor(80, 200, 100))
                 elif d >= 2:
@@ -281,6 +313,16 @@ class LadderMetaTab(QWidget):
                 else:
                     d_item.setForeground(QColor(theme.TEXT_DIM))
             self._skill_tbl.setItem(ri, 5, d_item)
+            # Bo3 tier cols 6-8 (Plat, Diamond, Mythic) -- from premium data
+            for ci, key in enumerate(
+                ["bo3_plat_wr", "bo3_diamond_wr", "bo3_mythic_wr"], start=6
+            ):
+                v = r.get(key) if hasattr(r, "get") else None
+                cell = QTableWidgetItem(f"{v:.1f}%" if v is not None else "—")
+                cell.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if v is not None:
+                    cell.setForeground(_wr_color(v / 100.0))
+                self._skill_tbl.setItem(ri, ci, cell)
         self._skill_tbl.setSortingEnabled(True)
 
     def _fill_leaderboard(self, rows: list):

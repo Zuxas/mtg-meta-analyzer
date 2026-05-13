@@ -317,6 +317,63 @@ def get_skill_curve(
     return [dict(r) for r in rows]
 
 
+def get_bo3_tier_wrs(format_name: str = "standard") -> dict:
+    """Per-archetype Bo3 WR aggregated across opponents at each high tier.
+
+    Pulls from v_untapped_premium_matchups_named (premium endpoint, has
+    Diamond + Mythic that the Bo1 meta endpoint lacks). Aggregates by
+    summing observed_match_count + matches_won across all opponents at
+    each rank tier.
+
+    Returns: {archetype_name: {"plat_wr": float|None,
+                              "diamond_wr": float|None,
+                              "mythic_wr": float|None,
+                              "plat_matches": int,
+                              "diamond_matches": int,
+                              "mythic_matches": int}}
+    """
+    event_name = _FORMAT_MAP.get(format_name.lower())
+    if not event_name:
+        return {}
+
+    with sqlite3.connect(str(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute("""
+            SELECT m.friendly_archetype AS arch, m.rank_tier AS tier,
+                   SUM(m.observed_match_count) AS matches,
+                   SUM(m.matches_won) AS wins
+            FROM v_untapped_premium_matchups_named m
+            WHERE m.format = ? AND m.last_7_days = 0
+              AND m.friendly_archetype IS NOT NULL
+              AND m.rank_tier IN ('Platinum', 'Diamond', 'Mythic')
+            GROUP BY m.friendly_archetype, m.rank_tier
+        """, (event_name,)).fetchall()
+
+    out: dict = {}
+    for r in rows:
+        arch = r["arch"]
+        tier = r["tier"]
+        n = int(r["matches"] or 0)
+        w = float(r["wins"] or 0.0)
+        if arch not in out:
+            out[arch] = {
+                "plat_wr": None, "diamond_wr": None, "mythic_wr": None,
+                "plat_matches": 0, "diamond_matches": 0, "mythic_matches": 0,
+            }
+        if n > 0:
+            wr = w / n
+            if tier == "Platinum":
+                out[arch]["plat_wr"] = round(wr * 100, 2)
+                out[arch]["plat_matches"] = n
+            elif tier == "Diamond":
+                out[arch]["diamond_wr"] = round(wr * 100, 2)
+                out[arch]["diamond_matches"] = n
+            elif tier == "Mythic":
+                out[arch]["mythic_wr"] = round(wr * 100, 2)
+                out[arch]["mythic_matches"] = n
+    return out
+
+
 def get_mythic_leaderboard(limit: int = 30) -> List[dict]:
     """
     Top-N entries from the latest mythic ladder snapshot, sorted by
