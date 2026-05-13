@@ -21,7 +21,7 @@ import random
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView, QButtonGroup,
-    QRadioButton,
+    QRadioButton, QDialog, QApplication,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
@@ -245,6 +245,15 @@ class MulliganEvaluator(QWidget):
         self._draw_btn.clicked.connect(self._draw_random_hand)
         controls.addWidget(self._draw_btn)
 
+        self._study_btn = QPushButton("Run 1000-hand study")
+        self._study_btn.setStyleSheet(theme.btn_secondary())
+        self._study_btn.setToolTip(
+            "Simulate 1000 hands per matchup x play/draw combination "
+            "(~12k total). Reports keep/mull-to-6/mull-to-5 rates."
+        )
+        self._study_btn.clicked.connect(self._run_study)
+        controls.addWidget(self._study_btn)
+
         controls.addWidget(QLabel("  Going:"))
         self._play_group = QButtonGroup(self)
         self._play_rb = QRadioButton("On the play")
@@ -376,3 +385,97 @@ class MulliganEvaluator(QWidget):
         self._verdict_label.setText("—")
         self._verdict_counts.setText("Select a deck on the left.")
         self._verdict_reasons.setText("")
+
+    def _run_study(self):
+        if not self._deck or not self._deck.get("id"):
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            from analysis.mulligan_study import run_study
+            result = run_study(self._deck["id"], n_hands=1000)
+        finally:
+            QApplication.restoreOverrideCursor()
+        dlg = MulliganStudyDialog(result, self)
+        dlg.exec()
+
+
+class MulliganStudyDialog(QDialog):
+    """Result panel for the 1000-hand mulligan study."""
+
+    def __init__(self, study: dict, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Mulligan Study Results")
+        self.resize(720, 520)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(8)
+
+        if "error" in study:
+            root.addWidget(QLabel(f"Error: {study['error']}"))
+            return
+
+        title = QLabel(f"<b>{study['deck_name']}</b>")
+        title.setStyleSheet("font-size: 14px;")
+        root.addWidget(title)
+
+        sub = QLabel(
+            f"{study['n_per_cell']} hands per cell  ·  "
+            f"{study['overall_n']} total simulations"
+        )
+        sub.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        root.addWidget(sub)
+
+        o = study["overall"]
+        headline = QLabel(
+            f"<b>Overall:</b>  "
+            f"<span style='color:{theme.OK};'>keep 7: "
+            f"{o.get('keep_7', 0)*100:.1f}%</span>  ·  "
+            f"keep 6: {o.get('keep_6', 0)*100:.1f}%  ·  "
+            f"keep 5: {o.get('keep_5', 0)*100:.1f}%  ·  "
+            f"keep 4: {o.get('keep_4', 0)*100:.1f}%"
+        )
+        headline.setTextFormat(Qt.TextFormat.RichText)
+        headline.setStyleSheet("font-size: 13px; padding: 8px 0;")
+        root.addWidget(headline)
+
+        # Per-matchup table
+        rows = []
+        for m, sides in study["by_matchup"].items():
+            for side, stats in sides.items():
+                rows.append((m, side, stats))
+
+        tbl = QTableWidget(len(rows), 6)
+        tbl.setHorizontalHeaderLabels([
+            "Matchup", "Side", "Keep 7", "Mull→6", "Mull→5", "Mull→4"
+        ])
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.verticalHeader().setVisible(False)
+        hh = tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for ci in range(1, 6):
+            hh.setSectionResizeMode(ci, QHeaderView.ResizeMode.ResizeToContents)
+
+        for ri, (m, side, stats) in enumerate(rows):
+            tbl.setItem(ri, 0, QTableWidgetItem(m))
+            s_item = QTableWidgetItem(side)
+            s_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            tbl.setItem(ri, 1, s_item)
+            for ci, key in enumerate(("keep_7", "keep_6", "keep_5", "keep_4"), start=2):
+                val = stats[key] * 100
+                item = QTableWidgetItem(f"{val:.1f}%")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if key == "keep_7":
+                    if val >= 85:    item.setForeground(QColor(theme.OK))
+                    elif val >= 75:  item.setForeground(QColor(theme.WARN))
+                    else:            item.setForeground(QColor(theme.ERR))
+                tbl.setItem(ri, ci, item)
+        root.addWidget(tbl, 1)
+
+        note = QLabel(
+            f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
+            "Re-uses the primer-rule evaluator (mulligan_evaluator.evaluate_hand). "
+            "Each MULL re-draws under London rules until keep at 4."
+            "</span>"
+        )
+        note.setTextFormat(Qt.TextFormat.RichText)
+        root.addWidget(note)
