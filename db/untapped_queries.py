@@ -242,6 +242,48 @@ def get_sideboard_plans_for_archetype(
     return out
 
 
+def get_mythic_card_inclusion(archetype: str) -> dict:
+    """For each card seen in mythic-tier replays of this archetype, return
+    inclusion rate + avg quantity.
+
+    Returns: {card_name: {"inclusion_rate": 0..1, "n_decks": int,
+                          "total_decks": int, "avg_qty": float}}
+
+    Substring-matches archetype name in untapped_replay_decks.archetype
+    (so 'Izzet Prowess' matches 'Izzet Prowess' but you'd need exact
+    name -- no fuzzy matching across e.g. 'Mono Green' vs 'Mono-Green').
+    """
+    with sqlite3.connect(str(DB_PATH)) as con:
+        con.row_factory = sqlite3.Row
+        total_row = con.execute("""
+            SELECT COUNT(DISTINCT replay_short_id) AS n FROM untapped_replay_decks
+            WHERE lower(archetype) = lower(?)
+        """, (archetype,)).fetchone()
+        total = total_row["n"] if total_row else 0
+        if total == 0:
+            return {}
+
+        rows = con.execute("""
+            SELECT card_name,
+                   COUNT(DISTINCT replay_short_id) AS n_decks,
+                   ROUND(AVG(CAST(quantity AS REAL)), 2) AS avg_qty
+            FROM untapped_replay_decks
+            WHERE lower(archetype) = lower(?)
+            GROUP BY card_name
+            ORDER BY n_decks DESC, card_name
+        """, (archetype,)).fetchall()
+
+    out = {}
+    for r in rows:
+        out[r["card_name"]] = {
+            "inclusion_rate": r["n_decks"] / total if total else 0.0,
+            "n_decks":        r["n_decks"],
+            "total_decks":    total,
+            "avg_qty":        r["avg_qty"],
+        }
+    return out
+
+
 def get_known_sb_opponents(archetype: str) -> List[str]:
     """Return distinct opponent archetypes that exist in SB plans for the
     given (color-matched) archetype, sorted by frequency. Used to populate

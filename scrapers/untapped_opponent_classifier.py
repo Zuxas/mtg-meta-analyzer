@@ -107,7 +107,8 @@ def extract_opp_grp_ids(replay_path: Path, my_user_id: str) -> tuple:
 
 def _ensure_schema(con: sqlite3.Connection):
     """Add opponent_archetype + opp_grp_ids_json + friendly_archetype
-    columns to untapped_sideboard_plans if absent."""
+    columns to untapped_sideboard_plans if absent, and create the
+    untapped_replay_decks table for per-replay game-1 mainboards."""
     cols = {r[1] for r in con.execute("PRAGMA table_info(untapped_sideboard_plans)")}
     if "opponent_archetype" not in cols:
         con.execute(
@@ -124,7 +125,116 @@ def _ensure_schema(con: sqlite3.Connection):
             "ALTER TABLE untapped_sideboard_plans "
             "ADD COLUMN friendly_archetype TEXT DEFAULT ''"
         )
+
+    # Per-replay game-1 deck composition. One row per (replay, card_name).
+    # Source: replay JSON decks[0].deck.mainDeck (list of grpIds, repeated for qty).
+    # Mythic-tier by definition -- the replay scraper only collects mythic-ladder players.
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS untapped_replay_decks (
+            replay_short_id TEXT NOT NULL,
+            card_name       TEXT NOT NULL,
+            quantity        INTEGER NOT NULL,
+            archetype       TEXT DEFAULT '',
+            PRIMARY KEY (replay_short_id, card_name)
+        )
+    """)
+    con.execute("""
+        CREATE INDEX IF NOT EXISTS idx_replay_decks_archetype
+            ON untapped_replay_decks(archetype, card_name)
+    """)
     con.commit()
+
+
+def backfill_replay_decks(format_name: str = "standard", limit: int = None) -> dict:
+    """Walk each saved replay, extract game-1 mainboard, resolve grpIds to
+    card names, write to untapped_replay_decks. Tags each row with the
+    KNN-classified archetype from untapped_sideboard_plans.friendly_archetype
+    so we can query 'cards used by Izzet Prowess at Mythic.'
+
+    Returns stats: {processed, cards_written, missing_replay, no_archetype}.
+    """
+    con = sqlite3.connect(str(DB_PATH))
+    con.row_factory = sqlite3.Row
+    _ensure_schema(con)
+
+    # Find replays with classified friendly archetype that we haven't
+    # decomposed yet.
+    rows = con.execute("""
+        SELECT DISTINCT p.replay_short_id AS short_id,
+               p.friendly_archetype     AS arch,
+               r.file_path              AS file_path
+        FROM untapped_sideboard_plans p
+        JOIN untapped_replays r ON r.short_id = p.replay_short_id
+        WHERE COALESCE(p.friendly_archetype, '') NOT IN ('', 'Unknown')
+          AND NOT EXISTS (
+              SELECT 1 FROM untapped_replay_decks d
+              WHERE d.replay_short_id = p.replay_short_id
+          )
+    """).fetchall()
+
+    if limit:
+        rows = rows[:limit]
+
+    stats = {"processed": 0, "cards_written": 0, "missing_replay": 0,
+             "no_archetype": 0}
+
+    for r in rows:
+        short_id = r["short_id"]
+        archetype = r["arch"]
+        stored_path = r["file_path"] or ""
+
+        replay_path = Path(stored_path) if stored_path else REPLAY_DIR / f"{short_id}.json.gz"
+        if not replay_path.exists():
+            replay_path = REPLAY_DIR / f"{short_id}.json.gz"
+        if not replay_path.exists():
+            stats["missing_replay"] += 1
+            continue
+
+        try:
+            with gzip.open(replay_path, "rt", encoding="utf-8", errors="replace") as f:
+                data = json.load(f)
+        except Exception:
+            stats["missing_replay"] += 1
+            continue
+
+        decks = data.get("decks", []) or []
+        if not decks or not isinstance(decks[0], dict):
+            continue
+        main_grp_ids = (decks[0].get("deck", {}) or {}).get("mainDeck", []) or []
+
+        grp_counts: dict = {}
+        for g in main_grp_ids:
+            if isinstance(g, int) and g > 0:
+                grp_counts[g] = grp_counts.get(g, 0) + 1
+        if not grp_counts:
+            continue
+
+        ph = ",".join("?" * len(grp_counts))
+        name_rows = con.execute(
+            f"SELECT grpid, name FROM untapped_card_db "
+            f"WHERE grpid IN ({ph}) AND name IS NOT NULL",
+            list(grp_counts.keys()),
+        ).fetchall()
+
+        name_qty: dict = {}
+        for row in name_rows:
+            name_qty[row["name"]] = name_qty.get(row["name"], 0) + grp_counts[row["grpid"]]
+        if not name_qty:
+            continue
+
+        for name, qty in name_qty.items():
+            con.execute(
+                "INSERT OR REPLACE INTO untapped_replay_decks "
+                "(replay_short_id, card_name, quantity, archetype) "
+                "VALUES (?, ?, ?, ?)",
+                (short_id, name, qty, archetype),
+            )
+        stats["cards_written"] += len(name_qty)
+        stats["processed"] += 1
+
+    con.commit()
+    con.close()
+    return stats
 
 
 def classify_friendly_deck(replay_path: Path) -> str:

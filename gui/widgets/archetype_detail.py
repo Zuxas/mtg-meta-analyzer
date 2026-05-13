@@ -218,9 +218,31 @@ def _placement_str(p: int) -> str:
 # Sub-widgets
 # ---------------------------------------------------------------------------
 
-def _make_avg_table(mainboard: list, sideboard: list) -> QTableWidget:
-    """QTableWidget showing the average deck card list."""
+def _make_avg_table(mainboard: list, sideboard: list, archetype: str = "") -> QTableWidget:
+    """QTableWidget showing the average deck card list.
+
+    Includes a "Mythic %" column that overlays inclusion rate from
+    Untapped mythic-tier replay decks (untapped_replay_decks) when
+    available. Lets the user compare paper-meta inclusion vs MTGA Mythic
+    inclusion to spot tech divergences.
+    """
+    # Fetch mythic inclusion data (None for both lists -- mythic data is
+    # mainboard-only since SB transitions live in untapped_sideboard_plans).
+    mythic_data: dict = {}
+    mythic_sample_size = 0
+    if archetype:
+        try:
+            from db.untapped_queries import get_mythic_card_inclusion
+            mythic_data = get_mythic_card_inclusion(archetype) or {}
+            if mythic_data:
+                mythic_sample_size = next(iter(mythic_data.values())).get("total_decks", 0)
+        except Exception:
+            mythic_data = {}
+
     cols = ["Card", "Incl %", "Avg Copies"]
+    has_mythic = bool(mythic_data)
+    if has_mythic:
+        cols.append(f"Mythic % (N={mythic_sample_size})")
     rows_data = []
     if mainboard:
         rows_data.append(("__header__", "MAINBOARD", None, None))
@@ -231,7 +253,8 @@ def _make_avg_table(mainboard: list, sideboard: list) -> QTableWidget:
         for c in sideboard:
             rows_data.append(("card", c["name"], c["inclusion_rate"], c["avg_qty"]))
 
-    tbl = QTableWidget(len(rows_data), 3)
+    ncols = 4 if has_mythic else 3
+    tbl = QTableWidget(len(rows_data), ncols)
     tbl.setHorizontalHeaderLabels(cols)
     tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -239,8 +262,15 @@ def _make_avg_table(mainboard: list, sideboard: list) -> QTableWidget:
     tbl.verticalHeader().setVisible(False)
     hh = tbl.horizontalHeader()
     hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-    hh.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-    hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+    for ci in range(1, ncols):
+        hh.setSectionResizeMode(ci, QHeaderView.ResizeMode.ResizeToContents)
+    if has_mythic:
+        tbl.setToolTip(
+            f"Mythic % column: inclusion rate in Untapped mythic-tier replays\n"
+            f"for this archetype. Sample size: {mythic_sample_size} decks.\n"
+            f"Compare against paper Incl % to spot tech divergences\n"
+            f"between competitive paper and top MTGA ladder."
+        )
 
     section_font = QFont()
     section_font.setBold(True)
@@ -254,7 +284,7 @@ def _make_avg_table(mainboard: list, sideboard: list) -> QTableWidget:
             item.setBackground(QColor(theme.PANEL))
             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             tbl.setItem(row, 0, item)
-            for col in range(1, 3):
+            for col in range(1, ncols):
                 cell = QTableWidgetItem("")
                 cell.setBackground(QColor(theme.PANEL))
                 cell.setFlags(Qt.ItemFlag.ItemIsEnabled)
@@ -275,6 +305,24 @@ def _make_avg_table(mainboard: list, sideboard: list) -> QTableWidget:
             qty_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             qty_item.setBackground(bg)
             tbl.setItem(row, 2, qty_item)
+
+            if has_mythic:
+                myth = mythic_data.get(name)
+                if myth:
+                    pct = myth["inclusion_rate"] * 100
+                    delta = pct - (rate * 100)
+                    sign = "↑" if delta >= 5 else ("↓" if delta <= -5 else "")
+                    txt = f"{int(pct)}%  {sign}".strip()
+                    myth_item = QTableWidgetItem(txt)
+                else:
+                    myth_item = QTableWidgetItem("—")
+                myth_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                myth_item.setBackground(bg)
+                if myth and (myth["inclusion_rate"] * 100 - rate * 100) >= 5:
+                    myth_item.setForeground(QColor(theme.OK))
+                elif myth and (rate * 100 - myth["inclusion_rate"] * 100) >= 5:
+                    myth_item.setForeground(QColor(theme.ERR))
+                tbl.setItem(row, 3, myth_item)
 
     return tbl
 
@@ -1081,7 +1129,8 @@ class ArchetypeDetailDialog(QDialog):
                 self._tabs.addTab(this_tab, "This List")
 
         # Tab 1 — Average Deck (with card image tooltips on hover)
-        avg_tbl = _make_avg_table(data["mainboard"], data["sideboard"])
+        avg_tbl = _make_avg_table(data["mainboard"], data["sideboard"],
+                                  archetype=self._archetype)
         from gui.widgets.card_tooltip import install_card_tooltip
         install_card_tooltip(avg_tbl, card_name_column=0)
         self._tabs.addTab(avg_tbl, "Average Deck")
