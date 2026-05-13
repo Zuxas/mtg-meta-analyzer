@@ -40,6 +40,11 @@ worked / didn't, expected vs actual matchups.
       until match APLs exist.
 
 ### UI/UX
+- [ ] **GUI ergonomics — Direction A (palette + sticky state)** —
+      spec at `docs/superpowers/specs/2026-05-13-gui-palette-sticky-state-design.md`.
+      Ctrl+K command palette over tabs/archetypes/decks/cards/actions,
+      plus persisted format/timeframe/per-tab selection across switches.
+      Direction C (design language pass + tab reorg) queued as follow-up arc.
 - [ ] Interaction speed — filters update in place (no full refresh)
 - [ ] Dashboard + Heatmap empty-state polish
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions

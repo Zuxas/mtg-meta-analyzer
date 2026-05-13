@@ -65,6 +65,9 @@ data/models/
 # Graphify output (regenerable)
 graphify-out/
 
+# Superpowers brainstorming session artifacts
+.superpowers/
+
 # Dev scratch
 scripts/scratch/
 _*.txt
