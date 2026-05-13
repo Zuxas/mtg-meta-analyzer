@@ -11,3 +11,6 @@ qtawesome>=1.4.0
 
 # Test infrastructure (added 2026-05-13)
 pytest>=8.0
+
+# Fast C-backed fuzzy match backend for thefuzz (used by command palette)
+rapidfuzz>=3.0
