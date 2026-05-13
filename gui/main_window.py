@@ -13,10 +13,10 @@ import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QLabel, QApplication,
-    QVBoxLayout, QHBoxLayout, QFrame, QWidget,
+    QVBoxLayout, QHBoxLayout, QFrame, QWidget, QPushButton,
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QKeySequence, QShortcut
 
 from gui.tabs.dashboard         import DashboardTab
 from gui.tabs.deck_analyzer     import DeckAnalyzerTab
@@ -108,6 +108,21 @@ class MainWindow(QMainWindow):
         )
         hl.addWidget(team_label)
         hl.addStretch()
+
+        # Refresh button (F5 shortcut) — re-queries DB for the active tab
+        self._refresh_btn = QPushButton("↻ Refresh")
+        self._refresh_btn.setToolTip(
+            "Reload the current tab from the database (F5).\n"
+            "Use after editing data outside the GUI (CLI, manual DB writes, etc.)"
+        )
+        self._refresh_btn.setStyleSheet(theme.btn_secondary())
+        self._refresh_btn.setFixedHeight(28)
+        self._refresh_btn.clicked.connect(self._refresh_current_tab)
+        hl.addWidget(self._refresh_btn)
+
+        # F5 keyboard shortcut
+        self._refresh_shortcut = QShortcut(QKeySequence("F5"), self)
+        self._refresh_shortcut.activated.connect(self._refresh_current_tab)
 
         central_layout.addWidget(header)
 
@@ -217,6 +232,42 @@ class MainWindow(QMainWindow):
             f"color: {theme.ACCENT}; font-size: 11px; padding-right: 12px;"
         )
         sb.addPermanentWidget(self._event_count_lbl)
+
+    # ------------------------------------------------------------------
+    # Refresh / Reload
+    # ------------------------------------------------------------------
+
+    def _refresh_current_tab(self):
+        """Reload the currently visible tab from the database.
+
+        Walks down through any QTabWidget containers to find the actual
+        leaf tab, then calls its reload() method if it exists. Falls back
+        to known per-tab load method names. No-op (with a status hint) if
+        the leaf tab doesn't expose a refresh hook.
+        """
+        widget = self._tabs.currentWidget()
+        # Descend through nested QTabWidget containers (META / DECKS / TOURNAMENT / RESOURCES)
+        for _ in range(3):  # bound recursion
+            if isinstance(widget, QTabWidget):
+                widget = widget.currentWidget()
+            else:
+                break
+
+        name = type(widget).__name__ if widget else "(none)"
+
+        # Try common reload hooks in priority order
+        for method_name in ("reload", "refresh", "_load_decks",
+                            "_load_combined", "_load_dashboard"):
+            method = getattr(widget, method_name, None)
+            if callable(method):
+                try:
+                    method()
+                    self._status_lbl.setText(f"Refreshed {name} via {method_name}()")
+                    return
+                except Exception as exc:
+                    self._status_lbl.setText(f"Refresh {name} failed: {exc}")
+                    return
+        self._status_lbl.setText(f"{name} has no refresh hook")
 
     # ------------------------------------------------------------------
     # Ask Claude tab (optional — shown only when API key is configured)

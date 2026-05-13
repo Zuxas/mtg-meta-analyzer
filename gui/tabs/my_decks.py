@@ -589,6 +589,25 @@ class MyDecksTab(QWidget):
         w.start()
         self._workers.append(w)
 
+    def reload(self):
+        """Re-query saved_decks + saved_sb_plans from the DB.
+
+        Preserves the currently selected deck's SB plan view if any. Wired
+        to the main-window F5 / Refresh button via MainWindow._refresh_current_tab.
+        """
+        # Remember which deck (if any) is selected so we can re-show its plans
+        current_row = self._table.currentRow() if hasattr(self, "_table") else -1
+        current_deck_id = None
+        if current_row >= 0:
+            item = self._table.item(current_row, 0)
+            if item is not None:
+                current_deck_id = item.data(Qt.ItemDataRole.UserRole)
+
+        self._load_decks()
+
+        if current_deck_id is not None:
+            self._load_sb_plans(current_deck_id)
+
     def _on_decks_loaded(self, decks: list):
         self._empty_state.setVisible(not decks)
         self._table.setVisible(bool(decks))
