@@ -44,11 +44,35 @@
 ## Task 1: Bootstrap pytest + UIState skeleton (failing tests)
 
 **Files:**
+- Modify: `requirements.txt` (add `pytest>=8.0`)
 - Create: `tests/__init__.py` (empty)
 - Create: `tests/conftest.py`
 - Create: `tests/test_ui_state.py`
 
 The codebase has no test infrastructure yet. This task adds the smallest viable pytest setup AND writes failing tests for `UIState` before any implementation.
+
+- [ ] **Step 1.0: Add pytest to requirements.txt**
+
+Append at the end of `requirements.txt`:
+
+```
+# Test infrastructure (added 2026-05-13)
+pytest>=8.0
+```
+
+Then install:
+
+```bash
+pip install pytest>=8.0
+```
+
+Verify:
+
+```bash
+python -m pytest --version
+```
+
+Expected: `pytest 8.x.x` (or newer).
 
 - [ ] **Step 1.1: Create empty `tests/__init__.py`**
 
@@ -627,12 +651,17 @@ import gui.theme as theme
 from gui.widgets.palette_registry import PaletteEntry, PaletteRegistry
 
 
+# Verified token names from gui/theme.py: PANEL, SURFACE, INPUT, BORDER,
+# ACCENT, ACCENT_LT, ACCENT_DK, ACCENT2, TEXT, TEXT_DIM, TEXT_OFF, WARN, OK, ERR.
+# There is NO theme.HOVER, NO theme.MUTED, NO theme.WARNING — use rgba()
+# literals for hover (matching existing stylesheet patterns) and TEXT_DIM /
+# WARN respectively.
 CATEGORY_COLORS = {
     "TAB":  theme.ACCENT,
-    "ACT":  theme.WARNING if hasattr(theme, "WARNING") else theme.ACCENT,
-    "ARCH": theme.ACCENT,
-    "DECK": theme.ACCENT,
-    "CARD": theme.ACCENT,
+    "ACT":  theme.WARN,
+    "ARCH": theme.ACCENT_LT,
+    "DECK": theme.OK,
+    "CARD": theme.ACCENT2,
 }
 
 
@@ -647,7 +676,7 @@ class _ResultRow(QFrame):
         tag = QLabel(entry.category)
         tag.setFixedWidth(48)
         tag.setStyleSheet(
-            f"color: {CATEGORY_COLORS.get(entry.category, theme.MUTED)};"
+            f"color: {CATEGORY_COLORS.get(entry.category, theme.TEXT_DIM)};"
             f" font-size: 10px; font-weight: 600;"
         )
         text = QWidget()
@@ -659,7 +688,7 @@ class _ResultRow(QFrame):
         text_lay.addWidget(name_lbl)
         if entry.secondary:
             sec_lbl = QLabel(entry.secondary)
-            sec_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
+            sec_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
             text_lay.addWidget(sec_lbl)
         layout.addWidget(tag)
         layout.addWidget(text, 1)
@@ -687,7 +716,8 @@ class CommandPalette(QDialog):
         self.setModal(True)
         self.setFixedSize(600, 400)
         self.setStyleSheet(
-            f"QDialog {{ background: {theme.PANEL}; border: 1px solid {theme.BORDER}; }}"
+            f"QDialog {{ background: {theme.SURFACE}; border: 1px solid {theme.BORDER};"
+            f" border-radius: 8px; }}"
         )
 
         layout = QVBoxLayout(self)
@@ -695,7 +725,7 @@ class CommandPalette(QDialog):
         layout.setSpacing(0)
 
         self.input = QLineEdit()
-        self.input.setPlaceholderText("Type to search — prefixes: > # @ : c:")
+        self.input.setPlaceholderText("Type to search — prefixes: > actions  # tabs  @ archetypes  : decks  c: cards")
         self.input.setStyleSheet(
             f"QLineEdit {{ background: transparent; color: {theme.TEXT};"
             f" border: none; border-bottom: 1px solid {theme.BORDER};"
@@ -705,9 +735,15 @@ class CommandPalette(QDialog):
         layout.addWidget(self.input)
 
         self.list_widget = QListWidget()
+        # Selected-item style matches the existing stylesheet pattern (see
+        # gui/theme.py: QTableWidget::item:selected uses
+        # `rgba(94, 181, 207, 0.15)` with color ACCENT_LT).
         self.list_widget.setStyleSheet(
             f"QListWidget {{ background: transparent; border: none; }}"
-            f" QListWidget::item:selected {{ background: {theme.HOVER}; }}"
+            f" QListWidget::item:selected {{"
+            f"   background: rgba(94, 181, 207, 0.15);"
+            f"   color: {theme.ACCENT_LT};"
+            f" }}"
         )
         self.list_widget.itemActivated.connect(self._on_activate)
         layout.addWidget(self.list_widget)
@@ -814,7 +850,7 @@ if TYPE_CHECKING:
 
 def register_tab_entries(reg: PaletteRegistry, window: "MainWindow") -> None:
     """Walk the QTabWidget tree and register every leaf tab as TAB:..."""
-    root = window.tabs  # top-level QTabWidget; assumed wired in MainWindow
+    root = window._tabs  # verified: top-level QTabWidget in MainWindow (main_window.py:129)
 
     def _walk(tabs, path_prefix: str) -> None:
         for i in range(tabs.count()):
@@ -864,10 +900,23 @@ def register_action_entries(reg: PaletteRegistry, window: "MainWindow") -> None:
 
 
 def register_archetype_entries(reg: PaletteRegistry, window: "MainWindow") -> None:
-    """Enumerate archetypes from the DB and register ARCH:* entries."""
+    """Enumerate distinct archetypes from the decks table and register ARCH:*.
+
+    `analysis/archetypes.py` does NOT expose a public "list all archetypes"
+    function (only `merge_archetypes()`, `pre_normalize()`, `ALIASES`).
+    Source-of-truth archetype names come from the decks table directly.
+    The window argument is currently unused here — kept for symmetry with
+    other registrars in case the handler later needs window context.
+    """
     try:
-        from analysis.archetypes import all_archetype_names
-        names = all_archetype_names()
+        from db.database import get_combined_connection
+        conn = get_combined_connection()
+        cur = conn.execute(
+            "SELECT DISTINCT archetype FROM decks "
+            "WHERE archetype IS NOT NULL AND archetype != '' "
+            "ORDER BY archetype"
+        )
+        names = [row[0] for row in cur]
     except Exception:
         return
     for name in names:
@@ -880,10 +929,16 @@ def register_archetype_entries(reg: PaletteRegistry, window: "MainWindow") -> No
 
 
 def register_deck_entries(reg: PaletteRegistry, window: "MainWindow") -> None:
-    """Enumerate saved_decks rows and register DECK:* entries."""
+    """Enumerate saved_decks rows and register DECK:* entries.
+
+    Verified signature: `db.saved_decks.get_decks(format_name: str = None)
+    -> list[dict]`. Each dict has keys 'id', 'name', 'format', 'archetype',
+    'mainboard', 'sideboard', 'notes', 'created_at' (see save_deck schema
+    in db/saved_decks.py).
+    """
     try:
-        from db.saved_decks import list_saved_decks
-        rows = list_saved_decks()
+        from db.saved_decks import get_decks
+        rows = get_decks()
     except Exception:
         return
     for row in rows:
@@ -990,7 +1045,7 @@ Add these methods to `MainWindow` (anywhere after `__init__`):
         """e.g. 'Decks/My Decks' → switch top-level Decks then sub-tab My Decks."""
         parts = path.split("/")
         from PyQt6.QtWidgets import QTabWidget
-        node = self.tabs
+        node = self._tabs
         for part in parts:
             for i in range(node.count()):
                 if node.tabText(i) == part:
@@ -1030,7 +1085,7 @@ Add these methods to `MainWindow` (anywhere after `__init__`):
                     if found is not None:
                         return found
             return None
-        return _walk(self.tabs)
+        return _walk(self._tabs)
 
     def reset_ui_state(self) -> None:
         from PyQt6.QtWidgets import QMessageBox
@@ -1055,7 +1110,7 @@ Add these methods to `MainWindow` (anywhere after `__init__`):
         super().closeEvent(event)
 ```
 
-**Find existing `self.tabs` reference:** This plan assumes the top-level `QTabWidget` in MainWindow is exposed as `self.tabs`. If `_build_ui` names it something else (e.g. `self._tabs`, `self.tab_widget`), update the attribute reference in all helpers above to match.
+**Verified 2026-05-13:** The top-level `QTabWidget` in `MainWindow._build_ui()` is named `self._tabs` (line 129 of `gui/main_window.py`). The nested tab containers are `self._meta_tab`, `self._decks_tab`, `self._tournament_tab`, `self._resources_tab`. The `_refresh_current_tab` method already exists and walks the tree — your `act:refresh-current-tab` handler can call it directly.
 
 - [ ] **Step 6.3: Manual smoke test — palette opens**
 
@@ -1082,44 +1137,66 @@ These two are the highest-value persistence slices (Tokyo Prowess deck pre-selec
 - Modify: `gui/tabs/dashboard.py`
 - Modify: `gui/tabs/my_decks.py`
 
-- [ ] **Step 7.1: Dashboard hydration**
+**Important context (verified 2026-05-13):** Format and timeframe selectors are **per-tab**, not global. The dashboard's timeframe widget is `self._tf` (a `QComboBox` populated from `theme.TIMEFRAME_OPTIONS`; default text `theme.TIMEFRAME_DEFAULT = "2 weeks"`; `currentIndexChanged` signal wired to `self._schedule_refresh()`). See `gui/tabs/dashboard.py` line ~272. Persistence respects that reality: each tab persists its own slice. No cross-tab broadcast.
 
-Find the dashboard's archetype selector widget (likely `QComboBox` named `_archetype_combo` or similar — grep for `archetype` and `addItems`/`currentTextChanged` in `gui/tabs/dashboard.py`). Find or add a `showEvent` override on `DashboardTab`:
+The archetype selector widget on Dashboard is not visible by name from a top-level grep. Step 7.1 below shows the persistence pattern; **the executor must grep `gui/tabs/dashboard.py` for `QComboBox` and the existing archetype-population code (look near `_load_dashboard`, `_populate_popularity`) to find the actual attribute name**. If the dashboard archetype widget does not exist as a single combo (e.g. selection happens via clicking a row in a `QTableWidget` instead), drop the `selected_archetype` persistence for v1 and replace with whatever single-value selection the user actually controls.
+
+- [ ] **Step 7.1: Dashboard hydration — timeframe (verified) + archetype (grep-confirm)**
+
+Add a `showEvent` override to `DashboardTab` (top of class, after `__init__`):
 
 ```python
     def showEvent(self, event):
         super().showEvent(event)
-        if getattr(self, "_hydrated", False):
+        if getattr(self, "_hydrated_state", False):
             return
         self._hydrate_from_state()
-        self._hydrated = True
+        self._hydrated_state = True
 
     def _hydrate_from_state(self) -> None:
         from gui.state import UIState
         state = UIState.instance()
-        arch = state.get("tabs.dashboard.selected_archetype")
-        chart_archs = state.get("tabs.dashboard.chart_archetypes", [])
-        if arch and hasattr(self, "_archetype_combo"):
-            self._archetype_combo.blockSignals(True)
-            idx = self._archetype_combo.findText(arch)
+        # Timeframe — verified: self._tf is a QComboBox storing text values
+        # like "2 weeks" / "4 weeks" / "All Time"
+        tf = state.get("tabs.dashboard.timeframe")
+        if tf and hasattr(self, "_tf"):
+            self._tf.blockSignals(True)
+            idx = self._tf.findText(tf)
             if idx >= 0:
-                self._archetype_combo.setCurrentIndex(idx)
-            self._archetype_combo.blockSignals(False)
-        # Apply chart_archs similarly — find the chart-archetype checklist
-        # widget by grepping for "chart_archetypes" / "_chart_archs"
+                self._tf.setCurrentIndex(idx)
+            self._tf.blockSignals(False)
+        # Archetype — GREP-CONFIRM: open dashboard.py, search for "QComboBox"
+        # populated with archetype names. If named `self._arch_combo` (or
+        # similar), uncomment and rename below:
+        # arch = state.get("tabs.dashboard.selected_archetype")
+        # if arch and hasattr(self, "_arch_combo"):
+        #     self._arch_combo.blockSignals(True)
+        #     idx = self._arch_combo.findText(arch)
+        #     if idx >= 0:
+        #         self._arch_combo.setCurrentIndex(idx)
+        #     self._arch_combo.blockSignals(False)
+        # If dashboard archetype is selected via QTableWidget row instead,
+        # skip persistence for v1 and document in spec follow-ups.
 ```
 
-Wire persistence — after the archetype combo is created in `_build_ui` (or equivalent), connect its `currentTextChanged` signal:
+Wire persistence — at the bottom of `_build_ui` (or wherever `self._tf` is created — line ~272), add:
 
 ```python
-        self._archetype_combo.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.dashboard.selected_archetype", txt)
+        from gui.state import UIState
+        self._tf.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.dashboard.timeframe", txt)
         )
+        # For the archetype combo (after grep-confirming attribute name):
+        # self._arch_combo.currentTextChanged.connect(
+        #     lambda txt: UIState.instance().set("tabs.dashboard.selected_archetype", txt)
+        # )
 ```
 
 - [ ] **Step 7.2: My Decks hydration**
 
-In `gui/tabs/my_decks.py`, find the deck list widget (likely `QListWidget` or similar — grep for `saved_decks` and `addItem` in the file). Add `select_deck_by_id` (used by `MainWindow.open_saved_deck`), `showEvent` hydration, and selection persistence:
+In `gui/tabs/my_decks.py`, find the deck list widget. `MyDecksTab` is a god node (37 edges per graph report); grep for `QListWidget` and `setData(Qt.ItemDataRole.UserRole`. The standard pattern is `item.setData(Qt.ItemDataRole.UserRole, deck["id"])` somewhere in the deck-population code.
+
+Add `select_deck_by_id` (called by `MainWindow.open_saved_deck`), `showEvent` hydration, and selection persistence:
 
 ```python
     def showEvent(self, event):
@@ -1178,49 +1255,191 @@ git commit -m "feat(gui): sticky state for Dashboard archetype + My Decks select
 
 ## Task 8: Per-tab sticky state — Charts, Heatmap, Scout
 
-Same pattern as Task 7. Smaller per-tab footprint, batched into one task.
+Three tabs, same pattern. Each step shows the full code (no "same as above") because the widget names differ per tab and the executor may work them out of order.
 
 **Files:**
 - Modify: `gui/tabs/charts.py`
 - Modify: `gui/tabs/heatmap_tab.py`
 - Modify: `gui/tabs/scout.py`
 
+**Pattern recap:**
+1. Override `showEvent`. Guard with `_hydrated_state` flag so we only hydrate once per session.
+2. Read each persisted field via `UIState.instance().get("tabs.<tab>.<field>", default)`.
+3. Apply to widget with `blockSignals(True)` / `False` wrapping.
+4. Connect the widget's change signal to a one-line lambda that calls `UIState.instance().set(...)`.
+
+For Tasks 8.1-8.3, **first** grep the target file for `QComboBox`, `QListWidget`, `QSpinBox` and confirm the actual attribute names. The names below are this plan's best-guess; rename inline if they differ.
+
 - [ ] **Step 8.1: Charts (`gui/tabs/charts.py`)**
 
-Add `showEvent` hydration + change-signal persistence for the archetype multi-select widget and the chart-type combo. State path: `tabs.charts.archetypes` (list of strings), `tabs.charts.chart_type` (string).
+Expected widgets: `self._tf` (timeframe combo, same pattern as Dashboard), `self._chart_type_combo` (chart type), `self._arch_list` (archetype multi-select; likely `QListWidget` with checkable items).
 
 ```python
     def showEvent(self, event):
         super().showEvent(event)
-        if getattr(self, "_hydrated", False):
+        if getattr(self, "_hydrated_state", False):
             return
         from gui.state import UIState
         state = UIState.instance()
+
+        # Timeframe
+        tf = state.get("tabs.charts.timeframe")
+        if tf and hasattr(self, "_tf"):
+            self._tf.blockSignals(True)
+            idx = self._tf.findText(tf)
+            if idx >= 0:
+                self._tf.setCurrentIndex(idx)
+            self._tf.blockSignals(False)
+
+        # Chart type
         chart_type = state.get("tabs.charts.chart_type")
-        archs = state.get("tabs.charts.archetypes", [])
         if chart_type and hasattr(self, "_chart_type_combo"):
             self._chart_type_combo.blockSignals(True)
             idx = self._chart_type_combo.findText(chart_type)
             if idx >= 0:
                 self._chart_type_combo.setCurrentIndex(idx)
             self._chart_type_combo.blockSignals(False)
-        # archs: depends on existing widget — find via grep for "archetype" in file
-        self._hydrated = True
+
+        # Archetypes (multi-select via QListWidget checkable items)
+        archs = state.get("tabs.charts.archetypes", [])
+        if archs and hasattr(self, "_arch_list"):
+            self._arch_list.blockSignals(True)
+            from PyQt6.QtCore import Qt
+            for i in range(self._arch_list.count()):
+                item = self._arch_list.item(i)
+                if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                    item.setCheckState(
+                        Qt.CheckState.Checked if item.text() in archs
+                        else Qt.CheckState.Unchecked
+                    )
+            self._arch_list.blockSignals(False)
+
+        self._hydrated_state = True
 ```
 
-Persistence: connect `currentTextChanged` on the chart-type combo and the change signal on the archetype-list widget to `UIState.instance().set(...)` calls.
+Wire persistence — after each widget is created in `_build_ui`:
+
+```python
+        from gui.state import UIState
+        self._tf.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.charts.timeframe", txt)
+        )
+        self._chart_type_combo.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.charts.chart_type", txt)
+        )
+        self._arch_list.itemChanged.connect(self._persist_charts_archetypes)
+
+    def _persist_charts_archetypes(self, _item):
+        from PyQt6.QtCore import Qt
+        from gui.state import UIState
+        checked = [
+            self._arch_list.item(i).text()
+            for i in range(self._arch_list.count())
+            if self._arch_list.item(i).checkState() == Qt.CheckState.Checked
+        ]
+        UIState.instance().set("tabs.charts.archetypes", checked)
+```
 
 - [ ] **Step 8.2: Heatmap (`gui/tabs/heatmap_tab.py`)**
 
-State paths: `tabs.matchup_data.top_n` (int), `tabs.matchup_data.source_filter` (string). Same hydration + persistence pattern.
+Expected widgets: `self._top_n_spin` (QSpinBox for top-N), `self._source_combo` (QComboBox for data-source filter — "all" / "real" / "scraped" / "untapped").
+
+```python
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_hydrated_state", False):
+            return
+        from gui.state import UIState
+        state = UIState.instance()
+
+        top_n = state.get("tabs.matchup_data.top_n")
+        if top_n is not None and hasattr(self, "_top_n_spin"):
+            self._top_n_spin.blockSignals(True)
+            self._top_n_spin.setValue(int(top_n))
+            self._top_n_spin.blockSignals(False)
+
+        src = state.get("tabs.matchup_data.source_filter")
+        if src and hasattr(self, "_source_combo"):
+            self._source_combo.blockSignals(True)
+            idx = self._source_combo.findText(src)
+            if idx >= 0:
+                self._source_combo.setCurrentIndex(idx)
+            self._source_combo.blockSignals(False)
+
+        self._hydrated_state = True
+```
+
+Persistence:
+
+```python
+        from gui.state import UIState
+        self._top_n_spin.valueChanged.connect(
+            lambda v: UIState.instance().set("tabs.matchup_data.top_n", int(v))
+        )
+        self._source_combo.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.matchup_data.source_filter", txt)
+        )
+```
 
 - [ ] **Step 8.3: Scout (`gui/tabs/scout.py`)**
 
-State paths: `tabs.scout.days` (int), `tabs.scout.target_archetypes` (list of strings). Same pattern.
+Expected widgets: `self._days_spin` (QSpinBox for days-window), `self._target_list` (QListWidget for target archetypes).
+
+```python
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_hydrated_state", False):
+            return
+        from gui.state import UIState
+        state = UIState.instance()
+
+        days = state.get("tabs.scout.days")
+        if days is not None and hasattr(self, "_days_spin"):
+            self._days_spin.blockSignals(True)
+            self._days_spin.setValue(int(days))
+            self._days_spin.blockSignals(False)
+
+        targets = state.get("tabs.scout.target_archetypes", [])
+        if targets and hasattr(self, "_target_list"):
+            self._target_list.blockSignals(True)
+            from PyQt6.QtCore import Qt
+            for i in range(self._target_list.count()):
+                item = self._target_list.item(i)
+                if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                    item.setCheckState(
+                        Qt.CheckState.Checked if item.text() in targets
+                        else Qt.CheckState.Unchecked
+                    )
+            self._target_list.blockSignals(False)
+
+        self._hydrated_state = True
+```
+
+Persistence:
+
+```python
+        from gui.state import UIState
+        self._days_spin.valueChanged.connect(
+            lambda v: UIState.instance().set("tabs.scout.days", int(v))
+        )
+        self._target_list.itemChanged.connect(self._persist_scout_targets)
+
+    def _persist_scout_targets(self, _item):
+        from PyQt6.QtCore import Qt
+        from gui.state import UIState
+        checked = [
+            self._target_list.item(i).text()
+            for i in range(self._target_list.count())
+            if self._target_list.item(i).checkState() == Qt.CheckState.Checked
+        ]
+        UIState.instance().set("tabs.scout.target_archetypes", checked)
+```
 
 - [ ] **Step 8.4: Manual smoke**
 
-For each tab: set a non-default value, switch away, switch back → preserved. Restart app → preserved.
+For each of the three tabs: set a non-default value (Charts: pick a chart-type + check 2-3 archetypes; Heatmap: change top-N to 20 and source to "real"; Scout: change days to 30). Switch away and back → preserved. Close app and relaunch → still preserved.
+
+If any widget name doesn't match (e.g. `_arch_list` is actually `_archetype_list`), update the attribute reference and re-run the smoke for that tab.
 
 - [ ] **Step 8.5: Commit**
 
@@ -1273,7 +1492,7 @@ Append this paragraph after the "Timeframe System" subsection:
 
 ```markdown
 ### Persisted UI state
-`gui/state.py::UIState` is a singleton wrapping `data/preferences.json` under a `ui_state` key. Tabs hydrate from it in `showEvent` (with `blockSignals(True)` to avoid loops) and persist on widget change. Slices today: `global.format`, `global.timeframe`, `global.last_active_tab_path`, plus per-tab selections for Dashboard / My Decks / Charts / Heatmap / Scout. Schema-tolerant (`get(path, default)` always returns the default). Reset via palette `> Reset UI state` or Settings button.
+`gui/state.py::UIState` is a singleton wrapping `data/preferences.json` under a `ui_state` key. Tabs hydrate from it in `showEvent` (with `blockSignals(True)` to avoid loops) and persist on widget change. Slices today: `global.last_active_tab_path`, plus **per-tab** selections — Dashboard timeframe + archetype, My Decks selected deck, Charts timeframe + archetypes + chart-type, Heatmap top-N + source filter, Scout days + target archetypes. Format/timeframe are per-tab (not global broadcast) because the current GUI architecture has per-tab selectors. Schema-tolerant (`get(path, default)` always returns the default). Reset via palette `> Reset UI state` or Settings button.
 
 ### Command palette
 **Ctrl+K** opens `gui/widgets/command_palette.py::CommandPalette`. Fuzzy-searches `gui/widgets/palette_registry.py::PaletteRegistry`, populated at startup by `gui/widgets/_palette_actions.py::register_all`. Categories: TAB / ARCH / DECK / CARD / ACT. Prefixes: `>` actions, `#` tabs, `@` archetypes, `:` decks, `c:` cards. Recents persisted in `ui_state.palette_recents` (top 20, stale entries pruned by `PaletteRegistry.prune_recents`).
@@ -1343,7 +1562,17 @@ git push
 
 **Type consistency:** `UIState.get/set/reset/flush` consistent across Tasks 1, 2, 6, 7, 8, 9. `PaletteEntry` fields stable across Tasks 3-6. `PaletteRegistry.register/unregister/get/has/search/prune_recents` consistent across Tasks 3-6.
 
-**Open question for executor:** the exact attribute name for the top-level QTabWidget in `MainWindow` is assumed to be `self.tabs` (Task 6) — first thing to grep for when starting Task 6. If different, find-and-replace once at Task 6 start.
+**Verified in main_window.py:** top-level QTabWidget is `self._tabs`; sub-tabs are `self._meta_tab`, `self._decks_tab`, `self._tournament_tab`, `self._resources_tab`. Refresh method is `_refresh_current_tab`. `db.saved_decks.get_decks()` returns `list[dict]` with `id`/`name`/`format`/`archetype` keys. Dashboard timeframe widget is `self._tf` (QComboBox, `theme.TIMEFRAME_OPTIONS`, default `"2 weeks"`).
+
+**v2 revisions applied 2026-05-13 from advisor pass:**
+- Dropped `global.format` / `global.timeframe` from persistence — format/timeframe are per-tab in the current GUI (each tab owns its own combo). Persistence respects that.
+- Card-prefix gating simplified: cards always behind `c:` only; no ≥2-char fallback. Empty-state placeholder text hints at the prefix.
+- Theme tokens corrected — `theme.HOVER` / `theme.MUTED` / `theme.WARNING` don't exist; use `theme.SURFACE`/`theme.TEXT_DIM`/`theme.WARN` plus the existing `rgba(94, 181, 207, 0.15)` hover pattern.
+- `self.tabs` → `self._tabs` everywhere.
+- `analysis.archetypes.all_archetype_names()` was fictional; replaced with `SELECT DISTINCT archetype FROM decks` via `get_combined_connection()`.
+- `db.saved_decks.list_saved_decks()` → `db.saved_decks.get_decks()` (verified signature).
+- `pytest` added to requirements.txt at Step 1.0 (was missing).
+- Per-tab task code is now repeated explicitly per tab in Task 8, not "same pattern as above".
 
 ---
 

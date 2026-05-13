@@ -109,7 +109,7 @@ Stable command IDs (used by `palette_recents` so they survive renames / tab reor
 - `thefuzz` (already in requirements per CI fix). `process.extract` with `WRatio` scorer, top 8 across categories.
 - All sources indexed in-memory at startup (~200 strings + 32k card names = trivial).
 - No DB re-query per keystroke.
-- **Card category gating:** because 32k card names would flood results, cards only surface when (a) input is prefixed `c:` OR (b) input is ≥2 chars AND no non-card results match. This prevents incidental card spam on short queries.
+- **Card category gating:** because 32k card names would flood results, cards only surface when the input is prefixed with `c:`. (Earlier draft mentioned a "≥2 char fallback" — dropped for v1 simplicity. The empty-state hint text and placeholder make `c:` discoverable.)
 
 ### Quick-jump prefixes (VS Code style)
 
@@ -144,15 +144,14 @@ Extend `data/preferences.json` with one new top-level key. Existing keys (`forma
   "api_key": "...",
   "ui_state": {
     "global": {
-      "format": "Standard",
-      "timeframe": "4w",
       "last_active_tab_path": "Decks/My Decks"
     },
     "tabs": {
-      "dashboard":    { "selected_archetype": "Izzet Prowess",
-                        "chart_archetypes": ["Izzet Prowess", "Selesnya Landfall"] },
+      "dashboard":    { "timeframe": "2 weeks",
+                        "selected_archetype": "Izzet Prowess" },
       "my_decks":     { "selected_deck_id": 17 },
-      "charts":       { "archetypes": [...], "chart_type": "popularity" },
+      "charts":       { "timeframe": "2 weeks",
+                        "archetypes": [...], "chart_type": "popularity" },
       "matchup_data": { "top_n": 12, "source_filter": "all" },
       "scout":        { "days": 14, "target_archetypes": ["Izzet Prowess"] }
     },
@@ -160,6 +159,13 @@ Extend `data/preferences.json` with one new top-level key. Existing keys (`forma
   }
 }
 ```
+
+**Design note (revised 2026-05-13):** Format and timeframe selectors are
+**per-tab** in the current GUI, not global. Dashboard owns `self._tf`, Charts
+owns its own, etc. Persistence follows that reality: each tab persists its
+own timeframe under `tabs.<tab>.timeframe`. No cross-tab broadcast in v1.
+A genuine global header-level format/timeframe is a candidate for Arc C
+(design language pass) once we know it would actually help.
 
 ### API
 
@@ -178,7 +184,7 @@ Each tab's `showEvent(QShowEvent)` hook:
 2. Wraps widget value-application in `widget.blockSignals(True)` / `False` so hydration does not re-trigger `*Changed` signals (which would cause both a save loop AND fire user-facing change handlers as if the user had clicked).
 3. Calls `self.refresh()` (or equivalent) only after hydration completes, so the rendered state reflects the restored selections.
 
-Global state (format, timeframe, last_active_tab_path) hydrates once on `MainWindow.__init__` before any tab `showEvent` fires.
+Global state (just `last_active_tab_path` in v1) hydrates once on `MainWindow.__init__` before any tab `showEvent` fires.
 
 ### Persistence
 
@@ -190,15 +196,17 @@ Global state (format, timeframe, last_active_tab_path) hydrates once on `MainWin
 
 | Slice | Reason |
 |---|---|
-| `global.format` | Tab switches losing format selection — root cause of context-cost friction |
-| `global.timeframe` | Same |
 | `global.last_active_tab_path` | App reopens where you closed it |
+| `tabs.dashboard.timeframe` | `self._tf` value (e.g. "2 weeks") — context loss on tab switch |
 | `tabs.dashboard.selected_archetype` | "I had it set, now it's gone" pain |
-| `tabs.dashboard.chart_archetypes` | Same |
 | `tabs.my_decks.selected_deck_id` | Tokyo Prowess (id=17) pre-selected on launch |
-| `tabs.charts.archetypes` + `chart_type` | Same context-loss pattern |
+| `tabs.charts.timeframe` + `archetypes` + `chart_type` | Same context-loss pattern, per-tab |
 | `tabs.matchup_data.top_n` + `source_filter` | Same |
 | `tabs.scout.days` + `target_archetypes` | Same |
+
+Format/timeframe are **per-tab** in the current GUI (each tab owns its
+own `QComboBox`); persistence respects that. A unified global header
+selector is Arc C territory.
 
 ### NOT persisted (deferred)
 
@@ -261,3 +269,4 @@ Pre-shipping a Qt test harness is out of scope; manual smoke is the gate for v1.
 ## Changelog
 
 - 2026-05-13: PROPOSED. Brainstormed in session 2026-05-13-AM; direction A locked, C queued as follow-up arc.
+- 2026-05-13 (v2 advisor pass): Revised global format/timeframe → per-tab persistence (current GUI has per-tab selectors, no header-level globals). Card-prefix gating simplified to `c:` only (no ≥2-char fallback). Edge case added for stale palette recents. Plan companion at `docs/superpowers/plans/2026-05-13-gui-palette-sticky-state.md` v2 with verified attribute names + pytest install.
