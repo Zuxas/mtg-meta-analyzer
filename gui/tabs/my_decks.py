@@ -536,6 +536,11 @@ class MyDecksTab(QWidget):
 
         self._detail_tabs.addTab(sb_widget, "Sideboard Plans")
 
+        # -- Test Hand (mulligan evaluator) sub-tab --
+        from gui.widgets.mulligan_evaluator import MulliganEvaluator
+        self._mull_eval = MulliganEvaluator()
+        self._detail_tabs.addTab(self._mull_eval, "Test Hand")
+
         rv.addWidget(self._detail_tabs, 1)
 
         splitter.addWidget(right)
@@ -698,6 +703,8 @@ class MyDecksTab(QWidget):
         deck = self._decks[row]
         self._current_deck = deck
         self._show_deck(deck)
+        if hasattr(self, "_mull_eval"):
+            self._mull_eval.set_deck(deck)
         self._edit_btn.setEnabled(True)
         self._del_btn.setEnabled(True)
         self._export_btn.setEnabled(True)
