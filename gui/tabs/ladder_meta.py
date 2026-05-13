@@ -132,7 +132,7 @@ class LadderMetaTab(QWidget):
         self._skill_tbl = QTableWidget(0, 8)
         self._skill_tbl.setHorizontalHeaderLabels(
             ["Archetype", "Bronze", "Silver", "Gold",
-             "Platinum", "Diamond", "Mythic", "Δ Pl→My"]
+             "Platinum", "Diamond", "Mythic", "Δ Br→My"]
         )
         self._skill_tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._skill_tbl.setSelectionBehavior(
@@ -145,9 +145,11 @@ class LadderMetaTab(QWidget):
         self._skill_tbl.setToolTip(
             "Bronze / Silver / Gold = Bo1 ladder data (only source for those tiers)\n"
             "Platinum / Diamond / Mythic = Bo3 ladder data (premium endpoint)\n"
-            "Δ Pl→My = WR delta from Platinum to Mythic where both have data\n"
+            "Δ Br→My = WR delta from Bronze to Mythic (the full skill scaling)\n"
+            "         positive = deck scales up with skill\n"
+            "         negative = deck weaker at high ranks (low-skill trap)\n"
             "\n"
-            "Bronze-Gold columns auto-hide when the panel is narrower than ~720px."
+            "Bronze-Gold columns auto-hide when the panel is narrower than ~540px."
         )
         hh2 = self._skill_tbl.horizontalHeader()
         hh2.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -307,17 +309,21 @@ class LadderMetaTab(QWidget):
                 if v is not None:
                     cell.setForeground(_wr_color(v / 100.0))
                 self._skill_tbl.setItem(ri, ci, cell)
-            # Climb delta col 7: Plat -> Mythic (where both exist)
-            p = r.get("plat_wr")
+            # Climb delta col 7: Bronze -> Mythic (full skill scaling)
+            b = r.get("bronze_wr")
             m = r.get("mythic_wr")
-            if p is not None and m is not None:
-                d = m - p
+            if b is not None and m is not None:
+                d = m - b
                 d_item = QTableWidgetItem(f"{d:+.1f}")
                 d_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if d >= 3:
+                if d >= 5:
                     d_item.setForeground(QColor(80, 200, 100))
-                elif d <= -3:
+                elif d >= 2:
+                    d_item.setForeground(QColor(140, 200, 140))
+                elif d <= -5:
                     d_item.setForeground(QColor(230, 90, 70))
+                elif d <= -2:
+                    d_item.setForeground(QColor(220, 140, 120))
                 else:
                     d_item.setForeground(QColor(theme.TEXT_DIM))
             else:
