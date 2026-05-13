@@ -17,7 +17,9 @@ def tmp_prefs(tmp_path, monkeypatch):
     """Redirect UIState to a per-test preferences.json under tmp_path."""
     prefs_path = tmp_path / "preferences.json"
     monkeypatch.setattr("gui.state.PREFERENCES_PATH", prefs_path)
-    # Reset singleton between tests
+    # Reset singleton between tests. This requires UIState to declare
+    # `_instance` as a class attribute (Task 2's implementation does
+    # this — `_instance: "UIState | None" = None` at class level).
     monkeypatch.setattr("gui.state.UIState._instance", None)
     return prefs_path
 
@@ -96,3 +98,10 @@ def test_reset_clears_ui_state_only(tmp_prefs):
     data = json.loads(tmp_prefs.read_text())
     assert data["formats"] == ["standard"]
     assert data.get("ui_state", {}) == {}
+
+
+def test_instance_returns_same_object(tmp_prefs):
+    """Singleton contract: repeated .instance() calls return the same object."""
+    a = UIState.instance()
+    b = UIState.instance()
+    assert a is b
