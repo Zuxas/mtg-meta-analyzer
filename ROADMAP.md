@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-12
+> Last updated: 2026-05-13
 
 ---
 
@@ -46,6 +46,21 @@
 ---
 
 ## COMPLETED
+
+### 2026-05-13 — RC May 29 Prep Toolkit
+- [x] Tokyo Prowess saved (saved_decks.id=17) + 17 SB plans + primer prose backfill
+- [x] `analysis/deck_ev.py` — field-weighted EV calculator (paper + Untapped Bo3 + SB difficulty bumps)
+- [x] EV vs Field sub-tab in My Decks (`gui/widgets/deck_ev_widget.py`)
+- [x] Test Hand mulligan evaluator sub-tab + 1000-hand Monte Carlo study
+- [x] `analysis/mulligan_study.py` — Monte Carlo simulator reusing primer-rule evaluator
+- [x] SCOUT sub-tab in Tournament Prep (`gui/tabs/scout.py`, `analysis/scout.py`) — top-cut pilots + handle resolution
+- [x] Untapped follow-ups closed: opponent classifier from MTGA replay log (91% accuracy), KNN-refined SB plan matching (96%), card-level Mythic inclusion, Untapped Ladder Trend chart type
+- [x] Master-detail layout for Sideboard Plans tab
+- [x] F5 / Refresh button in main header
+- [x] Bo3-only data filter applied to Ladder rollup + leaderboard + chart; Br→My columns retained with responsive hide
+- [x] 4 project-scoped skills installed (triage-issue, improve-codebase-architecture, grill-me, modern-python) + playwright + mcp-builder
+- [x] Hardcoded path scrubbing across 54 scraper files
+- [x] Pre-push hook hardened with cookies-file-aware skip-list
 
 ### 2026-05-12 — Untapped.gg Pipeline + DD/MM/YY Sort Fixes
 - [x] Untapped scraper suite: mythic ladder, archetype meta WR, matchup matrix, MTGA card db, replay fetcher, sideboard plan extractor

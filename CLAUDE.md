@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -140,7 +140,10 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/cooccurrence_embeddings.py` | Card2Vec — Word2Vec trained on local decklists |
 | `analysis/knn_classifier.py` | KNN archetype classifier using deck embeddings |
 | `analysis/nbac_classifier.py` | NBAC API wrapper (Videre Project Naive Bayes archetype classifier) |
-| `db/untapped_queries.py` | Untapped Bo3 matchup matrix + archetype-color resolver + SB plans by color identity |
+| `analysis/deck_ev.py` | Single-deck field-weighted EV: paper WR + Untapped Bo3 + SB difficulty bumps |
+| `analysis/mulligan_study.py` | Monte Carlo mulligan simulator (1000+ hands) reusing primer-rule evaluator |
+| `analysis/scout.py` | Pre-event pilot intel: top-cut finishers by archetype + handle resolution |
+| `db/untapped_queries.py` | Untapped Bo3 matchup matrix + archetype-color resolver + SB plans by color identity + card-level Mythic inclusion |
 
 ### Sideboard WR Model (calibration constants)
 `opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84]`
@@ -162,18 +165,22 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - Dedup-aware Meta Impact bar shows filter effects
 
 ### Key GUI Features
-- **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export
-- **Bo3 SB Plans tab:** Sideboard plans extracted from Untapped Mythic-level ladder replays via game-to-game decklist diffs. Matched to archetype by color identity. Top section aggregates most-common cards IN/OUT; below lists individual plans (deck name, pilot, G1→G2 / G2→G3 transitions).
-- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top, Bo1 skill curve (Bronze→Silver→Gold→Plat WR per archetype + climb delta) on the left, Mythic leaderboard top-30 on the right. Bo3 ranked WR is NULL in the public Untapped meta endpoint, so the skill curve uses Bo1.
+- **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export. Average Deck tab includes Mythic % column with ↑/↓ tech-divergence arrows.
+- **Bo3 SB Plans tab:** Sideboard plans extracted from Untapped Mythic-level ladder replays via game-to-game decklist diffs. Matched to archetype by color identity. KNN-refined matching when game-1 deck is available. Opponent archetype classified from MTGA replay log. Matchup filter dropdown narrows plans by opponent. Top section aggregates most-common cards IN/OUT; below lists individual plans.
+- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top (Mythic-having archetypes pinned), Bo3-only skill curve with 8 columns (Bronze→Silver→Gold→Platinum→Diamond→Mythic + Br→My delta) — Br/Si/Go responsively hide on narrow viewport. Mythic leaderboard top-30 on the right. Bo3-filtered everywhere via `Traditional_<format>` data source.
 - **Tech Choices:** Flex slots (15-80% inclusion) grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
-- **Matchup Data:** Three sources merged (real★ + scraped + paste), team notes via right-click, equilibrium button
-- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON
+- **Matchup Data:** Three sources merged (real★ + scraped + paste) + Untapped Bo3 ladder as 4th gap-fill source, team notes via right-click, equilibrium button
+- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON. Deck-detail panel has 4 sub-tabs: Decklist / Sideboard Plans (master-detail layout) / Test Hand / EV vs Field.
+- **Test Hand sub-tab:** Primer-rule mulligan evaluator — random 7-card draw, classifies cards (land/cantrip/threat/answer), KEEP/MARGINAL/MULL verdict with reasoning by play-draw and matchup. "Run 1000-hand study" button opens MulliganStudyDialog (12k Monte Carlo simulations across primer's 5 matchups × play/draw, keep/mull-to-6/mull-to-5/mull-to-4 rates).
+- **EV vs Field sub-tab:** Field-weighted WR for the saved deck — combines paper matchup data + Untapped Bo3 + SB difficulty bumps (Easy +5pp / Hard -5pp). Headline EV number, top favorable/unfavorable matchups, per-matchup breakdown table with source color-coding (paper/untapped/mirror/guess) and low-N flagging.
 - **Deck Analyzer:** Arena/URL paste → Blunder + Chapin + Legality + auto-classify (KNN) + baseline comparison vs average deck
 - **Card Browser:** Scryfall query syntax, Similar Cards + Functional Substitutes
-- **Tournament Prep:** Event Optimizer (binomial top-cut, matchup breakdown, SB recommendations) + Breaker Math
+- **Tournament Prep:** 6 sub-tabs — Prep Checklist / Event Optimizer / Event Hub / Scout / Breaker Math / Hypotheses.
+- **Scout sub-tab:** Pre-event pilot intel. Surfaces top-N finishers playing target archetypes (defaults to Tokyo Prowess priority matchups) in last K days. "Repeat offenders" table ranks pilots by top-cut count; "All finishes" table lists every result. Right-click context menu opens decklist URL or `@handle` on x.com (handles from `data/player_handles.json`). Double-click finisher row opens deck URL.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
+- **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 
 ### Timeframe System
 `theme.TIMEFRAME_OPTIONS`: 1w/2w/4w/8w/3m/6m/1y/2y/All Time. `None` = All Time = no date filter.
@@ -235,6 +242,9 @@ analysis/slot_analysis.py       "Why this card?" — role, trend, substitutes, c
 analysis/cross_source_dedup.py  Cross-source duplicate event detection + confidence scoring
 analysis/date_parsing.py        Natural language date range parsing
 analysis/field_optimizer.py     Weighted WR vs expected field
+analysis/deck_ev.py             Single-deck field-weighted EV (paper + Untapped + SB bumps)
+analysis/mulligan_study.py      Monte Carlo mulligan simulator (primer-rule evaluator backend)
+analysis/scout.py               Pre-event pilot intel (priority finishers + handle resolution)
 analysis/query.py               CLI query interface
 
 # ── GUI ────────────────────────────────────────────────────
@@ -256,9 +266,12 @@ gui/tabs/deck_analyzer.py       Deck Analyzer
 gui/tabs/my_decks.py            My Decks CRUD
 gui/tabs/match_log.py           Match Log (personal results)
 gui/tabs/search.py              Card Browser / Deck Search / H2H
-gui/tabs/tournament_prep.py     Tournament Prep wrapper (composes sub-tabs)
+gui/tabs/tournament_prep.py     Tournament Prep wrapper (composes 6 sub-tabs)
 gui/tabs/event_optimizer.py     Event Optimizer sub-tab
 gui/tabs/breaker_math.py        Breaker Math sub-tab
+gui/tabs/scout.py               Scout sub-tab -- pilot intel + handle linkout
+gui/widgets/mulligan_evaluator.py  Test Hand sub-tab + 1000-hand mulligan study dialog
+gui/widgets/deck_ev_widget.py   EV vs Field sub-tab
 gui/tabs/heatmap_tab.py         Matchup Data grid + team notes
 gui/tabs/charts.py              Interactive chart controls
 gui/tabs/card_browser.py        Scryfall-style card search
@@ -365,14 +378,18 @@ Project-scoped (in `.agents/skills/`, managed via `npx skills`):
 To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 
 ---
-*Last documentation update: 2026-05-12 — Untapped.gg pipeline session.
-  Shipped: scraper suite (mythic ladder + premium archetype/matchup +
-  replays + SB extractor), `db/untapped_queries.py` query layer,
-  3 GUI surfaces (Matchup Data heatmap 4th source, Bo3 SB Plans tab in
-  Archetype Detail, Meta→Ladder sub-tab with skill curve + leaderboard),
-  player_handles (Twitter/X discovery), NBAC API classifier, DD/MM/YY
-  date-sort fixes, MTGDecks+Untapped M/W/F throttling, pre-push hook
-  hardened with cookies-file-aware skip-list. 7 commits.*
+*Last documentation update: 2026-05-13 — RC May 29 prep session (Tokyo Prowess deck-lock).
+  Shipped, in order: master-detail SB Plans layout, F5/Refresh button,
+  Untapped follow-ups A/B/C (opponent classifier from MTGA replay log,
+  Untapped Ladder Trend chart type, KNN-refined SB plan archetype
+  matching), Bo3-only data filter for Ladder rollup/leaderboard, ladder
+  skill-curve column expansion (Br→My with responsive hide), mulligan
+  primer prose in saved SB plans, card-level Mythic inclusion column
+  in Average Deck, Test Hand sub-tab (primer-rule mulligan evaluator),
+  `analysis/deck_ev.py` field-weighted EV calculator, EV vs Field
+  sub-tab in My Decks, 1000-hand mulligan study (Monte Carlo + GUI
+  dialog), SCOUT sub-tab in Tournament Prep (top-cut pilots + handle
+  resolution). 23 commits.*
 
 ## graphify
 

@@ -1,16 +1,16 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-12
+Last updated: 2026-05-13
 
 ---
 
 ## TOP OF MIND
 
-**May 29 Standard RC DC (Day 1 qualified).** Deck lock window per
-post-PT analysis (PT SOS findings 2026-05-03):
-- Selesnya Landfall is the data call (63.81% PT WR, best deck)
-- Izzet Lessons beats Selesnya 75% but is -WR overall vs Mono-Green field
-- Izzet Spellementals is the sleeper: beats Prowess, Mono-Green; even vs Selesnya
+**May 29 Standard RC Cincinnati (Day 1 qualified).** Deck lock: **Izzet
+Prowess (Worldly Council "Tokyo" list)**. Saved as `saved_decks.id=17`
+with 17 SB plans (Nick's primer + Tokyo SB map). Current field-weighted
+EV vs 14d Standard meta: **53.6%** (Spellementals worst -10.8pp,
+Golgari best +24.5pp Easy SB bump).
 
 **Outstanding from May 11-12 RC:** post-event debrief not yet logged.
 Time-sensitive while memory is fresh — log matches, capture which SB plans
@@ -20,28 +20,15 @@ worked / didn't, expected vs actual matchups.
 
 ## OPEN PRIORITIES
 
-### Untapped Follow-Ups (after 2026-05-12 pipeline landed)
-- [ ] **Time-series chart of Untapped meta share + WR** — 16 snapshots over
-      ~2 weeks. Add as series on existing Charts tab so paper-meta and
-      ladder-meta sit side by side. Early-signal use case: "is this deck
-      rising on MTGA before paper catches up?"
-- [ ] **Opponent archetype on SB plans** — `untapped_sideboard_plans` has
-      no opponent reference. Plans are keyed only on the friendly player's
-      color combo. To enable per-matchup SB advice, parse the raw replay
-      JSON for opponent deck data and write an `opponent_pgid` column.
-- [ ] **Finer archetype matching for SB plans** — currently color-only
-      (`Azorius Control` → WU pulls in *every* WU plan). Try matching on
-      deck_name substring or pass plans through the KNN/NBAC classifier
-      using the friendly player's game-1 list.
-- [ ] **Card-level Untapped data** — which cards have the highest WR at
-      Mythic? `untapped_meta_archetypes.key_cards` is grpid-indexed; joining
-      to `untapped_card_db` gives names. Surface in Card Browser or
-      slot_analysis substitutes view.
-- [ ] **Untapped premium ranks scrape cadence** — `last_7_days` flag has
-      tiny samples right now (1-18 rows per tier). Confirm the scraper is
-      cycling enough to keep the recent window populated.
-- [ ] **Filter SB plans by recency** — drop plans older than N days
-      (data is timestamped via `replay.match_timestamp`).
+### RC Prep Follow-Ups
+- [ ] Log May 11-12 RC results — still time-sensitive (skipped 4x).
+- [ ] Side-by-side deck comparison (Chapin radar overlay) — useful if Tokyo
+      slot becomes uncertain after another data refresh.
+- [ ] RC-realistic field model — replace 14d paper-meta default in
+      `analysis/deck_ev.py` with an RCQ-weighted blend (recent RCQ top-8s +
+      Untapped Mythic), since RC fields differ from MTGO/online.
+- [ ] Sideboard quick-reference printout — 1-page exportable card (PDF
+      or PNG) of the 12-matchup SB grid for Tokyo Prowess.
 
 ### Sim Integration (cross-repo mtg-sim)
 - [ ] Author Standard goldfish APLs for the remaining 6 archetypes
@@ -59,6 +46,13 @@ worked / didn't, expected vs actual matchups.
       / card_browser Search button / h2h / vs-field forms)
 - [ ] Global "All Formats" option rollout to Charts / Predictions /
       Card Browser filters (Dashboard already has it).
+
+### Untapped Tail-Off (low priority)
+- [ ] Untapped premium ranks scrape cadence — `last_7_days` flag has
+      tiny samples right now (1-18 rows per tier). Confirm the scraper
+      is cycling enough to keep the recent window populated.
+- [ ] Filter SB plans by recency — drop plans older than N days
+      (data is timestamped via `replay.match_timestamp`).
 
 ### Bug Fixes Applied (2026-05-12)
 - [x] DD/MM/YY date-sort regressions on `ORDER BY date DESC` — `analysis/deck_analysis.py::get_recent_event`, `gui/widgets/archetype_detail.py::_load_archetype_data`, `scrapers/challenges.py::get_latest_challenge` now normalize mixed DD/MM/YY + YYYY-MM-DD ordering via CASE WHEN
@@ -82,6 +76,63 @@ worked / didn't, expected vs actual matchups.
 
 ### Packaging
 - [ ] PyInstaller .exe packaging + clean machine testing
+
+---
+
+## RECENTLY COMPLETED (2026-05-13)
+
+### RC May 29 Prep Tooling
+- [x] Tokyo Prowess saved as `saved_decks.id=17` + 17 SB plans with
+      primer prose backfill (`scripts/backfill_prowess_primer_notes.py`)
+- [x] **EV vs Field** sub-tab in My Decks (`analysis/deck_ev.py` +
+      `gui/widgets/deck_ev_widget.py`) — field-weighted WR with per-matchup
+      breakdown, source color-coding, low-N flagging. Lives in own module
+      to avoid win_rates ↔ field_optimizer circular import.
+- [x] **Test Hand** sub-tab in My Decks (`gui/widgets/mulligan_evaluator.py`)
+      — primer-rule mulligan evaluator with KEEP/MARGINAL/MULL verdict by
+      play-draw and matchup.
+- [x] **1000-hand mulligan study** (`analysis/mulligan_study.py` + dialog) —
+      Monte Carlo over primer's 5 matchups × play/draw, ~12k hands per
+      run. Tokyo Prowess: 86.2% keep-on-7 overall.
+- [x] **SCOUT** sub-tab in Tournament Prep (`analysis/scout.py` +
+      `gui/tabs/scout.py`) — top-cut pilots playing target archetypes in
+      last K days, repeat-offender ranker, right-click open decklist or
+      @handle on x.com. Handles from `data/player_handles.json`.
+
+### Untapped Follow-Ups (closed)
+- [x] **Time-series chart of Untapped meta** — "Untapped Ladder Trend"
+      chart type with Bo3 Plat/Diamond/Mythic lines per archetype
+      (`gui/tabs/charts.py` + `chart_canvas.plot_untapped_trend`).
+- [x] **Opponent archetype on SB plans** — `scrapers/untapped_opponent_classifier.py`
+      parses MTGA replay log (GREMessageType_GameStateMessage gameObjects),
+      writes `opponent_archetype` + `opp_grp_ids_json` columns. 40/44
+      classified (91%).
+- [x] **Finer SB plan matching via KNN** — `friendly_archetype` column on
+      `saved_sb_plans` (47/49 = 96% classified from game-1 deck), surfaced
+      via `db/untapped_queries.get_sideboard_plans_for_archetype` opponent
+      filter dropdown in Bo3 SB Plans tab.
+- [x] **Card-level Untapped Mythic data** — `db.untapped_queries.get_mythic_card_inclusion`
+      adds "Mythic % (N=X)" column to Average Deck tab with ↑/↓
+      tech-divergence arrows.
+
+### GUI / UX
+- [x] F5 / ↻ Refresh button in main header (`gui/main_window.py::_refresh_current_tab`) —
+      walks nested QTabWidgets to find leaf, calls reload/refresh
+- [x] Master-detail layout for Sideboard Plans tab — compact pilot list +
+      detail panel showing G1→G2 / G2→G3 transitions
+- [x] Bo3-only data for Ladder rollup + leaderboard (filtered by
+      `Traditional_<format>` source), Bronze→Mythic columns retained with
+      responsive hide of Br/Si/Go on narrow viewport
+- [x] Bo3-only Untapped Ladder Trend chart
+
+### Skills + Tooling
+- [x] 4 project-scoped skills installed (`triage-issue`,
+      `improve-codebase-architecture`, `grill-me`, `modern-python`)
+- [x] Playwright + mcp-builder skills added (optional tier)
+- [x] Hardcoded path scrubbing across 54 scraper files (now uses
+      `Path(__file__).resolve().parent.parent` pattern)
+- [x] Pre-push hook hardened with cookies-file-aware skip-list and
+      tightened COOKIES regex word boundaries
 
 ---
 
