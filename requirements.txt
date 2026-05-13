@@ -8,3 +8,6 @@ plotly>=5.22.0
 thefuzz>=0.22.0
 python-Levenshtein>=0.25.0
 qtawesome>=1.4.0
+
+# Test infrastructure (added 2026-05-13)
+pytest>=8.0
