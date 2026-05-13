@@ -165,9 +165,10 @@ class ChartsTab(QWidget):
         self._on_type_changed("Meta Share")
 
     def _on_type_changed(self, chart_type):
-        is_trend   = chart_type == "Archetype Trend"
-        is_compare = chart_type == "Compare Trends"
-        need_arch  = is_trend or is_compare
+        is_trend     = chart_type == "Archetype Trend"
+        is_compare   = chart_type == "Compare Trends"
+        is_untapped  = chart_type == "Untapped Ladder Trend"
+        need_arch    = is_trend or is_compare or is_untapped
         self._arch_label.setVisible(need_arch)
         self._arch.setVisible(need_arch)
         self._compare_label.setVisible(is_compare)
