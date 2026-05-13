@@ -35,6 +35,10 @@ from gui.tabs.match_log         import MatchLogTab
 from gui.tabs.simulate          import SimulateTab
 from gui.tabs.calibration       import CalibrationTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
+from gui.state import UIState
+from gui.widgets.palette_registry import PaletteRegistry
+from gui.widgets.command_palette import CommandPalette
+from gui.widgets._palette_actions import register_all as _palette_register_all
 import gui.theme as theme
 
 MIN_EVENTS = 50
@@ -54,7 +58,27 @@ class MainWindow(QMainWindow):
         self._tray = None   # set later by run_gui.py via set_tray()
 
         theme.apply_theme(QApplication.instance())
+
+        # Persisted UI state singleton — used by tabs for filter persistence
+        self.ui_state = UIState.instance()
+
+        # Command palette — populated after _build_ui()
+        self._palette_registry = PaletteRegistry()
+
         self._build_ui()
+
+        # Populate palette registry (tabs must exist by now)
+        _palette_register_all(self._palette_registry, self)
+
+        # Ctrl+K opens palette
+        self._palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self._palette_shortcut.activated.connect(self._open_palette)
+
+        # Restore last active tab path, if any
+        last_path = self.ui_state.get("global.last_active_tab_path")
+        if last_path:
+            self.activate_tab_by_path(last_path)
+
         # Slight delay so the window paints before we check/run setup
         QTimer.singleShot(150, self._startup_check)
 
@@ -270,6 +294,103 @@ class MainWindow(QMainWindow):
         self._status_lbl.setText(f"{name} has no refresh hook")
 
     # ------------------------------------------------------------------
+    # Palette helpers
+    # ------------------------------------------------------------------
+
+    def _open_palette(self) -> None:
+        dlg = CommandPalette(
+            self._palette_registry,
+            recents_provider=lambda: self.ui_state.get("palette_recents", []) or [],
+            recents_writer=self._record_palette_recent,
+            parent=self,
+        )
+        dlg.exec()
+
+    def _record_palette_recent(self, entry_id: str) -> None:
+        recents = self.ui_state.get("palette_recents", []) or []
+        recents = [r for r in recents if r != entry_id]
+        recents.insert(0, entry_id)
+        self.ui_state.set("palette_recents", recents[:20])
+
+    # ------------------------------------------------------------------
+    # Tab navigation helpers (used by palette handlers)
+    # ------------------------------------------------------------------
+
+    def activate_tab_by_path(self, path: str) -> None:
+        """Switch to a tab by path, e.g. 'DECKS/MY DECKS'.
+
+        Splits on '/' and descends through nested QTabWidgets, matching
+        each part against tabText(). Persists the path to UIState so the
+        active tab can be restored on next launch.
+        """
+        parts = path.split("/")
+        from PyQt6.QtWidgets import QTabWidget
+        node = self._tabs
+        for part in parts:
+            for i in range(node.count()):
+                if node.tabText(i) == part:
+                    node.setCurrentIndex(i)
+                    child = node.widget(i)
+                    if isinstance(child, QTabWidget):
+                        node = child
+                    break
+        self.ui_state.set("global.last_active_tab_path", path)
+
+    def set_format(self, fmt: str) -> None:
+        """Write chosen format to UIState and refresh the current tab."""
+        self.ui_state.set("global.format", fmt)
+        # Tabs hydrate from this on their next showEvent. Trigger a refresh
+        # so the currently visible tab reflects the change immediately.
+        self._refresh_current_tab()
+
+    def open_archetype_detail(self, archetype_name: str) -> None:
+        """Open the archetype detail dialog for the given archetype."""
+        try:
+            from gui.widgets.archetype_detail import ArchetypeDetailDialog
+            fmt = self.ui_state.get("global.format") or "standard"
+            dlg = ArchetypeDetailDialog(archetype_name, format_name=fmt, parent=self)
+            dlg.exec()
+        except Exception:
+            import logging
+            logging.warning(
+                "Could not open archetype detail for %s", archetype_name, exc_info=True
+            )
+
+    def open_saved_deck(self, deck_id: int) -> None:
+        """Switch to My Decks tab and select the given deck by id (if supported)."""
+        self.activate_tab_by_path("DECKS/MY DECKS")
+        my_decks = self._find_tab("MY DECKS")
+        if my_decks is not None and hasattr(my_decks, "select_deck_by_id"):
+            my_decks.select_deck_by_id(deck_id)
+
+    def _find_tab(self, name: str):
+        """Walk QTabWidget tree; return first widget whose tabText matches name."""
+        from PyQt6.QtWidgets import QTabWidget
+        def _walk(tabs):
+            for i in range(tabs.count()):
+                if tabs.tabText(i) == name:
+                    return tabs.widget(i)
+                child = tabs.widget(i)
+                if isinstance(child, QTabWidget):
+                    found = _walk(child)
+                    if found is not None:
+                        return found
+            return None
+        return _walk(self._tabs)
+
+    def reset_ui_state(self) -> None:
+        """Prompt user then clear persisted UI state (filters, selections, recents)."""
+        from PyQt6.QtWidgets import QMessageBox
+        ok = QMessageBox.question(
+            self, "Reset UI state",
+            "Clear all persisted selections, filters, palette recents?\n"
+            "(Format / API key / scrape preferences are NOT affected.)"
+        )
+        if ok == QMessageBox.StandardButton.Yes:
+            self.ui_state.reset()
+            self.ui_state.flush()
+
+    # ------------------------------------------------------------------
     # Ask Claude tab (optional — shown only when API key is configured)
     # ------------------------------------------------------------------
 
@@ -470,6 +591,12 @@ class MainWindow(QMainWindow):
         Only hide-to-tray on spontaneous events to prevent the window from
         disappearing during background operations like heatmap loads.
         """
+        # Flush persisted UI state on every close (spontaneous or not).
+        try:
+            self.ui_state.flush()
+        except Exception:
+            pass
+
         if not event.spontaneous():
             # Programmatic close event — accept it normally, do NOT hide to tray
             event.ignore()
