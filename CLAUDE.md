@@ -389,7 +389,8 @@ To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lo
   `analysis/deck_ev.py` field-weighted EV calculator, EV vs Field
   sub-tab in My Decks, 1000-hand mulligan study (Monte Carlo + GUI
   dialog), SCOUT sub-tab in Tournament Prep (top-cut pilots + handle
-  resolution). 23 commits.*
+  resolution), Print SB Guide 1-page fix via _summarize_notes
+  (50KB -> 12KB on Tokyo). 25 commits.*
 
 ## graphify
 
