@@ -57,7 +57,7 @@ class ChartsTab(QWidget):
         # Chart type
         cv.addWidget(QLabel("Chart Type:"))
         self._type = QComboBox()
-        self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Meta Positioning", "Matchup Heatmap"])
+        self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Meta Positioning", "Matchup Heatmap", "Untapped Ladder Trend"])
         self._type.currentTextChanged.connect(self._on_type_changed)
         cv.addWidget(self._type)
 
@@ -219,6 +219,12 @@ class ChartsTab(QWidget):
                 self._canvas.plot_scatter(fmt, top, weeks, since, until)
             elif chart_type == "Matchup Heatmap":
                 self._canvas.plot_heatmap(fmt, top, 3, since, until)
+            elif chart_type == "Untapped Ladder Trend":
+                arch = self._arch.currentText().strip()
+                if not arch:
+                    self._status.setText("Enter an archetype name (matches MTGA ladder names).")
+                    return
+                self._canvas.plot_untapped_trend(arch, fmt)
             self._status.setText("Done.")
         except Exception as e:
             self._status.setText(theme.friendly_error(e))

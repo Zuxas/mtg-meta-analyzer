@@ -650,6 +650,125 @@ class ChartCanvas(QWidget):
         self._canvas.draw()
 
     # ------------------------------------------------------------------
+    # Untapped ladder trend — MTGA snapshots over time
+    # ------------------------------------------------------------------
+
+    def plot_untapped_trend(self, archetype: str, format_name: str = "standard"):
+        """Plot MTGA ladder match-count + WR over time from the
+        untapped_meta_archetypes snapshots. Sparse at first; fills in as
+        the M/W/F nightly scraper accumulates snapshots."""
+        # mtg-meta-analyzer format -> Untapped event_name pair (Bo1 + Bo3)
+        fmt_pairs = {
+            "standard": ("Ladder", "Traditional_Ladder"),
+            "pioneer":  ("Explorer_Ladder", "Traditional_Explorer_Ladder"),
+            "historic": ("Historic_Ladder", "Traditional_Historic_Ladder"),
+            "timeless": ("Timeless_Ladder", "Traditional_Timeless_Ladder"),
+            "alchemy":  ("Alchemy_Ladder", "Traditional_Alchemy_Ladder"),
+        }
+        events = fmt_pairs.get(format_name.lower())
+        if not events:
+            self.show_message(
+                f"Untapped ladder data only covers Standard / Pioneer / Historic / "
+                f"Timeless / Alchemy. {format_name} not on MTGA.", "#f0a030"
+            )
+            return
+
+        import sqlite3
+        from pathlib import Path
+        db_path = Path(__file__).resolve().parent.parent.parent / "data" / "mtg_meta.db"
+        with sqlite3.connect(str(db_path)) as con:
+            rows = con.execute("""
+                SELECT s.captured_at_utc, s.event_name, a.rank_tier,
+                       a.total_matches, a.win_rate
+                FROM untapped_meta_archetypes a
+                JOIN untapped_meta_snapshots s ON s.id = a.snapshot_id
+                WHERE s.event_name IN (?, ?)
+                  AND a.archetype_name = ?
+                  AND s.last_7_days = 0
+                ORDER BY s.captured_at_utc
+            """, (events[0], events[1], archetype)).fetchall()
+
+        if not rows:
+            self.show_message(
+                f"No Untapped snapshots for ‘{archetype}’. "
+                f"Archetype names must match MTGA ladder names exactly "
+                f"(case-sensitive). Snapshots accumulate M/W/F via the nightly scraper.",
+                "#f0a030"
+            )
+            return
+
+        # Aggregate per snapshot date: total matches across tiers,
+        # match-weighted average WR (Bo1 only -- Bo3 has NULL win_rate)
+        from collections import defaultdict
+        per_date = defaultdict(lambda: {"matches": 0, "wr_num": 0.0, "wr_den": 0})
+        for captured, event, tier, total, wr in rows:
+            day = captured[:10]
+            per_date[day]["matches"] += (total or 0)
+            if wr is not None and (total or 0) > 0:
+                per_date[day]["wr_num"] += wr * total
+                per_date[day]["wr_den"] += total
+
+        dates = sorted(per_date.keys())
+        matches = [per_date[d]["matches"] for d in dates]
+        wrs = []
+        for d in dates:
+            den = per_date[d]["wr_den"]
+            wrs.append(per_date[d]["wr_num"] / den if den > 0 else None)
+
+        self._fig.clear()
+        self._overlay.setVisible(False)
+        ax1 = self._fig.add_subplot(111)
+        _style_ax(ax1, self._fig)
+        ax2 = ax1.twinx()
+
+        x_labels = [d[5:] for d in dates]  # MM-DD
+        bar_color = "#a675c2"  # Untapped-ish purple
+        ax1.bar(x_labels, matches, color=bar_color, alpha=0.45,
+                label="Matches (MTGA)", zorder=2)
+        ax1.set_ylabel("Total matches", color=bar_color, fontsize=9)
+        ax1.tick_params(axis="y", colors=bar_color, labelsize=8)
+        ax1.tick_params(axis="x", colors="white", labelsize=8)
+        for lbl in ax1.get_xticklabels():
+            lbl.set_rotation(45); lbl.set_ha("right")
+
+        line_handles, line_labels = [], []
+        if any(v is not None for v in wrs):
+            xs = [x for x, v in zip(x_labels, wrs) if v is not None]
+            ys = [v for v in wrs if v is not None]
+            h, = ax2.plot(xs, ys, color="#3cb44b", marker="o",
+                          markersize=4, linewidth=2, label="Bo1 Plat WR %")
+            line_handles.append(h); line_labels.append("Bo1 WR %")
+            ax2.set_ylabel("Win Rate %", color="#3cb44b", fontsize=9)
+            ax2.tick_params(axis="y", colors="#3cb44b", labelsize=8)
+            ax2.yaxis.set_major_formatter(
+                mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
+            )
+        else:
+            ax2.set_ylabel("(Bo3 data has no WR)", color="#888", fontsize=8)
+            ax2.tick_params(axis="y", colors="#666", labelsize=7)
+        ax2.set_facecolor(_MID)
+
+        total_matches = sum(matches)
+        ax1.set_title(
+            f"{_shorten(archetype, 40)} — MTGA Ladder Trend ({format_name.upper()})",
+            color="white", fontsize=12, pad=14,
+        )
+        _subtitle(ax1,
+            f"{total_matches:,} matches across {len(dates)} snapshot(s)  ·  "
+            f"Untapped Bo1+Bo3 combined"
+        )
+
+        bar_proxy = ax1.bar([], [], color=bar_color, alpha=0.45, label="Matches")
+        ax1.legend(
+            [bar_proxy] + line_handles,
+            ["Matches"] + line_labels,
+            loc="upper left", fontsize=7, framealpha=0.3,
+            labelcolor="white", facecolor=_BG, edgecolor=_GRID,
+        )
+        self._fig.tight_layout()
+        self._canvas.draw()
+
+    # ------------------------------------------------------------------
     # Compare trends — overlay multiple archetypes
     # ------------------------------------------------------------------
 
