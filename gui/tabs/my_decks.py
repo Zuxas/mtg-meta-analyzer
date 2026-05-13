@@ -1524,10 +1524,63 @@ _GENERAL_MULL_RULES = """
 """.strip()
 
 
+_PLAN_MARKER_RE = None  # lazy compiled below
+
+
+def _summarize_notes(text: str, max_len: int = 170) -> str:
+    """
+    Compress primer prose to a short TL;DR line for the 1-page SB guide.
+
+    Strategy:
+      1. Strip anything after a '---' separator (older 'Prior notes:'
+         appendage from backfill_prowess_primer_notes.py).
+      2. If a 'PLAN:' marker exists, lift the sentence after it.
+      3. Otherwise take the first complete sentence (or clause) and cap
+         at max_len chars, ending on a word boundary.
+      4. Collapse whitespace; no embedded line breaks in the output.
+    """
+    import re
+    global _PLAN_MARKER_RE
+    if _PLAN_MARKER_RE is None:
+        _PLAN_MARKER_RE = re.compile(
+            r"\bPLAN\s*:\s*(.+?)(?:\n\n|\Z)", re.DOTALL | re.IGNORECASE
+        )
+
+    if not text:
+        return ""
+    body = text.split("---", 1)[0].strip()
+    if not body:
+        return ""
+
+    m = _PLAN_MARKER_RE.search(body)
+    if m:
+        body = m.group(1).strip()
+
+    # Single-line
+    flat = re.sub(r"\s+", " ", body).strip()
+    if not flat:
+        return ""
+
+    if len(flat) <= max_len:
+        return flat
+
+    # Prefer cutting at sentence boundary inside max_len.
+    window = flat[:max_len]
+    cut = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+    if cut >= 60:
+        return window[:cut + 1]
+    # Fallback: cut at last word boundary, add ellipsis.
+    word_cut = window.rfind(" ")
+    if word_cut >= 60:
+        return window[:word_cut] + "…"
+    return window + "…"
+
+
 def _generate_sb_print_html(deck: dict, plans: list[dict]) -> str:
     """Generate a print-friendly HTML: general mulligan rules at top,
     per-matchup play patterns + SB swaps in a two-column grid.
-    Fits on one printed page (or two with long primer notes)."""
+    Fits on one printed page -- notes are TL;DR-summarized via
+    _summarize_notes (full prose lives in the SB Plans tab)."""
     name = deck.get("name", "Deck")
     fmt  = deck.get("format", "").capitalize()
     arch = deck.get("archetype", "")
@@ -1621,11 +1674,13 @@ def _generate_sb_print_html(deck: dict, plans: list[dict]) -> str:
             parts.append('<div class="sb-line"><i>No swaps (matchup is even, '
                          'or plan not entered).</i></div>')
 
-        # Notes -- primer prose for most matchups (after backfill_prowess_primer_notes.py)
+        # Notes -- TL;DR summary only (full prose lives in SB Plans tab).
+        # Long primer prose (post-backfill) would otherwise blow out the
+        # 1-page printer-friendly target.
         if pn:
-            # Trim "Prior notes:" separator if it's the only thing left
-            display = pn.replace("\n\n", "<br><br>")
-            parts.append(f'<div class="notes">{display}</div>')
+            summary = _summarize_notes(pn)
+            if summary:
+                parts.append(f'<div class="notes">{summary}</div>')
 
         parts.append('</div>\n')
 
