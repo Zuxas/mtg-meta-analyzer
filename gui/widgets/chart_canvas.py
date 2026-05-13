@@ -688,7 +688,24 @@ class ChartCanvas(QWidget):
                 ORDER BY s.captured_at_utc
             """, (events[0], events[1], archetype)).fetchall()
 
-        if not rows:
+        # Pass 2: Plat/Diamond/Mythic from premium matchup data.
+        # Aggregate per-archetype, per-tier, per-snapshot from
+        # v_untapped_premium_matchups_named (sums across all opponents).
+        with sqlite3.connect(str(db_path)) as con:
+            premium = con.execute("""
+                SELECT m.as_of, m.rank_tier,
+                       SUM(m.observed_match_count) AS matches,
+                       SUM(m.matches_won) AS wins
+                FROM v_untapped_premium_matchups_named m
+                WHERE m.format = ?
+                  AND m.last_7_days = 0
+                  AND m.friendly_archetype = ?
+                  AND m.rank_tier IN ('Platinum', 'Diamond', 'Mythic')
+                GROUP BY m.as_of, m.rank_tier
+                ORDER BY m.as_of
+            """, (events[1], archetype)).fetchall()
+
+        if not rows and not premium:
             self.show_message(
                 f"No Untapped snapshots for ‘{archetype}’. "
                 f"Archetype names must match MTGA ladder names exactly "
@@ -697,7 +714,7 @@ class ChartCanvas(QWidget):
             )
             return
 
-        # Aggregate per snapshot date: total matches across tiers,
+        # Aggregate Bo1 meta data per snapshot date: total matches across tiers,
         # match-weighted average WR (Bo1 only -- Bo3 has NULL win_rate)
         from collections import defaultdict
         per_date = defaultdict(lambda: {"matches": 0, "wr_num": 0.0, "wr_den": 0})
@@ -708,12 +725,37 @@ class ChartCanvas(QWidget):
                 per_date[day]["wr_num"] += wr * total
                 per_date[day]["wr_den"] += total
 
-        dates = sorted(per_date.keys())
+        # Per-tier premium WR aggregations
+        per_tier = defaultdict(lambda: defaultdict(lambda: {"matches": 0, "wins": 0.0}))
+        for captured, tier, matches_n, wins_n in premium:
+            day = captured[:10]
+            per_tier[tier][day]["matches"] += (matches_n or 0)
+            per_tier[tier][day]["wins"]    += (wins_n or 0.0)
+
+        all_dates = set(per_date.keys())
+        for tier_dict in per_tier.values():
+            all_dates.update(tier_dict.keys())
+        dates = sorted(all_dates)
+
         matches = [per_date[d]["matches"] for d in dates]
         wrs = []
         for d in dates:
             den = per_date[d]["wr_den"]
             wrs.append(per_date[d]["wr_num"] / den if den > 0 else None)
+
+        def _tier_wrs(tier: str):
+            ys = []
+            for d in dates:
+                cell = per_tier[tier].get(d)
+                if cell and cell["matches"] > 0:
+                    ys.append(cell["wins"] / cell["matches"] * 100)
+                else:
+                    ys.append(None)
+            return ys
+
+        plat_wrs    = _tier_wrs("Platinum")
+        diamond_wrs = _tier_wrs("Diamond")
+        mythic_wrs  = _tier_wrs("Mythic")
 
         self._fig.clear()
         self._overlay.setVisible(False)
@@ -732,19 +774,29 @@ class ChartCanvas(QWidget):
             lbl.set_rotation(45); lbl.set_ha("right")
 
         line_handles, line_labels = [], []
-        if any(v is not None for v in wrs):
-            xs = [x for x, v in zip(x_labels, wrs) if v is not None]
-            ys = [v for v in wrs if v is not None]
-            h, = ax2.plot(xs, ys, color="#3cb44b", marker="o",
-                          markersize=4, linewidth=2, label="Bo1 Plat WR %")
-            line_handles.append(h); line_labels.append("Bo1 WR %")
-            ax2.set_ylabel("Win Rate %", color="#3cb44b", fontsize=9)
-            ax2.tick_params(axis="y", colors="#3cb44b", labelsize=8)
+
+        def _plot_series(series, color, marker, label, linestyle="-", lw=2):
+            if not any(v is not None for v in series):
+                return
+            xs = [x for x, v in zip(x_labels, series) if v is not None]
+            ys = [v for v in series if v is not None]
+            h, = ax2.plot(xs, ys, color=color, marker=marker, markersize=4,
+                          linewidth=lw, linestyle=linestyle, label=label)
+            line_handles.append(h); line_labels.append(label)
+
+        _plot_series(wrs,         "#3cb44b", "o", "Bo1 (Plat avg)",     "--", 1.5)
+        _plot_series(plat_wrs,    "#5eb5cf", "s", "Bo3 Platinum")
+        _plot_series(diamond_wrs, "#e6194b", "^", "Bo3 Diamond")
+        _plot_series(mythic_wrs,  "#f0a030", "D", "Bo3 Mythic")
+
+        if line_handles:
+            ax2.set_ylabel("Win Rate %", color="white", fontsize=9)
+            ax2.tick_params(axis="y", colors="white", labelsize=8)
             ax2.yaxis.set_major_formatter(
                 mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
             )
         else:
-            ax2.set_ylabel("(Bo3 data has no WR)", color="#888", fontsize=8)
+            ax2.set_ylabel("(no per-tier WR data)", color="#888", fontsize=8)
             ax2.tick_params(axis="y", colors="#666", labelsize=7)
         ax2.set_facecolor(_MID)
 
