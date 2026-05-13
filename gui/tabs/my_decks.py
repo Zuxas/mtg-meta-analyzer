@@ -447,26 +447,52 @@ class MyDecksTab(QWidget):
 
         self._detail_tabs.addTab(dl_widget, "Decklist")
 
-        # -- Sideboard Plans sub-tab --
+        # -- Sideboard Plans sub-tab (master-detail layout) --
         sb_widget = QWidget()
         sb_layout = QVBoxLayout(sb_widget)
         sb_layout.setContentsMargins(4, 4, 4, 4)
+        sb_layout.setSpacing(6)
 
+        sb_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Master: compact list (Matchup | Difficulty | Swap count)
         self._sb_table = QTableWidget()
-        self._sb_table.setColumnCount(4)
-        self._sb_table.setHorizontalHeaderLabels(["Opponent", "Difficulty", "Play IN/OUT", "Draw IN/OUT"])
-        self._sb_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch
-        )
-        for col in (1, 2, 3):
-            self._sb_table.horizontalHeader().setSectionResizeMode(
-                col, QHeaderView.ResizeMode.ResizeToContents
-            )
+        self._sb_table.setColumnCount(3)
+        self._sb_table.setHorizontalHeaderLabels(["Matchup", "Diff", "Swaps"])
+        self._sb_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._sb_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self._sb_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._sb_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._sb_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self._sb_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._sb_table.verticalHeader().setVisible(False)
         self._sb_table.setAlternatingRowColors(True)
-        sb_layout.addWidget(self._sb_table, 1)
+        self._sb_table.itemSelectionChanged.connect(self._on_sb_plan_selected)
+        sb_splitter.addWidget(self._sb_table)
+
+        # Detail: full plan view (scrollable)
+        self._sb_detail = QScrollArea()
+        self._sb_detail.setWidgetResizable(True)
+        self._sb_detail.setFrameShape(QFrame.Shape.NoFrame)
+        self._sb_detail_inner = QWidget()
+        self._sb_detail_layout = QVBoxLayout(self._sb_detail_inner)
+        self._sb_detail_layout.setContentsMargins(12, 10, 12, 10)
+        self._sb_detail_layout.setSpacing(8)
+        ph = QLabel("Select a matchup on the left to see the full IN / OUT lists and notes.")
+        ph.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
+        ph.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ph.setWordWrap(True)
+        self._sb_detail_layout.addWidget(ph)
+        self._sb_detail_layout.addStretch()
+        self._sb_detail.setWidget(self._sb_detail_inner)
+        sb_splitter.addWidget(self._sb_detail)
+
+        sb_splitter.setStretchFactor(0, 2)
+        sb_splitter.setStretchFactor(1, 3)
+        sb_layout.addWidget(sb_splitter, 1)
+
+        # Storage for full plan dicts (parallel to _sb_table rows)
+        self._sb_plans_data = []
 
         sb_btn_row = QHBoxLayout()
         self._add_plan_btn = QPushButton("+ Add Plan")
@@ -726,7 +752,9 @@ class MyDecksTab(QWidget):
         self._workers.append(w)
 
     def _on_sb_plans_loaded(self, plans: list):
+        self._sb_plans_data = plans
         self._sb_table.setRowCount(len(plans))
+        diff_colors = {"Easy": theme.OK, "Medium": theme.WARN, "Hard": theme.ERR}
         for row, p in enumerate(plans):
             opp = p.get("opponent_archetype", "")
             diff = p.get("difficulty", "Medium")
@@ -735,32 +763,248 @@ class MyDecksTab(QWidget):
             draw_in  = p.get("draw_in", [])
             draw_out = p.get("draw_out", [])
 
-            self._sb_table.setItem(row, 0, QTableWidgetItem(opp))
+            # Col 0: matchup name
+            name_item = QTableWidgetItem(opp)
+            if (p.get("notes", "") or "").strip():
+                name_item.setToolTip("Has notes \u2014 select to view in detail panel")
+            self._sb_table.setItem(row, 0, name_item)
 
+            # Col 1: difficulty (colored, centered)
             diff_item = QTableWidgetItem(diff)
-            diff_colors = {
-                "Easy": theme.OK, "Medium": theme.WARN, "Hard": theme.ERR,
-            }
             diff_item.setForeground(QColor(diff_colors.get(diff, theme.TEXT)))
+            diff_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._sb_table.setItem(row, 1, diff_item)
 
-            play_str = ""
-            if play_in:
-                play_str += "IN: " + ", ".join(play_in)
-            if play_out:
-                if play_str:
-                    play_str += " | "
-                play_str += "OUT: " + ", ".join(play_out)
-            self._sb_table.setItem(row, 2, QTableWidgetItem(play_str or "\u2014"))
+            # Col 2: swap count with imbalance warning
+            p_swap = max(len(play_in), len(play_out))
+            d_swap = max(len(draw_in), len(draw_out))
+            same = (play_in == draw_in and play_out == draw_out)
+            if same:
+                swap_text = f"\u00b1{p_swap}"
+            else:
+                swap_text = f"P\u00b1{p_swap}  D\u00b1{d_swap}"
+            imb = (len(play_in) != len(play_out)) or (len(draw_in) != len(draw_out))
+            if imb:
+                swap_text = "\u26a0 " + swap_text
+            swap_item = QTableWidgetItem(swap_text)
+            swap_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            if imb:
+                swap_item.setForeground(QColor(theme.WARN))
+                swap_item.setToolTip(
+                    f"Plan is imbalanced: cards IN \u2260 cards OUT "
+                    f"({len(play_in)}/{len(play_out)} P, "
+                    f"{len(draw_in)}/{len(draw_out)} D). Tournament-legal SB requires equal counts."
+                )
+            self._sb_table.setItem(row, 2, swap_item)
 
-            draw_str = ""
-            if draw_in:
-                draw_str += "IN: " + ", ".join(draw_in)
-            if draw_out:
-                if draw_str:
-                    draw_str += " | "
-                draw_str += "OUT: " + ", ".join(draw_out)
-            self._sb_table.setItem(row, 3, QTableWidgetItem(draw_str or "\u2014"))
+        # Clear / reset detail panel
+        self._render_sb_detail(None)
+
+    # ------------------------------------------------------------------
+    # SB plans \u2014 detail panel rendering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _consolidate_cards(cards: list) -> list:
+        """[A, A, B, A] -> [(3, 'A'), (1, 'B')] preserving first-seen order."""
+        counts = {}
+        order = []
+        for c in cards:
+            if c not in counts:
+                order.append(c)
+            counts[c] = counts.get(c, 0) + 1
+        return [(counts[c], c) for c in order]
+
+    def _on_sb_plan_selected(self):
+        row = self._sb_table.currentRow()
+        if 0 <= row < len(self._sb_plans_data):
+            self._render_sb_detail(self._sb_plans_data[row])
+        else:
+            self._render_sb_detail(None)
+
+    def _render_sb_detail(self, plan):
+        """Rebuild the right-hand detail panel for the selected plan."""
+        # Clear existing widgets
+        while self._sb_detail_layout.count():
+            item = self._sb_detail_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        if plan is None:
+            ph = QLabel("Select a matchup on the left to see full IN / OUT lists and notes.")
+            ph.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 12px;")
+            ph.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            ph.setWordWrap(True)
+            self._sb_detail_layout.addWidget(ph)
+            self._sb_detail_layout.addStretch()
+            return
+
+        opp      = plan.get("opponent_archetype", "")
+        diff     = plan.get("difficulty", "Medium")
+        play_in  = plan.get("play_in", [])
+        play_out = plan.get("play_out", [])
+        draw_in  = plan.get("draw_in", [])
+        draw_out = plan.get("draw_out", [])
+        notes    = (plan.get("notes", "") or "").strip()
+
+        # Header: matchup name + difficulty pill
+        diff_colors = {"Easy": theme.OK, "Medium": theme.WARN, "Hard": theme.ERR}
+        pill_color  = diff_colors.get(diff, theme.TEXT_DIM)
+        header = QHBoxLayout()
+        title = QLabel(opp)
+        title.setStyleSheet(f"color: {theme.ACCENT}; font-size: 15px; font-weight: 600;")
+        title.setWordWrap(True)
+        header.addWidget(title, 1)
+        pill = QLabel(diff.upper())
+        pill.setStyleSheet(
+            f"color: {pill_color}; background: {theme.PANEL}; "
+            f"border: 1px solid {pill_color}; border-radius: 9px; "
+            f"padding: 2px 10px; font-size: 10px; font-weight: 700; letter-spacing: 1px;"
+        )
+        pill.setFixedHeight(22)
+        header.addWidget(pill, 0, Qt.AlignmentFlag.AlignTop)
+        header_wrap = QWidget()
+        header_wrap.setLayout(header)
+        self._sb_detail_layout.addWidget(header_wrap)
+
+        # Imbalance warning row
+        p_imb = len(play_in) - len(play_out)
+        d_imb = len(draw_in) - len(draw_out)
+        if p_imb != 0 or d_imb != 0:
+            parts = []
+            if p_imb != 0:
+                parts.append(f"play {p_imb:+d}")
+            if d_imb != 0:
+                parts.append(f"draw {d_imb:+d}")
+            warn = QLabel(f"\u26a0  Imbalanced ({'; '.join(parts)}) \u2014 cards in must equal cards out for tournament legality.")
+            warn.setStyleSheet(
+                f"color: {theme.WARN}; background: {theme.WARN_BG}; "
+                f"border: 1px solid {theme.WARN}; border-radius: 4px; "
+                f"padding: 4px 8px; font-size: 11px;"
+            )
+            warn.setWordWrap(True)
+            self._sb_detail_layout.addWidget(warn)
+
+        # Play section
+        self._sb_detail_layout.addWidget(self._make_sb_section("ON THE PLAY", play_in, play_out))
+
+        # Draw section: collapse if identical to play
+        same_as_play = (play_in == draw_in and play_out == draw_out)
+        if same_as_play and (draw_in or draw_out):
+            same_lbl = QLabel("ON THE DRAW \u2014 same plan as on the play.")
+            same_lbl.setStyleSheet(
+                f"color: {theme.TEXT_DIM}; font-size: 11px; font-style: italic; "
+                f"padding-top: 8px; padding-bottom: 4px;"
+            )
+            self._sb_detail_layout.addWidget(same_lbl)
+        elif draw_in or draw_out:
+            self._sb_detail_layout.addWidget(self._make_sb_section("ON THE DRAW", draw_in, draw_out))
+
+        # Notes section
+        if notes:
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setStyleSheet(f"background: {theme.BORDER}; max-height: 1px;")
+            self._sb_detail_layout.addWidget(sep)
+
+            notes_hdr = QLabel("NOTES")
+            notes_hdr.setStyleSheet(
+                f"color: {theme.TEXT_DIM}; font-size: 10px; font-weight: 700; "
+                f"letter-spacing: 1.5px; padding-top: 4px;"
+            )
+            self._sb_detail_layout.addWidget(notes_hdr)
+
+            notes_text = QTextEdit()
+            notes_text.setPlainText(notes)
+            notes_text.setReadOnly(True)
+            notes_text.setStyleSheet(
+                f"background: {theme.PANEL}; color: {theme.TEXT}; "
+                f"border: 1px solid {theme.BORDER}; border-radius: 4px; "
+                f"font-size: 11px; padding: 6px;"
+            )
+            # Sized to content (60-300px)
+            h = min(300, max(60, notes.count("\n") * 16 + 50))
+            notes_text.setFixedHeight(h)
+            self._sb_detail_layout.addWidget(notes_text)
+
+        self._sb_detail_layout.addStretch()
+
+    def _make_sb_section(self, title: str, in_cards: list, out_cards: list) -> QWidget:
+        """One section (Play or Draw) with IN/OUT side-by-side columns."""
+        section = QWidget()
+        sl = QVBoxLayout(section)
+        sl.setContentsMargins(0, 8, 0, 0)
+        sl.setSpacing(4)
+
+        hdr = QLabel(title)
+        hdr.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px; font-weight: 700; letter-spacing: 1.5px;"
+        )
+        sl.addWidget(hdr)
+
+        cols = QHBoxLayout()
+        cols.setSpacing(12)
+        cols.addWidget(self._make_card_column("IN",  in_cards,  theme.OK,  "+"), 1)
+        cols.addWidget(self._make_card_column("OUT", out_cards, theme.ERR, "\u2212"), 1)
+        sl.addLayout(cols)
+        return section
+
+    def _make_card_column(self, label: str, cards: list, color: str, sign: str) -> QWidget:
+        """One IN or OUT column with consolidated card counts + card-image tooltips."""
+        from gui.widgets.card_tooltip import install_card_tooltip
+
+        col = QWidget()
+        cl = QVBoxLayout(col)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(2)
+
+        head = QLabel(f"<b style='color:{color};'>{label}</b> "
+                      f"<span style='color:{theme.TEXT_DIM};'>({sign}{len(cards)})</span>")
+        head.setStyleSheet("font-size: 11px;")
+        cl.addWidget(head)
+
+        consolidated = self._consolidate_cards(cards)
+        if not consolidated:
+            empty = QLabel("(none)")
+            empty.setStyleSheet(f"color: {theme.TEXT_DIM}; font-style: italic; font-size: 11px;")
+            cl.addWidget(empty)
+            cl.addStretch()
+            return col
+
+        t = QTableWidget()
+        t.setRowCount(len(consolidated))
+        t.setColumnCount(2)
+        t.horizontalHeader().setVisible(False)
+        t.verticalHeader().setVisible(False)
+        t.setShowGrid(False)
+        t.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        t.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        t.setStyleSheet(
+            f"QTableWidget {{ background: transparent; border: none; font-size: 11px; }}"
+            f"QTableWidget::item {{ padding: 0px 2px; }}"
+        )
+        t.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        t.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+
+        for r, (qty, card) in enumerate(consolidated):
+            qty_item = QTableWidgetItem(f"{qty}\u00d7")
+            qty_item.setForeground(QColor(color))
+            qty_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            qty_font = QFont()
+            qty_font.setBold(True)
+            qty_item.setFont(qty_font)
+            t.setItem(r, 0, qty_item)
+            t.setItem(r, 1, QTableWidgetItem(card))
+
+        t.resizeRowsToContents()
+        row_h = max(18, t.rowHeight(0)) if consolidated else 20
+        t.setFixedHeight(row_h * len(consolidated) + 4)
+
+        install_card_tooltip(t, card_name_column=1)
+        cl.addWidget(t)
+        return col
 
     def _clear_detail(self):
         self._current_deck = None
