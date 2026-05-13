@@ -541,6 +541,11 @@ class MyDecksTab(QWidget):
         self._mull_eval = MulliganEvaluator()
         self._detail_tabs.addTab(self._mull_eval, "Test Hand")
 
+        # -- EV vs Field sub-tab --
+        from gui.widgets.deck_ev_widget import DeckEvWidget
+        self._deck_ev = DeckEvWidget()
+        self._detail_tabs.addTab(self._deck_ev, "EV vs Field")
+
         rv.addWidget(self._detail_tabs, 1)
 
         splitter.addWidget(right)
@@ -705,6 +710,8 @@ class MyDecksTab(QWidget):
         self._show_deck(deck)
         if hasattr(self, "_mull_eval"):
             self._mull_eval.set_deck(deck)
+        if hasattr(self, "_deck_ev"):
+            self._deck_ev.set_deck(deck)
         self._edit_btn.setEnabled(True)
         self._del_btn.setEnabled(True)
         self._export_btn.setEnabled(True)
