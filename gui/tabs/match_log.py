@@ -258,10 +258,16 @@ class MatchLogTab(QWidget):
 
         filt.addWidget(QLabel("Deck:"))
         self._filter_deck = QComboBox()
-        self._filter_deck.setEditable(True)
-        self._filter_deck.addItem("All")
-        self._filter_deck.setFixedWidth(150)
-        self._filter_deck.currentTextChanged.connect(lambda _: self._load_matches())
+        self._filter_deck.setEditable(False)
+        self._filter_deck.addItem("All decks", None)
+        try:
+            from db.saved_decks import get_decks
+            for d in get_decks():
+                self._filter_deck.addItem(f"{d['name']} ({d.get('archetype','?')})", d["id"])
+        except Exception:
+            pass
+        self._filter_deck.setMinimumWidth(220)
+        self._filter_deck.currentIndexChanged.connect(self._on_deck_filter_changed)
         filt.addWidget(self._filter_deck)
         filt.addStretch()
 
@@ -272,9 +278,9 @@ class MatchLogTab(QWidget):
 
         # Match table
         self._table = QTableWidget()
-        self._table.setColumnCount(9)
+        self._table.setColumnCount(10)
         self._table.setHorizontalHeaderLabels(
-            ["Date", "Event", "Rd", "My Deck", "vs", "Result", "P/D", "Games", "Swap"])
+            ["Date", "Event", "Rd", "My Deck", "vs", "Result", "P/D", "Games", "Var", "Swap"])
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -284,6 +290,7 @@ class MatchLogTab(QWidget):
         hh.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         hh.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(8, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
@@ -320,60 +327,34 @@ class MatchLogTab(QWidget):
         )
         self._post_event_btn.clicked.connect(self._show_post_event)
         btn_row.addWidget(self._post_event_btn)
+
+        self._sync_btn = QPushButton("Sync Untapped")
+        self._sync_btn.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"padding: 6px 14px; border-radius: 4px;")
+        self._sync_btn.setToolTip(
+            "Pull new match_log rows from data/untapped/replays/. "
+            "Same writer the M/W/F pipeline runs."
+        )
+        self._sync_btn.clicked.connect(self._on_sync_untapped)
+        btn_row.addWidget(self._sync_btn)
+
+        self._status_lbl = QLabel("")
+        self._status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        btn_row.addWidget(self._status_lbl)
         btn_row.addStretch()
         lv.addLayout(btn_row)
 
         splitter.addWidget(left)
 
-        # ── Right: matchup stats ──────────────────────────────────────
-        right = QWidget()
-        rv = QVBoxLayout(right)
-        rv.setContentsMargins(0, 0, 0, 0)
-
-        rv.addWidget(QLabel("Matchup Stats — Your Record vs Meta Expected:"))
-
-        self._stats_table = QTableWidget()
-        self._stats_table.setColumnCount(8)
-        self._stats_table.setHorizontalHeaderLabels(
-            ["Opponent", "Record", "Your WR", "Meta WR", "Delta", "On Play", "On Draw", "#"])
-        sh = self._stats_table.horizontalHeader()
-        sh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in range(1, 8):
-            sh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
-        self._stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._stats_table.verticalHeader().setVisible(False)
-        self._stats_table.setAlternatingRowColors(True)
-        self._stats_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._stats_table.customContextMenuRequested.connect(self._on_stats_menu)
-        rv.addWidget(self._stats_table, 1)
-
-        # SB Advice button
-        advice_row = QHBoxLayout()
-        self._advice_btn = QPushButton("SB Advice")
-        self._advice_btn.setStyleSheet(theme.btn_secondary())
-        self._advice_btn.setToolTip(
-            "Analyze your weak matchups and get sideboard recommendations"
-        )
-        self._advice_btn.clicked.connect(self._show_sb_advice)
-        advice_row.addWidget(self._advice_btn)
-        advice_row.addStretch()
-        rv.addLayout(advice_row)
-
-        # Event type breakdown
-        self._event_lbl = QLabel("")
-        self._event_lbl.setWordWrap(True)
-        self._event_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
-        rv.addWidget(self._event_lbl)
-
-        # Win rate trend chart
-        rv.addWidget(QLabel("Win Rate Trend:"))
-        from gui.widgets.chart_canvas import ChartCanvas
-        self._trend_canvas = ChartCanvas()
-        rv.addWidget(self._trend_canvas)
-
-        splitter.addWidget(right)
-        splitter.setSizes([550, 350])
-        outer.addWidget(splitter)
+        # Right side: variant timeline panel (replaces previous matchup-stats
+        # table + SB Advice + trend chart per design 2026-05-13 Option C)
+        from gui.widgets.variant_timeline import VariantTimelinePanel
+        self._timeline = VariantTimelinePanel()
+        splitter.addWidget(self._timeline)
+        splitter.setSizes([700, 300])
+        splitter.setCollapsible(1, True)
+        outer.addWidget(splitter, 1)
 
     # ------------------------------------------------------------------
     # Data loading
@@ -382,80 +363,33 @@ class MatchLogTab(QWidget):
     def _load_matches(self):
         fmt = self._filter_fmt.currentText()
         fmt_arg = None if fmt == "All" else fmt
-        deck = self._filter_deck.currentText().strip()
-        deck_arg = None if deck in ("All", "") else deck
+        deck_id = self._filter_deck.currentData()
 
         def _do():
-            from db.match_log import get_matches, get_matchup_stats, get_overall_stats
-            matches = get_matches(format_name=fmt_arg, my_deck=deck_arg)
-            stats = {}
+            from db.match_log import get_matches, get_overall_stats
+            matches = get_matches(format_name=fmt_arg, my_deck_id=deck_id)
             overall = {"wins": 0, "losses": 0, "draws": 0, "total": 0, "wr": 0}
-            active_deck = deck_arg
-            if deck_arg:
-                stats = get_matchup_stats(deck_arg, format_name=fmt_arg)
-                overall = get_overall_stats(my_deck=deck_arg, format_name=fmt_arg)
-            elif matches:
+
+            # Determine active_deck name for summary bar
+            active_deck = None
+            if deck_id is not None:
+                try:
+                    from db.saved_decks import get_decks
+                    d = next((x for x in get_decks() if x["id"] == deck_id), None)
+                    if d:
+                        active_deck = d.get("archetype") or d.get("name")
+                except Exception:
+                    pass
+            if active_deck is None and matches:
                 from collections import Counter
                 decks = Counter(m["my_deck"] for m in matches if m.get("my_deck"))
                 if decks:
                     active_deck = decks.most_common(1)[0][0]
-                    stats = get_matchup_stats(active_deck, format_name=fmt_arg)
-                    overall = get_overall_stats(my_deck=active_deck, format_name=fmt_arg)
 
-            # Fetch meta WR for comparison
-            meta_wrs = {}
-            try:
-                from analysis.win_rates import get_real_matchup_winrates
-                from analysis.archetypes import normalize as norm_arch
-                if active_deck and fmt_arg:
-                    real = get_real_matchup_winrates(fmt_arg or "modern", min_matches=10)
-                    my_norm = norm_arch(active_deck).lower()
-                    for a, opps in real.items():
-                        if norm_arch(a).lower() == my_norm:
-                            for b, s in opps.items():
-                                meta_wrs[norm_arch(b)] = s["win_rate"]
-                            break
-            except Exception:
-                pass
+            if active_deck:
+                overall = get_overall_stats(my_deck=active_deck, format_name=fmt_arg)
 
-            # Event type breakdown: tally W/L/D per event category so we can
-            # show 'RCQ: 12W-8L (60%)' rather than just '20 matches'.
-            def _classify_event(name: str) -> str:
-                low = (name or "").lower()
-                if "rcq" in low:
-                    return "RCQ"
-                if "regional" in low or " rc " in low:
-                    return "RC"
-                if "open" in low or "5k" in low or "$5k" in low:
-                    return "Open"
-                if "fnm" in low or "friday" in low:
-                    return "FNM"
-                return "Other"
-
-            event_stats = {}  # type -> {wins, losses, draws, total}
-            for m in matches:
-                cat = _classify_event(m.get("event_name"))
-                bucket = event_stats.setdefault(
-                    cat, {"wins": 0, "losses": 0, "draws": 0, "total": 0})
-                bucket["total"] += 1
-                result = (m.get("result") or "").lower()
-                if result == "win":
-                    bucket["wins"] += 1
-                elif result == "loss":
-                    bucket["losses"] += 1
-                elif result == "draw":
-                    bucket["draws"] += 1
-            # Also keep a flat count for backward-compat with any other consumer
-            event_types = {k: v["total"] for k, v in event_stats.items()}
-
-            # Win rate trend over time
-            from db.match_log import get_trend_data
-            trend = get_trend_data(my_deck=active_deck, format_name=fmt_arg)
-
-            return {"matches": matches, "stats": stats, "overall": overall,
-                    "meta_wrs": meta_wrs, "event_types": dict(event_types),
-                    "event_stats": event_stats,
-                    "trend": trend,
+            return {"matches": matches, "overall": overall,
                     "active_deck": active_deck, "active_format": fmt_arg}
 
         w = DataLoadWorker(_do)
@@ -469,7 +403,6 @@ class MatchLogTab(QWidget):
         self._active_deck = data.get("active_deck") or ""
         self._active_format = data.get("active_format") or "modern"
         self._populate_table(data["matches"])
-        self._populate_stats(data["stats"], data.get("meta_wrs", {}))
         self._refresh_event_banner()
         ov = data["overall"]
         if ov["total"] > 0:
@@ -481,50 +414,44 @@ class MatchLogTab(QWidget):
                 f"{ov['wins']}W-{ov['losses']}L-{ov['draws']}D",
                 f"{ov['wr']*100:.0f}% win rate",
             ]
-            # data["stats"] is {opp_deck: {"wr", "total", ...}} per
-            # db.match_log.get_matchup_stats — iterate items, not keys.
-            best = data.get("stats", {})
-            if best:
-                qualified = [(opp, s) for opp, s in best.items()
-                             if s.get("total", 0) >= 3]
-                if qualified:
-                    top_opp, top_stats = max(
-                        qualified, key=lambda kv: kv[1].get("wr", 0))
-                    stats.append(
-                        f"Best: vs {top_opp} {top_stats['wr']*100:.0f}%")
             self._summary_bar.update("MATCH LOG", stats)
         else:
             self._summary_lbl.setText(
-                "No matches logged yet \u2014 click 'Log Match' to record your first tournament result"
+                "No matches logged yet — click 'Log Match' to record your first tournament result"
             )
             self._summary_bar.update("MATCH LOG", [
                 "Track your results to see personal win rates vs each archetype",
             ])
 
-        # Event type breakdown — now includes W/L per event category.
-        event_stats = data.get("event_stats", {})
-        if event_stats:
-            parts = []
-            # Sort by decisive-match volume descending so the heaviest-used
-            # category shows first.
-            ranked = sorted(event_stats.items(),
-                            key=lambda kv: -(kv[1]["wins"] + kv[1]["losses"]))
-            for cat, s in ranked:
-                decisive = s["wins"] + s["losses"]
-                if decisive == 0:
-                    continue
-                wr = round(s["wins"] / decisive * 100)
-                draws = f"-{s['draws']}D" if s["draws"] else ""
-                parts.append(f"{cat}: {s['wins']}W-{s['losses']}L{draws} ({wr}%)")
-            self._event_lbl.setText(
-                ("Events: " + " \u2022 ".join(parts)) if parts else ""
-            )
-        else:
-            self._event_lbl.setText("")
+    # ------------------------------------------------------------------
+    # Deck filter + timeline sync
+    # ------------------------------------------------------------------
 
-        # Win rate trend chart
-        trend = data.get("trend", [])
-        self._draw_trend(trend)
+    def _on_deck_filter_changed(self, _index: int) -> None:
+        """Re-filter table AND update the variant timeline."""
+        deck_id = self._filter_deck.currentData()
+        self._timeline.set_deck(deck_id)
+        self._load_matches()
+
+    # ------------------------------------------------------------------
+    # Untapped sync
+    # ------------------------------------------------------------------
+
+    def _on_sync_untapped(self) -> None:
+        """Trigger the Untapped match_log writer ad-hoc."""
+        self._status_lbl.setText("Syncing Untapped replays...")
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+        try:
+            from scrapers.untapped_match_log_writer import run as _utw_run
+            n = _utw_run()
+            self._status_lbl.setText(f"Sync complete: {n} new rows.")
+        except Exception as e:
+            self._status_lbl.setText(f"Sync error: {e}")
+        self._load_matches()
+        deck_id = self._filter_deck.currentData()
+        if deck_id is not None:
+            self._timeline.set_deck(deck_id)
 
     def _show_post_event(self):
         """Open the PostEventDialog with the currently-loaded matches."""
@@ -641,31 +568,6 @@ class MatchLogTab(QWidget):
             except Exception:
                 pass
 
-    def _on_stats_menu(self, pos):
-        """Right-click on a matchup-stats row → 'Simulate this matchup'."""
-        if self._on_simulate_matchup is None:
-            return
-        row = self._stats_table.rowAt(pos.y())
-        if row < 0:
-            return
-        opp_item = self._stats_table.item(row, 0)
-        if opp_item is None:
-            return
-        opp_deck = opp_item.text().strip()
-        my_deck = getattr(self, "_active_deck", "") or ""
-        fmt = getattr(self, "_active_format", "modern") or "modern"
-        if not my_deck or not opp_deck:
-            return
-        from PyQt6.QtWidgets import QMenu
-        menu = QMenu(self._stats_table)
-        act = menu.addAction(f"Simulate: {my_deck} vs {opp_deck}")
-        chosen = menu.exec(self._stats_table.viewport().mapToGlobal(pos))
-        if chosen is act:
-            try:
-                self._on_simulate_matchup(my_deck, opp_deck, fmt)
-            except Exception:
-                pass
-
     def _populate_table(self, matches):
         self._table.setRowCount(len(matches))
         for ri, m in enumerate(matches):
@@ -701,6 +603,11 @@ class MatchLogTab(QWidget):
             self._table.setItem(ri, 7, QTableWidgetItem("-".join(games) if games else ""))
 
             # Swap column: icon if the match has swap notes; color by verdict.
+            var_short = (m.get("my_variant_hash") or "")[:4]
+            var_item = QTableWidgetItem(var_short)
+            var_item.setForeground(QColor("#5fa8d3"))
+            self._table.setItem(ri, 8, var_item)
+
             swap_notes = (m.get("swap_notes") or "").strip()
             verdict = (m.get("swap_verdict") or "").strip()
             if swap_notes:
@@ -719,223 +626,10 @@ class MatchLogTab(QWidget):
                 )
             else:
                 swap_item = QTableWidgetItem("")
-            self._table.setItem(ri, 8, swap_item)
+            self._table.setItem(ri, 9, swap_item)
 
             # Store match id
             self._table.item(ri, 0).setData(Qt.ItemDataRole.UserRole, m.get("id"))
-
-    def _populate_stats(self, stats, meta_wrs=None):
-        meta_wrs = meta_wrs or {}
-        sorted_stats = sorted(stats.items(), key=lambda x: -x[1]["total"])
-        self._stats_table.setRowCount(len(sorted_stats))
-        for ri, (opp, s) in enumerate(sorted_stats):
-            self._stats_table.setItem(ri, 0, QTableWidgetItem(opp))
-
-            record = f"{s['wins']}-{s['losses']}-{s['draws']}"
-            self._stats_table.setItem(ri, 1, QTableWidgetItem(record))
-
-            # Your WR
-            wr_item = QTableWidgetItem(f"{s['wr']*100:.0f}%")
-            if s["wr"] >= 0.55:
-                wr_item.setForeground(QColor(theme.OK))
-            elif s["wr"] <= 0.45:
-                wr_item.setForeground(QColor(theme.ERR))
-            wr_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._stats_table.setItem(ri, 2, wr_item)
-
-            # Meta WR (from real match data)
-            from analysis.archetypes import normalize as norm_arch
-            meta_wr = meta_wrs.get(norm_arch(opp))
-            if meta_wr is not None:
-                meta_item = QTableWidgetItem(f"{meta_wr*100:.0f}%")
-                meta_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                meta_item.setForeground(QColor(theme.TEXT_DIM))
-                self._stats_table.setItem(ri, 3, meta_item)
-
-                # Delta: your WR minus meta WR
-                delta = s["wr"] - meta_wr
-                delta_item = QTableWidgetItem(f"{delta*100:+.0f}%")
-                delta_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                if delta >= 0.05:
-                    delta_item.setForeground(QColor(theme.OK))
-                elif delta <= -0.05:
-                    delta_item.setForeground(QColor(theme.ERR))
-                else:
-                    delta_item.setForeground(QColor(theme.TEXT_DIM))
-                self._stats_table.setItem(ri, 4, delta_item)
-            else:
-                self._stats_table.setItem(ri, 3, QTableWidgetItem("\u2014"))
-                self._stats_table.setItem(ri, 4, QTableWidgetItem("\u2014"))
-
-            play_text = f"{s['play_wr']*100:.0f}%" if s["play_wr"] is not None else "\u2014"
-            pi = QTableWidgetItem(play_text)
-            pi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._stats_table.setItem(ri, 5, pi)
-
-            draw_text = f"{s['draw_wr']*100:.0f}%" if s["draw_wr"] is not None else "\u2014"
-            di = QTableWidgetItem(draw_text)
-            di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._stats_table.setItem(ri, 6, di)
-
-            ct_item = QTableWidgetItem(str(s["total"]))
-            ct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._stats_table.setItem(ri, 7, ct_item)
-
-    # ------------------------------------------------------------------
-    # Trend chart
-    # ------------------------------------------------------------------
-
-    def _show_sb_advice(self):
-        """Show SB advisor dialog for the user's most-played deck."""
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView
-        from PyQt6.QtGui import QColor
-
-        # Determine user's deck from most recent matches
-        deck = self._last_deck or ""
-        fmt = self._last_format or "standard"
-        if not deck:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "SB Advice", "Log some matches first so I know your deck.")
-            return
-
-        from analysis.matchup_advisor import get_advice
-        try:
-            advice = get_advice(deck, fmt)
-        except Exception as e:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "SB Advice", theme.friendly_error(e))
-            return
-
-        matchups = advice.get("matchups", [])
-        if not matchups:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "SB Advice", advice.get("summary", "No data."))
-            return
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"SB Advisor \u2014 {deck} ({fmt.capitalize()})")
-        dlg.setMinimumSize(800, 500)
-        dlg.setStyleSheet(f"background: {theme.BG}; color: {theme.TEXT};")
-        layout = QVBoxLayout(dlg)
-
-        from PyQt6.QtWidgets import QLabel
-        summary = QLabel(advice.get("summary", ""))
-        summary.setWordWrap(True)
-        summary.setStyleSheet(f"color: {theme.TEXT}; font-size: 12px; padding: 6px;")
-        layout.addWidget(summary)
-
-        tbl = QTableWidget(len(matchups), 6)
-        tbl.setHorizontalHeaderLabels([
-            "Opponent", "Your WR", "Meta WR", "Delta", "Status", "Recommendation",
-        ])
-        hh = tbl.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in range(1, 5):
-            hh.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
-        hh.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
-        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        tbl.verticalHeader().setVisible(False)
-        tbl.setAlternatingRowColors(True)
-
-        _SEV_COLORS = {
-            "critical": theme.ERR, "warning": theme.WARN,
-            "ok": theme.TEXT_DIM, "strong": theme.OK,
-        }
-        _SEV_LABELS = {
-            "critical": "CRITICAL", "warning": "Warning",
-            "ok": "OK", "strong": "Strong",
-        }
-
-        for ri, m in enumerate(matchups):
-            tbl.setItem(ri, 0, QTableWidgetItem(m["opponent"]))
-
-            wr = QTableWidgetItem(f"{m['personal_wr']*100:.0f}%")
-            wr.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            tbl.setItem(ri, 1, wr)
-
-            meta = m.get("meta_wr")
-            mi = QTableWidgetItem(f"{meta*100:.0f}%" if meta else "\u2014")
-            mi.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            tbl.setItem(ri, 2, mi)
-
-            d = m.get("delta")
-            di = QTableWidgetItem(f"{d*100:+.0f}%" if d is not None else "\u2014")
-            di.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            if d and d <= -0.05:
-                di.setForeground(QColor(theme.ERR))
-            elif d and d >= 0.05:
-                di.setForeground(QColor(theme.OK))
-            tbl.setItem(ri, 3, di)
-
-            sev = m["severity"]
-            si = QTableWidgetItem(_SEV_LABELS.get(sev, sev))
-            si.setForeground(QColor(_SEV_COLORS.get(sev, theme.TEXT_DIM)))
-            f = si.font()
-            f.setBold(True)
-            si.setFont(f)
-            si.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            tbl.setItem(ri, 4, si)
-
-            rec = QTableWidgetItem(m.get("suggestion", ""))
-            rec.setToolTip(m.get("suggestion", ""))
-            tbl.setItem(ri, 5, rec)
-
-        layout.addWidget(tbl, 1)
-        dlg.exec()
-
-    # ------------------------------------------------------------------
-    # Trend chart
-    # ------------------------------------------------------------------
-
-    def _draw_trend(self, trend: list):
-        """Draw win rate trend on the embedded chart canvas."""
-        fig = self._trend_canvas._fig
-        fig.clear()
-        if len(trend) < 2:
-            ax = fig.add_subplot(111)
-            ax.set_facecolor("#111219")
-            fig.patch.set_facecolor("#111219")
-            ax.text(0.5, 0.5, "Need 2+ events to show trend",
-                    ha="center", va="center", color="#888", fontsize=9,
-                    transform=ax.transAxes)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            self._trend_canvas._canvas.draw()
-            return
-
-        dates = [t["date"] for t in trend]
-        daily_wr = [t["wr"] * 100 for t in trend]
-        cum_wr = [t["cumulative_wr"] * 100 for t in trend]
-
-        ax = fig.add_subplot(111)
-        fig.patch.set_facecolor("#111219")
-        ax.set_facecolor("#111219")
-
-        x = range(len(dates))
-        ax.bar(x, daily_wr, color="#5eb5cf", alpha=0.4, label="Event WR")
-        ax.plot(x, cum_wr, color="#3cb44b", linewidth=2, marker="o",
-                markersize=3, label="Cumulative WR")
-        ax.axhline(y=50, color="#888", linestyle="--", linewidth=0.8, alpha=0.5)
-
-        ax.set_xticks(list(x))
-        ax.set_xticklabels([d[5:] for d in dates], rotation=45,
-                           fontsize=7, color="#aaa")
-        ax.set_ylabel("Win %", fontsize=8, color="#aaa")
-        ax.tick_params(axis="y", labelsize=7, colors="#aaa")
-        ax.set_ylim(0, 100)
-        ax.legend(fontsize=7, loc="upper left",
-                  facecolor="#111219", edgecolor="#555", labelcolor="#ccc")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_color("#555")
-        ax.spines["left"].set_color("#555")
-
-        fig.tight_layout()
-        self._trend_canvas._canvas.draw()
-
-    # ------------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------------
 
     def _add_match(self):
         dlg = _MatchDialog(self, default_event=self._last_event,

@@ -134,8 +134,13 @@ def delete_match(match_id: int):
 # ---------------------------------------------------------------------------
 
 def get_matches(format_name: str = None, my_deck: str = None,
-                since: str = None, limit: int = 200) -> list[dict]:
-    """Return match log entries, newest first."""
+                since: str = None, limit: int = 200,
+                my_deck_id: int | None = None) -> list[dict]:
+    """Return match log entries, newest first.
+
+    my_deck_id: if provided, filter by the integer saved-deck FK.  Can be
+    combined with the legacy my_deck string filter (both applied with AND).
+    """
     _ensure_table()
     q = "SELECT * FROM match_log WHERE 1=1"
     params = []
@@ -145,6 +150,9 @@ def get_matches(format_name: str = None, my_deck: str = None,
     if my_deck:
         q += " AND my_deck = ?"
         params.append(my_deck)
+    if my_deck_id is not None:
+        q += " AND my_deck_id = ?"
+        params.append(my_deck_id)
     if since:
         q += " AND event_date >= ?"
         params.append(since)
