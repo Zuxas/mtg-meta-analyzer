@@ -13,7 +13,7 @@ Strategy:
                                  (approximate; not the as-of-match snapshot)
       else                   -> backfill_status='orphan', my_deck_id stays NULL
 
-Returns: {'auto': n, 'orphan': m, 'skipped_already_resolved': k}.
+Returns: {'auto': n, 'orphan': m}.
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def _candidates_for(my_deck_str: str, format_name: str, event_date: str,
 
 
 def run() -> dict:
-    summary = {"auto": 0, "orphan": 0, "skipped_already_resolved": 0}
+    summary = {"auto": 0, "orphan": 0}
     all_decks = get_decks()
     with get_connection() as conn:
         conn.row_factory = __import__("sqlite3").Row
@@ -112,7 +112,6 @@ if __name__ == "__main__":
     with open(log_path, "a", encoding="utf-8") as f:
         timestamp = _dt.datetime.now().isoformat(timespec="seconds")
         f.write(
-            f"{timestamp}  auto={s['auto']}  orphan={s['orphan']}  "
-            f"skipped_already_resolved={s['skipped_already_resolved']}\n"
+            f"{timestamp}  auto={s['auto']}  orphan={s['orphan']}\n"
         )
     print(f"Log: {log_path}")

@@ -80,7 +80,7 @@ class VariantTimelinePanel(QWidget):
             self._summary.setText("")
             return
 
-        variants = self._load_variants(self._deck_id)
+        variants = get_variants_for_deck(self._deck_id)
         if not variants:
             self._header.setText("No variants yet")
             self._summary.setText("Log a match to start tracking variants.")
@@ -167,6 +167,3 @@ class VariantTimelinePanel(QWidget):
             row.setCursor(Qt.CursorShape.PointingHandCursor)
 
         return row
-
-    def _load_variants(self, deck_id: int) -> list[dict]:
-        return get_variants_for_deck(deck_id)

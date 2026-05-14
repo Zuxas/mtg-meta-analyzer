@@ -166,6 +166,13 @@ play sessions to populate Match Log.
       banner + `OrphanResolverDialog`.
       Spec: `docs/superpowers/specs/2026-05-13-match-log-variant-tracking-design.md`.
       Plan: `docs/superpowers/plans/2026-05-13-match-log-variant-tracking.md`.
+- [x] **Variant-tracking cosmetic followups (2026-05-14).** Format-filtered
+      saved-deck dropdown in `_MatchDialog` (now reloads on format change via
+      `_repopulate_my_deck`); inlined trivial `_load_variants` wrapper in
+      `VariantTimelinePanel` to call `get_variants_for_deck` directly; removed
+      unused `skipped_already_resolved` counter from
+      `scripts/backfill_match_log_decks.py` (SELECT already filters resolved
+      rows, so counter was always 0).
 
 ### RC May 29 Prep Tooling
 - [x] Tokyo Prowess saved as `saved_decks.id=17` + 17 SB plans with

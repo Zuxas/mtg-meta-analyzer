@@ -62,22 +62,9 @@ class _MatchDialog(QDialog):
 
         self._my_deck = QComboBox()
         self._my_deck.setEditable(False)
-        # Populate from saved decks; item data = deck id, display = "Name (archetype)"
-        self._my_deck.addItem("— select saved deck —", None)
-        try:
-            from db.saved_decks import get_decks
-            for d in get_decks():
-                label = f"{d['name']} ({d.get('archetype','?')})"
-                self._my_deck.addItem(label, d["id"])
-        except Exception:
-            pass
-        # Preselect from match.my_deck_id if editing
-        if match and match.get("my_deck_id") is not None:
-            target_id = match["my_deck_id"]
-            for i in range(self._my_deck.count()):
-                if self._my_deck.itemData(i) == target_id:
-                    self._my_deck.setCurrentIndex(i)
-                    break
+        self._editing_deck_id = (match.get("my_deck_id") if match else None)
+        self._repopulate_my_deck(self._fmt.currentText())
+        self._fmt.currentTextChanged.connect(self._repopulate_my_deck)
         form.addRow("My Deck:", self._my_deck)
 
         self._opp_deck = QComboBox()
@@ -172,6 +159,24 @@ class _MatchDialog(QDialog):
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
+
+    def _repopulate_my_deck(self, format_name: str) -> None:
+        self._my_deck.blockSignals(True)
+        self._my_deck.clear()
+        self._my_deck.addItem("— select saved deck —", None)
+        try:
+            from db.saved_decks import get_decks
+            for d in get_decks(format_name=format_name):
+                label = f"{d['name']} ({d.get('archetype','?')})"
+                self._my_deck.addItem(label, d["id"])
+        except Exception:
+            pass
+        if self._editing_deck_id is not None:
+            for i in range(self._my_deck.count()):
+                if self._my_deck.itemData(i) == self._editing_deck_id:
+                    self._my_deck.setCurrentIndex(i)
+                    break
+        self._my_deck.blockSignals(False)
 
     def get_data(self) -> dict:
         pd_map = {"On the Play": "play", "On the Draw": "draw", "Unknown": ""}
