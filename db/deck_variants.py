@@ -78,6 +78,35 @@ def _ensure_table():
     _do_ensure(_CREATE_SQL)
 
 
+def get_variants_for_deck(deck_id: int) -> list[dict]:
+    """Return all variants for a deck, ordered by first_seen.
+
+    Each row includes an `is_approximate` boolean: True iff every contributing
+    match_log row was auto-backfilled (backfill_status='auto'). UI uses this
+    to label the variant as approximate (e.g., '~v3') since the variant_hash
+    was computed from the saved_decks state at backfill time, not at match time.
+    """
+    import sqlite3
+    with get_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM deck_variants WHERE deck_id=? ORDER BY first_seen",
+            (deck_id,),
+        ).fetchall()
+        variants = [dict(r) for r in rows]
+        # Per-variant approximation flag
+        for v in variants:
+            counts = conn.execute(
+                "SELECT backfill_status, COUNT(*) as n FROM match_log "
+                "WHERE my_variant_hash=? GROUP BY backfill_status",
+                (v["variant_hash"],),
+            ).fetchall()
+            total = sum(c["n"] for c in counts)
+            auto = next((c["n"] for c in counts if c["backfill_status"] == "auto"), 0)
+            v["is_approximate"] = (total > 0 and auto == total)
+        return variants
+
+
 def upsert_variant(deck_id: int, mainboard: dict[str, int],
                    sideboard: dict[str, int], won: bool) -> str:
     """Insert or increment a variant row. Returns the variant_hash."""

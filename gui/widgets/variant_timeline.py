@@ -16,8 +16,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 import gui.theme as theme
-from db.database import get_connection
-from db.deck_variants import variant_diff
+from db.deck_variants import variant_diff, get_variants_for_deck
 from analysis.wilson import classify_tweak
 
 _FLAG_COLORS = {
@@ -101,7 +100,8 @@ class VariantTimelinePanel(QWidget):
 
         for i, v in enumerate(variants):
             prev = variants[i - 1] if i > 0 else None
-            row = self._build_row(v, prev, label=f"v{i+1}")
+            prefix = "~" if v.get("is_approximate") else ""
+            row = self._build_row(v, prev, label=f"{prefix}v{i+1}")
             self._content_layout.insertWidget(i, row)
 
     def _build_row(self, v: dict, prev: Optional[dict], label: str) -> QWidget:
@@ -129,7 +129,10 @@ class VariantTimelinePanel(QWidget):
         header.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(header)
 
-        date_lbl = QLabel(f"{v['first_seen'][:10]} – {v['last_seen'][:10]}")
+        date_text = f"{v['first_seen'][:10]} – {v['last_seen'][:10]}"
+        if v.get("is_approximate"):
+            date_text += "  (approx)"
+        date_lbl = QLabel(date_text)
         date_lbl.setStyleSheet(f"color: {theme.TEXT_OFF}; font-size: 10px;")
         layout.addWidget(date_lbl)
 
@@ -166,10 +169,4 @@ class VariantTimelinePanel(QWidget):
         return row
 
     def _load_variants(self, deck_id: int) -> list[dict]:
-        with get_connection() as conn:
-            conn.row_factory = __import__("sqlite3").Row
-            rows = conn.execute(
-                "SELECT * FROM deck_variants WHERE deck_id=? ORDER BY first_seen",
-                (deck_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
+        return get_variants_for_deck(deck_id)

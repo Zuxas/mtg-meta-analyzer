@@ -100,5 +100,19 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
+    from pathlib import Path
+    import datetime as _dt
     s = run()
     print(f"Backfill complete: auto={s['auto']} orphan={s['orphan']}")
+    # Persist a summary log per spec for auditability
+    log_dir = Path(__file__).resolve().parent.parent / "data" / "migrations"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    today = _dt.date.today().isoformat()
+    log_path = log_dir / f"match_log_variant_backfill_{today}.log"
+    with open(log_path, "a", encoding="utf-8") as f:
+        timestamp = _dt.datetime.now().isoformat(timespec="seconds")
+        f.write(
+            f"{timestamp}  auto={s['auto']}  orphan={s['orphan']}  "
+            f"skipped_already_resolved={s['skipped_already_resolved']}\n"
+        )
+    print(f"Log: {log_path}")

@@ -145,3 +145,35 @@ def test_resolve_and_save_with_nonexistent_deck_id_marks_orphan(seeded_db):
     assert row["my_deck_id"] is None
     assert row["my_variant_hash"] is None
     assert row["backfill_status"] == "orphan"
+
+
+def test_get_variants_for_deck_returns_approximation_flag(seeded_db):
+    """A variant where every contributing match is auto-backfilled is approximate.
+    A variant where any match is 'live' or 'manual' is NOT approximate."""
+    db_path, deck_id = seeded_db
+    from db.match_log import resolve_and_save
+    from db.deck_variants import get_variants_for_deck
+
+    # Live match -> variant_hash X, not approximate
+    resolve_and_save(event_name="A", event_date="2026-05-13",
+                     format_name="standard", round_num=1, my_deck_id=deck_id,
+                     opp_deck="X", result="win", source="manual")
+
+    # Manually flip the row to 'auto' to simulate a backfilled variant
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute(
+            "UPDATE match_log SET backfill_status='auto' "
+            "WHERE my_deck_id=? AND my_variant_hash IS NOT NULL",
+            (deck_id,),
+        )
+
+    variants = get_variants_for_deck(deck_id)
+    assert len(variants) == 1
+    assert variants[0]["is_approximate"] is True
+
+    # Now add a 'live' match for the SAME variant_hash -> no longer approximate
+    resolve_and_save(event_name="B", event_date="2026-05-14",
+                     format_name="standard", round_num=1, my_deck_id=deck_id,
+                     opp_deck="Y", result="loss", source="manual")
+    variants = get_variants_for_deck(deck_id)
+    assert variants[0]["is_approximate"] is False
