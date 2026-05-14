@@ -75,6 +75,9 @@ def register_archetype_entries(reg: PaletteRegistry, window: "MainWindow") -> No
     try:
         from db.database import get_combined_connection
         conn = get_combined_connection()
+    except Exception:
+        return
+    try:
         cur = conn.execute(
             "SELECT DISTINCT archetype FROM decks "
             "WHERE archetype IS NOT NULL AND archetype != '' "
@@ -83,6 +86,11 @@ def register_archetype_entries(reg: PaletteRegistry, window: "MainWindow") -> No
         names = [row[0] for row in cur]
     except Exception:
         return
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
     for name in names:
         slug = name.lower().replace(" ", "-")
         reg.register(PaletteEntry(
@@ -128,16 +136,26 @@ def register_card_entries(reg: PaletteRegistry) -> None:
     try:
         from db.database import get_combined_connection
         conn = get_combined_connection()
-        cur = conn.execute("SELECT name FROM card_data")
-        for (name,) in cur:
-            slug = name.lower().replace(" ", "-").replace(",", "")[:60]
-            reg.register(PaletteEntry(
-                id=f"card:{slug}", category="CARD",
-                name=name, secondary="",
-                handler=lambda n=name: None,  # v1: cards are searchable but selecting is no-op
-            ))
     except Exception:
         return
+    rows = []
+    try:
+        cur = conn.execute("SELECT name FROM card_data")
+        rows = [row[0] for row in cur]
+    except Exception:
+        return
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    for name in rows:
+        slug = name.lower().replace(" ", "-").replace(",", "")[:60]
+        reg.register(PaletteEntry(
+            id=f"card:{slug}", category="CARD",
+            name=name, secondary="",
+            handler=lambda n=name: None,  # v1: cards are searchable but selecting is no-op
+        ))
 
 
 def register_all(reg: PaletteRegistry, window: "MainWindow") -> None:

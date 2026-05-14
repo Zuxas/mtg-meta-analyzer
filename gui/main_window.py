@@ -345,16 +345,17 @@ class MainWindow(QMainWindow):
 
     def open_archetype_detail(self, archetype_name: str) -> None:
         """Open the archetype detail dialog for the given archetype."""
+        # ArchetypeDetailDialog(__init__) requires format_name; pull from
+        # UIState (set by act:format-* palette actions), default to standard.
+        fmt = self.ui_state.get("global.format") or "standard"
         try:
             from gui.widgets.archetype_detail import ArchetypeDetailDialog
-            fmt = self.ui_state.get("global.format") or "standard"
             dlg = ArchetypeDetailDialog(archetype_name, format_name=fmt, parent=self)
-            dlg.exec()
-        except Exception:
+        except Exception as e:
             import logging
-            logging.warning(
-                "Could not open archetype detail for %s", archetype_name, exc_info=True
-            )
+            logging.warning("Could not construct ArchetypeDetailDialog for %s: %s", archetype_name, e)
+            return
+        dlg.exec()
 
     def open_saved_deck(self, deck_id: int) -> None:
         """Switch to My Decks tab and select the given deck by id (if supported)."""
