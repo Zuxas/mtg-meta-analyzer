@@ -95,6 +95,13 @@ def main():
             "Untapped mythic leaderboard")
         run("-m scrapers.untapped_premium_scraper --last-7-days",
             "Untapped premium (last 7 days)")
+        try:
+            from scrapers.untapped_match_log_writer import run as _utw_run
+            print("[Untapped] Writing match_log rows from replay corpus...")
+            n_new = _utw_run()
+            print(f"[Untapped] match_log: {n_new} new rows")
+        except Exception as e:
+            print(f"[Untapped] match_log writer error: {e}")
     else:
         day_name = _dt.date.today().strftime("%a")
         print(f"\n-- Untapped SKIPPED (throttled to M/W/F, today is {day_name}) --")
