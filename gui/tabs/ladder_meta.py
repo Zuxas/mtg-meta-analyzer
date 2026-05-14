@@ -182,6 +182,13 @@ class LadderMetaTab(QWidget):
         self._lb_tbl.verticalHeader().setVisible(False)
         self._lb_tbl.setAlternatingRowColors(False)
         self._lb_tbl.setSortingEnabled(True)
+        self._lb_tbl.setToolTip(
+            "Double-click a row to open that player's deck on Untapped.gg.\n"
+            "Right-click for more actions."
+        )
+        self._lb_tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._lb_tbl.customContextMenuRequested.connect(self._on_lb_context_menu)
+        self._lb_tbl.itemDoubleClicked.connect(self._on_lb_double_click)
         hh3 = self._lb_tbl.horizontalHeader()
         hh3.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh3.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -348,6 +355,13 @@ class LadderMetaTab(QWidget):
         for ri, r in enumerate(rows):
             rank_item = QTableWidgetItem(str(r["rank_approx"] or ""))
             rank_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            # Stash the deck identifiers on the rank cell so right-click /
+            # double-click handlers can build the Untapped URL without
+            # re-querying the DB.
+            rank_item.setData(Qt.ItemDataRole.UserRole,
+                              {"user_id": r.get("user_id"),
+                               "short_id": r.get("short_id"),
+                               "player_name": r.get("player_name") or ""})
             self._lb_tbl.setItem(ri, 0, rank_item)
             self._lb_tbl.setItem(ri, 1,
                 QTableWidgetItem(r["player_name"] or ""))
@@ -367,6 +381,56 @@ class LadderMetaTab(QWidget):
                 wr_item.setForeground(_wr_color(wr / 100.0))
             self._lb_tbl.setItem(ri, 4, wr_item)
         self._lb_tbl.setSortingEnabled(True)
+
+    def _open_deck_for_row(self, row_index: int) -> None:
+        """Open the Untapped public deck page for the given leaderboard row."""
+        item = self._lb_tbl.item(row_index, 0)
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole) or {}
+        from db.untapped_queries import untapped_deck_url
+        url = untapped_deck_url(data.get("user_id"), data.get("short_id"))
+        if not url:
+            self._status.setText(
+                f"No deck link available for {data.get('player_name','?')} "
+                "(missing user_id / short_id in scrape)."
+            )
+            return
+        from PyQt6.QtGui import QDesktopServices
+        from PyQt6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl(url))
+        self._status.setText(f"Opened deck for {data.get('player_name','?')} in browser.")
+
+    def _on_lb_double_click(self, item) -> None:
+        self._open_deck_for_row(item.row())
+
+    def _on_lb_context_menu(self, pos) -> None:
+        from PyQt6.QtWidgets import QMenu, QApplication
+        item = self._lb_tbl.itemAt(pos)
+        if item is None:
+            return
+        row = item.row()
+        data = self._lb_tbl.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
+        player_name = data.get("player_name", "?")
+
+        menu = QMenu(self)
+        open_act = menu.addAction(f"Open {player_name}'s deck on Untapped.gg")
+        copy_act = menu.addAction("Copy deck URL")
+        action = menu.exec(self._lb_tbl.viewport().mapToGlobal(pos))
+
+        from db.untapped_queries import untapped_deck_url
+        url = untapped_deck_url(data.get("user_id"), data.get("short_id"))
+
+        if action is open_act:
+            self._open_deck_for_row(row)
+        elif action is copy_act:
+            if url:
+                QApplication.clipboard().setText(url)
+                self._status.setText(f"Copied: {url}")
+            else:
+                self._status.setText(
+                    "No deck link available (missing user_id / short_id)."
+                )
 
 
 def _wr_color(wr_frac: float) -> QColor:

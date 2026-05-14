@@ -426,7 +426,9 @@ def get_mythic_leaderboard(limit: int = 30, format_name: str = "standard") -> Li
 
     Each row has:
         player_name, archetype_primary (color combo), colors_str,
-        matches_count, win_rate, rank_approx
+        matches_count, win_rate, rank_approx,
+        short_id, user_id, deck_id   -- for linking out to the
+                                        Untapped public deck page
     """
     event_name = _FORMAT_MAP.get(format_name.lower())
     if not event_name:
@@ -435,7 +437,8 @@ def get_mythic_leaderboard(limit: int = 30, format_name: str = "standard") -> Li
         con.row_factory = sqlite3.Row
         rows = con.execute("""
             SELECT e.player_name, e.archetype_primary, e.colors_str,
-                   e.matches_count, e.win_rate, e.rank_approx
+                   e.matches_count, e.win_rate, e.rank_approx,
+                   e.short_id, e.user_id, e.deck_id
             FROM untapped_entries e
             JOIN untapped_meta_periods mp ON mp.id = e.meta_period_id
             JOIN untapped_snapshots s ON s.id = e.snapshot_id
@@ -446,6 +449,20 @@ def get_mythic_leaderboard(limit: int = 30, format_name: str = "standard") -> Li
             LIMIT ?
         """, (event_name, limit)).fetchall()
     return [dict(r) for r in rows]
+
+
+def untapped_deck_url(user_id: str | None, short_id: str | None) -> str | None:
+    """Build the public Untapped.gg URL for a player's deck.
+
+    Verified 2026-05-14: the public deck page is `mtga.untapped.gg/decks/<short_id>`
+    -- the `/profile/<user_id>/decks/<short_id>` pattern returns 404 even when
+    user_id is correct. user_id is kept in the signature for callers that want
+    to derive other URLs (e.g., the player's profile page) later.
+
+    Returns None if short_id is missing."""
+    if not short_id:
+        return None
+    return f"https://mtga.untapped.gg/decks/{short_id}"
 
 
 def get_mythic_archetype_rollup(limit: int = 12, format_name: str = "standard") -> List[dict]:
