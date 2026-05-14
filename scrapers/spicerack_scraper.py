@@ -83,9 +83,16 @@ def _get_json(url: str, headers: dict, timeout: int = 15) -> object:
 
 
 def fetch_tournaments(event_format: str, num_days: int = 30) -> list[dict]:
-    """Fetch recent tournaments from Spicerack for a given format."""
-    url = f"{SPICERACK_API}?event_format={event_format}&num_days={num_days}"
-    print(f"  Spicerack: {event_format} last {num_days} days -> {url}")
+    """Fetch recent tournaments from Spicerack for a given format.
+
+    The Spicerack API rejects lowercase format strings with HTTP 400
+    ('Invalid format provided'); it requires title-case ("Modern",
+    "Standard", etc.). We accept either casing from callers and
+    normalize at the API boundary.
+    """
+    api_format = event_format.title() if event_format else event_format
+    url = f"{SPICERACK_API}?event_format={api_format}&num_days={num_days}"
+    print(f"  Spicerack: {api_format} last {num_days} days -> {url}")
     try:
         data = _get_json(url, HEADERS_SPICE)
         if not isinstance(data, list):

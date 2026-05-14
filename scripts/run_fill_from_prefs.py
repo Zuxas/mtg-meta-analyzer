@@ -95,6 +95,21 @@ def main():
             "Untapped mythic leaderboard")
         run("-m scrapers.untapped_premium_scraper",
             "Untapped premium")
+        # Per-rank archetype WR for ALL formats (free meta endpoint).
+        # Added to pipeline 2026-05-14 -- previously only ran manually.
+        run("-m scrapers.untapped_meta_scraper",
+            "Untapped meta (per-rank archetype WR)")
+        # Bo1 showcase matchup matrix (free endpoint).
+        # Added to pipeline 2026-05-14 -- previously only ran manually.
+        run("-m scrapers.untapped_matchup_scraper",
+            "Untapped matchup matrix")
+        # Replay corpus refresh -- pulls upload-log JSON for any short_id
+        # in untapped_entries that doesn't yet have a local replay.
+        # Throttled to top 50 by matches_count to keep network usage
+        # bounded (~50 * 250KB gz = 12.5 MB per M/W/F run).
+        # Added to pipeline 2026-05-14 -- previously only ran manually.
+        run("-m scrapers.untapped_replay_fetcher --top 50",
+            "Untapped replay fetch (top 50)")
         try:
             from scrapers.untapped_match_log_writer import run as _utw_run
             print("[Untapped] Writing match_log rows from replay corpus...")

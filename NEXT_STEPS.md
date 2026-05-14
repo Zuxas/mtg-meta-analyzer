@@ -76,6 +76,28 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Pipeline + Data Freshness (2026-05-14)
+- [x] **Spicerack HTTP 400 root-caused + fixed.** Pipeline call passed
+      `--format standard` (lowercase) but the Spicerack API requires
+      title-case (`Standard`, `Modern`, etc.). `fetch_tournaments()`
+      now title-cases at the API boundary so either casing works from
+      callers. Probed live with both casings to confirm.
+- [x] **Untapped meta_scraper + matchup_scraper + replay_fetcher
+      wired into M/W/F pipeline.** Previously only the mythic +
+      premium scrapers + match_log writer + decklist populator ran
+      automatically; the other three required manual invocation and
+      had been stale since 5/10. `scripts/run_fill_from_prefs.py`
+      now runs all five Untapped scrapers on M/W/F (replay fetch
+      throttled `--top 50` by matches_count to cap network usage
+      at ~12.5MB per run).
+- [x] **Untapped Premium partial-capture investigated -- not a bug.**
+      Of the 5 Bo3 formats targeted, 2-3 return data per run; the
+      other 2-3 return HTTP 202 with empty body (insufficient upstream
+      sample volume for Alchemy/Historic/Timeless in current meta
+      period). Captured behavior in 5/13 6AM run log: Traditional_Ladder
+      22 rows (plat=20), Traditional_Explorer 1 row, Alchemy/Historic/
+      Timeless all "no data / 202". Behavior is upstream-driven.
+
 ### Untapped Tail-Off (low priority)
 - [x] **Untapped premium scrape — drop `--last-7-days` from M/W/F cadence.**
       Shipped 2026-05-14: re-pulling without the flag widened Standard Bo3
