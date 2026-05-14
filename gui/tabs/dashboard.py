@@ -222,7 +222,7 @@ class DashboardTab(QWidget):
         self._chart_worker  = None
         self._chart_data    = None     # cached fetch_chart_data result
         self._chart_checks  = {}       # archetype -> QCheckBox
-        self._chart_mode    = "meta_share"
+        self._chart_mode    = "win_pct"
         self._standings     = []
         self._on_simulate   = on_simulate
         self._hydrated_state = False   # sticky state hydration guard

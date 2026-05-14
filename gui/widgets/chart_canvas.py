@@ -428,17 +428,31 @@ class ChartCanvas(QWidget):
             self.show_message("No archetypes selected.")
             return
 
+        # X-axis uses real datetime objects so chronological order is invariant
+        # to the per-archetype "first-seen bucket" ordering bug that scrambled
+        # the categorical-string axis. Year-stripping for display only happens
+        # below when the data fits in one calendar year.
+        from datetime import datetime as _datetime
+        import matplotlib.dates as _mdates
+
         sorted_weeks = sorted(data["all_weeks"])
-        x_labels     = [w[5:] for w in sorted_weeks]
+        sorted_dates = [_datetime.strptime(w, "%Y-%m-%d") for w in sorted_weeks]
+        spans_years  = (len(sorted_dates) >= 2
+                        and sorted_dates[0].year != sorted_dates[-1].year)
 
         if mode == "win_pct":
             series    = data["winpct_data"]
             y_label   = "Est Win %"
             title_sfx = "Win Rate Over Time"
+            # n>=3 was too aggressive on short windows where most archetypes
+            # have 1-2 appearances per bucket. Drop to n>=1 -- the 3-point
+            # rolling average below still smooths singletons.
+            min_n = 1
         else:
             series    = data["meta_data"]
             y_label   = "Meta Share %"
             title_sfx = "Popularity Over Time"
+            min_n = 0
 
         self._fig.clear()
         self._overlay.setVisible(False)
@@ -453,15 +467,12 @@ class ChartCanvas(QWidget):
             arch_samples = sample.get(arch, {})
 
             if mode == "win_pct":
-                # For win rate: suppress weeks with <3 appearances, apply 3-point rolling avg
                 raw = []
-                total_raw = 0
                 for w in sorted_weeks:
                     val = row.get(w)
                     n   = arch_samples.get(w, 0)
-                    if val is not None and n >= 3:
+                    if val is not None and n >= min_n:
                         raw.append(val * 100)
-                        total_raw += 1
                     else:
                         raw.append(None)
                 # 3-point rolling average (skip Nones)
@@ -470,15 +481,16 @@ class ChartCanvas(QWidget):
                     window = [raw[k] for k in range(max(0, j - 1), min(len(raw), j + 2))
                               if raw[k] is not None]
                     y.append(sum(window) / len(window) if window else None)
-                # Plot only non-None segments
-                xs = [x_labels[j] for j in range(len(y)) if y[j] is not None]
+                # Plot only non-None segments; use datetime x-values so the
+                # axis is shared chronologically across all archetypes.
+                xs = [sorted_dates[j] for j in range(len(y)) if y[j] is not None]
                 ys = [y[j] for j in range(len(y)) if y[j] is not None]
                 if ys:
                     ax.plot(xs, ys, marker="o", markersize=3, linewidth=2,
                             color=color, label=_shorten(arch), alpha=0.9)
             else:
                 y = [(row.get(w) or 0) * 100 for w in sorted_weeks]
-                ax.plot(x_labels, y, marker="o", markersize=4, linewidth=2,
+                ax.plot(sorted_dates, y, marker="o", markersize=4, linewidth=2,
                         color=color, label=_shorten(arch), alpha=0.9)
 
         fmt = data.get("format_name", "standard").upper()
@@ -491,9 +503,13 @@ class ChartCanvas(QWidget):
         tf_label = _timeframe_label(sorted_weeks)
         gran = data.get("granularity", "weekly")
         _subtitle(ax, f"{total_apps:,} appearances  \u00b7  {tf_label}  \u00b7  {gran}")
-        ax.set_xlabel("Week", color="white", fontsize=9)
+        ax.set_xlabel("Date", color="white", fontsize=9)
         ax.set_ylabel(y_label, color="white", fontsize=9)
-        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True, nbins=12))
+        # Show year only when the data crosses a calendar year boundary --
+        # otherwise MM-DD is enough and stays readable.
+        date_fmt = "%Y-%m-%d" if spans_years else "%m-%d"
+        ax.xaxis.set_major_formatter(_mdates.DateFormatter(date_fmt))
+        ax.xaxis.set_major_locator(_mdates.AutoDateLocator(maxticks=12))
         for lbl in ax.get_xticklabels():
             lbl.set_rotation(45)
             lbl.set_ha("right")
@@ -503,6 +519,10 @@ class ChartCanvas(QWidget):
         ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
                   labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
         if show_events:
+            # Event markers helper still consumes (x_labels, sorted_weeks) for
+            # legacy compatibility -- regenerate x_labels matching the new
+            # datetime-axis format so the markers land in the right place.
+            x_labels = [d.strftime(date_fmt) for d in sorted_dates]
             _draw_event_markers(ax, x_labels, sorted_weeks,
                                 data.get("format_name", "standard"))
         self._fig.tight_layout()
