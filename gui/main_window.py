@@ -244,6 +244,11 @@ class MainWindow(QMainWindow):
             self._add_claude_tab()
             self._add_set_analysis_tab()
 
+        # Persist top-level tab navigation (clicks on the tab bar) to UIState.
+        # The palette's activate_tab_by_path() also writes this — both paths
+        # converge on UIState.set(LAST_ACTIVE_TAB_PATH, ...).
+        self._tabs.currentChanged.connect(self._on_top_tab_changed)
+
         self.setCentralWidget(central)
 
         # Status bar
@@ -442,6 +447,14 @@ class MainWindow(QMainWindow):
         # Pre-fill Event Optimizer with the deck's archetype and format
         if hasattr(self._tourney, "load_deck"):
             self._tourney.load_deck(deck)
+
+    def _on_top_tab_changed(self, index: int) -> None:
+        """Persist top-level tab navigation when user clicks the tab bar."""
+        if index < 0:
+            return
+        label = self._tabs.tabText(index)
+        if label:
+            self.ui_state.set(LAST_ACTIVE_TAB_PATH, label)
 
     # ------------------------------------------------------------------
     # Startup logic
