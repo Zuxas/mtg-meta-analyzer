@@ -76,6 +76,39 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### MTGA Auto-Import + Match Classification (2026-05-14)
+- [x] **MTGA Player.log parser wired into daily background_fill.** Previously
+      `scrapers/mtga_log_parser.py` was a manual CLI-only tool; ranked matches
+      never showed up in Match Log until the user remembered to run the
+      parser. Now it runs every 6 AM (and every other invocation of
+      `scripts/run_fill_from_prefs.py`), parsing both Player.log and
+      Player-prev.log. Failure path is non-fatal -- if the user doesn't
+      have MTGA on this machine, the chain continues.
+- [x] **classify_opponent_deck SQL fix.** Query referenced `dc.card_name`
+      which doesn't exist on `deck_cards` -- column is `c.name` via JOIN
+      to `cards`. The try/except silently returned "Unknown" for every
+      opponent, so all 48 historical rows had empty opp_deck despite
+      having opp_card_ids. Fixed at `scrapers/mtga_log_parser.py:506-516`.
+      Backfill via `--classify-opponents` updated 15 historical rows with
+      real archetypes (Gruul Aggro, Izzet Elementals, Golgari Control,
+      Simic Rhythm, Azorius Control, Selesnya Aggro, etc.).
+- [x] **classify_my_deck schema mismatch + alt-art bug.** The classifier
+      queried `card_data.arena_id` which doesn't exist in production --
+      the canonical mapping lives in `untapped_card_db.grpid`. Tests
+      seeded `card_data.arena_id` directly so the test suite never caught
+      this. Also fixed: original `name -> arena_id` dict overwrote on
+      duplicate names (basic lands have many printings = many grpids per
+      name), causing the deck/observed-set intersection to miss alt-art
+      copies. Rewrote to compare by card NAME via reverse `grpid -> name`
+      lookup, alt-art-safe. Falls back to `card_data.arena_id` first for
+      test compatibility, then `untapped_card_db.grpid` in production.
+- [x] **mtga_log_parser migrated from save_match -> resolve_and_save.**
+      Now writes with `source='mtga_log'`, auto-classifies `my_deck_id`
+      via the fixed classifier, and stores `opp_grp_ids_json` for future
+      re-classification. Tokyo Prowess (deck id=17) is auto-linked on
+      every match where the user's grpIds overlap >=70% with the saved
+      deck.
+
 ### Pipeline + Data Freshness (2026-05-14)
 - [x] **Spicerack HTTP 400 root-caused + fixed.** Pipeline call passed
       `--format standard` (lowercase) but the Spicerack API requires

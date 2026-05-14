@@ -22,30 +22,55 @@ _OVERLAP_THRESHOLD = 0.70
 def classify_my_deck(observed_grp_ids: list[int],
                      format_name: str) -> Optional[int]:
     """Return the saved_decks.id whose mainboard best explains the observed
-    grp_ids, or None if no deck scores >= 0.70."""
+    grp_ids, or None if no deck scores >= 0.70.
+
+    Compares by card NAME rather than arena_id directly so alt-art printings
+    (basic lands especially have many grpids per name) all count toward the
+    same card. Score = |deck_names cap observed_names| / |deck_names|.
+    """
     if not observed_grp_ids:
         return None
 
     observed_set = set(observed_grp_ids)
 
-    # Build name -> arena_id lookup from card_data so we can compare
-    # mainboard (keyed by card name) against grp_ids (= arena_id).
+    # Build grpid -> name lookup. Production schema doesn't carry arena_id
+    # on card_data; the canonical mapping lives in untapped_card_db.grpid.
+    # Tests can still seed card_data.arena_id directly -- we read that first
+    # and fall back to untapped_card_db when the column is absent or empty.
+    grpid_to_name: dict[int, str] = {}
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT name, arena_id FROM card_data WHERE arena_id IS NOT NULL"
-        ).fetchall()
-    name_to_arena = {r["name"]: r["arena_id"] for r in rows}
+        try:
+            rows = conn.execute(
+                "SELECT name, arena_id FROM card_data WHERE arena_id IS NOT NULL"
+            ).fetchall()
+            for r in rows:
+                grpid_to_name[r["arena_id"]] = r["name"]
+        except Exception:
+            pass
+        if not grpid_to_name:
+            try:
+                rows = conn.execute(
+                    "SELECT name, grpid FROM untapped_card_db WHERE grpid IS NOT NULL"
+                ).fetchall()
+                for r in rows:
+                    grpid_to_name[r["grpid"]] = r["name"]
+            except Exception:
+                pass
+    if not grpid_to_name:
+        return None
+
+    observed_names = {grpid_to_name[g] for g in observed_set if g in grpid_to_name}
+    if not observed_names:
+        return None
 
     candidates = []
     for deck in get_decks(format_name=format_name):
         mb = deck.get("mainboard", {}) or {}
         if not mb:
             continue
-        deck_arena_ids = {name_to_arena[n] for n in mb if n in name_to_arena}
-        if not deck_arena_ids:
-            continue
-        overlap = len(deck_arena_ids & observed_set)
-        score = overlap / len(deck_arena_ids)
+        deck_names = set(mb.keys())
+        overlap = len(deck_names & observed_names)
+        score = overlap / len(deck_names)
         if score >= _OVERLAP_THRESHOLD:
             candidates.append((score, deck.get("created_at", ""), deck["id"]))
 

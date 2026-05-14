@@ -504,8 +504,9 @@ def classify_opponent_deck(opp_card_ids: list[int], format_name: str = "standard
         conn = sqlite3.connect(_META_DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute("""
-            SELECT d.archetype, GROUP_CONCAT(DISTINCT dc.card_name) AS cards
+            SELECT d.archetype, GROUP_CONCAT(DISTINCT c.name) AS cards
             FROM deck_cards dc
+            JOIN cards c ON c.id = dc.card_id
             JOIN decks d ON dc.deck_id = d.id
             JOIN events e ON d.event_id = e.id
             WHERE e.format = ?
@@ -555,10 +556,17 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
                        my_deck: str = "") -> int:
     """Save parsed matches to match_log table. Skips duplicates by arena_match_id.
 
+    Uses db.match_log.resolve_and_save() so each row gets:
+      - my_deck_id resolved via analysis.my_deck_classifier (when the user's
+        deck grpIds overlap a saved_decks entry above the 0.70 threshold)
+      - source='mtga_log' for provenance
+      - opp_grp_ids_json populated so opponent classification can be redone
+
     Returns count of newly saved matches.
     """
-    from db.match_log import save_match, get_matches, _ensure_table
+    from db.match_log import _ensure_table, resolve_and_save
     from db.database import get_connection
+    from analysis.my_deck_classifier import classify_my_deck
 
     # Ensure arena_match_id column exists
     _ensure_table()
@@ -592,28 +600,34 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
         if opp_card_ids:
             opp_deck = classify_opponent_deck(opp_card_ids, format_name)
 
-        row_id = save_match(
+        # Auto-classify my deck against saved_decks via grpId overlap
+        my_deck_id = None
+        my_grp_ids = m.get("deck_card_ids") or []
+        if my_grp_ids:
+            try:
+                my_deck_id = classify_my_deck(my_grp_ids, format_name)
+            except Exception:
+                my_deck_id = None
+
+        row_id = resolve_and_save(
             event_name=m["event_name"],
             event_date=m["date"],
             format_name=format_name,
             round_num=0,  # Arena doesn't expose round numbers
-            my_deck=my_deck,
+            my_deck_id=my_deck_id,
             opp_deck=opp_deck if opp_deck != "Unknown" else "",
-            opp_name=m["opponent"],
             result=m["match_result"],
+            source="mtga_log",
             play_draw=m["play_draw"],
+            opp_name=m["opponent"],
             g1_result=m["g1_result"],
             g2_result=m["g2_result"],
             g3_result=m["g3_result"],
             notes="; ".join(notes_parts),
+            opp_grp_ids=opp_card_ids if opp_card_ids else None,
+            arena_match_id=m["match_id"],
         )
-
-        # Store arena_match_id for dedup
-        with get_connection() as conn:
-            conn.execute(
-                "UPDATE match_log SET arena_match_id = ? WHERE id = ?",
-                (m["match_id"], row_id)
-            )
+        existing_ids.add(m["match_id"])
 
         saved += 1
 

@@ -86,6 +86,33 @@ def main():
     # Scryfall enrichment (always)
     run("-m scrapers.scryfall", "Scryfall enrichment")
 
+    # User's Arena games (always; reads local Player.log). Wired into the
+    # daily pipeline 2026-05-14 -- previously manual-CLI-only, which meant
+    # ranked matches never showed up in Match Log until the user remembered
+    # to run the parser. Failure is non-fatal -- the user may not have MTGA
+    # running on this machine.
+    try:
+        from scrapers.mtga_log_parser import (
+            parse_log_file, save_matches_to_db, PLAYER_LOG, PLAYER_PREV_LOG,
+        )
+        all_matches = []
+        for log_path in (PLAYER_LOG, PLAYER_PREV_LOG):
+            if not os.path.exists(log_path):
+                continue
+            try:
+                all_matches.extend(parse_log_file(log_path))
+            except Exception as e:
+                print(f"[MTGA log] parse error on {log_path}: {e}")
+        if all_matches:
+            for fmt in formats:
+                n = save_matches_to_db(all_matches, format_name=fmt)
+                if n:
+                    print(f"[MTGA log] {fmt}: {n} new matches imported")
+        else:
+            print("[MTGA log] no Player.log found or no matches parsed")
+    except Exception as e:
+        print(f"[MTGA log] importer error: {e}")
+
     # Untapped.gg — mythic leaderboard + premium per-archetype data
     # Throttled to Mon/Wed/Fri (~3x/week) to match MTGDecks cadence.
     # Mythic is public/unauthenticated; premium needs session credentials (see UNTAPPED_README).
