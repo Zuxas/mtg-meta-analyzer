@@ -241,6 +241,26 @@ class MatchLogTab(QWidget):
         self._event_banner.setVisible(False)
         outer.addWidget(self._event_banner)
 
+        # Orphan-resolution banner — visible when match_log has orphan rows
+        self._orphan_banner = QLabel("")
+        self._orphan_banner.setStyleSheet(
+            f"background: #3a2a1a; border-left: 4px solid #e2a55c; "
+            f"padding: 6px 10px; border-radius: 3px; color: {theme.TEXT}; "
+            f"font-size: 11px;"
+        )
+        self._orphan_banner.setVisible(False)
+        self._resolve_btn = QPushButton("Resolve…")
+        self._resolve_btn.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"padding: 4px 10px; border-radius: 3px;"
+        )
+        self._resolve_btn.setVisible(False)
+        self._resolve_btn.clicked.connect(self._on_resolve_clicked)
+        banner_row = QHBoxLayout()
+        banner_row.addWidget(self._orphan_banner, 1)
+        banner_row.addWidget(self._resolve_btn)
+        outer.addLayout(banner_row)
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # ── Left: match log table ─────────────────────────────────────
@@ -397,6 +417,7 @@ class MatchLogTab(QWidget):
         w.finished.connect(w.deleteLater)
         w.start()
         self._workers.append(w)
+        self._refresh_orphan_banner()
 
     def _on_data(self, data):
         self._matches = data["matches"]
@@ -449,6 +470,33 @@ class MatchLogTab(QWidget):
         except Exception as e:
             self._status_lbl.setText(f"Sync error: {e}")
         self._load_matches()
+        deck_id = self._filter_deck.currentData()
+        if deck_id is not None:
+            self._timeline.set_deck(deck_id)
+
+    def _refresh_orphan_banner(self) -> None:
+        from db.database import get_connection
+        with get_connection() as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) FROM match_log "
+                "WHERE backfill_status='orphan' AND my_deck_id IS NULL"
+            ).fetchone()[0]
+        if n > 0:
+            self._orphan_banner.setText(
+                f"⚠ {n} historical match{'es' if n != 1 else ''} need a deck"
+            )
+            self._orphan_banner.setVisible(True)
+            self._resolve_btn.setVisible(True)
+        else:
+            self._orphan_banner.setVisible(False)
+            self._resolve_btn.setVisible(False)
+
+    def _on_resolve_clicked(self) -> None:
+        from gui.widgets.orphan_resolver import OrphanResolverDialog
+        dlg = OrphanResolverDialog(parent=self)
+        dlg.exec()
+        self._load_matches()
+        self._refresh_orphan_banner()
         deck_id = self._filter_deck.currentData()
         if deck_id is not None:
             self._timeline.set_deck(deck_id)
