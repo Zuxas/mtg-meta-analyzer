@@ -475,6 +475,11 @@ class MatchLogTab(QWidget):
             self._timeline.set_deck(deck_id)
 
     def _refresh_orphan_banner(self) -> None:
+        # Defensive: _load_matches dispatches get_matches() to a worker
+        # thread, so the migration may not have run yet on first launch
+        # after a schema upgrade. _ensure_table is idempotent + cheap.
+        from db.match_log import _ensure_table
+        _ensure_table()
         from db.database import get_connection
         with get_connection() as conn:
             n = conn.execute(
