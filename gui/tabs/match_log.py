@@ -61,19 +61,23 @@ class _MatchDialog(QDialog):
         form.addRow("Round:", self._round)
 
         self._my_deck = QComboBox()
-        self._my_deck.setEditable(True)
-        self._my_deck.lineEdit().setPlaceholderText("Your deck")
-        if match:
-            self._my_deck.setCurrentText(match.get("my_deck", default_deck))
-        elif default_deck:
-            self._my_deck.setCurrentText(default_deck)
-        # Populate from saved decks
+        self._my_deck.setEditable(False)
+        # Populate from saved decks; item data = deck id, display = "Name (archetype)"
+        self._my_deck.addItem("— select saved deck —", None)
         try:
             from db.saved_decks import get_decks
-            decks = get_decks()
-            self._my_deck.addItems(list({d["archetype"] for d in decks if d.get("archetype")}))
+            for d in get_decks():
+                label = f"{d['name']} ({d.get('archetype','?')})"
+                self._my_deck.addItem(label, d["id"])
         except Exception:
             pass
+        # Preselect from match.my_deck_id if editing
+        if match and match.get("my_deck_id") is not None:
+            target_id = match["my_deck_id"]
+            for i in range(self._my_deck.count()):
+                if self._my_deck.itemData(i) == target_id:
+                    self._my_deck.setCurrentIndex(i)
+                    break
         form.addRow("My Deck:", self._my_deck)
 
         self._opp_deck = QComboBox()
@@ -176,7 +180,7 @@ class _MatchDialog(QDialog):
             "event_date": self._date.text().strip(),
             "format":     self._fmt.currentText(),
             "round":      self._round.value(),
-            "my_deck":    self._my_deck.currentText().strip(),
+            "my_deck_id": self._my_deck.currentData(),  # int or None
             "opp_deck":   self._opp_deck.currentText().strip(),
             "opp_name":   self._opp_name.text().strip(),
             "result":     self._result.currentText(),
@@ -944,16 +948,30 @@ class MatchLogTab(QWidget):
         if not data["opp_deck"]:
             QMessageBox.warning(self, "Missing", "Enter opponent's deck.")
             return
-        # Translate dialog keys to match save_match kwargs
-        data["format_name"] = data.pop("format")
-        data["round_num"] = data.pop("round")
-        from db.match_log import save_match
-        save_match(**data)
+        # Translate dialog keys to match resolve_and_save kwargs
+        format_name = data.pop("format")
+        round_num = data.pop("round")
+        from db.match_log import resolve_and_save
+        resolve_and_save(
+            event_name=data["event_name"],
+            event_date=data["event_date"],
+            format_name=format_name,
+            round_num=round_num,
+            my_deck_id=data["my_deck_id"],
+            opp_deck=data["opp_deck"],
+            opp_name=data["opp_name"],
+            result=data["result"],
+            play_draw=data["play_draw"],
+            g1_result=data["g1_result"],
+            g2_result=data["g2_result"],
+            g3_result=data["g3_result"],
+            notes=data["notes"],
+            source="manual",
+        )
         # Remember for next entry
         self._last_event = data["event_name"]
-        self._last_deck = data["my_deck"]
-        self._last_format = data["format_name"]
-        self._last_round = data["round_num"] + 1
+        self._last_format = format_name
+        self._last_round = round_num + 1
         self._load_matches()
 
     def _edit_match(self):
@@ -965,10 +983,30 @@ class MatchLogTab(QWidget):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         data = dlg.get_data()
-        data["format_name"] = data.pop("format")
-        data["round_num"] = data.pop("round")
+        format_name = data.pop("format")
+        round_num = data.pop("round")
+        # my_deck_id is in data but save_match uses the legacy my_deck string;
+        # preserve the existing my_deck value from the stored row for the edit path.
+        data.pop("my_deck_id", None)
         from db.match_log import save_match
-        save_match(**data, match_id=m["id"])
+        save_match(
+            event_name=data["event_name"],
+            event_date=data["event_date"],
+            format_name=format_name,
+            round_num=round_num,
+            my_deck=m.get("my_deck", ""),
+            opp_deck=data["opp_deck"],
+            opp_name=data["opp_name"],
+            result=data["result"],
+            play_draw=data["play_draw"],
+            g1_result=data["g1_result"],
+            g2_result=data["g2_result"],
+            g3_result=data["g3_result"],
+            notes=data["notes"],
+            swap_notes=data["swap_notes"],
+            swap_verdict=data["swap_verdict"],
+            match_id=m["id"],
+        )
         self._load_matches()
 
     def _delete_match(self):
