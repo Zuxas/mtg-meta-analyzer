@@ -72,8 +72,9 @@ play sessions to populate Match Log.
       Shipped 2026-05-14: re-pulling without the flag widened Standard Bo3
       from 18 rows → 121 (Platinum 17 → 79, Mythic 0 → 4). The
       `last_7_days` filter was suppressing most upstream data. Pipeline
-      change: edit `scripts/run_fill_from_prefs.py` line 96 to drop the
-      flag (pending — was done ad-hoc tonight).
+      change persisted 2026-05-14: `scripts/run_fill_from_prefs.py:96`
+      now invokes the premium scraper without `--last-7-days`, so the
+      M/W/F automated run inherits the wider window automatically.
 - [ ] **Untapped mythic decklist ingestion — BIG FEATURE, scoped 2026-05-14
       end-of-night, build tomorrow.** Pull canonical decklists for
       top-30 mythic players into a new `untapped_decklists` table via
