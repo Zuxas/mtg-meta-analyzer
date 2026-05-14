@@ -106,7 +106,7 @@ play sessions to populate Match Log.
 - [x] **"May 11-12 RC" memory hallucination cleanup.** Memory blocks across
       `harness/MEMORY.md`, `mtg-meta-analyzer/NEXT_STEPS.md`, the
       variant-tracking spec, and the pre-authored chain all referenced a
-      May 11-12 RC that Jermey never attended. Corrected by referencing
+      May 11-12 RC that was never on the calendar. Corrected by referencing
       the canonical Google Sheet calendar where only RC DC 5/29-5/31 has
       Flight+Hotel=yes. Cleaned across all docs 2026-05-14.
 
