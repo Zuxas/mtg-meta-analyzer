@@ -74,17 +74,30 @@ class LadderMetaTab(QWidget):
         self._refresh_btn.clicked.connect(self.refresh)
         tl.addWidget(self._refresh_btn)
 
-        self._fetch_dl_btn = QPushButton("↻ Fetch decklists")
+        self._fetch_dl_btn = QPushButton("↻ Cache local")
         self._fetch_dl_btn.setStyleSheet(theme.btn_secondary())
         self._fetch_dl_btn.setToolTip(
             "Extract mainboard + sideboard from every locally-stored "
             "Untapped replay (data/untapped/replays/). No network calls -- "
             "pulls from the corpus the replay fetcher already downloaded. "
-            "After fetch, click any Mythic leaderboard row below to see "
+            "After cache, click any Mythic leaderboard row below to see "
             "that player's decklist."
         )
         self._fetch_dl_btn.clicked.connect(self._on_fetch_decklists)
         tl.addWidget(self._fetch_dl_btn)
+
+        self._pull_current_btn = QPushButton("↻ Pull current top 30")
+        self._pull_current_btn.setStyleSheet(theme.btn_secondary())
+        self._pull_current_btn.setToolTip(
+            "Pull replays for the CURRENT top 30 Mythic leaderboard players "
+            "from Untapped.gg, then extract their decklists. Rate-limited "
+            "to ~2 req/sec (polite to the public endpoint). Takes ~15-30s "
+            "for top 30, depending on how many already have local replays. "
+            "Run this when you want to see today's leaderboard decks, not "
+            "older snapshot decks."
+        )
+        self._pull_current_btn.clicked.connect(self._on_pull_current)
+        tl.addWidget(self._pull_current_btn)
 
         tl.addStretch()
         self._as_of = QLabel("")
@@ -520,7 +533,7 @@ class LadderMetaTab(QWidget):
 
     def _on_fetch_decklists(self) -> None:
         self._fetch_dl_btn.setEnabled(False)
-        self._status.setText("Fetching decklists from local replays…")
+        self._status.setText("Caching decklists from local replays…")
         self._status.setVisible(True)
 
         def _do():
@@ -547,6 +560,67 @@ class LadderMetaTab(QWidget):
         w.error.connect(_err)
         w.start()
         self._fetch_worker = w  # keep ref so it isn't GC'd
+
+    def _on_pull_current(self) -> None:
+        """Pull replays for the current Mythic leaderboard top 30 from
+        Untapped, then extract their decklists. Network-touching, polite
+        rate (~2 req/sec)."""
+        self._pull_current_btn.setEnabled(False)
+        self._status.setText("Pulling current Mythic top 30 from Untapped…")
+        self._status.setVisible(True)
+
+        # Snapshot the currently-displayed leaderboard short_ids
+        short_ids = []
+        archetype_lookup = {}
+        for ri in range(self._lb_tbl.rowCount()):
+            data = (self._lb_tbl.item(ri, 0).data(Qt.ItemDataRole.UserRole)
+                    or {})
+            sid = data.get("short_id")
+            if sid:
+                short_ids.append(sid)
+                arch_item = self._lb_tbl.item(ri, 2)
+                if arch_item:
+                    archetype_lookup[sid] = (
+                        arch_item.text().split(" (")[0].strip()
+                    )
+        if not short_ids:
+            self._pull_current_btn.setEnabled(True)
+            self._status.setText("No leaderboard rows to pull replays for.")
+            return
+
+        def _do():
+            from scrapers.untapped_replay_fetcher import fetch_for_short_ids
+            from db.untapped_decklists import populate_for_short_ids
+            fetch_stats = fetch_for_short_ids(short_ids)
+            dl_stats = populate_for_short_ids(
+                short_ids,
+                archetype_lookup=archetype_lookup,
+                skip_existing=True,
+            )
+            return {"fetch": fetch_stats, "decklists": dl_stats}
+
+        def _done(combined: dict):
+            self._pull_current_btn.setEnabled(True)
+            fs = combined["fetch"]
+            ds = combined["decklists"]
+            self._status.setText(
+                f"Replays: {fs['fetched']} new, "
+                f"{fs['no_content']} no_content, "
+                f"{fs['skipped']} already cached, "
+                f"{fs['errors']} errors. "
+                f"Decklists: +{ds['written']} written."
+            )
+            self._on_lb_selection_changed()
+
+        def _err(exc):
+            self._pull_current_btn.setEnabled(True)
+            self._status.setText(theme.friendly_error(exc))
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(_err)
+        w.start()
+        self._pull_worker = w
 
     def _save_deck_for_row(self, row_index: int) -> None:
         item = self._lb_tbl.item(row_index, 0)

@@ -249,6 +249,86 @@ def index_replay(con, short_id, data, file_path, raw_bytes, gz_bytes):
     con.commit()
 
 
+def fetch_for_short_ids(short_ids, replay_dir=None, db_path=None,
+                        rate_sleep=RATE_LIMIT_SLEEP_SEC,
+                        progress_callback=None) -> dict:
+    """Programmatic counterpart to the CLI. Pulls replays for the given
+    short_ids from Untapped, stores .json.gz files, indexes untapped_replays.
+
+    Skips short_ids already in untapped_replays (no_content_204 included --
+    don't re-probe nothing).
+
+    progress_callback(i, total, short_id, status_word) is called per fetch
+    so a GUI can update a status line / progress bar. status_word is one
+    of {"ok", "no_content", "skipped", "error"}.
+
+    Returns stats: {"fetched", "no_content", "skipped", "errors",
+                    "total_raw_bytes", "total_gz_bytes"}.
+    """
+    if replay_dir is None:
+        replay_dir = DEFAULT_REPLAY_DIR
+    if db_path is None:
+        db_path = DEFAULT_DB
+    replay_dir = Path(replay_dir)
+    short_ids = list(short_ids)
+
+    stats = {"fetched": 0, "no_content": 0, "skipped": 0, "errors": 0,
+             "total_raw_bytes": 0, "total_gz_bytes": 0}
+    if not short_ids:
+        return stats
+
+    con = sqlite3.connect(str(db_path))
+    con.execute("PRAGMA foreign_keys = ON")
+    init_replay_schema(con)
+    try:
+        existing = {
+            r[0] for r in con.execute(
+                f"SELECT short_id FROM untapped_replays "
+                f"WHERE short_id IN ({','.join('?' * len(short_ids))})",
+                short_ids,
+            ).fetchall()
+        }
+
+        total = len(short_ids)
+        for i, short_id in enumerate(short_ids, 1):
+            if short_id in existing:
+                stats["skipped"] += 1
+                if progress_callback:
+                    progress_callback(i, total, short_id, "skipped")
+                continue
+
+            try:
+                code, data = fetch_replay(short_id)
+                if code == 204:
+                    index_no_replay(con, short_id)
+                    stats["no_content"] += 1
+                    if progress_callback:
+                        progress_callback(i, total, short_id, "no_content")
+                elif code == 200 and data:
+                    file_path, raw, gz = store_replay(short_id, data, replay_dir)
+                    index_replay(con, short_id, data, file_path, raw, gz)
+                    stats["fetched"] += 1
+                    stats["total_raw_bytes"] += raw
+                    stats["total_gz_bytes"] += gz
+                    if progress_callback:
+                        progress_callback(i, total, short_id, "ok")
+                else:
+                    stats["errors"] += 1
+                    if progress_callback:
+                        progress_callback(i, total, short_id, "error")
+            except Exception:
+                stats["errors"] += 1
+                if progress_callback:
+                    progress_callback(i, total, short_id, "error")
+
+            if i < total and short_id not in existing:
+                time.sleep(rate_sleep)
+    finally:
+        con.close()
+
+    return stats
+
+
 def index_no_replay(con, short_id):
     """Mark a short_id as having no replay (HTTP 204)."""
     cur = con.cursor()

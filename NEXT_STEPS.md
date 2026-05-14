@@ -105,6 +105,19 @@ play sessions to populate Match Log.
       malformed-replay handling, unresolved-grpId handling, skip-existing.
       First populate against real DB: 98/98 decklists written from local
       replay corpus.
+- [x] **Auto-pull replays for current Mythic leaderboard (2026-05-14).**
+      The local-only decklist populator only covers historical snapshots.
+      Added `scrapers.untapped_replay_fetcher.fetch_for_short_ids()`
+      programmatic wrapper (rate-limited 2 req/sec, skips already-cached,
+      handles 204 no-content, records errors, optional progress_callback).
+      Ladder tab gained "↻ Pull current top 30" button: snapshots the
+      currently-displayed leaderboard short_ids → fetches replays from
+      Untapped → chains into the decklist populator → status line shows
+      combined `fetch + decklists` stats. Network-touching, only fires
+      on explicit click. Tests: `tests/test_untapped_replay_fetcher.py`
+      — 6 cases with HTTP mocked covering skip-cached, 200-success,
+      204-no-content, error path, progress callback, empty input. 105/105
+      tests green.
 - [ ] Filter SB plans by recency — drop plans older than N days
       (data is timestamped via `replay.match_timestamp`).
 
