@@ -26,6 +26,7 @@ import gui.theme as theme
 from analysis.scout import (
     get_priority_finishers, get_pilot_counts, get_pilot_history,
 )
+from gui.state import UIState
 
 
 # Tokyo Prowess priority opponents (per Nick's SB notes + matchup matrix)
@@ -42,6 +43,7 @@ class ScoutTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._hydrated_state = False
         self._finishers = []
         self._build_ui()
         self._run_query()
@@ -57,6 +59,9 @@ class ScoutTab(QWidget):
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
         self._fmt.addItems(["Standard", "Pioneer", "Modern", "Legacy", "Pauper"])
+        self._fmt.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.scout.format", txt)
+        )
         ctrl.addWidget(self._fmt)
 
         ctrl.addWidget(QLabel("  Last"))
@@ -64,6 +69,9 @@ class ScoutTab(QWidget):
         self._days.setRange(7, 365)
         self._days.setValue(30)
         self._days.setSuffix(" days")
+        self._days.valueChanged.connect(
+            lambda v: UIState.instance().set("tabs.scout.days", int(v))
+        )
         ctrl.addWidget(self._days)
 
         ctrl.addWidget(QLabel("  Top:"))
@@ -71,6 +79,9 @@ class ScoutTab(QWidget):
         self._top.setRange(1, 32)
         self._top.setValue(8)
         self._top.setPrefix("≤ ")
+        self._top.valueChanged.connect(
+            lambda v: UIState.instance().set("tabs.scout.top", int(v))
+        )
         ctrl.addWidget(self._top)
 
         self._run_btn = QPushButton("Run Scout")
@@ -92,6 +103,7 @@ class ScoutTab(QWidget):
         for arch in _DEFAULT_TARGETS:
             self._targets.addItem(QListWidgetItem(arch))
         self._targets.selectAll()
+        self._targets.itemSelectionChanged.connect(self._persist_scout_targets)
         tb_layout.addWidget(self._targets)
         hint = QLabel("Ctrl-click to toggle. Defaults to Tokyo Prowess priority matchups.")
         hint.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
@@ -333,6 +345,64 @@ class ScoutTab(QWidget):
         )
         v.addWidget(tbl)
         dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Sticky state
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._hydrated_state:
+            return
+        self._hydrate_from_state()
+        self._hydrated_state = True
+
+    def _hydrate_from_state(self) -> None:
+        state = UIState.instance()
+
+        # Days window (QSpinBox) — actual attr: self._days
+        days = state.get("tabs.scout.days")
+        if days is not None and hasattr(self, "_days"):
+            self._days.blockSignals(True)
+            self._days.setValue(int(days))
+            self._days.blockSignals(False)
+
+        # Format (QComboBox) — actual attr: self._fmt
+        fmt = state.get("tabs.scout.format")
+        if fmt and hasattr(self, "_fmt"):
+            self._fmt.blockSignals(True)
+            idx = self._fmt.findText(fmt)
+            if idx >= 0:
+                self._fmt.setCurrentIndex(idx)
+            self._fmt.blockSignals(False)
+
+        # Top placement cap (QSpinBox) — actual attr: self._top
+        top = state.get("tabs.scout.top")
+        if top is not None and hasattr(self, "_top"):
+            self._top.blockSignals(True)
+            self._top.setValue(int(top))
+            self._top.blockSignals(False)
+
+        # Target archetypes (QListWidget, MultiSelection — NOT checkable)
+        # NOTE: plan guessed checkState; this widget uses isSelected() instead.
+        targets = state.get("tabs.scout.target_archetypes", [])
+        if targets and hasattr(self, "_targets"):
+            self._targets.blockSignals(True)
+            for i in range(self._targets.count()):
+                item = self._targets.item(i)
+                item.setSelected(item.text() in targets)
+            self._targets.blockSignals(False)
+
+    def _persist_scout_targets(self) -> None:
+        """Persist the selected target archetypes to UIState."""
+        if not hasattr(self, "_targets"):
+            return
+        selected = [
+            self._targets.item(i).text()
+            for i in range(self._targets.count())
+            if self._targets.item(i).isSelected()
+        ]
+        UIState.instance().set("tabs.scout.target_archetypes", selected)
 
     def reload(self):
         self._run_query()

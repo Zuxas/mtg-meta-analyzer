@@ -34,6 +34,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
 import gui.theme as theme
+from gui.state import UIState
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +310,7 @@ def _parse_pasted(text: str) -> dict:
 class HeatmapTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._hydrated_state = False
         self._worker = None
         self._load_gen: int = 0          # monotonic counter — stale callbacks ignored
         self._current_matrix: dict = {}
@@ -336,6 +338,9 @@ class HeatmapTab(QWidget):
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "pauper"])
         self._fmt.setFixedWidth(100)
         self._fmt.currentIndexChanged.connect(lambda _: self._load_combined())
+        self._fmt.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.matchup_data.format", txt)
+        )
         tl.addWidget(self._fmt)
 
         tl.addWidget(QLabel("Timeframe:"))
@@ -350,6 +355,9 @@ class HeatmapTab(QWidget):
                 break
         self._tf.setFixedWidth(100)
         self._tf.currentIndexChanged.connect(lambda _: self._load_combined())
+        self._tf.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.matchup_data.timeframe", txt)
+        )
         tl.addWidget(self._tf)
 
         self._combined_btn = QPushButton("Real Match Data (DB)")
@@ -503,6 +511,39 @@ class HeatmapTab(QWidget):
 
         hl.addStretch()
         return row
+
+    # ------------------------------------------------------------------
+    # Sticky state
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._hydrated_state:
+            return
+        self._hydrate_from_state()
+        self._hydrated_state = True
+
+    def _hydrate_from_state(self) -> None:
+        state = UIState.instance()
+
+        # Format (QComboBox) — actual attr: self._fmt
+        fmt = state.get("tabs.matchup_data.format")
+        if fmt and hasattr(self, "_fmt"):
+            self._fmt.blockSignals(True)
+            idx = self._fmt.findText(fmt)
+            if idx >= 0:
+                self._fmt.setCurrentIndex(idx)
+            self._fmt.blockSignals(False)
+
+        # Timeframe (QComboBox) — actual attr: self._tf
+        # NOTE: plan guessed top_n/source_combo; those don't exist on this tab.
+        tf = state.get("tabs.matchup_data.timeframe")
+        if tf and hasattr(self, "_tf"):
+            self._tf.blockSignals(True)
+            idx = self._tf.findText(tf)
+            if idx >= 0:
+                self._tf.setCurrentIndex(idx)
+            self._tf.blockSignals(False)
 
     # ------------------------------------------------------------------
     # Worker lifecycle — safe start / cancel

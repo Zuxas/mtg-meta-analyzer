@@ -20,6 +20,7 @@ from gui.widgets.chart_canvas import ChartCanvas
 from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
 from gui.icons_util import btn_icon
+from gui.state import UIState
 
 _project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,6 +30,7 @@ _project_root = os.path.dirname(
 class ChartsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._hydrated_state = False
         self._workers = []
         self._build_ui()
         self._refresh_archetypes()
@@ -41,6 +43,68 @@ class ChartsTab(QWidget):
         self._workers.clear()
         if hasattr(self, "_canvas") and hasattr(self._canvas, "_worker"):
             stop_worker(getattr(self._canvas, "_worker", None))
+
+    # ------------------------------------------------------------------
+    # Sticky state
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._hydrated_state:
+            return
+        self._hydrate_from_state()
+        self._hydrated_state = True
+
+    def _hydrate_from_state(self) -> None:
+        state = UIState.instance()
+
+        # Chart type (QComboBox) — actual attr: self._type
+        chart_type = state.get("tabs.charts.chart_type")
+        if chart_type and hasattr(self, "_type"):
+            self._type.blockSignals(True)
+            idx = self._type.findText(chart_type)
+            if idx >= 0:
+                self._type.setCurrentIndex(idx)
+            self._type.blockSignals(False)
+
+        # Timeframe (QComboBox) — actual attr: self._weeks
+        tf = state.get("tabs.charts.timeframe")
+        if tf and hasattr(self, "_weeks"):
+            self._weeks.blockSignals(True)
+            idx = self._weeks.findText(tf)
+            if idx >= 0:
+                self._weeks.setCurrentIndex(idx)
+            self._weeks.blockSignals(False)
+
+        # Format (QComboBox) — actual attr: self._fmt
+        fmt = state.get("tabs.charts.format")
+        if fmt and hasattr(self, "_fmt"):
+            self._fmt.blockSignals(True)
+            idx = self._fmt.findText(fmt)
+            if idx >= 0:
+                self._fmt.setCurrentIndex(idx)
+            self._fmt.blockSignals(False)
+
+        # Compare list (QListWidget with plain text items, add/remove via buttons)
+        # NOTE: self._compare_list items are NOT checkable; they use add/remove
+        # buttons, so itemChanged won't fire. Restore the saved list of strings.
+        compare = state.get("tabs.charts.compare_archetypes", [])
+        if compare and hasattr(self, "_compare_list"):
+            self._compare_list.blockSignals(True)
+            self._compare_list.clear()
+            for arch in compare:
+                self._compare_list.addItem(arch)
+            self._compare_list.blockSignals(False)
+
+    def _persist_charts_compare(self) -> None:
+        """Persist the compare-trends archetype list to UIState."""
+        if not hasattr(self, "_compare_list"):
+            return
+        items = [
+            self._compare_list.item(i).text()
+            for i in range(self._compare_list.count())
+        ]
+        UIState.instance().set("tabs.charts.compare_archetypes", items)
 
     def _build_ui(self):
         outer = QHBoxLayout(self)
@@ -59,6 +123,9 @@ class ChartsTab(QWidget):
         self._type = QComboBox()
         self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Meta Positioning", "Matchup Heatmap", "Untapped Ladder Trend"])
         self._type.currentTextChanged.connect(self._on_type_changed)
+        self._type.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.charts.chart_type", txt)
+        )
         cv.addWidget(self._type)
 
         # Format
@@ -66,6 +133,9 @@ class ChartsTab(QWidget):
         self._fmt = QComboBox()
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "all"])
         self._fmt.currentIndexChanged.connect(self._refresh_archetypes)
+        self._fmt.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.charts.format", txt)
+        )
         cv.addWidget(self._fmt)
 
         # Archetype (Trend only) — editable combo populated from DB
@@ -110,6 +180,9 @@ class ChartsTab(QWidget):
         for label, _ in theme.TIMEFRAME_OPTIONS:
             self._weeks.addItem(label)
         self._weeks.setCurrentText(theme.TIMEFRAME_DEFAULT)
+        self._weeks.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.charts.timeframe", txt)
+        )
         cv.addWidget(self._weeks)
 
         # Top N (not shown for Trend)
@@ -251,10 +324,12 @@ class ChartsTab(QWidget):
         if arch not in existing:
             self._compare_list.addItem(arch)
         self._arch.lineEdit().clear()
+        self._persist_charts_compare()
 
     def _remove_compare_arch(self):
         for item in self._compare_list.selectedItems():
             self._compare_list.takeItem(self._compare_list.row(item))
+        self._persist_charts_compare()
 
     def _save_png(self):
         """Save the currently displayed chart figure to data/charts/."""
