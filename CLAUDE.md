@@ -175,9 +175,10 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
 - **Matchup Data:** Three sources merged (real★ + scraped + paste) + Untapped Bo3 ladder as 4th gap-fill source, team notes via right-click, equilibrium button
-- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON. Deck-detail panel has 4 sub-tabs: Decklist / Sideboard Plans (master-detail layout) / Test Hand / EV vs Field.
+- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON. Deck-detail panel has 5 sub-tabs: Decklist / Sideboard Plans (master-detail layout) / Test Hand / EV vs Field / Match History.
 - **Test Hand sub-tab:** Primer-rule mulligan evaluator — random 7-card draw, classifies cards (land/cantrip/threat/answer), KEEP/MARGINAL/MULL verdict with reasoning by play-draw and matchup. "Run 1000-hand study" button opens MulliganStudyDialog (12k Monte Carlo simulations across primer's 5 matchups × play/draw, keep/mull-to-6/mull-to-5/mull-to-4 rates).
 - **EV vs Field sub-tab:** Field-weighted WR for the saved deck — combines paper matchup data + Untapped Bo3 + SB difficulty bumps (Easy +5pp / Hard -5pp). Headline EV number, top favorable/unfavorable matchups, per-matchup breakdown table with source color-coding (paper/untapped/mirror/guess) and low-N flagging.
+- **Match History sub-tab (2026-05-14):** Per-deck match log filtered by `my_deck_id`. Summary header shows overall W-L + WR%, plus per-category breakdown (Ranked Bo3 / Ranked Bo1 / Unranked / Limited / Other) sourced from the raw MTGA event_name. Filter dropdown narrows to one category. Matchup aggregation table sums W-L per opponent archetype. Recent-matches list (top 50, newest first) with date / event / opponent / archetype / result / play-draw. Lives at `gui/widgets/deck_match_history.py`.
 - **Deck Analyzer:** Arena/URL paste → Blunder + Chapin + Legality + auto-classify (KNN) + baseline comparison vs average deck
 - **Card Browser:** Scryfall query syntax, Similar Cards + Functional Substitutes
 - **Tournament Prep:** 6 sub-tabs — Prep Checklist / Event Optimizer / Event Hub / Scout / Breaker Math / Hypotheses.

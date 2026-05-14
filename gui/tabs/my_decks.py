@@ -550,6 +550,11 @@ class MyDecksTab(QWidget):
         self._deck_ev = DeckEvWidget()
         self._detail_tabs.addTab(self._deck_ev, "EV vs Field")
 
+        # -- Match History sub-tab --
+        from gui.widgets.deck_match_history import DeckMatchHistory
+        self._deck_match_history = DeckMatchHistory()
+        self._detail_tabs.addTab(self._deck_match_history, "Match History")
+
         rv.addWidget(self._detail_tabs, 1)
 
         splitter.addWidget(right)
@@ -760,6 +765,8 @@ class MyDecksTab(QWidget):
             self._mull_eval.set_deck(deck)
         if hasattr(self, "_deck_ev"):
             self._deck_ev.set_deck(deck)
+        if hasattr(self, "_deck_match_history"):
+            self._deck_match_history.set_deck(deck.get("id"))
         self._edit_btn.setEnabled(True)
         self._del_btn.setEnabled(True)
         self._export_btn.setEnabled(True)

@@ -76,6 +76,18 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match History sub-tab on My Decks (2026-05-14)
+- [x] **5th sub-tab on My Decks deck-detail panel: "Match History".**
+      Shows all match_log rows for the selected deck (filtered by
+      `my_deck_id`). Summary header: overall W-L + WR%, plus per-event
+      breakdown (Ranked Bo3 / Ranked Bo1 / Unranked / Limited / Other)
+      sourced from raw MTGA event_name. Filter dropdown narrows to one
+      category. Matchup table aggregates W-L per opponent archetype.
+      Recent-matches list shows last 50 with date/event/vs/archetype/
+      result/play-draw. Lives at `gui/widgets/deck_match_history.py`.
+      Wired into `gui/tabs/my_decks.py` `_on_deck_clicked` so it
+      switches with the selected deck.
+
 ### MTGA Auto-Import + Match Classification (2026-05-14)
 - [x] **MTGA Player.log parser wired into daily background_fill.** Previously
       `scrapers/mtga_log_parser.py` was a manual CLI-only tool; ranked matches
