@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -80,7 +80,7 @@ Setup wizard page 0 saves formats immediately. `fill_database.py` and `scripts/r
 ### Schema
 - **Active:** `data/mtg_meta.db` — events within retention window (gitignored)
 - **Archive:** `data/mtg_archive.db` — older data (moved, never deleted)
-- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes
+- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes, match_log, deck_variants
 - **card_data:** keyed by card name (TEXT PK) — works across both DBs. Populated by `python -m scrapers.scryfall`
 - **Use** `get_combined_connection()` to query across both DBs
 
@@ -144,6 +144,8 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/mulligan_study.py` | Monte Carlo mulligan simulator (1000+ hands) reusing primer-rule evaluator |
 | `analysis/scout.py` | Pre-event pilot intel: top-cut finishers by archetype + handle resolution |
 | `db/untapped_queries.py` | Untapped Bo3 matchup matrix + archetype-color resolver + SB plans by color identity + card-level Mythic inclusion |
+| `analysis/wilson.py` | Wilson score interval + tweak classifier (validated / promising / noisy) |
+| `analysis/my_deck_classifier.py` | Overlap-score classifier mapping observed grpIds -> saved_decks.id |
 
 ### Sideboard WR Model (calibration constants)
 `opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84]`
@@ -179,6 +181,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **Card Browser:** Scryfall query syntax, Similar Cards + Functional Substitutes
 - **Tournament Prep:** 6 sub-tabs — Prep Checklist / Event Optimizer / Event Hub / Scout / Breaker Math / Hypotheses.
 - **Scout sub-tab:** Pre-event pilot intel. Surfaces top-N finishers playing target archetypes (defaults to Tokyo Prowess priority matchups) in last K days. "Repeat offenders" table ranks pilots by top-cut count; "All finishes" table lists every result. Right-click context menu opens decklist URL or `@handle` on x.com (handles from `data/player_handles.json`). Double-click finisher row opens deck URL.
+- **Match Log (refreshed 2026-05-13):** Each row links to a specific saved-deck variant (mainboard+sideboard hash). Right-side **Variant Timeline** panel renders the deck's history when you filter to one deck: per-variant match count, WR, Wilson-significance flag (validated / promising / noisy), +/- card-swap delta from the previous variant. "↻ Sync Untapped" button kicks off `scrapers.untapped_match_log_writer.run()` ad-hoc; same writer runs in the M/W/F pipeline. Orphan banner + "Resolve..." dialog walks historical rows where `my_deck_id IS NULL`.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 
@@ -394,19 +397,13 @@ Project-scoped (in `.agents/skills/`, managed via `npx skills`):
 To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 
 ---
-*Last documentation update: 2026-05-13 — RC May 29 prep session (Tokyo Prowess deck-lock).
-  Shipped, in order: master-detail SB Plans layout, F5/Refresh button,
-  Untapped follow-ups A/B/C (opponent classifier from MTGA replay log,
-  Untapped Ladder Trend chart type, KNN-refined SB plan archetype
-  matching), Bo3-only data filter for Ladder rollup/leaderboard, ladder
-  skill-curve column expansion (Br→My with responsive hide), mulligan
-  primer prose in saved SB plans, card-level Mythic inclusion column
-  in Average Deck, Test Hand sub-tab (primer-rule mulligan evaluator),
-  `analysis/deck_ev.py` field-weighted EV calculator, EV vs Field
-  sub-tab in My Decks, 1000-hand mulligan study (Monte Carlo + GUI
-  dialog), SCOUT sub-tab in Tournament Prep (top-cut pilots + handle
-  resolution), Print SB Guide 1-page fix via _summarize_notes
-  (50KB -> 12KB on Tokyo). 25 commits.*
+*Last documentation update: 2026-05-14 — Match Log variant-tracking + Timeline panel ship
+  (feat/match-log-variant-tracking, Tasks 1-12). Shipped: deck_variants schema,
+  match_log additive columns (my_deck_id, my_variant_hash, opp_grp_ids_json, source,
+  backfill_status, arena_match_id), analysis/wilson.py, analysis/my_deck_classifier.py,
+  scrapers/untapped_match_log_writer.py, scripts/backfill_match_log_decks.py,
+  VariantTimelinePanel (Layout B Option C), OrphanResolverDialog, saved-deck dropdown
+  in match dialog. 12 impl commits + spec/plan docs.*
 
 ## graphify
 

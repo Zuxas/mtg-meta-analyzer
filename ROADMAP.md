@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-13
+> Last updated: 2026-05-14
 
 ---
 
@@ -46,6 +46,16 @@
 ---
 
 ## COMPLETED
+
+### 2026-05-13 — Match Log Variant Tracking + Timeline Panel
+- [x] `deck_variants` table + 5 additive columns on `match_log` (`my_deck_id`, `my_variant_hash`, `opp_grp_ids_json`, `source`, `backfill_status`) + `arena_match_id` for Untapped dedup
+- [x] `analysis/wilson.py` — Wilson score interval + validated / promising / noisy classifier
+- [x] `analysis/my_deck_classifier.py` — overlap-score classifier mapping grpIds -> saved_decks.id
+- [x] `scrapers/untapped_match_log_writer.py` — ingest MTGA replays into match_log (M/W/F pipeline)
+- [x] `scripts/backfill_match_log_decks.py` — auto-resolve historical orphan rows by archetype + date proximity
+- [x] `gui/widgets/variant_timeline_panel.py` — per-variant match count, WR, Wilson flag, card-swap delta
+- [x] Layout B Option C — right panel replaced by VariantTimelinePanel; orphan banner + OrphanResolverDialog
+- [x] Match dialog refactored to saved-deck dropdown via `db.match_log.resolve_and_save()`
 
 ### 2026-05-13 — GUI Quick Wins (palette + sticky state)
 - [x] **Ctrl+K command palette** (`gui/widgets/command_palette.py` + `palette_registry.py` + `_palette_actions.py`) — fuzzy search across tabs / archetypes / saved decks / cards / actions; prefixes `>` `#` `@` `:` `c:`; 80ms debounce; rapidfuzz backend

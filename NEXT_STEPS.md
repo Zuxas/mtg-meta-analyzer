@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 ---
 
@@ -103,6 +103,24 @@ worked / didn't, expected vs actual matchups.
 ---
 
 ## RECENTLY COMPLETED (2026-05-13)
+
+### Match Log — Variant Tracking
+- [x] **Match Log refresh — auto-import + variant tracking + Timeline panel.**
+      Schema: `deck_variants` table + 5 additive columns on `match_log`
+      (`my_deck_id`, `my_variant_hash`, `opp_grp_ids_json`, `source`, `backfill_status`)
+      plus `arena_match_id` for Untapped dedup.
+      Ingest: `scrapers/untapped_match_log_writer.py` writes match_log rows
+      from local `data/untapped/replays/` (wired into M/W/F via
+      `scripts/run_fill_from_prefs.py`). Manual dialog refactored to a saved-deck
+      dropdown via `db.match_log.resolve_and_save()`.
+      Backfill: `scripts/backfill_match_log_decks.py` auto-resolves unambiguous
+      historical rows by archetype + date proximity; ambiguous -> orphan.
+      UI: Layout B Option C (right panel replaced by `VariantTimelinePanel`
+      -- matchup-stats table + SB Advice + trend chart removed, reversible via
+      git history), variant column on table, Sync Untapped button, orphan
+      banner + `OrphanResolverDialog`.
+      Spec: `docs/superpowers/specs/2026-05-13-match-log-variant-tracking-design.md`.
+      Plan: `docs/superpowers/plans/2026-05-13-match-log-variant-tracking.md`.
 
 ### RC May 29 Prep Tooling
 - [x] Tokyo Prowess saved as `saved_decks.id=17` + 17 SB plans with
