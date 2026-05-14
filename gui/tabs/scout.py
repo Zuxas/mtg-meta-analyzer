@@ -27,6 +27,7 @@ from analysis.scout import (
     get_priority_finishers, get_pilot_counts, get_pilot_history,
 )
 from gui.state import UIState
+from gui.state_keys import SCOUT_DAYS, SCOUT_FORMAT, SCOUT_TOP, SCOUT_TARGET_ARCHETYPES
 
 
 # Tokyo Prowess priority opponents (per Nick's SB notes + matchup matrix)
@@ -60,7 +61,7 @@ class ScoutTab(QWidget):
         self._fmt = QComboBox()
         self._fmt.addItems(["Standard", "Pioneer", "Modern", "Legacy", "Pauper"])
         self._fmt.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.scout.format", txt)
+            lambda txt: UIState.instance().set(SCOUT_FORMAT, txt)
         )
         ctrl.addWidget(self._fmt)
 
@@ -70,7 +71,7 @@ class ScoutTab(QWidget):
         self._days.setValue(30)
         self._days.setSuffix(" days")
         self._days.valueChanged.connect(
-            lambda v: UIState.instance().set("tabs.scout.days", int(v))
+            lambda v: UIState.instance().set(SCOUT_DAYS, int(v))
         )
         ctrl.addWidget(self._days)
 
@@ -80,7 +81,7 @@ class ScoutTab(QWidget):
         self._top.setValue(8)
         self._top.setPrefix("≤ ")
         self._top.valueChanged.connect(
-            lambda v: UIState.instance().set("tabs.scout.top", int(v))
+            lambda v: UIState.instance().set(SCOUT_TOP, int(v))
         )
         ctrl.addWidget(self._top)
 
@@ -352,7 +353,7 @@ class ScoutTab(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._hydrated_state:
+        if getattr(self, "_hydrated_state", False):
             return
         self._hydrate_from_state()
         self._hydrated_state = True
@@ -361,14 +362,14 @@ class ScoutTab(QWidget):
         state = UIState.instance()
 
         # Days window (QSpinBox) — actual attr: self._days
-        days = state.get("tabs.scout.days")
+        days = state.get(SCOUT_DAYS)
         if days is not None and hasattr(self, "_days"):
             self._days.blockSignals(True)
             self._days.setValue(int(days))
             self._days.blockSignals(False)
 
         # Format (QComboBox) — actual attr: self._fmt
-        fmt = state.get("tabs.scout.format")
+        fmt = state.get(SCOUT_FORMAT)
         if fmt and hasattr(self, "_fmt"):
             self._fmt.blockSignals(True)
             idx = self._fmt.findText(fmt)
@@ -377,7 +378,7 @@ class ScoutTab(QWidget):
             self._fmt.blockSignals(False)
 
         # Top placement cap (QSpinBox) — actual attr: self._top
-        top = state.get("tabs.scout.top")
+        top = state.get(SCOUT_TOP)
         if top is not None and hasattr(self, "_top"):
             self._top.blockSignals(True)
             self._top.setValue(int(top))
@@ -385,7 +386,7 @@ class ScoutTab(QWidget):
 
         # Target archetypes (QListWidget, MultiSelection — NOT checkable)
         # NOTE: plan guessed checkState; this widget uses isSelected() instead.
-        targets = state.get("tabs.scout.target_archetypes", [])
+        targets = state.get(SCOUT_TARGET_ARCHETYPES, [])
         if targets and hasattr(self, "_targets"):
             self._targets.blockSignals(True)
             for i in range(self._targets.count()):
@@ -402,7 +403,7 @@ class ScoutTab(QWidget):
             for i in range(self._targets.count())
             if self._targets.item(i).isSelected()
         ]
-        UIState.instance().set("tabs.scout.target_archetypes", selected)
+        UIState.instance().set(SCOUT_TARGET_ARCHETYPES, selected)
 
     def reload(self):
         self._run_query()

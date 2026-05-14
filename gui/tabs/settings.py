@@ -269,9 +269,17 @@ class SettingsTab(QWidget):
 
         outer.addWidget(ai_box)
 
-        # ── Save button ───────────────────────────────────────────────
+        # ── Save / Reset bar ──────────────────────────────────────────
         bar = QHBoxLayout()
         bar.addStretch()
+        reset_state_btn = QPushButton("Reset UI state")
+        reset_state_btn.setStyleSheet(theme.btn_secondary())
+        reset_state_btn.setToolTip(
+            "Clear persisted selections, filters, palette recents.\n"
+            "Does not affect format / API key / scrape preferences."
+        )
+        reset_state_btn.clicked.connect(self._on_reset_ui_state)
+        bar.addWidget(reset_state_btn)
         self._save_btn = QPushButton("Save Settings")
         self._save_btn.setStyleSheet(theme.btn_primary())
         self._save_btn.clicked.connect(self._save)
@@ -339,6 +347,18 @@ class SettingsTab(QWidget):
         self._status_lbl.setText("Saved.")
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(2000, lambda: self._status_lbl.setText(""))
+
+    def _on_reset_ui_state(self):
+        from gui.state import UIState
+        ok = QMessageBox.question(
+            self, "Reset UI state",
+            "Clear persisted selections, filters, and palette recents?\n"
+            "(Format / API key / scrape preferences are NOT affected.)"
+        )
+        if ok == QMessageBox.StandardButton.Yes:
+            UIState.instance().reset()
+            UIState.instance().flush()
+            QMessageBox.information(self, "Reset", "UI state cleared. Restart for full effect.")
 
     def _refresh_storage(self):
         try:

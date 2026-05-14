@@ -36,6 +36,7 @@ from gui.tabs.simulate          import SimulateTab
 from gui.tabs.calibration       import CalibrationTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 from gui.state import UIState
+from gui.state_keys import LAST_ACTIVE_TAB_PATH, GLOBAL_FORMAT, PALETTE_RECENTS
 from gui.widgets.palette_registry import PaletteRegistry
 from gui.widgets.command_palette import CommandPalette
 from gui.widgets._palette_actions import register_all as _palette_register_all
@@ -75,7 +76,7 @@ class MainWindow(QMainWindow):
         self._palette_shortcut.activated.connect(self._open_palette)
 
         # Restore last active tab path, if any
-        last_path = self.ui_state.get("global.last_active_tab_path")
+        last_path = self.ui_state.get(LAST_ACTIVE_TAB_PATH)
         if last_path:
             self.activate_tab_by_path(last_path)
 
@@ -300,17 +301,17 @@ class MainWindow(QMainWindow):
     def _open_palette(self) -> None:
         dlg = CommandPalette(
             self._palette_registry,
-            recents_provider=lambda: self.ui_state.get("palette_recents", []) or [],
+            recents_provider=lambda: self.ui_state.get(PALETTE_RECENTS, []) or [],
             recents_writer=self._record_palette_recent,
             parent=self,
         )
         dlg.exec()
 
     def _record_palette_recent(self, entry_id: str) -> None:
-        recents = self.ui_state.get("palette_recents", []) or []
+        recents = self.ui_state.get(PALETTE_RECENTS, []) or []
         recents = [r for r in recents if r != entry_id]
         recents.insert(0, entry_id)
-        self.ui_state.set("palette_recents", recents[:20])
+        self.ui_state.set(PALETTE_RECENTS, recents[:20])
 
     # ------------------------------------------------------------------
     # Tab navigation helpers (used by palette handlers)
@@ -334,11 +335,11 @@ class MainWindow(QMainWindow):
                     if isinstance(child, QTabWidget):
                         node = child
                     break
-        self.ui_state.set("global.last_active_tab_path", path)
+        self.ui_state.set(LAST_ACTIVE_TAB_PATH, path)
 
     def set_format(self, fmt: str) -> None:
         """Write chosen format to UIState and refresh the current tab."""
-        self.ui_state.set("global.format", fmt)
+        self.ui_state.set(GLOBAL_FORMAT, fmt)
         # Tabs hydrate from this on their next showEvent. Trigger a refresh
         # so the currently visible tab reflects the change immediately.
         self._refresh_current_tab()
@@ -347,7 +348,7 @@ class MainWindow(QMainWindow):
         """Open the archetype detail dialog for the given archetype."""
         # ArchetypeDetailDialog(__init__) requires format_name; pull from
         # UIState (set by act:format-* palette actions), default to standard.
-        fmt = self.ui_state.get("global.format") or "standard"
+        fmt = self.ui_state.get(GLOBAL_FORMAT) or "standard"
         try:
             from gui.widgets.archetype_detail import ArchetypeDetailDialog
             dlg = ArchetypeDetailDialog(archetype_name, format_name=fmt, parent=self)

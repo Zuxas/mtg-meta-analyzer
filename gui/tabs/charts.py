@@ -21,6 +21,10 @@ from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
 from gui.icons_util import btn_icon
 from gui.state import UIState
+from gui.state_keys import (
+    CHARTS_TIMEFRAME, CHARTS_CHART_TYPE, CHARTS_FORMAT,
+    CHARTS_TOP_N, CHARTS_COMPARE_ARCHETYPES,
+)
 
 _project_root = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -50,7 +54,7 @@ class ChartsTab(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._hydrated_state:
+        if getattr(self, "_hydrated_state", False):
             return
         self._hydrate_from_state()
         self._hydrated_state = True
@@ -59,7 +63,7 @@ class ChartsTab(QWidget):
         state = UIState.instance()
 
         # Chart type (QComboBox) — actual attr: self._type
-        chart_type = state.get("tabs.charts.chart_type")
+        chart_type = state.get(CHARTS_CHART_TYPE)
         if chart_type and hasattr(self, "_type"):
             self._type.blockSignals(True)
             idx = self._type.findText(chart_type)
@@ -68,7 +72,7 @@ class ChartsTab(QWidget):
             self._type.blockSignals(False)
 
         # Timeframe (QComboBox) — actual attr: self._weeks
-        tf = state.get("tabs.charts.timeframe")
+        tf = state.get(CHARTS_TIMEFRAME)
         if tf and hasattr(self, "_weeks"):
             self._weeks.blockSignals(True)
             idx = self._weeks.findText(tf)
@@ -77,7 +81,7 @@ class ChartsTab(QWidget):
             self._weeks.blockSignals(False)
 
         # Format (QComboBox) — actual attr: self._fmt
-        fmt = state.get("tabs.charts.format")
+        fmt = state.get(CHARTS_FORMAT)
         if fmt and hasattr(self, "_fmt"):
             self._fmt.blockSignals(True)
             idx = self._fmt.findText(fmt)
@@ -85,10 +89,17 @@ class ChartsTab(QWidget):
                 self._fmt.setCurrentIndex(idx)
             self._fmt.blockSignals(False)
 
+        # Top N (QSpinBox)
+        top_n = state.get(CHARTS_TOP_N)
+        if top_n is not None and hasattr(self, "_top_n"):
+            self._top_n.blockSignals(True)
+            self._top_n.setValue(int(top_n))
+            self._top_n.blockSignals(False)
+
         # Compare list (QListWidget with plain text items, add/remove via buttons)
         # NOTE: self._compare_list items are NOT checkable; they use add/remove
         # buttons, so itemChanged won't fire. Restore the saved list of strings.
-        compare = state.get("tabs.charts.compare_archetypes", [])
+        compare = state.get(CHARTS_COMPARE_ARCHETYPES, [])
         if compare and hasattr(self, "_compare_list"):
             self._compare_list.blockSignals(True)
             self._compare_list.clear()
@@ -104,7 +115,7 @@ class ChartsTab(QWidget):
             self._compare_list.item(i).text()
             for i in range(self._compare_list.count())
         ]
-        UIState.instance().set("tabs.charts.compare_archetypes", items)
+        UIState.instance().set(CHARTS_COMPARE_ARCHETYPES, items)
 
     def _build_ui(self):
         outer = QHBoxLayout(self)
@@ -124,7 +135,7 @@ class ChartsTab(QWidget):
         self._type.addItems(["Meta Share", "Archetype Trend", "Compare Trends", "Meta Positioning", "Matchup Heatmap", "Untapped Ladder Trend"])
         self._type.currentTextChanged.connect(self._on_type_changed)
         self._type.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.charts.chart_type", txt)
+            lambda txt: UIState.instance().set(CHARTS_CHART_TYPE, txt)
         )
         cv.addWidget(self._type)
 
@@ -134,7 +145,7 @@ class ChartsTab(QWidget):
         self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "all"])
         self._fmt.currentIndexChanged.connect(self._refresh_archetypes)
         self._fmt.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.charts.format", txt)
+            lambda txt: UIState.instance().set(CHARTS_FORMAT, txt)
         )
         cv.addWidget(self._fmt)
 
@@ -181,7 +192,7 @@ class ChartsTab(QWidget):
             self._weeks.addItem(label)
         self._weeks.setCurrentText(theme.TIMEFRAME_DEFAULT)
         self._weeks.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.charts.timeframe", txt)
+            lambda txt: UIState.instance().set(CHARTS_TIMEFRAME, txt)
         )
         cv.addWidget(self._weeks)
 
@@ -191,6 +202,9 @@ class ChartsTab(QWidget):
         self._top_n = QSpinBox()
         self._top_n.setRange(3, 20)
         self._top_n.setValue(10)
+        self._top_n.valueChanged.connect(
+            lambda v: UIState.instance().set(CHARTS_TOP_N, int(v))
+        )
         cv.addWidget(self._top_n)
 
         # Date range

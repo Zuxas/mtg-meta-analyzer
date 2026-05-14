@@ -24,6 +24,7 @@ from PyQt6.QtGui import QColor, QFont
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
 from gui.state import UIState
+from gui.state_keys import MY_DECKS_SELECTED_DECK_ID
 
 _FORMATS = ["standard", "pioneer", "modern", "legacy"]
 
@@ -718,7 +719,7 @@ class MyDecksTab(QWidget):
         # is populated asynchronously via DataLoadWorker. select_deck_by_id
         # at this point would iterate 0 rows. _on_decks_loaded consumes
         # _pending_select_id once the table has been populated.
-        deck_id = UIState.instance().get("tabs.my_decks.selected_deck_id")
+        deck_id = UIState.instance().get(MY_DECKS_SELECTED_DECK_ID)
         if deck_id is not None:
             self._pending_select_id = deck_id
             # Try immediately in case the table is already populated
@@ -773,7 +774,7 @@ class MyDecksTab(QWidget):
         # Persist selected deck so it can be restored on next session/tab-show
         deck_id = deck.get("id")
         if deck_id is not None:
-            UIState.instance().set("tabs.my_decks.selected_deck_id", deck_id)
+            UIState.instance().set(MY_DECKS_SELECTED_DECK_ID, deck_id)
 
     def _show_deck(self, deck):
         name = deck.get("name", "Unnamed")

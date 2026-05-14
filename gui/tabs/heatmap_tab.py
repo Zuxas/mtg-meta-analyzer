@@ -35,6 +35,7 @@ from PyQt6.QtGui import QColor, QFont
 
 import gui.theme as theme
 from gui.state import UIState
+from gui.state_keys import MATCHUP_DATA_FORMAT, MATCHUP_DATA_TIMEFRAME
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +340,7 @@ class HeatmapTab(QWidget):
         self._fmt.setFixedWidth(100)
         self._fmt.currentIndexChanged.connect(lambda _: self._load_combined())
         self._fmt.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.matchup_data.format", txt)
+            lambda txt: UIState.instance().set(MATCHUP_DATA_FORMAT, txt)
         )
         tl.addWidget(self._fmt)
 
@@ -356,7 +357,7 @@ class HeatmapTab(QWidget):
         self._tf.setFixedWidth(100)
         self._tf.currentIndexChanged.connect(lambda _: self._load_combined())
         self._tf.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.matchup_data.timeframe", txt)
+            lambda txt: UIState.instance().set(MATCHUP_DATA_TIMEFRAME, txt)
         )
         tl.addWidget(self._tf)
 
@@ -518,7 +519,7 @@ class HeatmapTab(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._hydrated_state:
+        if getattr(self, "_hydrated_state", False):
             return
         self._hydrate_from_state()
         self._hydrated_state = True
@@ -527,7 +528,7 @@ class HeatmapTab(QWidget):
         state = UIState.instance()
 
         # Format (QComboBox) — actual attr: self._fmt
-        fmt = state.get("tabs.matchup_data.format")
+        fmt = state.get(MATCHUP_DATA_FORMAT)
         if fmt and hasattr(self, "_fmt"):
             self._fmt.blockSignals(True)
             idx = self._fmt.findText(fmt)
@@ -537,7 +538,7 @@ class HeatmapTab(QWidget):
 
         # Timeframe (QComboBox) — actual attr: self._tf
         # NOTE: plan guessed top_n/source_combo; those don't exist on this tab.
-        tf = state.get("tabs.matchup_data.timeframe")
+        tf = state.get(MATCHUP_DATA_TIMEFRAME)
         if tf and hasattr(self, "_tf"):
             self._tf.blockSignals(True)
             idx = self._tf.findText(tf)

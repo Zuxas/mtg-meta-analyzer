@@ -27,6 +27,7 @@ from gui.widgets.chart_canvas import ChartCanvas, fetch_chart_data
 from gui.worker_threads import DataLoadWorker
 from gui.worker_utils import cancel_worker as _cancel_worker
 from gui.state import UIState
+from gui.state_keys import DASHBOARD_TIMEFRAME
 import gui.theme as theme
 
 
@@ -255,7 +256,7 @@ class DashboardTab(QWidget):
     def _hydrate_from_state(self) -> None:
         state = UIState.instance()
         # Timeframe — self._tf is a QComboBox with labels like "2 weeks" / "All Time"
-        tf = state.get("tabs.dashboard.timeframe")
+        tf = state.get(DASHBOARD_TIMEFRAME)
         if tf and hasattr(self, "_tf"):
             self._tf.blockSignals(True)
             idx = self._tf.findText(tf)
@@ -302,7 +303,7 @@ class DashboardTab(QWidget):
         self._tf.setFixedWidth(110)
         self._tf.currentIndexChanged.connect(lambda _: self._schedule_refresh())
         self._tf.currentTextChanged.connect(
-            lambda txt: UIState.instance().set("tabs.dashboard.timeframe", txt)
+            lambda txt: UIState.instance().set(DASHBOARD_TIMEFRAME, txt)
         )
         ctrl.addWidget(self._tf)
 

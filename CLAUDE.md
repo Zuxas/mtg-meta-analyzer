@@ -187,6 +187,22 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 All query functions handle `since=None` via `if since:` guards.
 Special case: `get_archetype_trend()` uses `window_start = since or (window_end - timedelta(weeks=weeks or 520))`.
 
+### Persisted UI state (sticky)
+`gui/state.py::UIState` is a singleton wrapping `data/preferences.json` under a `ui_state` key. Tabs hydrate from it in `showEvent` (with `blockSignals(True)` to avoid loops) and persist on widget change. Slices today (paths centralized in `gui/state_keys.py`):
+- `global.last_active_tab_path` — app reopens where you closed it
+- `global.format` — written by palette `act:format-*`, read by archetype detail dialog
+- `tabs.dashboard.timeframe`
+- `tabs.my_decks.selected_deck_id` — Tokyo Prowess (id=17) pre-selects on launch via async-safe `_pending_select_id` pattern
+- `tabs.charts.timeframe` + `chart_type` + `format` + `top_n` + `compare_archetypes`
+- `tabs.matchup_data.format` + `timeframe` (heatmap top_n / source_filter widgets don't exist on the tab)
+- `tabs.scout.days` + `format` + `top` + `target_archetypes`
+- `palette_recents` — last 20 palette command IDs
+
+Schema-tolerant (`get(path, default)` always returns the default for missing paths). Reset via palette `> Reset UI state` or Settings tab "Reset UI state" button.
+
+### Command palette
+**Ctrl+K** opens `gui/widgets/command_palette.py::CommandPalette`. Fuzzy-searches `gui/widgets/palette_registry.py::PaletteRegistry`, populated at startup by `gui/widgets/_palette_actions.py::register_all`. Categories: TAB / ARCH / DECK / CARD / ACT. Prefixes: `>` actions, `#` tabs, `@` archetypes, `:` decks, `c:` cards. Recents persisted in `ui_state.palette_recents` (top 20, stale entries pruned by `PaletteRegistry.prune_recents`). 80ms debounce on input; `rapidfuzz` is the C-backed fuzzy backend (added to `requirements.txt` for `c:` card-search performance).
+
 ---
 
 ## 7. KEY FILES

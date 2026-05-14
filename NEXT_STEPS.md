@@ -40,11 +40,19 @@ worked / didn't, expected vs actual matchups.
       until match APLs exist.
 
 ### UI/UX
-- [ ] **GUI ergonomics — Direction A (palette + sticky state)** —
-      spec at `docs/superpowers/specs/2026-05-13-gui-palette-sticky-state-design.md`.
-      Ctrl+K command palette over tabs/archetypes/decks/cards/actions,
-      plus persisted format/timeframe/per-tab selection across switches.
-      Direction C (design language pass + tab reorg) queued as follow-up arc.
+- [x] **GUI ergonomics — Direction A SHIPPED 2026-05-13** —
+      Ctrl+K command palette + sticky state across Dashboard / My Decks / Charts / Heatmap / Scout.
+      Spec: `docs/superpowers/specs/2026-05-13-gui-palette-sticky-state-design.md`.
+      Plan: `docs/superpowers/plans/2026-05-13-gui-palette-sticky-state.md`.
+      Branch: `feat/gui-palette-sticky-state`.
+- [ ] Direction C arc — design language pass + tab reorganization.
+      Drive priorities from one week of palette-recents data + sticky-state usage.
+      Spec to be written after 2026-05-20.
+- [ ] Defer-card-registration polish: `register_card_entries` runs synchronously
+      during MainWindow.__init__ (~120ms for 32k cards). Move to
+      `QTimer.singleShot(0, ...)` so first paint isn't delayed.
+- [ ] Card-slug collision: `register_card_entries` slug truncation at `[:60]`
+      can collide on long similar names; minor data-loss risk for recents only.
 - [ ] Interaction speed — filters update in place (no full refresh)
 - [ ] Dashboard + Heatmap empty-state polish
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
