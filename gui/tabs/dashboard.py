@@ -26,6 +26,7 @@ from PyQt6.QtGui import QColor, QFont
 from gui.widgets.chart_canvas import ChartCanvas, fetch_chart_data
 from gui.worker_threads import DataLoadWorker
 from gui.worker_utils import cancel_worker as _cancel_worker
+from gui.state import UIState
 import gui.theme as theme
 
 
@@ -223,6 +224,7 @@ class DashboardTab(QWidget):
         self._chart_mode    = "meta_share"
         self._standings     = []
         self._on_simulate   = on_simulate
+        self._hydrated_state = False   # sticky state hydration guard
 
         # Debounce rapid filter changes — a 200ms pause before firing
         # collapses 'format-then-timeframe' clicks into a single refresh.
@@ -251,7 +253,6 @@ class DashboardTab(QWidget):
         self._hydrated_state = True
 
     def _hydrate_from_state(self) -> None:
-        from gui.state import UIState
         state = UIState.instance()
         # Timeframe — self._tf is a QComboBox with labels like "2 weeks" / "All Time"
         tf = state.get("tabs.dashboard.timeframe")
@@ -300,7 +301,6 @@ class DashboardTab(QWidget):
         self._tf.setCurrentText(theme.TIMEFRAME_DEFAULT)
         self._tf.setFixedWidth(110)
         self._tf.currentIndexChanged.connect(lambda _: self._schedule_refresh())
-        from gui.state import UIState
         self._tf.currentTextChanged.connect(
             lambda txt: UIState.instance().set("tabs.dashboard.timeframe", txt)
         )

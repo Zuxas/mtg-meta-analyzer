@@ -23,6 +23,7 @@ from PyQt6.QtGui import QColor, QFont
 
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
+from gui.state import UIState
 
 _FORMATS = ["standard", "pioneer", "modern", "legacy"]
 
@@ -270,6 +271,8 @@ class MyDecksTab(QWidget):
         super().__init__(parent)
         self._workers = []
         self._current_deck = None  # currently selected deck dict
+        self._pending_select_id = None  # for deferred deck pre-select after table loads
+        self._hydrated_state = False  # sticky state hydration guard
         self._build_ui()
         QTimer.singleShot(200, self._load_decks)
 
@@ -697,6 +700,12 @@ class MyDecksTab(QWidget):
             if self._current_deck.get("id") not in ids:
                 self._clear_detail()
 
+        # If a deck-id was pending from a hydrate-before-load showEvent,
+        # apply it now that the table is populated.
+        pending = getattr(self, "_pending_select_id", None)
+        if pending is not None and self.select_deck_by_id(pending):
+            self._pending_select_id = None
+
     # ------------------------------------------------------------------
     # Sticky state — hydrate once on first show
     # ------------------------------------------------------------------
@@ -705,10 +714,17 @@ class MyDecksTab(QWidget):
         super().showEvent(event)
         if getattr(self, "_hydrated_state", False):
             return
-        from gui.state import UIState
+        # Read persisted selection but defer applying it — the deck table
+        # is populated asynchronously via DataLoadWorker. select_deck_by_id
+        # at this point would iterate 0 rows. _on_decks_loaded consumes
+        # _pending_select_id once the table has been populated.
         deck_id = UIState.instance().get("tabs.my_decks.selected_deck_id")
         if deck_id is not None:
-            self.select_deck_by_id(deck_id)
+            self._pending_select_id = deck_id
+            # Try immediately in case the table is already populated
+            # (e.g., user already visited the tab once and navigates back).
+            if self.select_deck_by_id(deck_id):
+                self._pending_select_id = None
         self._hydrated_state = True
 
     # ------------------------------------------------------------------
@@ -757,7 +773,6 @@ class MyDecksTab(QWidget):
         # Persist selected deck so it can be restored on next session/tab-show
         deck_id = deck.get("id")
         if deck_id is not None:
-            from gui.state import UIState
             UIState.instance().set("tabs.my_decks.selected_deck_id", deck_id)
 
     def _show_deck(self, deck):
