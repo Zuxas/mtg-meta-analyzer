@@ -22,30 +22,9 @@ from PyQt6.QtGui import QColor
 import gui.theme as theme
 
 
-# Event-name classification for the "ranked / unranked / other" filter.
-# Maps raw MTGA event_name (from Player.log) to a coarse category.
-_RANKED_BO3_EVENTS = {"Traditional_Ladder", "Constructed_BestOf3_Ranked"}
-_RANKED_BO1_EVENTS = {"Ladder", "Constructed_BestOf1_Ranked"}
-_UNRANKED_PREFIXES = ("Constructed_BestOf3", "Constructed_BestOf1", "DirectGame")
-_LIMITED_KEYWORDS = ("Sealed", "Draft", "Cube")
-
-
-def _classify_event(event_name: str) -> str:
-    """Return one of: 'ranked-bo3', 'ranked-bo1', 'unranked', 'limited', 'other'."""
-    if not event_name:
-        return "other"
-    name = event_name.strip()
-    if name in _RANKED_BO3_EVENTS:
-        return "ranked-bo3"
-    if name in _RANKED_BO1_EVENTS:
-        return "ranked-bo1"
-    for kw in _LIMITED_KEYWORDS:
-        if kw in name:
-            return "limited"
-    for pfx in _UNRANKED_PREFIXES:
-        if name.startswith(pfx) and "Ranked" not in name:
-            return "unranked"
-    return "other"
+# Event-name classification reused from the headless module
+# (so CLI scrapers don't have to import the GUI's Qt deps).
+from analysis.auto_save_deck import classify_event as _classify_event
 
 
 def _wr_color(wr_frac: float) -> QColor:

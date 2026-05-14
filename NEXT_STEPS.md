@@ -76,6 +76,27 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Auto-create saved deck on unknown match (2026-05-14)
+- [x] **`analysis/auto_save_deck.find_or_create_deck()`.** When
+      `mtga_log_parser` writes a match where `classify_my_deck` returns
+      None (overlap <70% with every existing saved_deck), the parser now
+      falls back to this helper:
+      1. Skips Limited events (Sealed / Draft / Cube).
+      2. Skips matches with <20 unique observed cards.
+      3. Classifies the user's grpIds against meta archetype card lists
+         (reusing `classify_opponent_deck`).
+      4. If a saved deck with that archetype + format already exists,
+         links to it (existing match's my_deck_id gets set).
+      5. Otherwise creates a new saved_deck named
+         `<archetype> (auto-imported YYYY-MM-DD)` with observed cards as
+         mainboard, empty sideboard, "edit My Decks to fill in" note.
+      Idempotent on (archetype, format) so re-running the parser doesn't
+      duplicate decks. Limited and 'Unknown Archetype' cases are
+      intentionally skipped so saved_decks doesn't get polluted.
+      `classify_event` moved to `analysis/auto_save_deck.py` (was inline
+      in the GUI widget) so headless CLI scrapers don't load Qt.
+      Tests: `tests/test_auto_save_deck.py` -- 8 cases. 113/113 green.
+
 ### Match History sub-tab on My Decks (2026-05-14)
 - [x] **5th sub-tab on My Decks deck-detail panel: "Match History".**
       Shows all match_log rows for the selected deck (filtered by

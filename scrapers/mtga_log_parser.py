@@ -567,6 +567,7 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
     from db.match_log import _ensure_table, resolve_and_save
     from db.database import get_connection
     from analysis.my_deck_classifier import classify_my_deck
+    from analysis.auto_save_deck import find_or_create_deck, classify_event
 
     # Ensure arena_match_id column exists
     _ensure_table()
@@ -600,7 +601,9 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
         if opp_card_ids:
             opp_deck = classify_opponent_deck(opp_card_ids, format_name)
 
-        # Auto-classify my deck against saved_decks via grpId overlap
+        # Auto-classify my deck against saved_decks via grpId overlap.
+        # If no existing saved deck matches, fall back to auto-creating
+        # one named after the closest meta archetype.
         my_deck_id = None
         my_grp_ids = m.get("deck_card_ids") or []
         if my_grp_ids:
@@ -608,6 +611,14 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
                 my_deck_id = classify_my_deck(my_grp_ids, format_name)
             except Exception:
                 my_deck_id = None
+            if my_deck_id is None:
+                event_cat = classify_event(m.get("event_name") or "")
+                try:
+                    my_deck_id = find_or_create_deck(
+                        my_grp_ids, format_name, event_cat
+                    )
+                except Exception:
+                    my_deck_id = None
 
         row_id = resolve_and_save(
             event_name=m["event_name"],
