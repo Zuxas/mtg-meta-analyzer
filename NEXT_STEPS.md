@@ -12,16 +12,16 @@ with 17 SB plans (Nick's primer + Tokyo SB map). Current field-weighted
 EV vs 14d Standard meta: **53.6%** (Spellementals worst -10.8pp,
 Golgari best +24.5pp Easy SB bump).
 
-**Outstanding from May 11-12 RC:** post-event debrief not yet logged.
-Time-sensitive while memory is fresh — log matches, capture which SB plans
-worked / didn't, expected vs actual matchups.
+**Status:** Skipping RC Cincinnati 5/15-5/17. Focus is RC DC 5/29-5/31
+(15 days out as of 2026-05-14). Practice match data on Arena is the
+freshest input to the variant-tracking pipeline; Sync Untapped after
+play sessions to populate Match Log.
 
 ---
 
 ## OPEN PRIORITIES
 
 ### RC Prep Follow-Ups
-- [ ] Log May 11-12 RC results — still time-sensitive (skipped 4x).
 - [ ] Side-by-side deck comparison (Chapin radar overlay) — useful if Tokyo
       slot becomes uncertain after another data refresh.
 - [ ] RC-realistic field model — replace 14d paper-meta default in
@@ -68,11 +68,55 @@ worked / didn't, expected vs actual matchups.
       Card Browser filters (Dashboard already has it).
 
 ### Untapped Tail-Off (low priority)
-- [ ] Untapped premium ranks scrape cadence — `last_7_days` flag has
-      tiny samples right now (1-18 rows per tier). Confirm the scraper
-      is cycling enough to keep the recent window populated.
+- [x] **Untapped premium scrape — drop `--last-7-days` from M/W/F cadence.**
+      Shipped 2026-05-14: re-pulling without the flag widened Standard Bo3
+      from 18 rows → 121 (Platinum 17 → 79, Mythic 0 → 4). The
+      `last_7_days` filter was suppressing most upstream data. Pipeline
+      change: edit `scripts/run_fill_from_prefs.py` line 96 to drop the
+      flag (pending — was done ad-hoc tonight).
+- [ ] **Untapped mythic decklist ingestion — BIG FEATURE, scoped 2026-05-14
+      end-of-night, build tomorrow.** Pull canonical decklists for
+      top-30 mythic players into a new `untapped_decklists` table via
+      cookie-authed API (recon first turn — `/api/v1/deck/<id>` likely;
+      fallback to upload-log replay parse). GUI: decklist panel below
+      Mythic leaderboard, right-click "Save to My Decks" copies into
+      `saved_decks` for comparison. M/W/F pipeline integration. ~3-4h.
 - [ ] Filter SB plans by recency — drop plans older than N days
       (data is timestamped via `replay.match_timestamp`).
+
+### Bug Fixes Applied (2026-05-14)
+- [x] **Dashboard "Win Rate Over Time" chart x-axis scrambled.** Cause:
+      year was stripped from date labels (`w[5:]`) then matplotlib used
+      first-archetype's insertion order as categorical axis, so 2025 data
+      appeared after 2026. Fix: parse to real datetime, use
+      `matplotlib.dates` formatter, show `YYYY-MM-DD` when data spans years,
+      `MM-DD` otherwise. Also relaxed `n>=3` per-bucket filter to `n>=1`
+      (short windows were dropping most archetypes). `gui/widgets/chart_canvas.py`.
+- [x] **Win Rate Over Time is now the Dashboard default.** One-line change
+      in `gui/tabs/dashboard.py:225`. Popularity Over Time still one click away.
+- [x] **Mythic leaderboard deck linkout 404.** First URL pattern
+      `/profile/<user_id>/decks/<short_id>` returned 404; correct pattern is
+      `mtga.untapped.gg/decks/<short_id>` (no profile prefix). Fixed in
+      `db/untapped_queries.untapped_deck_url`.
+- [x] **Match Log first-launch crash post-schema-upgrade.** Worker thread
+      hadn't run the migration when `_refresh_orphan_banner` SQL fired on the
+      GUI thread → `no such column: backfill_status`. Defensive
+      `_ensure_table()` call at top of `_refresh_orphan_banner`. Shipped
+      late 2026-05-13 / early 2026-05-14.
+- [x] **"May 11-12 RC" memory hallucination cleanup.** Memory blocks across
+      `harness/MEMORY.md`, `mtg-meta-analyzer/NEXT_STEPS.md`, the
+      variant-tracking spec, and the pre-authored chain all referenced a
+      May 11-12 RC that Jermey never attended. Corrected by referencing
+      the canonical Google Sheet calendar where only RC DC 5/29-5/31 has
+      Flight+Hotel=yes. Cleaned across all docs 2026-05-14.
+
+### GUI Integrations (2026-05-14)
+- [x] **Mythic leaderboard deck linkout.** Ladder tab's Mythic
+      leaderboard rows are now interactive: double-click opens that
+      player's deck on Untapped.gg in your default browser; right-click
+      gives "Open deck on Untapped.gg" + "Copy deck URL".
+      `gui/tabs/ladder_meta.py`; URL builder in
+      `db/untapped_queries.untapped_deck_url`.
 
 ### Bug Fixes Applied (2026-05-13)
 - [x] Print SB Guide blew past 1 page after primer-prose backfill — `_summarize_notes()` in `gui/tabs/my_decks.py` strips `---` prior-notes appendage, prefers `PLAN:` markers, caps at 170 chars on word boundary. Tokyo guide: 50KB → 12KB, longest notes block 165 chars

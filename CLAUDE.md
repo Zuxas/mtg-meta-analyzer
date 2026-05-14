@@ -162,14 +162,14 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - Win Rate panel columns: Pips | Archetype | Win% | Change | Rating | Prep | Status | Tier | Role
 - "Meta Shift" button: compare current vs prior period (rising/falling/new/gone)
 - "Best Deck" button: meta-based deck recommendation with composite scoring
-- Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes
+- Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes. **Default = Win Rate Over Time** (2026-05-14). X-axis uses real datetime objects (not categorical strings) so chronological order is invariant to archetype plot order; year shows in tick labels only when data crosses a year boundary. Per-bucket appearance threshold is `n>=1` (was `n>=3`, too aggressive for short windows).
 - Dynamic panel titles update with timeframe selector
 - Dedup-aware Meta Impact bar shows filter effects
 
 ### Key GUI Features
 - **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export. Average Deck tab includes Mythic % column with ↑/↓ tech-divergence arrows.
 - **Bo3 SB Plans tab:** Sideboard plans extracted from Untapped Mythic-level ladder replays via game-to-game decklist diffs. Matched to archetype by color identity. KNN-refined matching when game-1 deck is available. Opponent archetype classified from MTGA replay log. Matchup filter dropdown narrows plans by opponent. Top section aggregates most-common cards IN/OUT; below lists individual plans.
-- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top (Mythic-having archetypes pinned), Bo3-only skill curve with 8 columns (Bronze→Silver→Gold→Platinum→Diamond→Mythic + Br→My delta) — Br/Si/Go responsively hide on narrow viewport. Mythic leaderboard top-30 on the right. Bo3-filtered everywhere via `Traditional_<format>` data source.
+- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top (Mythic-having archetypes pinned), Bo3-only skill curve with 8 columns (Bronze→Silver→Gold→Platinum→Diamond→Mythic + Br→My delta) — Br/Si/Go responsively hide on narrow viewport. Mythic leaderboard top-30 on the right with **deck linkout**: double-click a row to open that player's deck on Untapped.gg, right-click for "Open deck" / "Copy deck URL". URL builder lives at `db.untapped_queries.untapped_deck_url` (`mtga.untapped.gg/decks/<short_id>` — no profile prefix). Bo3-filtered everywhere via `Traditional_<format>` data source.
 - **Tech Choices:** Flex slots (15-80% inclusion) grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
