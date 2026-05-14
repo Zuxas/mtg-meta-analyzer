@@ -123,15 +123,18 @@ def register_deck_entries(reg: PaletteRegistry, window: "MainWindow") -> None:
         ))
 
 
+def _card_slug(name: str) -> str:
+    """Stable, unique slug for a card name. No truncation — long DFC /
+    split / Adventure names retain their full body so slugs don't collide
+    on a shared 60-char prefix."""
+    return name.lower().replace(" ", "-").replace(",", "")
+
+
 def register_card_entries(reg: PaletteRegistry) -> None:
     """Enumerate card_data names (large) and register CARD:* entries.
 
     Card category is gated behind `c:` prefix in the registry; registering
     all ~32k is fine because thefuzz only scores when a query is present.
-
-    Note: slug truncation to [:60] can collide on very long card names that
-    share the first 60 characters. PaletteRegistry.register deduplicates by
-    replacing on collision, so only the last entry survives. Acceptable for v1.
     """
     try:
         from db.database import get_combined_connection
@@ -150,17 +153,18 @@ def register_card_entries(reg: PaletteRegistry) -> None:
         except Exception:
             pass
     for name in rows:
-        slug = name.lower().replace(" ", "-").replace(",", "")[:60]
         reg.register(PaletteEntry(
-            id=f"card:{slug}", category="CARD",
+            id=f"card:{_card_slug(name)}", category="CARD",
             name=name, secondary="",
             handler=lambda n=name: None,  # v1: cards are searchable but selecting is no-op
         ))
 
 
 def register_all(reg: PaletteRegistry, window: "MainWindow") -> None:
+    """Register the fast (small) palette categories. Cards are NOT included
+    — the caller schedules `register_card_entries` separately so the ~120ms
+    32k-row DB walk doesn't block first paint."""
     register_tab_entries(reg, window)
     register_action_entries(reg, window)
     register_archetype_entries(reg, window)
     register_deck_entries(reg, window)
-    register_card_entries(reg)

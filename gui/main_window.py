@@ -39,7 +39,10 @@ from gui.state import UIState
 from gui.state_keys import LAST_ACTIVE_TAB_PATH, GLOBAL_FORMAT, PALETTE_RECENTS
 from gui.widgets.palette_registry import PaletteRegistry
 from gui.widgets.command_palette import CommandPalette
-from gui.widgets._palette_actions import register_all as _palette_register_all
+from gui.widgets._palette_actions import (
+    register_all as _palette_register_all,
+    register_card_entries as _palette_register_card_entries,
+)
 import gui.theme as theme
 
 MIN_EVENTS = 50
@@ -68,8 +71,15 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
 
-        # Populate palette registry (tabs must exist by now)
+        # Populate palette registry — fast categories synchronously (tabs
+        # must exist by now). Card entries (~32k rows, ~120ms DB walk) are
+        # deferred to after first paint so the window is responsive
+        # immediately. CARD entries are gated behind the `c:` prefix, so
+        # not having them for the first ~120ms is invisible to the user.
         _palette_register_all(self._palette_registry, self)
+        QTimer.singleShot(
+            0, lambda: _palette_register_card_entries(self._palette_registry)
+        )
 
         # Ctrl+K opens palette
         self._palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
@@ -244,10 +254,14 @@ class MainWindow(QMainWindow):
             self._add_claude_tab()
             self._add_set_analysis_tab()
 
-        # Persist top-level tab navigation (clicks on the tab bar) to UIState.
-        # The palette's activate_tab_by_path() also writes this — both paths
-        # converge on UIState.set(LAST_ACTIVE_TAB_PATH, ...).
-        self._tabs.currentChanged.connect(self._on_top_tab_changed)
+        # Persist tab navigation at every depth — top-level clicks AND
+        # sub-tab clicks (META/CHARTS, DECKS/MY DECKS, etc.) — to UIState.
+        # The palette's activate_tab_by_path() also writes this; all paths
+        # converge on UIState.set(LAST_ACTIVE_TAB_PATH, full_leaf_path).
+        self._tabs.currentChanged.connect(self._on_active_tab_changed)
+        for nested in (self._meta_tab, self._decks_tab,
+                       self._tournament_tab, self._resources_tab):
+            nested.currentChanged.connect(self._on_active_tab_changed)
 
         self.setCentralWidget(central)
 
@@ -448,13 +462,35 @@ class MainWindow(QMainWindow):
         if hasattr(self._tourney, "load_deck"):
             self._tourney.load_deck(deck)
 
-    def _on_top_tab_changed(self, index: int) -> None:
-        """Persist top-level tab navigation when user clicks the tab bar."""
-        if index < 0:
-            return
-        label = self._tabs.tabText(index)
-        if label:
-            self.ui_state.set(LAST_ACTIVE_TAB_PATH, label)
+    def _compute_active_tab_path(self) -> str:
+        """Walk from the root QTabWidget through any nested QTabWidget
+        containers, joining tabText() at each level with '/'. Returns the
+        full leaf path (e.g. 'DECKS/MY DECKS', 'META/CHARTS', 'DASHBOARD').
+        """
+        from PyQt6.QtWidgets import QTabWidget
+        parts: list[str] = []
+        node = self._tabs
+        for _ in range(4):  # bounded — current tree depth is 2
+            idx = node.currentIndex()
+            if idx < 0:
+                break
+            label = node.tabText(idx)
+            if label:
+                parts.append(label)
+            child = node.widget(idx)
+            if isinstance(child, QTabWidget):
+                node = child
+            else:
+                break
+        return "/".join(parts)
+
+    def _on_active_tab_changed(self, _index: int = -1) -> None:
+        """Persist the full active-tab path. Fires from every QTabWidget
+        in the tree, so sub-tab clicks (DECKS/MY DECKS, META/CHARTS, ...)
+        get captured, not just the top-level switch."""
+        path = self._compute_active_tab_path()
+        if path:
+            self.ui_state.set(LAST_ACTIVE_TAB_PATH, path)
 
     # ------------------------------------------------------------------
     # Startup logic

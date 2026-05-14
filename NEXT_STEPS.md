@@ -48,11 +48,18 @@ worked / didn't, expected vs actual matchups.
 - [ ] Direction C arc — design language pass + tab reorganization.
       Drive priorities from one week of palette-recents data + sticky-state usage.
       Spec to be written after 2026-05-20.
-- [ ] Defer-card-registration polish: `register_card_entries` runs synchronously
-      during MainWindow.__init__ (~120ms for 32k cards). Move to
-      `QTimer.singleShot(0, ...)` so first paint isn't delayed.
-- [ ] Card-slug collision: `register_card_entries` slug truncation at `[:60]`
-      can collide on long similar names; minor data-loss risk for recents only.
+- [x] Defer-card-registration polish — `register_card_entries` now scheduled
+      via `QTimer.singleShot(0, ...)` in `MainWindow.__init__` so first paint
+      isn't blocked by the ~120ms 32k-card iteration. Shipped 2026-05-13.
+- [x] Card-slug collision — `_palette_actions._card_slug()` helper extracted;
+      `[:60]` truncation dropped so DFC/split/Adventure names with shared
+      prefixes no longer collide in palette IDs. New test
+      `tests/test_palette_actions.py` (3 cases). Shipped 2026-05-13.
+- [x] Sub-tab persistence bug fix — `MainWindow._on_top_tab_changed` only
+      wrote the top-level label; sub-tab clicks (DECKS/MY DECKS, META/CHARTS,
+      etc.) persisted nothing. Replaced with `_compute_active_tab_path()` +
+      `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
+      manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
 - [ ] Dashboard + Heatmap empty-state polish
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
