@@ -13,6 +13,9 @@ from __future__ import annotations
 import hashlib
 import json
 
+from db.database import get_connection
+from db.helpers import ensure_table as _do_ensure
+
 
 def compute_variant_hash(mainboard: dict[str, int],
                          sideboard: dict[str, int]) -> str:
@@ -54,3 +57,22 @@ def _diff_board(prev: dict[str, int], curr: dict[str, int]) -> dict:
         if c > 0:
             added.append((name, c))
     return {"added": added, "removed": removed}
+
+
+_CREATE_SQL = """
+    CREATE TABLE IF NOT EXISTS deck_variants (
+        variant_hash    TEXT PRIMARY KEY,
+        deck_id         INTEGER NOT NULL REFERENCES saved_decks(id) ON DELETE CASCADE,
+        mainboard_json  TEXT    NOT NULL,
+        sideboard_json  TEXT    NOT NULL,
+        first_seen      TEXT    NOT NULL,
+        last_seen       TEXT    NOT NULL,
+        match_count     INTEGER NOT NULL DEFAULT 0,
+        win_count       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_deck_variants_deck ON deck_variants(deck_id);
+"""
+
+
+def _ensure_table():
+    _do_ensure(_CREATE_SQL)

@@ -57,11 +57,22 @@ def _ensure_table():
         for stmt in [
             "ALTER TABLE match_log ADD COLUMN swap_notes TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE match_log ADD COLUMN swap_verdict TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE match_log ADD COLUMN my_deck_id INTEGER",
+            "ALTER TABLE match_log ADD COLUMN my_variant_hash TEXT",
+            "ALTER TABLE match_log ADD COLUMN opp_grp_ids_json TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE match_log ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'",
+            "ALTER TABLE match_log ADD COLUMN backfill_status TEXT NOT NULL DEFAULT 'live'",
+            "CREATE INDEX IF NOT EXISTS idx_match_log_deck_id ON match_log(my_deck_id)",
+            "CREATE INDEX IF NOT EXISTS idx_match_log_variant ON match_log(my_variant_hash)",
+            "CREATE INDEX IF NOT EXISTS idx_match_log_backfill ON match_log(backfill_status)",
         ]:
             try:
                 conn.execute(stmt)
             except sqlite3.OperationalError:
                 pass
+    # Delegate deck_variants CREATE
+    from db.deck_variants import _ensure_table as _ensure_deck_variants
+    _ensure_deck_variants()
 
 
 # ---------------------------------------------------------------------------
