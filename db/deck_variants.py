@@ -25,3 +25,32 @@ def compute_variant_hash(mainboard: dict[str, int],
         "sb": sorted(sideboard.items()),
     }, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:16]
+
+
+def variant_diff(mb_prev: dict[str, int], sb_prev: dict[str, int],
+                 mb_curr: dict[str, int], sb_curr: dict[str, int]) -> dict:
+    """Return the (added, removed) pairs that turn prev into curr.
+
+    Quantity changes render as paired remove (old qty) + add (new qty)
+    so the UI can show 'Lightning Bolt 3 -> 4' as one row pair.
+    Output lists are sorted by card name for stable rendering."""
+    return {
+        "mainboard": _diff_board(mb_prev, mb_curr),
+        "sideboard": _diff_board(sb_prev, sb_curr),
+    }
+
+
+def _diff_board(prev: dict[str, int], curr: dict[str, int]) -> dict:
+    added: list[tuple[str, int]] = []
+    removed: list[tuple[str, int]] = []
+    all_names = set(prev) | set(curr)
+    for name in sorted(all_names):
+        p = prev.get(name, 0)
+        c = curr.get(name, 0)
+        if p == c:
+            continue
+        if p > 0:
+            removed.append((name, p))
+        if c > 0:
+            added.append((name, c))
+    return {"added": added, "removed": removed}
