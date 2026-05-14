@@ -80,7 +80,7 @@ Setup wizard page 0 saves formats immediately. `fill_database.py` and `scripts/r
 ### Schema
 - **Active:** `data/mtg_meta.db` — events within retention window (gitignored)
 - **Archive:** `data/mtg_archive.db` — older data (moved, never deleted)
-- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes, match_log, deck_variants
+- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes, match_log, deck_variants, untapped_decklists (per-player canonical decklist from local replay corpus)
 - **card_data:** keyed by card name (TEXT PK) — works across both DBs. Populated by `python -m scrapers.scryfall`
 - **Use** `get_combined_connection()` to query across both DBs
 
@@ -146,6 +146,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `db/untapped_queries.py` | Untapped Bo3 matchup matrix + archetype-color resolver + SB plans by color identity + card-level Mythic inclusion |
 | `analysis/wilson.py` | Wilson score interval + tweak classifier (validated / promising / noisy) |
 | `analysis/my_deck_classifier.py` | Overlap-score classifier mapping observed grpIds -> saved_decks.id |
+| `db/untapped_decklists.py` | Per-player Untapped decklist storage — extract from local replay corpus, grpId resolver, upsert/query, batch populate |
 
 ### Sideboard WR Model (calibration constants)
 `opp_per_card=0.013, my_per_card=0.010, cap=0.13, clamp=[0.18, 0.84]`
@@ -169,7 +170,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 ### Key GUI Features
 - **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export. Average Deck tab includes Mythic % column with ↑/↓ tech-divergence arrows.
 - **Bo3 SB Plans tab:** Sideboard plans extracted from Untapped Mythic-level ladder replays via game-to-game decklist diffs. Matched to archetype by color identity. KNN-refined matching when game-1 deck is available. Opponent archetype classified from MTGA replay log. Matchup filter dropdown narrows plans by opponent. Top section aggregates most-common cards IN/OUT; below lists individual plans.
-- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top (Mythic-having archetypes pinned), Bo3-only skill curve with 8 columns (Bronze→Silver→Gold→Platinum→Diamond→Mythic + Br→My delta) — Br/Si/Go responsively hide on narrow viewport. Mythic leaderboard top-30 on the right with **deck linkout**: double-click a row to open that player's deck on Untapped.gg, right-click for "Open deck" / "Copy deck URL". URL builder lives at `db.untapped_queries.untapped_deck_url` (`mtga.untapped.gg/decks/<short_id>` — no profile prefix). Bo3-filtered everywhere via `Traditional_<format>` data source.
+- **Ladder sub-tab (Meta group):** MTGA-ladder meta surface. Format selector (Standard / Pioneer / Historic / Timeless / Alchemy). Mythic archetype rollup at top (Mythic-having archetypes pinned), Bo3-only skill curve with 8 columns (Bronze→Silver→Gold→Platinum→Diamond→Mythic + Br→My delta) — Br/Si/Go responsively hide on narrow viewport. Mythic leaderboard top-30 on the right with **deck linkout**: double-click a row to open that player's deck on Untapped.gg, right-click for "Open deck" / "Copy deck URL" / "Save to My Decks". URL builder lives at `db.untapped_queries.untapped_deck_url` (`mtga.untapped.gg/decks/<short_id>` — no profile prefix). **Decklist panel** below the leaderboard table populates on row selection — main + SB from `db.untapped_decklists.get_decklist(short_id)`. `↻ Fetch decklists` toolbar button extracts pre-board mainDeck/sideboard from every locally-stored Untapped replay (no network — pulls from the corpus the replay fetcher already downloaded), persists to the `untapped_decklists` table. Save-to-My-Decks copies the canonical decklist into `saved_decks` for side-by-side EV comparison vs your build. Bo3-filtered everywhere via `Traditional_<format>` data source.
 - **Tech Choices:** Flex slots (15-80% inclusion) grouped by role (Threat/Removal/Card Advantage/Mana/Protection/Utility)
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget

@@ -102,6 +102,13 @@ def main():
             print(f"[Untapped] match_log: {n_new} new rows")
         except Exception as e:
             print(f"[Untapped] match_log writer error: {e}")
+        try:
+            from db.untapped_decklists import populate_for_all_local_replays
+            print("[Untapped] Extracting decklists from replay corpus...")
+            dl_stats = populate_for_all_local_replays(skip_existing=True)
+            print(f"[Untapped] decklists: {dl_stats}")
+        except Exception as e:
+            print(f"[Untapped] decklist populator error: {e}")
     else:
         day_name = _dt.date.today().strftime("%a")
         print(f"\n-- Untapped SKIPPED (throttled to M/W/F, today is {day_name}) --")

@@ -21,12 +21,14 @@ rows have NULL win_rate at all tiers, only match counts.
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
-    QFrame, QSplitter,
+    QFrame, QSplitter, QListWidget, QListWidgetItem, QInputDialog,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
 import gui.theme as theme
+from gui.worker_threads import DataLoadWorker
 
 
 class LadderMetaTab(QWidget):
@@ -71,6 +73,18 @@ class LadderMetaTab(QWidget):
         )
         self._refresh_btn.clicked.connect(self.refresh)
         tl.addWidget(self._refresh_btn)
+
+        self._fetch_dl_btn = QPushButton("↻ Fetch decklists")
+        self._fetch_dl_btn.setStyleSheet(theme.btn_secondary())
+        self._fetch_dl_btn.setToolTip(
+            "Extract mainboard + sideboard from every locally-stored "
+            "Untapped replay (data/untapped/replays/). No network calls -- "
+            "pulls from the corpus the replay fetcher already downloaded. "
+            "After fetch, click any Mythic leaderboard row below to see "
+            "that player's decklist."
+        )
+        self._fetch_dl_btn.clicked.connect(self._on_fetch_decklists)
+        tl.addWidget(self._fetch_dl_btn)
 
         tl.addStretch()
         self._as_of = QLabel("")
@@ -189,6 +203,7 @@ class LadderMetaTab(QWidget):
         self._lb_tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._lb_tbl.customContextMenuRequested.connect(self._on_lb_context_menu)
         self._lb_tbl.itemDoubleClicked.connect(self._on_lb_double_click)
+        self._lb_tbl.itemSelectionChanged.connect(self._on_lb_selection_changed)
         hh3 = self._lb_tbl.horizontalHeader()
         hh3.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         hh3.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -196,6 +211,34 @@ class LadderMetaTab(QWidget):
         hh3.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         hh3.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         lb_v.addWidget(self._lb_tbl, 1)
+
+        # ── Decklist panel below the leaderboard table ────────────────
+        dl_header = QLabel(
+            "<b>Decklist</b>  "
+            "<span style='color:%s;font-size:10px;'>"
+            "(click a leaderboard row above; ↻ Fetch decklists to populate)"
+            "</span>" % theme.TEXT_DIM
+        )
+        dl_header.setStyleSheet("font-size: 11px;")
+        lb_v.addWidget(dl_header)
+        dl_row = QHBoxLayout()
+        dl_row.setSpacing(4)
+        dl_row.setContentsMargins(0, 0, 0, 0)
+        self._mb_list = QListWidget()
+        self._mb_list.setToolTip("Mainboard (60 cards typical)")
+        self._sb_list = QListWidget()
+        self._sb_list.setToolTip("Sideboard (15 cards typical)")
+        self._mb_list.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; font-size: 11px;"
+        )
+        self._sb_list.setStyleSheet(self._mb_list.styleSheet())
+        dl_row.addWidget(self._mb_list, 3)
+        dl_row.addWidget(self._sb_list, 2)
+        dl_wrap = QWidget()
+        dl_wrap.setLayout(dl_row)
+        dl_wrap.setMinimumHeight(160)
+        lb_v.addWidget(dl_wrap, 0)
         split.addWidget(lb_wrap)
 
         split.setStretchFactor(0, 3)
@@ -412,14 +455,20 @@ class LadderMetaTab(QWidget):
         row = item.row()
         data = self._lb_tbl.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
         player_name = data.get("player_name", "?")
+        short_id = data.get("short_id")
 
         menu = QMenu(self)
         open_act = menu.addAction(f"Open {player_name}'s deck on Untapped.gg")
         copy_act = menu.addAction("Copy deck URL")
+        save_act = menu.addAction(f"Save {player_name}'s deck to My Decks")
+        # Only enable save when we have a stored decklist for this short_id
+        from db.untapped_decklists import get_decklist
+        save_act.setEnabled(short_id is not None and
+                            get_decklist(short_id) is not None)
         action = menu.exec(self._lb_tbl.viewport().mapToGlobal(pos))
 
         from db.untapped_queries import untapped_deck_url
-        url = untapped_deck_url(data.get("user_id"), data.get("short_id"))
+        url = untapped_deck_url(data.get("user_id"), short_id)
 
         if action is open_act:
             self._open_deck_for_row(row)
@@ -431,6 +480,120 @@ class LadderMetaTab(QWidget):
                 self._status.setText(
                     "No deck link available (missing user_id / short_id)."
                 )
+        elif action is save_act:
+            self._save_deck_for_row(row)
+
+    def _on_lb_selection_changed(self) -> None:
+        sel = self._lb_tbl.selectedItems()
+        if not sel:
+            return
+        row = sel[0].row()
+        data = self._lb_tbl.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}
+        self._populate_decklist_panel(data.get("short_id"),
+                                      data.get("player_name") or "?")
+
+    def _populate_decklist_panel(self, short_id, player_name: str) -> None:
+        self._mb_list.clear()
+        self._sb_list.clear()
+        if not short_id:
+            self._mb_list.addItem("(no short_id for this row)")
+            return
+        from db.untapped_decklists import get_decklist
+        dl = get_decklist(short_id)
+        if dl is None:
+            self._mb_list.addItem(
+                f"No local decklist for {player_name} yet."
+            )
+            self._mb_list.addItem(
+                "Click '↻ Fetch decklists' to populate from local replays."
+            )
+            return
+        mb = dl.get("mainboard") or {}
+        sb = dl.get("sideboard") or {}
+        for name, qty in sorted(mb.items(), key=lambda kv: (-kv[1], kv[0])):
+            self._mb_list.addItem(f"{qty}  {name}")
+        if sb:
+            for name, qty in sorted(sb.items(), key=lambda kv: (-kv[1], kv[0])):
+                self._sb_list.addItem(f"{qty}  {name}")
+        else:
+            self._sb_list.addItem("(no sideboard in replay)")
+
+    def _on_fetch_decklists(self) -> None:
+        self._fetch_dl_btn.setEnabled(False)
+        self._status.setText("Fetching decklists from local replays…")
+        self._status.setVisible(True)
+
+        def _do():
+            from db.untapped_decklists import populate_for_all_local_replays
+            return populate_for_all_local_replays(skip_existing=True)
+
+        def _done(stats: dict):
+            self._fetch_dl_btn.setEnabled(True)
+            self._status.setText(
+                f"Decklists: {stats['written']} written, "
+                f"{stats['skipped_existing']} already cached, "
+                f"{stats['missing_replay']} missing replay, "
+                f"{stats['malformed']} malformed, "
+                f"{stats['no_card_resolution']} unresolved."
+            )
+            self._on_lb_selection_changed()
+
+        def _err(exc):
+            self._fetch_dl_btn.setEnabled(True)
+            self._status.setText(theme.friendly_error(exc))
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(_err)
+        w.start()
+        self._fetch_worker = w  # keep ref so it isn't GC'd
+
+    def _save_deck_for_row(self, row_index: int) -> None:
+        item = self._lb_tbl.item(row_index, 0)
+        if item is None:
+            return
+        data = item.data(Qt.ItemDataRole.UserRole) or {}
+        short_id = data.get("short_id")
+        player_name = data.get("player_name") or "Mythic Player"
+        from db.untapped_decklists import get_decklist
+        dl = get_decklist(short_id) if short_id else None
+        if dl is None:
+            QMessageBox.information(
+                self, "No decklist",
+                "No local decklist for this player yet. "
+                "Click '↻ Fetch decklists' first."
+            )
+            return
+
+        # Look up the format from the current selector + archetype from row
+        fmt = self._fmt.currentText()
+        arch_item = self._lb_tbl.item(row_index, 2)
+        arch_display = arch_item.text() if arch_item else ""
+        # Strip the "(colors)" suffix from displayed archetype
+        archetype = arch_display.split(" (")[0].strip() or "Unknown"
+
+        default_name = f"{player_name} -- {archetype}"
+        name, ok = QInputDialog.getText(
+            self, "Save deck", "Save as:", text=default_name
+        )
+        if not ok or not name.strip():
+            return
+
+        from db.saved_decks import save_deck
+        try:
+            deck_id = save_deck(
+                name=name.strip(),
+                format_name=fmt,
+                archetype=archetype,
+                mainboard=dl["mainboard"],
+                sideboard=dl["sideboard"] or {},
+                notes=f"Imported from Untapped Mythic ladder. short_id={short_id}",
+            )
+            self._status.setText(
+                f"Saved deck #{deck_id} '{name}' to My Decks."
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "Save failed", str(e))
 
 
 def _wr_color(wr_frac: float) -> QColor:

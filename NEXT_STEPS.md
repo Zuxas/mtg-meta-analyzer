@@ -84,13 +84,27 @@ play sessions to populate Match Log.
       change persisted 2026-05-14: `scripts/run_fill_from_prefs.py:96`
       now invokes the premium scraper without `--last-7-days`, so the
       M/W/F automated run inherits the wider window automatically.
-- [ ] **Untapped mythic decklist ingestion — BIG FEATURE, scoped 2026-05-14
-      end-of-night, build tomorrow.** Pull canonical decklists for
-      top-30 mythic players into a new `untapped_decklists` table via
-      cookie-authed API (recon first turn — `/api/v1/deck/<id>` likely;
-      fallback to upload-log replay parse). GUI: decklist panel below
-      Mythic leaderboard, right-click "Save to My Decks" copies into
-      `saved_decks` for comparison. M/W/F pipeline integration. ~3-4h.
+- [x] **Untapped mythic decklist ingestion (2026-05-14) — BIG FEATURE
+      shipped same day as scoped.** Recon revealed the local replay
+      corpus already contains full pre-board mainboard + sideboard as
+      `decks[0].deck.mainDeck` / `.sideboard` (lists of grpIds), so
+      no new network requests, no cookie-auth, no throttling concern.
+      Module: `db/untapped_decklists.py` (extract_decklist_from_replay,
+      resolve_grpids, save_decklist, get_decklist, populate_for_short_ids,
+      populate_for_all_local_replays). Schema: new `untapped_decklists`
+      table with short_id PK + mainboard_json + sideboard_json + archetype
+      + fetched_at + source_replay_path. GUI: Ladder tab gained '↻ Fetch
+      decklists' button (runs in worker thread); decklist panel below the
+      Mythic leaderboard populates from `get_decklist(short_id)` on row
+      selection; right-click context menu adds 'Save to My Decks' which
+      copies the deck into `saved_decks` for side-by-side EV comparison.
+      M/W/F pipeline integration: `scripts/run_fill_from_prefs.py` now
+      calls `populate_for_all_local_replays` after the match_log writer.
+      Tests: `tests/test_untapped_decklists.py` — 10 cases covering
+      grpId aggregation (alt-art collapse), roundtrip, idempotent upsert,
+      malformed-replay handling, unresolved-grpId handling, skip-existing.
+      First populate against real DB: 98/98 decklists written from local
+      replay corpus.
 - [ ] Filter SB plans by recency — drop plans older than N days
       (data is timestamped via `replay.match_timestamp`).
 
