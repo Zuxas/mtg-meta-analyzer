@@ -33,6 +33,21 @@ EXCLUDE_ARCHETYPES = frozenset({
     "Other",
 })
 
+_ALL_FORMAT_SENTINELS = frozenset({"", "all", "all formats", "(any)", "any"})
+
+
+def is_all_formats(fmt) -> bool:
+    """True if `fmt` represents the cross-format sentinel.
+
+    Accepts None, empty string, "all", "All Formats", "(any)", "any"
+    (case-insensitive, whitespace-trimmed). Used at every SQL-filter gate
+    so callers can pass a UI value through without per-site normalization.
+    """
+    if fmt is None:
+        return True
+    return str(fmt).strip().lower() in _ALL_FORMAT_SENTINELS
+
+
 # Simple TTL cache for expensive queries (60-second expiry)
 _query_cache: dict = {}  # key → (timestamp, result)
 _CACHE_TTL = 60  # seconds
@@ -200,7 +215,7 @@ def _fetch_appearances(conn, archetype, format_name=None, event_type=None,
     """
     params = [f"%{archetype}%"]
 
-    if format_name:
+    if not is_all_formats(format_name):
         q += " AND lower(e.format) = lower(?)"
         params.append(format_name)
     if event_type:
@@ -396,9 +411,7 @@ def get_meta_standings(format_name="standard", event_type=None,
             WHERE d.archetype != ''
         """
         params = []
-        # 'all' (or None) skips the format filter — caller wants every format.
-        # Otherwise lock to the requested format.
-        _all_fmts = format_name is None or str(format_name).lower() == "all"
+        _all_fmts = is_all_formats(format_name)
         if not _all_fmts:
             q += " AND lower(e.format) = lower(?)"
             params.append(format_name)

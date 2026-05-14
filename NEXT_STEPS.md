@@ -64,8 +64,17 @@ play sessions to populate Match Log.
 - [ ] Dashboard + Heatmap empty-state polish
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
       / card_browser Search button / h2h / vs-field forms)
-- [ ] Global "All Formats" option rollout to Charts / Predictions /
-      Card Browser filters (Dashboard already has it).
+- [x] **Global "All Formats" option rollout (2026-05-14).** The "all" option
+      existed on Dashboard / Charts / Predictions dropdowns but the underlying
+      queries filtered `WHERE lower(format) = lower('all')` and returned zero
+      rows. Added `analysis.win_rates.is_all_formats()` helper recognizing
+      None / "" / "all" / "All Formats" / "(any)" / "any" (case-insensitive).
+      Patched 7 analysis sites + 2 GUI inline-SQL sites (Charts archetype
+      dropdown, Dashboard top-finishes panel). Card Browser's "(any)" sentinel
+      was already a legality filter, out of scope. Regression test confirms
+      `get_archetype_trend(arch, format_name='all')` now returns cross-format
+      data (was 0). `tests/test_is_all_formats.py` covers the helper + the
+      trend regression. 89/89 tests green.
 
 ### Untapped Tail-Off (low priority)
 - [x] **Untapped premium scrape — drop `--last-7-days` from M/W/F cadence.**

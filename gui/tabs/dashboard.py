@@ -112,13 +112,17 @@ def _load_panel_data(format_name: str, since_dt, top: int,
             "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
             "ELSE replace(e.date,'-','') END"
         )
+        from analysis.win_rates import is_all_formats
         q = """
             SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
                    e.id AS event_id, e.name AS event_name, e.date, e.url AS event_url
             FROM decks d JOIN events e ON e.id = d.event_id
-            WHERE lower(e.format) = lower(?) AND d.placement <= 4
+            WHERE d.placement <= 4
         """
-        params = [format_name]
+        params = []
+        if not is_all_formats(format_name):
+            q += " AND lower(e.format) = lower(?)"
+            params.append(format_name)
         if since_dt:
             q += f" AND ({_date_key}) >= ?"
             params.append(since_dt.strftime("%Y%m%d"))

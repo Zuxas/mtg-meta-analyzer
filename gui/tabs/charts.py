@@ -371,17 +371,21 @@ class ChartsTab(QWidget):
 
         def _do():
             from db.database import get_combined_connection
+            from analysis.win_rates import is_all_formats
             conn = get_combined_connection()
             try:
-                rows = conn.execute("""
+                q = """
                     SELECT d.archetype, COUNT(*) AS cnt
                     FROM decks d
                     JOIN events e ON e.id = d.event_id
-                    WHERE lower(e.format) = lower(?)
-                    GROUP BY d.archetype
-                    ORDER BY cnt DESC
-                    LIMIT 100
-                """, [fmt]).fetchall()
+                    WHERE d.archetype != ''
+                """
+                params = []
+                if not is_all_formats(fmt):
+                    q += " AND lower(e.format) = lower(?)"
+                    params.append(fmt)
+                q += " GROUP BY d.archetype ORDER BY cnt DESC LIMIT 100"
+                rows = conn.execute(q, params).fetchall()
             finally:
                 conn.close()
             return [r[0] for r in rows]

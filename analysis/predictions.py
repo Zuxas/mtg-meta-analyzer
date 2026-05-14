@@ -248,7 +248,8 @@ def validate_predictions(format_name=None):
     try:
         where = "WHERE correct IS NULL AND target_week <= ?"
         params = [today]
-        if format_name:
+        from analysis.win_rates import is_all_formats
+        if not is_all_formats(format_name):
             where += " AND format = ?"
             params.append(format_name)
 
@@ -344,7 +345,8 @@ def accuracy_report(format_name=None, limit=90):
     try:
         where = "WHERE correct IS NOT NULL AND created_at >= ?"
         params = [cutoff]
-        if format_name:
+        from analysis.win_rates import is_all_formats
+        if not is_all_formats(format_name):
             where += " AND format = ?"
             params.append(format_name)
 
@@ -399,7 +401,8 @@ def recent_predictions(format_name=None, limit=20, pending_only=False):
     try:
         where_parts = []
         params = []
-        if format_name:
+        from analysis.win_rates import is_all_formats
+        if not is_all_formats(format_name):
             where_parts.append("format = ?")
             params.append(format_name)
         if pending_only:

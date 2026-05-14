@@ -31,7 +31,8 @@ def _fetch_archetype_decks(conn, archetype, format_name=None, include_archive=Fa
     """
     params = [f"%{archetype}%"]
 
-    if format_name:
+    from analysis.win_rates import is_all_formats
+    if not is_all_formats(format_name):
         base_query += " AND lower(e.format) = lower(?)"
         params.append(format_name)
 
@@ -420,7 +421,8 @@ def search_decks(archetype=None, format_name=None, limit=20):
         if archetype:
             q += " AND lower(d.archetype) LIKE lower(?)"
             params.append(f"%{archetype}%")
-        if format_name:
+        from analysis.win_rates import is_all_formats
+        if not is_all_formats(format_name):
             q += " AND lower(e.format) = lower(?)"
             params.append(format_name)
         q += (" ORDER BY (CASE WHEN instr(e.date,'/')>0 "
