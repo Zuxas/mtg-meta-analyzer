@@ -698,8 +698,39 @@ class MyDecksTab(QWidget):
                 self._clear_detail()
 
     # ------------------------------------------------------------------
+    # Sticky state — hydrate once on first show
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_hydrated_state", False):
+            return
+        from gui.state import UIState
+        deck_id = UIState.instance().get("tabs.my_decks.selected_deck_id")
+        if deck_id is not None:
+            self.select_deck_by_id(deck_id)
+        self._hydrated_state = True
+
+    # ------------------------------------------------------------------
     # Deck selection
     # ------------------------------------------------------------------
+
+    def select_deck_by_id(self, deck_id: int) -> bool:
+        """Select the deck row matching deck_id. Returns True if found.
+
+        Used by MainWindow.open_saved_deck (palette deck-jump) and showEvent
+        hydration to programmatically activate a saved deck by its DB id.
+        """
+        if not hasattr(self, "_table"):
+            return False
+        for i in range(self._table.rowCount()):
+            item = self._table.item(i, 0)
+            if item is not None and item.data(Qt.ItemDataRole.UserRole) == deck_id:
+                self._table.setCurrentCell(i, 0)
+                # Reuse the existing click handler to trigger full detail panel
+                self._on_deck_clicked(self._table.model().index(i, 0))
+                return True
+        return False
 
     def _on_deck_clicked(self, index):
         row = index.row()
@@ -723,6 +754,11 @@ class MyDecksTab(QWidget):
         self._del_plan_btn.setEnabled(True)
         self._sb_guide_btn.setEnabled(True)
         self._suggest_btn.setEnabled(True)
+        # Persist selected deck so it can be restored on next session/tab-show
+        deck_id = deck.get("id")
+        if deck_id is not None:
+            from gui.state import UIState
+            UIState.instance().set("tabs.my_decks.selected_deck_id", deck_id)
 
     def _show_deck(self, deck):
         name = deck.get("name", "Unnamed")

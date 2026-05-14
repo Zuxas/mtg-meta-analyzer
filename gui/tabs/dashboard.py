@@ -240,6 +240,31 @@ class DashboardTab(QWidget):
         self._refresh_timer.start()
 
     # ------------------------------------------------------------------
+    # Sticky state — hydrate once on first show
+    # ------------------------------------------------------------------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_hydrated_state", False):
+            return
+        self._hydrate_from_state()
+        self._hydrated_state = True
+
+    def _hydrate_from_state(self) -> None:
+        from gui.state import UIState
+        state = UIState.instance()
+        # Timeframe — self._tf is a QComboBox with labels like "2 weeks" / "All Time"
+        tf = state.get("tabs.dashboard.timeframe")
+        if tf and hasattr(self, "_tf"):
+            self._tf.blockSignals(True)
+            idx = self._tf.findText(tf)
+            if idx >= 0:
+                self._tf.setCurrentIndex(idx)
+            self._tf.blockSignals(False)
+        # No single-archetype selector on Dashboard for v1 (archetypes selected
+        # via double-click → dialog or checkbox panel); revisit if a combo is added.
+
+    # ------------------------------------------------------------------
     # UI construction
     # ------------------------------------------------------------------
 
@@ -275,6 +300,10 @@ class DashboardTab(QWidget):
         self._tf.setCurrentText(theme.TIMEFRAME_DEFAULT)
         self._tf.setFixedWidth(110)
         self._tf.currentIndexChanged.connect(lambda _: self._schedule_refresh())
+        from gui.state import UIState
+        self._tf.currentTextChanged.connect(
+            lambda txt: UIState.instance().set("tabs.dashboard.timeframe", txt)
+        )
         ctrl.addWidget(self._tf)
 
         ctrl.addWidget(QLabel("Top N:"))
