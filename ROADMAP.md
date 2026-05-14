@@ -47,6 +47,16 @@
 
 ## COMPLETED
 
+### 2026-05-13 — GUI Quick Wins (palette + sticky state)
+- [x] **Ctrl+K command palette** (`gui/widgets/command_palette.py` + `palette_registry.py` + `_palette_actions.py`) — fuzzy search across tabs / archetypes / saved decks / cards / actions; prefixes `>` `#` `@` `:` `c:`; 80ms debounce; rapidfuzz backend
+- [x] **`gui/state.py` UIState singleton** — debounced JSON persistence (250ms), atomic write via `.tmp`+replace, corrupt-recovery, threading.Timer (no Qt dep so unit-testable)
+- [x] **`gui/state_keys.py`** — central registry of 17 dotted-path constants for all persisted slices
+- [x] **Sticky UI state** across 5 tabs: Dashboard timeframe; My Decks selected deck (Tokyo Prowess id=17 pre-selects on launch via async-safe `_pending_select_id` pattern); Charts timeframe + chart_type + format + top_n + compare archetypes; Heatmap format + timeframe; Scout days + format + top + target archetypes
+- [x] **Tab-bar navigation persistence** — `currentChanged` on top-level QTabWidget writes `LAST_ACTIVE_TAB_PATH`; app reopens on last-used tab
+- [x] Settings tab "Reset UI state" button + palette `> Reset UI state` action
+- [x] Test infra bootstrapped (no prior tests): pytest>=8.0 added, `tests/test_ui_state.py` (9 tests), `tests/test_palette_registry.py` (20 tests)
+- [x] Spec at `docs/superpowers/specs/2026-05-13-gui-palette-sticky-state-design.md`; plan at `docs/superpowers/plans/2026-05-13-gui-palette-sticky-state.md`; 14 commits (`6fd084e..1fdd97f`); branch `feat/gui-palette-sticky-state` merged + deleted
+
 ### 2026-05-13 — RC May 29 Prep Toolkit
 - [x] Print SB Guide 1-page fix — `_summarize_notes()` clips primer prose to TL;DR per matchup (Tokyo guide 50KB → 12KB)
 - [x] Tokyo Prowess saved (saved_decks.id=17) + 17 SB plans + primer prose backfill
