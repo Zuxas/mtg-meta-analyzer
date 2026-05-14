@@ -14,7 +14,7 @@ import hashlib
 import json
 
 from db.database import get_connection
-from db.helpers import ensure_table as _do_ensure
+from db.helpers import ensure_table as _do_ensure, utc_now as _now
 
 
 def compute_variant_hash(mainboard: dict[str, int],
@@ -76,3 +76,29 @@ _CREATE_SQL = """
 
 def _ensure_table():
     _do_ensure(_CREATE_SQL)
+
+
+def upsert_variant(deck_id: int, mainboard: dict[str, int],
+                   sideboard: dict[str, int], won: bool) -> str:
+    """Insert or increment a variant row. Returns the variant_hash."""
+    _ensure_table()
+    variant_hash = compute_variant_hash(mainboard, sideboard)
+    mb_json = json.dumps(mainboard, separators=(",", ":"), ensure_ascii=False)
+    sb_json = json.dumps(sideboard, separators=(",", ":"), ensure_ascii=False)
+    now = _now()
+    win_delta = 1 if won else 0
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO deck_variants
+                (variant_hash, deck_id, mainboard_json, sideboard_json,
+                 first_seen, last_seen, match_count, win_count)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(variant_hash) DO UPDATE SET
+                last_seen   = excluded.last_seen,
+                match_count = match_count + 1,
+                win_count   = win_count + excluded.win_count
+            """,
+            (variant_hash, deck_id, mb_json, sb_json, now, now, win_delta),
+        )
+    return variant_hash

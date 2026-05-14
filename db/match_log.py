@@ -65,6 +65,8 @@ def _ensure_table():
             "CREATE INDEX IF NOT EXISTS idx_match_log_deck_id ON match_log(my_deck_id)",
             "CREATE INDEX IF NOT EXISTS idx_match_log_variant ON match_log(my_variant_hash)",
             "CREATE INDEX IF NOT EXISTS idx_match_log_backfill ON match_log(backfill_status)",
+            "ALTER TABLE match_log ADD COLUMN arena_match_id TEXT",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_match_log_arena_id ON match_log(arena_match_id) WHERE arena_match_id IS NOT NULL",
         ]:
             try:
                 conn.execute(stmt)
@@ -240,6 +242,75 @@ def get_overall_stats(my_deck: str = None, format_name: str = None,
     decisive = totals["wins"] + totals["losses"]
     totals["wr"] = round(totals["wins"] / decisive, 3) if decisive else 0.0
     return totals
+
+
+def resolve_and_save(event_name: str, event_date: str, format_name: str,
+                     round_num: int, my_deck_id: int | None, opp_deck: str,
+                     result: str, source: str,
+                     play_draw: str = "", opp_name: str = "",
+                     g1_result: str = "", g2_result: str = "",
+                     g3_result: str = "", notes: str = "",
+                     opp_grp_ids: list[int] | None = None,
+                     arena_match_id: str | None = None) -> int:
+    """Insert a match_log row with full variant linkage.
+
+    If my_deck_id is provided, resolves the current saved_decks snapshot and
+    upserts a deck_variants row; the match_log row gets my_variant_hash set
+    and backfill_status='live'.
+
+    If my_deck_id is None, the row is inserted with backfill_status='orphan'
+    so the Resolve... UI can pick it up later.
+
+    Returns the new match_log.id."""
+    _ensure_table()
+    from db.deck_variants import upsert_variant
+    from db.saved_decks import get_decks
+
+    variant_hash: str | None = None
+    backfill_status = "live"
+    if my_deck_id is None:
+        backfill_status = "orphan"
+    else:
+        decks = [d for d in get_decks() if d["id"] == my_deck_id]
+        if not decks:
+            backfill_status = "orphan"
+            my_deck_id = None
+        else:
+            deck = decks[0]
+            variant_hash = upsert_variant(
+                deck_id=my_deck_id,
+                mainboard=deck.get("mainboard", {}) or {},
+                sideboard=deck.get("sideboard", {}) or {},
+                won=(result == "win"),
+            )
+
+    my_deck_string = ""
+    if my_deck_id is not None:
+        d = next((x for x in get_decks() if x["id"] == my_deck_id), None)
+        if d:
+            my_deck_string = d.get("archetype", "") or d.get("name", "")
+
+    opp_grp_json = json.dumps(opp_grp_ids or [], separators=(",", ":"))
+
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO match_log
+                (event_name, event_date, format, round, my_deck, opp_deck,
+                 opp_name, result, play_draw, g1_result, g2_result, g3_result,
+                 notes, swap_notes, swap_verdict, created_at,
+                 my_deck_id, my_variant_hash, opp_grp_ids_json, source,
+                 backfill_status, arena_match_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?)
+            """,
+            (event_name, event_date, format_name, round_num, my_deck_string,
+             opp_deck, opp_name, result, play_draw, g1_result, g2_result,
+             g3_result, notes, "", "", _now(),
+             my_deck_id, variant_hash, opp_grp_json, source,
+             backfill_status, arena_match_id),
+        )
+        return cur.lastrowid
 
 
 def get_trend_data(my_deck: str = None, format_name: str = None) -> list[dict]:
