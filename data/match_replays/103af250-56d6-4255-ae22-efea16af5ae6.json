@@ -1,0 +1,249 @@
+{
+  "arena_match_id": "103af250-56d6-4255-ae22-efea16af5ae6",
+  "my_seat": 1,
+  "opp_seat": 2,
+  "opp_name": "Kajar",
+  "games": [
+    {
+      "game_num": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 20 → 18 (-2)"
+          ]
+        },
+        {
+          "turn": 3,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 18 → 16 (-2)"
+          ]
+        },
+        {
+          "turn": 5,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 16 → 14 (-2)",
+            "Kajar life: 20 → 17 (-3)"
+          ]
+        },
+        {
+          "turn": 7,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 17 → 16 (-1)"
+          ]
+        },
+        {
+          "turn": 9,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 16 → 15 (-1)"
+          ]
+        },
+        {
+          "turn": 10,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "Kajar life: 15 → 13 (-2)"
+          ]
+        },
+        {
+          "turn": 11,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 13 → 11 (-2)",
+            "Kajar life: 11 → 10 (-1)"
+          ]
+        },
+        {
+          "turn": 12,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 14 → 12 (-2)"
+          ]
+        },
+        {
+          "turn": 14,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 12 → 10 (-2)"
+          ]
+        },
+        {
+          "turn": 17,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 10 → 11 (+1)",
+            "Kajar life: 10 → 9 (-1)"
+          ]
+        }
+      ]
+    },
+    {
+      "game_num": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 20 → 18 (-2)"
+          ]
+        },
+        {
+          "turn": 7,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 20 → 17 (-3)",
+            "You life: 18 → 16 (-2)",
+            "You life: 16 → 17 (+1)",
+            "Kajar life: 17 → 16 (-1)"
+          ]
+        },
+        {
+          "turn": 9,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 16 → 12 (-4)"
+          ]
+        },
+        {
+          "turn": 10,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "Kajar life: 12 → 11 (-1)"
+          ]
+        },
+        {
+          "turn": 11,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 11 → 9 (-2)"
+          ]
+        },
+        {
+          "turn": 13,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 17 → 14 (-3)",
+            "Kajar life: 9 → 7 (-2)"
+          ]
+        },
+        {
+          "turn": 15,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 14 → 11 (-3)",
+            "Kajar life: 7 → 1 (-6)"
+          ]
+        },
+        {
+          "turn": 18,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 11 → 20 (+9)",
+            "Kajar life: 9 → 20 (+11)"
+          ]
+        }
+      ]
+    },
+    {
+      "game_num": 3,
+      "turns": [
+        {
+          "turn": 2,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "You life: 20 → 18 (-2)"
+          ]
+        },
+        {
+          "turn": 7,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 18 → 16 (-2)"
+          ]
+        },
+        {
+          "turn": 8,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 20 → 18 (-2)"
+          ]
+        },
+        {
+          "turn": 10,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 18 → 16 (-2)"
+          ]
+        },
+        {
+          "turn": 11,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 16 → 14 (-2)"
+          ]
+        },
+        {
+          "turn": 12,
+          "active_seat": 1,
+          "active_label": "You",
+          "actions": [
+            "Kajar life: 16 → 14 (-2)"
+          ]
+        },
+        {
+          "turn": 13,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 14 → 7 (-7)"
+          ]
+        },
+        {
+          "turn": 15,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 7 → 5 (-2)"
+          ]
+        },
+        {
+          "turn": 16,
+          "active_seat": 2,
+          "active_label": "Kajar",
+          "actions": [
+            "You life: 11 → 20 (+9)",
+            "Kajar life: 1 → 20 (+19)"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView,
     QComboBox, QFrame, QSplitter, QScrollArea,
 )
@@ -145,12 +145,25 @@ class DeckMatchHistory(QWidget):
         right_v = QVBoxLayout(right_wrap)
         right_v.setContentsMargins(4, 0, 0, 0)
         right_v.setSpacing(4)
+        sb_head_row = QHBoxLayout()
+        sb_head_row.setSpacing(6)
         self._sb_lbl = QLabel(
             "<b>Match detail</b>  "
             f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
             "(click a row ←)</span>"
         )
-        right_v.addWidget(self._sb_lbl)
+        sb_head_row.addWidget(self._sb_lbl, 1)
+        self._replay_btn = QPushButton("▶ Watch replay")
+        self._replay_btn.setStyleSheet(theme.btn_secondary())
+        self._replay_btn.setToolTip(
+            "Open a popup with the turn-by-turn match transcript "
+            "(life changes per turn, active player). Re-parses "
+            "Player.log on first open and caches to disk."
+        )
+        self._replay_btn.setEnabled(False)  # enabled when a row is selected
+        self._replay_btn.clicked.connect(self._on_watch_replay)
+        sb_head_row.addWidget(self._replay_btn)
+        right_v.addLayout(sb_head_row)
         self._sb_detail = QLabel(
             "<i style='color:#9aa3b8;'>Click a Recent Matches row "
             "to see per-game life / turn count / mulligan + SB plan.</i>"
@@ -340,19 +353,27 @@ class DeckMatchHistory(QWidget):
     def _on_recent_selection(self) -> None:
         sel = self._rm_tbl.selectedItems()
         if not sel:
+            self._replay_btn.setEnabled(False)
             return
         row = sel[0].row()
         cell = self._rm_tbl.item(row, 0)
         if cell is None:
+            self._replay_btn.setEnabled(False)
             return
         match_log_id = cell.data(Qt.ItemDataRole.UserRole)
         if match_log_id is None:
+            self._replay_btn.setEnabled(False)
             self._sb_detail.setText("<i style='color:#9aa3b8;'>No match id.</i>")
             return
 
         # Pull match-level info to know per-game W/L outcomes
         match_row = next((m for m in self._matches if m.get("id") == match_log_id),
                          None)
+        # Enable replay button only when we have an arena_match_id
+        self._replay_btn.setEnabled(
+            bool(match_row and match_row.get("arena_match_id"))
+        )
+        self._selected_match_row = match_row
         g_results = {}
         if match_row:
             for gn, key in ((1, "g1_result"), (2, "g2_result"), (3, "g3_result")):
@@ -426,3 +447,19 @@ class DeckMatchHistory(QWidget):
             )
         else:
             self._sb_detail.setText("<br/><br/>".join(parts))
+
+    def _on_watch_replay(self) -> None:
+        match_row = getattr(self, "_selected_match_row", None)
+        if not match_row:
+            return
+        arena_id = match_row.get("arena_match_id")
+        if not arena_id:
+            return
+        from gui.widgets.replay_transcript_dialog import ReplayTranscriptDialog
+        dlg = ReplayTranscriptDialog(
+            arena_match_id=arena_id,
+            opp_name=match_row.get("opp_name") or "",
+            my_deck_label=match_row.get("my_deck") or "",
+            parent=self,
+        )
+        dlg.exec()

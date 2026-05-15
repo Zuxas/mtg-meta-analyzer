@@ -76,6 +76,36 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match Replay transcript popup v0.1 (2026-05-14)
+- [x] **`analysis/replay_transcript.build_transcript(arena_match_id)`.**
+      On-demand parse of MTGA Player.log + Player-prev.log for one
+      match. Captures per-turn active player + life-total changes from
+      `gameStateMessage.players[].lifeTotal` diffs. Caches result to
+      `data/match_replays/<arena_match_id>.json` so subsequent views
+      load instantly (file-per-match, not a new DB table per advisor
+      recommendation -- it's slow-path, on-click only).
+- [x] **`gui/widgets/replay_transcript_dialog.ReplayTranscriptDialog`.**
+      QDialog popup (like the deck-viewer popout) rendered as
+      monospace QTextEdit with HTML coloring: red for damage taken
+      (life -N), green for healing (life +N), accent for game header.
+      Refresh-from-log button forces a re-parse.
+- [x] **`Watch replay` button on Match Detail panel.** Enabled when
+      a Recent Matches row has `arena_match_id`. Clicking opens the
+      transcript dialog for that match.
+- [x] **Layout: horizontal splitter on Match History sub-tab.** Recent
+      Matches on left, Match Detail (game stats + SB plan + Watch
+      Replay button) on right. Splitter is draggable.
+- [x] **Scope notes (deferred to v0.2):** Card-cast events (cast which
+      spell on which turn) require parsing
+      `gameStateMessage.annotations[]` which is a deeper structural
+      walk -- v0.1 ships life-trajectory only. Full board reconstruction
+      (creatures on each side per turn) requires a state-machine over
+      every `gameObject` zone transition, advisor flagged it as 6-10h
+      not 3-4h, deferred. Visual board layout view also deferred.
+- [x] **Tests:** 4 cases in `tests/test_replay_transcript.py` covering
+      cache-path determinism, cached-load, unknown-match-None,
+      force-refresh behavior. 133/133 total green.
+
 ### Per-game mulligan + life trajectory (2026-05-14)
 - [x] **`db/match_games.py` + parser per-game tracking.**
       `mtga_log_parser` now snapshots `lifeTotal`, `mulliganCount`, and
