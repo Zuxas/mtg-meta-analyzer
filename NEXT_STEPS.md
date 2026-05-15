@@ -76,6 +76,24 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match History defaults to Ranked-only (2026-05-15)
+- [x] **Filter dropdown default = "Ranked (any)".** Was "All matches",
+      which polluted the per-deck record + mulligan analysis with
+      casual Bo3 Direct Game, Sealed, and other non-tournament-relevant
+      play. Ranked Bo3 (Traditional_Ladder) + Ranked Bo1 (Ladder) +
+      Constructed_BestOf3_Ranked + Constructed_BestOf1_Ranked are the
+      only included events by default. User can switch via the dropdown
+      anytime.
+- [x] **Mulligan analysis now respects the filter.** Was using
+      `db.match_games.keep_stats_for_deck` which aggregated ALL matches
+      regardless of filter selection. Now inlines the keep-bucket
+      aggregation in the widget using the filtered match IDs, so
+      the dropdown choice flows through.
+- [x] **Verified vs Tokyo Prowess:** 11 total matches → 4 ranked
+      (Traditional_Ladder + Constructed_BestOf3_Ranked). Casual Bo3
+      Direct Games are excluded from the default view.
+- [x] **143/143 tests green.**
+
 ### Rank progression chart + capture dedup (2026-05-15)
 - [x] **Rank label on Dashboard toolbar is now clickable.** Underlined,
       pointing-hand cursor, opens `RankProgressionDialog` popup.

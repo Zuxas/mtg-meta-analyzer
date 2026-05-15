@@ -72,10 +72,13 @@ class DeckMatchHistory(QWidget):
         filt.setSpacing(8)
         filt.addWidget(QLabel("Filter:"))
         self._filter = QComboBox()
+        # Default to Ranked (any) -- non-ranked play (Direct Game, Sealed,
+        # casual Bo3) shouldn't pollute the per-deck record + mulligan
+        # data the user cares about for tournament prep.
+        self._filter.addItem("Ranked (any)", "ranked")
         self._filter.addItem("All matches", "all")
         self._filter.addItem("Ranked Bo3 only", "ranked-bo3")
         self._filter.addItem("Ranked Bo1 only", "ranked-bo1")
-        self._filter.addItem("Ranked (any)", "ranked")
         self._filter.addItem("Unranked Bo3 / Direct", "unranked")
         self._filter.addItem("Limited (Sealed/Draft)", "limited")
         self._filter.addItem("Other / Paper / Manual", "other")
@@ -257,7 +260,7 @@ class DeckMatchHistory(QWidget):
 
         self._render_summary(filtered)
         self._render_matchups(filtered)
-        self._render_mulligans()
+        self._render_mulligans(filtered)
         self._render_recent(filtered)
 
     def _render_summary(self, matches: list[dict]) -> None:
@@ -344,28 +347,80 @@ class DeckMatchHistory(QWidget):
             self._mu_tbl.setItem(ri, 4, wr_cell)
         self._mu_tbl.setSortingEnabled(True)
 
-    def _render_mulligans(self) -> None:
-        """Pull keep_stats_for_deck and render per-mull-bucket W-L."""
+    def _render_mulligans(self, filtered_matches: list[dict] | None = None) -> None:
+        """Aggregate keep/mull stats across the FILTERED matches only.
+
+        Respects the same Ranked (any) / Limited / etc filter the user
+        picked above. Computed inline rather than via
+        keep_stats_for_deck (which has no filter knob) so the same
+        category gating applies everywhere on this sub-tab.
+        """
         if self._deck_id is None:
             self._mull_summary.setText(
                 "<i style='color:#9aa3b8;'>Pick a deck.</i>"
             )
             return
+        if not filtered_matches:
+            self._mull_summary.setText(
+                "<i style='color:#9aa3b8;'>No matches in this filter.</i>"
+            )
+            return
+
         try:
-            from db.match_games import keep_stats_for_deck
-            agg = keep_stats_for_deck(self._deck_id)
+            from db.match_games import get_stats_for_match
+            from db.database import get_connection
         except Exception as e:
             self._mull_summary.setText(
                 f"<i style='color:#e07060;'>Lookup failed: {e}</i>"
             )
             return
-        if agg.get("n_games", 0) == 0:
+
+        # Build keep-bucket aggregation from filtered match_log IDs only
+        buckets = {7: [0, 0], 6: [0, 0], 5: [0, 0], 4: [0, 0], 3: [0, 0]}
+        match_ids = [m["id"] for m in filtered_matches if m.get("id")]
+        if not match_ids:
             self._mull_summary.setText(
-                "<i style='color:#9aa3b8;'>No per-game stats yet for this deck. "
-                "(Bo1 matches with mulligan counts auto-import via "
-                "mtga_log_parser; let some games accumulate.)</i>"
+                "<i style='color:#9aa3b8;'>No matches in this filter.</i>"
             )
             return
+        ph = ",".join("?" * len(match_ids))
+        with get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT g.my_mull_to,
+                       CASE WHEN g.game_num = 1 AND m.g1_result = 'win' THEN 1
+                            WHEN g.game_num = 2 AND m.g2_result = 'win' THEN 1
+                            WHEN g.game_num = 3 AND m.g3_result = 'win' THEN 1
+                            ELSE 0 END AS won
+                FROM match_log_games g
+                JOIN match_log m ON m.id = g.match_log_id
+                WHERE m.my_deck_id = ? AND m.id IN ({ph})
+                  AND g.my_mull_to IS NOT NULL
+                """,
+                [self._deck_id] + match_ids,
+            ).fetchall()
+        for mull_to, won in rows:
+            key = mull_to if mull_to in buckets else 3
+            buckets[key][1] += 1
+            if won:
+                buckets[key][0] += 1
+        n_games = sum(b[1] for b in buckets.values())
+
+        if n_games == 0:
+            self._mull_summary.setText(
+                "<i style='color:#9aa3b8;'>No per-game stats in this filter. "
+                "(Either no games match the filter, or these matches were "
+                "imported before per-game stats were captured.)</i>"
+            )
+            return
+
+        agg = {"n_games": n_games}
+        for key, (w, total) in buckets.items():
+            label = f"keep_{key}" if key == 7 else f"mull_to_{key}"
+            agg[label] = {
+                "wins": w, "games": total,
+                "wr": (w / total) if total else 0.0,
+            }
 
         parts = [f"<b>{agg['n_games']} games tracked</b>"]
         bucket_labels = {
