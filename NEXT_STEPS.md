@@ -76,6 +76,32 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Per-game SB plan extraction from Player.log (2026-05-14)
+- [x] **`db/match_sb_plans.py` + parser per-game capture.** Each Bo3 Arena
+      match emits `GREMessageType_ConnectResp` (game 1 mainboard) followed
+      by `GREMessageType_SubmitDeckReq` messages at games 2 and 3 start --
+      the SubmitDeckReq carries the player's most-recently-committed
+      post-board deck. `mtga_log_parser.parse_log_file` now collects all
+      three into `m["per_game_decks"]`. `save_matches_to_db` calls
+      `db.match_sb_plans.save_plans_for_match` which diffs consecutive
+      games at the CARD-NAME level (alt-art swaps net to zero) and writes
+      one row per game transition to the new `match_log_sb_plans` table.
+- [x] **GUI surface on Match History sub-tab.** Click a row in Recent
+      Matches -> below the table, a "Sideboard plan" detail panel
+      renders each game transition with green `+N CardName` (in) and red
+      `-N CardName` (out) lists. Falls back to "no SB plan stored" for
+      Bo1 / single-game matches / pre-feature imports.
+- [x] **Backfill on existing matches:** 14 multi-game matches got 17
+      plan rows from today's Player.log. Verified vs Kajar (Azorius
+      Aggro): +2 Annul, +2 Deceit, +1 Preacher, +1 Unagi, +1 Tishana,
+      +1 Vren in; -1 Cecil, -1 DoBS, -1 Bat, -1 Curiosity, -1 Kaito,
+      -3 Hex out. Cleanly matches the user's documented Dimir Aggro SB
+      plan vs aggro.
+- [x] **Tests:** 7 cases in `tests/test_match_sb_plans.py` covering
+      diff correctness, three-game chains, alt-art name collapse,
+      idempotent upsert, empty/single-game no-op, unknown-match query,
+      per-deck aggregation by opponent. 123/123 total green.
+
 ### Auto-create: sideboard capture (2026-05-14, follow-up)
 - [x] **find_or_create_deck now accepts sideboard_grp_ids.** Previously it
       wrote `sideboard={}` even though the parser already captured

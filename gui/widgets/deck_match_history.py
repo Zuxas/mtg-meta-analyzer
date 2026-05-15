@@ -126,6 +126,27 @@ class DeckMatchHistory(QWidget):
         hh2.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         hh2.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         outer.addWidget(self._rm_tbl, 3)
+        self._rm_tbl.itemSelectionChanged.connect(self._on_recent_selection)
+
+        # ── Per-match SB plan detail ──────────────────────────────────
+        self._sb_lbl = QLabel(
+            "<b>Sideboard plan</b>  "
+            f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
+            "(click a Recent Matches row above)</span>"
+        )
+        outer.addWidget(self._sb_lbl)
+        self._sb_detail = QLabel(
+            "<i style='color:#9aa3b8;'>No SB plan loaded.</i>"
+        )
+        self._sb_detail.setTextFormat(Qt.TextFormat.RichText)
+        self._sb_detail.setWordWrap(True)
+        self._sb_detail.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; padding: 6px; "
+            f"font-size: 11px;"
+        )
+        self._sb_detail.setMinimumHeight(60)
+        outer.addWidget(self._sb_detail, 1)
 
     # ------------------------------------------------------------------
     # Public API
@@ -269,7 +290,11 @@ class DeckMatchHistory(QWidget):
         self._rm_tbl.setSortingEnabled(False)
         self._rm_tbl.setRowCount(len(view))
         for ri, m in enumerate(view):
-            self._rm_tbl.setItem(ri, 0, QTableWidgetItem(str(m.get("event_date") or "")))
+            date_cell = QTableWidgetItem(str(m.get("event_date") or ""))
+            # Stash the match_log row id on the date cell so the SB-plan
+            # detail handler can look up the right plan.
+            date_cell.setData(Qt.ItemDataRole.UserRole, m.get("id"))
+            self._rm_tbl.setItem(ri, 0, date_cell)
             self._rm_tbl.setItem(ri, 1, QTableWidgetItem(str(m.get("event_name") or "")))
             self._rm_tbl.setItem(ri, 2, QTableWidgetItem(str(m.get("opp_name") or "")))
             self._rm_tbl.setItem(ri, 3, QTableWidgetItem(str(m.get("opp_deck") or "")))
@@ -284,3 +309,47 @@ class DeckMatchHistory(QWidget):
             pd = (m.get("play_draw") or "").strip()
             self._rm_tbl.setItem(ri, 5, QTableWidgetItem(pd))
         self._rm_tbl.setSortingEnabled(True)
+
+    def _on_recent_selection(self) -> None:
+        sel = self._rm_tbl.selectedItems()
+        if not sel:
+            return
+        row = sel[0].row()
+        cell = self._rm_tbl.item(row, 0)
+        if cell is None:
+            return
+        match_log_id = cell.data(Qt.ItemDataRole.UserRole)
+        if match_log_id is None:
+            self._sb_detail.setText("<i style='color:#9aa3b8;'>No match id.</i>")
+            return
+        try:
+            from db.match_sb_plans import get_plans_for_match
+            plans = get_plans_for_match(match_log_id)
+        except Exception as e:
+            self._sb_detail.setText(
+                f"<i style='color:#e07060;'>SB plan lookup failed: {e}</i>"
+            )
+            return
+        if not plans:
+            self._sb_detail.setText(
+                "<i style='color:#9aa3b8;'>No SB plan stored for this match. "
+                "(Bo1 game, single-game match, or pre-feature import.)</i>"
+            )
+            return
+        parts = []
+        for p in plans:
+            in_str = ", ".join(
+                f"<span style='color:#80c890;'>+{q} {n}</span>"
+                for n, q in sorted(p["cards_in"].items(), key=lambda kv: (-kv[1], kv[0]))
+            ) or "<i>(no cards in)</i>"
+            out_str = ", ".join(
+                f"<span style='color:#d88060;'>-{q} {n}</span>"
+                for n, q in sorted(p["cards_out"].items(), key=lambda kv: (-kv[1], kv[0]))
+            ) or "<i>(no cards out)</i>"
+            parts.append(
+                f"<b>Game {p['from_game']} &rarr; Game {p['to_game']}</b> "
+                f"&nbsp;<span style='color:#9aa3b8;'>({p['n_swapped']} swapped)</span>"
+                f"<br/>&nbsp;&nbsp;IN: {in_str}"
+                f"<br/>&nbsp;&nbsp;OUT: {out_str}"
+            )
+        self._sb_detail.setText("<br/><br/>".join(parts))

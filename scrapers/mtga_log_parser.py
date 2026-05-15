@@ -204,6 +204,11 @@ def parse_log_file(path: str) -> list[dict]:
                         "deck_card_ids": [],
                         "sideboard_card_ids": [],
                         "opp_card_ids": [],
+                        # per-game post-board deck submissions for SB plan
+                        # extraction. Each entry: {"main": [grpids],
+                        # "sb": [grpids]}. Game 1 = ConnectResp, game 2/3
+                        # = subsequent SubmitDeckReq messages.
+                        "per_game_decks": [],
                     }
                     current_match_id = match_id
                     mulligan_counts[match_id] = {}
@@ -284,12 +289,27 @@ def parse_log_file(path: str) -> list[dict]:
                         else:
                             m["play_draw"] = "draw"
 
-                    # Deck submission (in ConnectResp)
+                    # Deck submission (in ConnectResp) — game 1 mainboard
                     if msg_type == "GREMessageType_ConnectResp":
                         deck_msg = msg.get("connectResp", {}).get("deckMessage", {})
                         if deck_msg:
-                            m["deck_card_ids"] = deck_msg.get("deckCards", [])
-                            m["sideboard_card_ids"] = deck_msg.get("sideboardCards", [])
+                            mb = deck_msg.get("deckCards", []) or []
+                            sb = deck_msg.get("sideboardCards", []) or []
+                            m["deck_card_ids"] = mb
+                            m["sideboard_card_ids"] = sb
+                            # Record as game 1 decklist if not yet present
+                            if not m["per_game_decks"]:
+                                m["per_game_decks"].append({"main": list(mb), "sb": list(sb)})
+
+                    # Post-board deck submission (server prompts client at
+                    # game 2/3 start; deck inside is the player's most-
+                    # recent committed post-board choice).
+                    if msg_type == "GREMessageType_SubmitDeckReq":
+                        sd = msg.get("submitDeckReq", {}).get("deck", {}) or {}
+                        mb = sd.get("deckCards", []) or []
+                        sb = sd.get("sideboardCards", []) or []
+                        if mb:
+                            m["per_game_decks"].append({"main": list(mb), "sb": list(sb)})
 
                     # Match win condition (Bo1 vs Bo3)
                     if msg_type == "GREMessageType_GameStateMessage":
@@ -640,6 +660,15 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
             arena_match_id=m["match_id"],
         )
         existing_ids.add(m["match_id"])
+
+        # Per-game sideboard plans (game 1 -> 2, 2 -> 3)
+        per_game = m.get("per_game_decks") or []
+        if row_id and len(per_game) >= 2:
+            try:
+                from db.match_sb_plans import save_plans_for_match
+                save_plans_for_match(row_id, per_game)
+            except Exception as e:
+                print(f"[mtga-sb] failed to write SB plans for match {row_id}: {e}")
 
         saved += 1
 
