@@ -76,6 +76,22 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Mulligan analysis UI on Match History (2026-05-14)
+- [x] **New section between Matchup table + Recent matches.** Surfaces
+      `db.match_games.keep_stats_for_deck` empirical data: per-mull-bucket
+      W-L + WR% colored by reliability (gray for n<5, green for WR>=55%,
+      red for WR<=45%, neutral otherwise).
+- [x] **Actionable callout:** when mull-to-6 has n>=3 AND WR<30%, emit
+      a yellow warning line: "⚠ Mull-to-6 hands underperforming. Consider
+      keeping borderline 7s vs aggro matchups, or tightening which 6s
+      you keep."
+- [x] **Verified vs Tokyo Prowess id=17:** 22 games tracked. Keep 7
+      = 12-6 (67% WR, n=18). Mull → 6 = 0-3 (0% WR, n=3) -- the warning
+      callout fires. Mull → 5 = 1-0 (small sample).
+- [x] **Dimir Aggro id=18:** 8 games. Keep 7 = 3-3 (50%). Smaller
+      sample, no warning fires.
+- [x] **138/138 tests green.**
+
 ### MTGA Rank Progression Tracking (2026-05-14)
 - [x] **New table `rank_snapshots`** captures point-in-time rank rows
       (constructed + limited) keyed on `captured_at_utc`. Schema:

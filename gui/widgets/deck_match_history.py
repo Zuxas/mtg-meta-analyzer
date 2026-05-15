@@ -104,6 +104,25 @@ class DeckMatchHistory(QWidget):
             hh.setSectionResizeMode(ci, QHeaderView.ResizeMode.ResizeToContents)
         outer.addWidget(self._mu_tbl, 2)
 
+        # ── Mulligan keep/mull WR ────────────────────────────────────
+        mu_mull_lbl = QLabel(
+            "<b>Mulligan analysis</b>  "
+            f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
+            "(games piloting this deck, by hand size kept)</span>"
+        )
+        outer.addWidget(mu_mull_lbl)
+        self._mull_summary = QLabel(
+            "<i style='color:#9aa3b8;'>No mulligan data yet.</i>"
+        )
+        self._mull_summary.setTextFormat(Qt.TextFormat.RichText)
+        self._mull_summary.setWordWrap(True)
+        self._mull_summary.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; padding: 6px; "
+            f"font-size: 11px;"
+        )
+        outer.addWidget(self._mull_summary, 0)
+
         # ── Recent matches table ──────────────────────────────────────
         rm_lbl = QLabel("<b>Recent matches</b> "
                         f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
@@ -238,6 +257,7 @@ class DeckMatchHistory(QWidget):
 
         self._render_summary(filtered)
         self._render_matchups(filtered)
+        self._render_mulligans()
         self._render_recent(filtered)
 
     def _render_summary(self, matches: list[dict]) -> None:
@@ -323,6 +343,75 @@ class DeckMatchHistory(QWidget):
             wr_cell.setForeground(_wr_color(wr))
             self._mu_tbl.setItem(ri, 4, wr_cell)
         self._mu_tbl.setSortingEnabled(True)
+
+    def _render_mulligans(self) -> None:
+        """Pull keep_stats_for_deck and render per-mull-bucket W-L."""
+        if self._deck_id is None:
+            self._mull_summary.setText(
+                "<i style='color:#9aa3b8;'>Pick a deck.</i>"
+            )
+            return
+        try:
+            from db.match_games import keep_stats_for_deck
+            agg = keep_stats_for_deck(self._deck_id)
+        except Exception as e:
+            self._mull_summary.setText(
+                f"<i style='color:#e07060;'>Lookup failed: {e}</i>"
+            )
+            return
+        if agg.get("n_games", 0) == 0:
+            self._mull_summary.setText(
+                "<i style='color:#9aa3b8;'>No per-game stats yet for this deck. "
+                "(Bo1 matches with mulligan counts auto-import via "
+                "mtga_log_parser; let some games accumulate.)</i>"
+            )
+            return
+
+        parts = [f"<b>{agg['n_games']} games tracked</b>"]
+        bucket_labels = {
+            "keep_7": "Keep 7",
+            "mull_to_6": "Mull → 6",
+            "mull_to_5": "Mull → 5",
+            "mull_to_4": "Mull → 4",
+            "mull_to_3": "Mull → 3 or less",
+        }
+        rows = []
+        for key, label in bucket_labels.items():
+            b = agg.get(key) or {}
+            n = b.get("games", 0)
+            if n == 0:
+                continue
+            w = b.get("wins", 0)
+            wr = b.get("wr", 0)
+            wr_pct = wr * 100
+            # Wilson-flavored color: small n means low confidence
+            if n < 5:
+                color = "#9aa3b8"  # gray (low n)
+            elif wr >= 0.55:
+                color = "#80c890"  # green
+            elif wr <= 0.45:
+                color = "#d88060"  # red
+            else:
+                color = "#c8c8c8"  # neutral
+            rows.append(
+                f"<span style='color:{color};'>"
+                f"{label}: <b>{w}-{n-w}</b> ({wr_pct:.0f}% WR, n={n})"
+                f"</span>"
+            )
+        parts.append(" &nbsp;&middot;&nbsp; ".join(rows))
+
+        # Surface the most actionable signal: lopsided mull-to-6 record
+        m6 = agg.get("mull_to_6") or {}
+        if m6.get("games", 0) >= 3 and m6.get("wr", 1.0) < 0.30:
+            parts.append(
+                f"<span style='color:#e07060;font-size:10px;'>"
+                f"⚠ Mull-to-6 hands underperforming "
+                f"({m6['wins']}-{m6['games']-m6['wins']}). Consider "
+                f"keeping borderline 7s vs aggro matchups, or "
+                f"tightening which 6's you keep."
+                f"</span>"
+            )
+        self._mull_summary.setText("<br/>".join(parts))
 
     def _render_recent(self, matches: list[dict]) -> None:
         # Already newest-first from get_matches; cap at 50
