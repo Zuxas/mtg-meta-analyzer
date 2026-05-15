@@ -1,0 +1,366 @@
+{
+  "arena_match_id": "bfa19abb-35da-4785-a8a9-dd317a0e1e31",
+  "my_seat": 2,
+  "opp_seat": 1,
+  "opp_name": "Drosme",
+  "games": [
+    {
+      "game_num": 1,
+      "turns": [
+        {
+          "turn": 0,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Opening hand (kept on 7): Burst Lightning, Island, Sleight of Hand, Slickshot Show-Off, Spirebluff Canal, Steam Vents, Steam Vents"
+          ]
+        },
+        {
+          "turn": 1,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme life: 20 → 18 (-2)",
+            "Drosme play Watery Grave (land)"
+          ]
+        },
+        {
+          "turn": 2,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Roaring Furnace // Steaming Sauna",
+            "You play Spirebluff Canal (land)",
+            "You cast Sleight of Hand",
+            "You bottom/place Opt",
+            "You bottom/place Stormchaser's Talent",
+            "Sleight of Hand resolves"
+          ]
+        },
+        {
+          "turn": 3,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card",
+            "Drosme play Gloomlake Verge (land)",
+            "Drosme cast Flow State",
+            "Flow State resolves"
+          ]
+        },
+        {
+          "turn": 4,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Opt",
+            "You play Island (land)",
+            "Slickshot Show-Off exiled"
+          ]
+        },
+        {
+          "turn": 5,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card",
+            "Drosme play Restless Reef (land)"
+          ]
+        },
+        {
+          "turn": 6,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Multiversal Passage",
+            "You life: 20 → 18 (-2)",
+            "You play Multiversal Passage (land)",
+            "You cast Slickshot Show-Off",
+            "Slickshot Show-Off resolves",
+            "You cast Burst Lightning",
+            "  → targets: Burst Lightning",
+            "Drosme life: 18 → 16 (-2)",
+            "2 damage → opponent",
+            "Burst Lightning resolves",
+            "You cast Opt",
+            "  → targets: instance#318",
+            "You cast Opt",
+            "scry 1 → bottom: Roaring Furnace // Steaming Sauna",
+            "You draw Island",
+            "Opt resolves",
+            "Slickshot Show-Off destroyed",
+            "Requiting Hex resolves",
+            "scry 1 → bottom: Impractical Joke",
+            "You draw Spirebluff Canal",
+            "Opt resolves"
+          ]
+        },
+        {
+          "turn": 7,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card",
+            "  → targets: instance#330",
+            "Drosme life: 16 → 13 (-3)",
+            "Drosme draws a card",
+            "Drosme draws a card",
+            "Drosme draws a card",
+            "Insatiable Avarice resolves",
+            "Drosme play Starting Town (land)"
+          ]
+        },
+        {
+          "turn": 8,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Island",
+            "You play Spirebluff Canal (land)",
+            "You cast Roaring Furnace",
+            "Roaring Furnace // Steaming Sauna resolves"
+          ]
+        },
+        {
+          "turn": 9,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card",
+            "  → targets: instance#348",
+            "Steam Vents exiled",
+            "Ruthless Negotiation resolves",
+            "Drosme play Restless Reef (land)"
+          ]
+        },
+        {
+          "turn": 10,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Stormcarved Coast",
+            "You play Stormcarved Coast (land)",
+            "Drosme cast Eddymurk Crab",
+            "Eddymurk Crab resolves",
+            "  → targets: grpId:173882",
+            "You draw Prismari Charm"
+          ]
+        },
+        {
+          "turn": 11,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card",
+            "You life: 18 → 13 (-5)",
+            "5 damage → opponent",
+            "Drosme life: 13 → 11 (-2)",
+            "Drosme play Watery Grave (land)"
+          ]
+        },
+        {
+          "turn": 12,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Eddymurk Crab",
+            "You play Island (land)",
+            "Drosme cast Eddymurk Crab",
+            "Eddymurk Crab resolves",
+            "  → targets: grpId:173882",
+            "Drosme cast Eddymurk Crab",
+            "Eddymurk Crab resolves",
+            "  → targets: grpId:173882",
+            "You draw Stormchaser's Talent"
+          ]
+        },
+        {
+          "turn": 13,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card",
+            "You cast Prismari Charm",
+            "  → targets: Prismari Charm",
+            "Drosme reveal: Eddymurk Crab",
+            "Prismari Charm resolves",
+            "You cast Eddymurk Crab",
+            "Eddymurk Crab resolves",
+            "  → targets: grpId:173882",
+            "Drosme play Restless Reef (land)",
+            "Drosme cast Sunderflock",
+            "Sunderflock resolves"
+          ]
+        },
+        {
+          "turn": 14,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Boomerang Basics",
+            "You play Island (land)",
+            "You cast Stormchaser's Talent",
+            "Stormchaser's Talent resolves",
+            "token created: Otter",
+            "You cast Boomerang Basics",
+            "  → targets: Boomerang Basics",
+            "You reveal: Stormchaser's Talent",
+            "Stormchaser's Talent returned",
+            "You draw Boomerang Basics",
+            "Boomerang Basics resolves",
+            "You cast Stormchaser's Talent",
+            "Stormchaser's Talent resolves",
+            "token created: Otter",
+            "You cast Boomerang Basics",
+            "  → targets: Boomerang Basics",
+            "Drosme cast Eddymurk Crab",
+            "Eddymurk Crab resolves",
+            "  → targets: grpId:173882",
+            "You reveal: Stormchaser's Talent",
+            "Stormchaser's Talent returned",
+            "You draw Great Hall of the Biblioplex",
+            "Boomerang Basics resolves",
+            "You cast Stormchaser's Talent",
+            "Stormchaser's Talent resolves",
+            "token created: Otter",
+            "You draw Flow State"
+          ]
+        },
+        {
+          "turn": 15,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme draws a card"
+          ]
+        }
+      ]
+    },
+    {
+      "game_num": 2,
+      "turns": [
+        {
+          "turn": 0,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "Opening hand (kept on 7): Broadside Barrage, Eddymurk Crab, Great Hall of the Biblioplex, Riverpyre Verge, Steam Vents, Stormcarved Coast, Stormchaser's Talent"
+          ]
+        },
+        {
+          "turn": 1,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You life: 20 → 18 (-2)",
+            "Stormchaser's Talent resolves"
+          ]
+        },
+        {
+          "turn": 3,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You cast Stormchaser's Talent",
+            "Drosme life: 20 → 17 (-3)"
+          ]
+        },
+        {
+          "turn": 4,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme play Gloomlake Verge (land)",
+            "  → targets: instance#311",
+            "Great Hall of the Biblioplex exiled"
+          ]
+        },
+        {
+          "turn": 5,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Stormchaser's Talent",
+            "You cast Stormchaser's Talent",
+            "Drosme life: 17 → 11 (-6)",
+            "3 damage → opponent",
+            "3 damage → opponent"
+          ]
+        },
+        {
+          "turn": 7,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "Drosme life: 11 → 5 (-6)",
+            "2 damage → opponent"
+          ]
+        },
+        {
+          "turn": 9,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You draw Spirebluff Canal",
+            "Drosme life: 5 → 1 (-4)",
+            "2 damage → opponent"
+          ]
+        }
+      ]
+    },
+    {
+      "game_num": 3,
+      "turns": [
+        {
+          "turn": 0,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Opening hand (kept on 7): Broadside Barrage, Burst Lightning, Island, Island, Sleight of Hand, Steam Vents, Stormchaser's Talent"
+          ]
+        },
+        {
+          "turn": 1,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme life: 20 → 18 (-2)"
+          ]
+        },
+        {
+          "turn": 3,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Eddymurk Crab exiled"
+          ]
+        },
+        {
+          "turn": 4,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "You life: 20 → 18 (-2)",
+            "You bottom/place Burst Lightning"
+          ]
+        },
+        {
+          "turn": 5,
+          "active_seat": 1,
+          "active_label": "Drosme",
+          "actions": [
+            "Drosme life: 18 → 16 (-2)"
+          ]
+        },
+        {
+          "turn": 10,
+          "active_seat": 2,
+          "active_label": "You",
+          "actions": [
+            "Drosme life: 16 → 11 (-5)"
+          ]
+        }
+      ]
+    }
+  ]
+}

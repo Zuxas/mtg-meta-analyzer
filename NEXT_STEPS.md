@@ -76,6 +76,30 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### MTGA live-import: 3-layer freshness (2026-05-14)
+- [x] **↻ Sync MTGA button** on Match Log tab toolbar next to Sync
+      Untapped. Worker-threaded re-parse of Player.log + Player-prev.log;
+      reloads the match list and variant timeline on completion.
+- [x] **Auto-sync on GUI launch.** `MainWindow.__init__` schedules a
+      worker-threaded parse via `QTimer.singleShot(500, ...)` so it
+      runs after first paint. New matches land before the user opens
+      any tab. Prints "[auto-sync] N new MTGA matches imported on
+      launch" when something landed.
+- [x] **Live tail QThread** `gui/mtga_log_watcher.MtgaLogWatcher`.
+      Polls Player.log mtime every 30s; on change, full re-parse
+      (dedup by arena_match_id makes incremental tracking
+      unnecessary). Signals: `matches_imported(count)` and
+      `status_changed(text)`. MainWindow connects both: imports
+      trigger active-tab refresh; status flashes on the statusbar
+      for 3s.
+- [x] **Clean shutdown:** `closeEvent` calls `_mtga_watcher.stop()`
+      with 5s join timeout so the thread exits cleanly with the app.
+- [x] **Effective latency now:** finish an MTGA match → up to 30s
+      until the watcher tick parses → match appears in match_log →
+      active Match History tab refreshes automatically. Plus manual
+      ↻ Sync MTGA button for instant trigger. Was: next 6 AM auto-run.
+- [x] 138/138 tests green.
+
 ### Mulligan analysis UI on Match History (2026-05-14)
 - [x] **New section between Matchup table + Recent matches.** Surfaces
       `db.match_games.keep_stats_for_deck` empirical data: per-mull-bucket

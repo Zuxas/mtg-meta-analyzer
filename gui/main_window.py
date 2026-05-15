@@ -81,6 +81,20 @@ class MainWindow(QMainWindow):
             0, lambda: _palette_register_card_entries(self._palette_registry)
         )
 
+        # Auto-sync MTGA Player.log on launch (deferred via QTimer so it
+        # doesn't block the first paint). Imports any games played since
+        # the last parse, dedup'd by arena_match_id.
+        QTimer.singleShot(500, self._auto_sync_mtga_on_launch)
+
+        # Live tail Player.log -- background QThread polls mtime every
+        # 30s; on change, re-runs the parser. New rows fire
+        # `matches_imported` signal -> active tab refreshes.
+        from gui.mtga_log_watcher import MtgaLogWatcher
+        self._mtga_watcher = MtgaLogWatcher(self)
+        self._mtga_watcher.matches_imported.connect(self._on_live_matches_imported)
+        self._mtga_watcher.status_changed.connect(self._on_watcher_status)
+        self._mtga_watcher.start()
+
         # Ctrl+K opens palette
         self._palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         self._palette_shortcut.activated.connect(self._open_palette)
@@ -316,6 +330,73 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Palette helpers
     # ------------------------------------------------------------------
+
+    def _on_live_matches_imported(self, n: int) -> None:
+        """Live tail saw new matches land. Refresh any tab that
+        displays match_log rows so the user sees the update without
+        a manual refresh."""
+        # Find the active tab and refresh if it has a reload method.
+        # Match Log + My Decks both pull from match_log.
+        current = self.centralWidget().currentWidget() if hasattr(self, "centralWidget") else None
+        for attr in ("_load_matches", "refresh", "reload"):
+            if current and hasattr(current, attr):
+                try:
+                    getattr(current, attr)()
+                    break
+                except Exception:
+                    pass
+
+    def _on_watcher_status(self, status: str) -> None:
+        """Watcher heartbeat -- show in status bar if present."""
+        if hasattr(self, "statusBar"):
+            try:
+                self.statusBar().showMessage(status, 3000)  # 3-second flash
+            except Exception:
+                pass
+
+    def closeEvent(self, event):
+        """Clean shutdown of the live-tail watcher."""
+        try:
+            if hasattr(self, "_mtga_watcher"):
+                self._mtga_watcher.stop()
+        except Exception:
+            pass
+        super().closeEvent(event)
+
+    def _auto_sync_mtga_on_launch(self) -> None:
+        """Re-parse MTGA Player.log on launch so new matches show up
+        without waiting for the 6 AM pipeline. Runs in a worker thread
+        so it doesn't block the UI."""
+        from gui.worker_threads import DataLoadWorker
+        import os
+
+        def _do():
+            from scrapers.mtga_log_parser import (
+                parse_log_file, save_matches_to_db, PLAYER_LOG, PLAYER_PREV_LOG,
+            )
+            all_matches = []
+            for log_path in (PLAYER_LOG, PLAYER_PREV_LOG):
+                if os.path.exists(log_path):
+                    try:
+                        all_matches.extend(parse_log_file(log_path))
+                    except Exception:
+                        pass
+            if all_matches:
+                return save_matches_to_db(all_matches, format_name="standard")
+            return 0
+
+        def _done(n):
+            if n > 0:
+                print(f"[auto-sync] {n} new MTGA matches imported on launch")
+
+        def _err(exc):
+            print(f"[auto-sync] MTGA launch sync failed: {exc}")
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(_err)
+        w.start()
+        self._launch_sync_worker = w  # keep ref
 
     def _open_palette(self) -> None:
         dlg = CommandPalette(

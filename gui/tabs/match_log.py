@@ -353,7 +353,7 @@ class MatchLogTab(QWidget):
         self._post_event_btn.clicked.connect(self._show_post_event)
         btn_row.addWidget(self._post_event_btn)
 
-        self._sync_btn = QPushButton("Sync Untapped")
+        self._sync_btn = QPushButton("↻ Sync Untapped")
         self._sync_btn.setStyleSheet(
             f"background: {theme.PANEL}; color: {theme.TEXT}; "
             f"padding: 6px 14px; border-radius: 4px;")
@@ -363,6 +363,18 @@ class MatchLogTab(QWidget):
         )
         self._sync_btn.clicked.connect(self._on_sync_untapped)
         btn_row.addWidget(self._sync_btn)
+
+        self._sync_mtga_btn = QPushButton("↻ Sync MTGA")
+        self._sync_mtga_btn.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"padding: 6px 14px; border-radius: 4px;")
+        self._sync_mtga_btn.setToolTip(
+            "Re-parse MTGA Player.log + Player-prev.log for newly "
+            "completed matches. Auto-imports your live games into "
+            "match_log within seconds. Runs in a worker thread."
+        )
+        self._sync_mtga_btn.clicked.connect(self._on_sync_mtga)
+        btn_row.addWidget(self._sync_mtga_btn)
 
         self._status_lbl = QLabel("")
         self._status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
@@ -478,6 +490,56 @@ class MatchLogTab(QWidget):
         deck_id = self._filter_deck.currentData()
         if deck_id is not None:
             self._timeline.set_deck(deck_id)
+
+    def _on_sync_mtga(self) -> None:
+        """Re-parse Player.log + Player-prev.log for new matches.
+
+        Runs in a worker thread so the UI stays responsive. On
+        completion, reloads the match list and the variant timeline."""
+        self._sync_mtga_btn.setEnabled(False)
+        self._status_lbl.setText("Re-parsing MTGA Player.log...")
+
+        def _do():
+            import os
+            from scrapers.mtga_log_parser import (
+                parse_log_file, save_matches_to_db, PLAYER_LOG, PLAYER_PREV_LOG,
+            )
+            all_matches = []
+            for log_path in (PLAYER_LOG, PLAYER_PREV_LOG):
+                if os.path.exists(log_path):
+                    try:
+                        all_matches.extend(parse_log_file(log_path))
+                    except Exception:
+                        pass
+            total_new = 0
+            if all_matches:
+                # Save to all preference formats so cross-format games
+                # get classified correctly (standard, modern, pioneer...)
+                fmt = self._fmt_filter.currentText() if hasattr(self, "_fmt_filter") else "standard"
+                fmt = "standard" if not fmt else fmt
+                total_new = save_matches_to_db(all_matches, format_name=fmt)
+            return total_new
+
+        def _done(n_new):
+            self._sync_mtga_btn.setEnabled(True)
+            self._status_lbl.setText(
+                f"MTGA sync complete: {n_new} new matches imported "
+                f"(dedup'd by arena_match_id)."
+            )
+            self._load_matches()
+            deck_id = self._filter_deck.currentData()
+            if deck_id is not None:
+                self._timeline.set_deck(deck_id)
+
+        def _err(exc):
+            self._sync_mtga_btn.setEnabled(True)
+            self._status_lbl.setText(f"MTGA sync error: {exc}")
+
+        w = DataLoadWorker(_do)
+        w.result.connect(_done)
+        w.error.connect(_err)
+        w.start()
+        self._mtga_sync_worker = w  # keep ref
 
     def _refresh_orphan_banner(self) -> None:
         # Defensive: _load_matches dispatches get_matches() to a worker
