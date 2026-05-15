@@ -116,6 +116,12 @@ def build_transcript(arena_match_id: str,
     prev_life = {}  # seat -> last seen life
     # Track which actions we've already logged this turn (dedup)
     logged_action_keys: set[tuple] = set()
+    # instanceId -> grpId mapping (built from gameObjects across messages)
+    # and instanceId -> owning seatId (so annotations can attribute "who")
+    instance_to_grpid: dict[int, int] = {}
+    instance_to_owner: dict[int, int] = {}
+    # Annotation IDs already consumed (Arena retransmits messages in diffs)
+    seen_annotations: set[int] = set()
 
     target_found = False
 
@@ -156,6 +162,9 @@ def build_transcript(arena_match_id: str,
                     current_turn = 0
                     prev_life = {}
                     logged_action_keys = set()
+                    instance_to_grpid = {}
+                    instance_to_owner = {}
+                    seen_annotations = set()
                 elif state == "MatchGameRoomStateType_MatchCompleted":
                     if match_id == arena_match_id:
                         current_match_id = None  # done; ignore further events
@@ -210,28 +219,132 @@ def build_transcript(arena_match_id: str,
                         )
                     prev_life[seat] = lt
 
-                # Capture actions (cards cast / lands played / abilities)
-                for a in gsm.get("actions", []):
-                    seat = a.get("seatId")
-                    action = a.get("action", {}) or {}
-                    atype = action.get("actionType", "")
-                    grp = action.get("grpId")
-                    instance = action.get("instanceId")
-                    key = (current_game, current_turn, seat, atype, grp, instance)
-                    if key in logged_action_keys:
+                # Track instanceId -> grpId mapping (state machine across
+                # all gameObjects in the match). Annotation `affectedIds`
+                # reference instanceIds; we need to resolve to card names.
+                for go in gsm.get("gameObjects", []):
+                    inst = go.get("instanceId")
+                    grp = go.get("grpId")
+                    if isinstance(inst, int) and isinstance(grp, int) and grp > 0:
+                        instance_to_grpid[inst] = grp
+                    # Also track ownership for "who did X"
+                    owner = go.get("ownerSeatId") or go.get("controllerSeatId")
+                    if isinstance(inst, int) and isinstance(owner, int):
+                        instance_to_owner[inst] = owner
+
+                # Walk annotations -- the real event stream (plays, casts,
+                # abilities, triggers, damage, targets)
+                for ann in gsm.get("annotations", []) or []:
+                    ann_id = ann.get("id")
+                    if ann_id is None or ann_id in seen_annotations:
                         continue
-                    logged_action_keys.add(key)
-                    if atype == "ActionType_Activate_Mana":
-                        continue  # too noisy
-                    name = grpid_names.get(grp, f"grpId:{grp}") if grp else None
-                    who = "You" if seat == my_seat else "Opp"
-                    if atype == "ActionType_Cast" and name:
-                        turn_entry["actions"].append(f"{who} cast {name}")
-                    elif atype == "ActionType_Play" and name:
-                        turn_entry["actions"].append(f"{who} play {name}")
-                    elif atype == "ActionType_Activate_Ability" and name:
-                        turn_entry["actions"].append(f"{who} activate {name}")
-                    # Otherwise skip (ActionType_Pass, etc.)
+                    seen_annotations.add(ann_id)
+                    types = ann.get("type") or []
+                    if not types:
+                        continue
+                    affected = ann.get("affectedIds") or []
+                    details = {d["key"]: d for d in ann.get("details") or []}
+
+                    def _detail_str(key):
+                        d = details.get(key)
+                        if not d:
+                            return None
+                        v = d.get("valueString")
+                        if v:
+                            return v[0] if isinstance(v, list) else v
+                        v = d.get("valueInt32")
+                        if v:
+                            return v[0] if isinstance(v, list) else v
+                        return None
+
+                    def _affected_names():
+                        names = []
+                        for iid in affected:
+                            g = instance_to_grpid.get(iid)
+                            if g:
+                                names.append(grpid_names.get(g, f"grpId:{g}"))
+                        return names
+
+                    def _who_for(iid):
+                        if iid is None:
+                            return "?"
+                        owner = instance_to_owner.get(iid)
+                        if owner == my_seat:
+                            return "You"
+                        if owner == opp_seat:
+                            return opp_name or "Opp"
+                        return "?"
+
+                    t = types[0]
+                    line = None
+                    if t == "AnnotationType_ZoneTransfer":
+                        cat = _detail_str("category") or ""
+                        names = _affected_names()
+                        if not names:
+                            continue
+                        for nm in names:
+                            who = _who_for(affected[0] if affected else None)
+                            if cat == "PlayLand":
+                                line = f"{who} play {nm} (land)"
+                            elif cat == "CastSpell":
+                                line = f"{who} cast {nm}"
+                            elif cat == "Resolve":
+                                line = f"{nm} resolves"
+                            elif cat == "Destroy":
+                                line = f"{nm} destroyed"
+                            elif cat == "Countered":
+                                line = f"{nm} countered"
+                            elif cat == "Discard":
+                                line = f"{who} discards {nm}"
+                            elif cat == "Mill":
+                                line = f"{nm} milled"
+                            else:
+                                continue  # skip noisy ones (Draw, Put, etc.)
+                            turn_entry["actions"].append(line)
+                        continue
+                    elif t == "AnnotationType_AbilityInstanceCreated":
+                        # Source instanceId from details "ability_source"
+                        src_iid = _detail_str("ability_source")
+                        if src_iid:
+                            g = instance_to_grpid.get(src_iid)
+                            if g:
+                                nm = grpid_names.get(g, f"grpId:{g}")
+                                who = _who_for(src_iid)
+                                line = f"{who} ability: {nm}"
+                    elif t == "AnnotationType_PlayerSubmittedTargets":
+                        # "X targeted Y"
+                        # affectedIds are usually the targets
+                        target_names = _affected_names()
+                        if target_names:
+                            line = f"  → targets: {', '.join(target_names)}"
+                    elif t == "AnnotationType_DamageDealt":
+                        amount = _detail_str("damage")
+                        if amount:
+                            # affectedIds typically [dealer, recipient]
+                            recipient_name = None
+                            if len(affected) >= 1:
+                                g = instance_to_grpid.get(affected[-1])
+                                if g:
+                                    recipient_name = grpid_names.get(g, "?")
+                            recip = recipient_name or "opponent"
+                            line = f"{amount} damage → {recip}"
+                    elif t == "AnnotationType_TokenCreated":
+                        names = _affected_names()
+                        if names:
+                            line = f"token created: {', '.join(names)}"
+                    elif t == "AnnotationType_CounterAdded":
+                        ctype = _detail_str("counter_type") or "+1/+1"
+                        names = _affected_names()
+                        if names:
+                            line = f"{ctype} counter on {names[0]}"
+                    elif t == "AnnotationType_Scry":
+                        count = _detail_str("count") or "?"
+                        line = f"scry {count}"
+                    elif t == "AnnotationType_Shuffle":
+                        line = "shuffle library"
+
+                    if line:
+                        turn_entry["actions"].append(line)
 
     if not target_found:
         return None

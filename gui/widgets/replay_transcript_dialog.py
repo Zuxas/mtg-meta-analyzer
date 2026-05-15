@@ -50,11 +50,13 @@ class ReplayTranscriptDialog(QDialog):
         # Note about scope
         note = QLabel(
             f"<i style='color:{theme.TEXT_DIM};font-size:10px;'>"
-            "v0.1 shows turn-by-turn life changes + active player from "
-            "Player.log. Card-cast event detection is a follow-up "
-            "(requires parsing the annotations stream). Mulligan and "
-            "per-game life endpoints are also visible on the Match "
-            "History detail panel."
+            "v0.2 shows turn-by-turn events from Player.log annotations: "
+            "lands played, spells cast, resolutions, counterspells, "
+            "abilities triggered/activated, damage dealt, tokens "
+            "created, +1/+1 counters, targets selected, scry, shuffle, "
+            "and life changes. Note that opponent cards only show as "
+            "card names AFTER they're revealed (cast or entered the "
+            "battlefield)."
             "</i>"
         )
         note.setWordWrap(True)

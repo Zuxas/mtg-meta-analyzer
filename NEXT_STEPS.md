@@ -76,6 +76,34 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match Replay transcript v0.2 -- annotations stream (2026-05-14)
+- [x] **Replay transcript now parses `gameStateMessage.annotations[]`.**
+      The annotations stream is the authoritative game-event log
+      (Arena's own "what happened" log). Built an instance-to-grpId
+      map across all gameObjects messages so annotation
+      `affectedIds` references can be resolved to card names.
+- [x] **Event types extracted** (one human-readable line per event):
+      - **ZoneTransfer** with category PlayLand / CastSpell / Resolve /
+        Destroy / Countered / Discard / Mill -- "You play Multiversal
+        Passage (land)", "You cast Annul", "High Noon countered",
+        "Spyglass Siren resolves"
+      - **AbilityInstanceCreated** -- "You ability: Kaito, Bane of
+        Nightmares" (covers triggered + activated)
+      - **PlayerSubmittedTargets** -- "→ targets: <card name(s)>"
+      - **DamageDealt** -- "3 damage → opponent"
+      - **TokenCreated** -- "token created: Map"
+      - **CounterAdded** -- "+1/+1 counter on Floodpits Drowner"
+      - **Scry** -- "scry 2"
+      - **Shuffle** -- "shuffle library"
+      - Life changes (already in v0.1)
+- [x] **Verified on Kajar match (id=67):** The Annul-countering-High-
+      Noon clutch play is now visible in the transcript, along with
+      Floodpits Drowner ETB tokens, Kaito loyalty swings, damage
+      exchanges. Real play-by-play.
+- [x] **Cache invalidated** (cleared `data/match_replays/*.json`) so
+      future Watch Replay clicks rebuild with the v0.2 detail.
+- [x] **133/133 tests green** (no test regressions).
+
 ### Match Replay transcript popup v0.1 (2026-05-14)
 - [x] **`analysis/replay_transcript.build_transcript(arena_match_id)`.**
       On-demand parse of MTGA Player.log + Player-prev.log for one
