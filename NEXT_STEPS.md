@@ -76,6 +76,24 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Rank progression chart + capture dedup (2026-05-15)
+- [x] **Rank label on Dashboard toolbar is now clickable.** Underlined,
+      pointing-hand cursor, opens `RankProgressionDialog` popup.
+- [x] **`gui/widgets/rank_progression_dialog.RankProgressionDialog`**
+      renders a matplotlib line chart of rank_score over time. Y-axis
+      labels show tier names (Bronze 1 / Silver 1 / Gold 1 / Plat 1 /
+      Diamond 1 / Mythic 1). X-axis = capture date with auto-locator.
+      Format dropdown switches between Constructed and Limited.
+      Single-snapshot case renders the dot with a "data builds as you
+      play" hint.
+- [x] **Capture dedup fix.** Each Dashboard open was firing
+      `capture_current_rank`, creating duplicate rows even when rank
+      hadn't changed (we had 7 identical rows in 50 minutes). Now reads
+      the most-recent stored snapshot first and only inserts when class,
+      level, wins, or losses actually changed. Cleaned 12 dup rows out;
+      idempotency verified.
+- [x] **143/143 tests green.**
+
 ### Canonical vs Actual SB Plan diff (2026-05-14)
 - [x] **`analysis.sb_plan_diff.compare_match_to_canonical`** — for each
       match with a stored SB plan, looks up the canonical SB plan in

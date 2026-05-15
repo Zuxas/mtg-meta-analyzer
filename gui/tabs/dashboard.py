@@ -389,17 +389,20 @@ class DashboardTab(QWidget):
         ctrl.addStretch()
 
         # MTGA constructed rank (from rank_snapshots table; refreshed
-        # daily by the M/W/F pipeline + on-launch).
+        # daily by the M/W/F pipeline + on-launch). Clickable -> opens
+        # rank progression chart popup.
         self._rank_lbl = QLabel("")
         self._rank_lbl.setStyleSheet(
             f"color: {theme.ACCENT}; font-size: 11px; "
             f"padding: 2px 8px; border-left: 1px solid {theme.BORDER};"
+            f"text-decoration: underline;"
         )
         self._rank_lbl.setToolTip(
-            "Your current MTGA constructed rank from rank_snapshots. "
-            "Refreshes when scripts/run_fill_from_prefs.py runs (daily) "
-            "or on GUI launch."
+            "Click to see rank progression chart. Refreshes when "
+            "scripts/run_fill_from_prefs.py runs (daily) or on GUI launch."
         )
+        self._rank_lbl.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._rank_lbl.mousePressEvent = self._open_rank_chart
         ctrl.addWidget(self._rank_lbl)
         self._refresh_rank_label()
 
@@ -670,6 +673,15 @@ class DashboardTab(QWidget):
         stop_worker(self._chart_worker)
         self._panel_worker = None
         self._chart_worker = None
+
+    def _open_rank_chart(self, _event) -> None:
+        """Click handler for the rank label -- open progression chart."""
+        try:
+            from gui.widgets.rank_progression_dialog import RankProgressionDialog
+            dlg = RankProgressionDialog(parent=self)
+            dlg.exec()
+        except Exception as e:
+            print(f"[rank-chart] failed to open: {e}")
 
     def _refresh_rank_label(self) -> None:
         """Capture latest rank from Player.log + format for the toolbar."""

@@ -63,6 +63,10 @@ def capture_current_rank(notes: str = "") -> Optional[dict]:
     """Scan Player.log for the most recent rank snapshot, write a row to
     `rank_snapshots` for each format.
 
+    Dedup: only inserts when the rank or W-L changed since the most
+    recent stored snapshot (per format). Prevents Dashboard refreshes
+    from bloating the table with identical rows.
+
     Returns a summary dict {constructed, limited, snapshot_ids} or None
     if no rank data found.
     """
@@ -79,18 +83,28 @@ def capture_current_rank(notes: str = "") -> Optional[dict]:
 
     snapshot_ids = {}
 
-    # Constructed
+    # Dedup: load most recent stored snapshot per format and compare
+    from db.rank_snapshots import get_latest as _get_latest_snapshot
+    _existing_constructed = _get_latest_snapshot("constructed") or {}
+    _existing_limited = _get_latest_snapshot("limited") or {}
+
+    # Constructed -- dedup against most-recent stored row
     if "constructedClass" in latest:
-        sid = save_snapshot(
-            format_name="constructed",
-            season_ordinal=int(latest.get("constructedSeasonOrdinal", 0)),
-            class_name=str(latest.get("constructedClass", "Bronze")),
-            level=int(latest.get("constructedLevel", 1)),
-            wins=int(latest.get("constructedMatchesWon", 0)),
-            losses=int(latest.get("constructedMatchesLost", 0)),
-            notes=notes,
-        )
-        snapshot_ids["constructed"] = sid
+        cls = str(latest.get("constructedClass", "Bronze"))
+        lvl = int(latest.get("constructedLevel", 1))
+        w = int(latest.get("constructedMatchesWon", 0))
+        l = int(latest.get("constructedMatchesLost", 0))
+        if (_existing_constructed.get("class") != cls or
+                _existing_constructed.get("level") != lvl or
+                _existing_constructed.get("wins") != w or
+                _existing_constructed.get("losses") != l):
+            sid = save_snapshot(
+                format_name="constructed",
+                season_ordinal=int(latest.get("constructedSeasonOrdinal", 0)),
+                class_name=cls, level=lvl, wins=w, losses=l,
+                notes=notes,
+            )
+            snapshot_ids["constructed"] = sid
 
     # Limited (rank doesn't have an explicit 'class' field; uses level/step.
     # We map level -> class via standard MTGA convention).
@@ -103,16 +117,20 @@ def capture_current_rank(notes: str = "") -> Optional[dict]:
         limited_level = int(latest.get("limitedLevel", 1))
         limited_step = int(latest.get("limitedStep", 1))
         limited_class = _LIMITED_CLASS_BY_LEVEL.get(limited_level, "Bronze")
-        sid = save_snapshot(
-            format_name="limited",
-            season_ordinal=int(latest.get("limitedSeasonOrdinal", 0)),
-            class_name=limited_class,
-            level=limited_step,
-            wins=int(latest.get("limitedMatchesWon", 0)),
-            losses=int(latest.get("limitedMatchesLost", 0)),
-            notes=notes,
-        )
-        snapshot_ids["limited"] = sid
+        l_w = int(latest.get("limitedMatchesWon", 0))
+        l_l = int(latest.get("limitedMatchesLost", 0))
+        if (_existing_limited.get("class") != limited_class or
+                _existing_limited.get("level") != limited_step or
+                _existing_limited.get("wins") != l_w or
+                _existing_limited.get("losses") != l_l):
+            sid = save_snapshot(
+                format_name="limited",
+                season_ordinal=int(latest.get("limitedSeasonOrdinal", 0)),
+                class_name=limited_class, level=limited_step,
+                wins=l_w, losses=l_l,
+                notes=notes,
+            )
+            snapshot_ids["limited"] = sid
 
     return {
         "constructed": {
