@@ -76,6 +76,32 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### MTGA Rank Progression Tracking (2026-05-14)
+- [x] **New table `rank_snapshots`** captures point-in-time rank rows
+      (constructed + limited) keyed on `captured_at_utc`. Schema:
+      format / season_ordinal / class / level / wins / losses / notes.
+- [x] **`db.rank_snapshots`** helpers: `save_snapshot`, `get_latest`,
+      `get_recent`, `delta_today`. Plus `rank_score(class, level)` for
+      comparable integer ordering (Bronze 1 = 1, Diamond 4 = 404,
+      Mythic 1 = 501).
+- [x] **`analysis.rank_tracker.capture_current_rank()`** scans Player.log
+      for the most recent rank object (top-level keys
+      constructedSeasonOrdinal / constructedClass / etc.), writes one
+      snapshot row per format with NOW as timestamp. Time series builds
+      across invocations.
+- [x] **Wired into M/W/F pipeline** in run_fill_from_prefs.py. Also
+      fires on Dashboard refresh (`_refresh_rank_label`) so the GUI
+      shows live rank without waiting for the daily run.
+- [x] **Dashboard toolbar surface.** Right edge of the Dashboard
+      control bar now shows: `⚔ MTGA: Platinum 3 (25-28)` (current
+      tier). When 2+ snapshots exist today and rank changed, appends
+      `↑ X-Y today` (green) or `↓` (red) for delta.
+- [x] **Verified vs your Player.log:** current rank is **Platinum 3
+      (25-28)** Standard ranked + Bronze 2 (7-9) Limited.
+- [x] **5 tests in tests/test_rank_snapshots.py** -- rank_score
+      ordering, save/get-latest, delta-today computation, no-snapshots
+      None return, recent-newest-first. 138/138 total green.
+
 ### Match Replay v0.6 -- opening hand per game (2026-05-14)
 - [x] **Opening hand snapshot per game.** Captures the cards in your
       Hand zone at game start (via gameStateMessage.zones[]). Lands

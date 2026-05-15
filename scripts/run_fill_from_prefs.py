@@ -113,6 +113,19 @@ def main():
     except Exception as e:
         print(f"[MTGA log] importer error: {e}")
 
+    # Rank progression snapshot from MTGA Player.log (always; cheap)
+    try:
+        from analysis.rank_tracker import capture_current_rank
+        result = capture_current_rank(notes="background_fill")
+        if result:
+            c = result.get("constructed") or {}
+            print(f"[MTGA rank] constructed: {c.get('class')} {c.get('level')} "
+                  f"({c.get('wins')}-{c.get('losses')})")
+        else:
+            print("[MTGA rank] no rank data found in Player.log")
+    except Exception as e:
+        print(f"[MTGA rank] capture error: {e}")
+
     # Untapped.gg — mythic leaderboard + premium per-archetype data
     # Throttled to Mon/Wed/Fri (~3x/week) to match MTGDecks cadence.
     # Mythic is public/unauthenticated; premium needs session credentials (see UNTAPPED_README).

@@ -387,6 +387,22 @@ class DashboardTab(QWidget):
         ctrl.addWidget(self._cluster_btn)
 
         ctrl.addStretch()
+
+        # MTGA constructed rank (from rank_snapshots table; refreshed
+        # daily by the M/W/F pipeline + on-launch).
+        self._rank_lbl = QLabel("")
+        self._rank_lbl.setStyleSheet(
+            f"color: {theme.ACCENT}; font-size: 11px; "
+            f"padding: 2px 8px; border-left: 1px solid {theme.BORDER};"
+        )
+        self._rank_lbl.setToolTip(
+            "Your current MTGA constructed rank from rank_snapshots. "
+            "Refreshes when scripts/run_fill_from_prefs.py runs (daily) "
+            "or on GUI launch."
+        )
+        ctrl.addWidget(self._rank_lbl)
+        self._refresh_rank_label()
+
         self._status_lbl = QLabel("")
         self._status_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         ctrl.addWidget(self._status_lbl)
@@ -655,7 +671,33 @@ class DashboardTab(QWidget):
         self._panel_worker = None
         self._chart_worker = None
 
+    def _refresh_rank_label(self) -> None:
+        """Capture latest rank from Player.log + format for the toolbar."""
+        try:
+            from analysis.rank_tracker import capture_current_rank
+            from db.rank_snapshots import get_latest, delta_today
+            # Cheap idempotent capture each refresh
+            capture_current_rank(notes="dashboard_open")
+            latest = get_latest("constructed")
+            if not latest:
+                self._rank_lbl.setText("")
+                return
+            cls, lvl = latest["class"], latest["level"]
+            w, l = latest["wins"], latest["losses"]
+            text = f"⚔ MTGA: <b>{cls} {lvl}</b> ({w}-{l})"
+            delta = delta_today("constructed")
+            if delta and delta["n_snapshots_today"] >= 2 and delta["rank_delta"] != 0:
+                arrow = "↑" if delta["rank_delta"] > 0 else "↓"
+                color = "#80c890" if delta["rank_delta"] > 0 else "#d88060"
+                text += (f" <span style='color:{color};'>{arrow} "
+                         f"{delta['wins_today']}-{delta['losses_today']} today"
+                         f"</span>")
+            self._rank_lbl.setText(text)
+        except Exception:
+            self._rank_lbl.setText("")
+
     def refresh(self):
+        self._refresh_rank_label()
         self._status_lbl.setText("Loading…")
         self._refresh_btn.setEnabled(False)
         self._canvas.show_message("Loading chart data…", theme.ACCENT)
