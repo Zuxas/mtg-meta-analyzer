@@ -50,13 +50,13 @@ class ReplayTranscriptDialog(QDialog):
         # Note about scope
         note = QLabel(
             f"<i style='color:{theme.TEXT_DIM};font-size:10px;'>"
-            "v0.2 shows turn-by-turn events from Player.log annotations: "
-            "lands played, spells cast, resolutions, counterspells, "
-            "abilities triggered/activated, damage dealt, tokens "
-            "created, +1/+1 counters, targets selected, scry, shuffle, "
-            "and life changes. Note that opponent cards only show as "
-            "card names AFTER they're revealed (cast or entered the "
-            "battlefield)."
+            "v0.3 shows turn-by-turn events: cards drawn, mulligan "
+            "keep/mull, lands played, spells cast, resolutions, "
+            "counterspells, ability triggers/activations, declare "
+            "attackers + blockers, damage dealt, tokens created, "
+            "+1/+1 counters, targets, scry, surveil, bottoming, "
+            "reveal, life changes. Opp cards are named only after "
+            "they're revealed (cast / entered battlefield)."
             "</i>"
         )
         note.setWordWrap(True)

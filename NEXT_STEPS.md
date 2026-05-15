@@ -76,6 +76,39 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match Replay v0.3 -- draws, mulligans, attackers, bottoming (2026-05-14)
+- [x] **ZoneTransfer Draw extraction.** Cards drawn each turn now in
+      the transcript: "You draw Bitter Triumph" for your draws (named),
+      "Kajar draws a card" for opponent draws (hidden per Arena).
+      Fixed "?" attribution issue with default_opp=True fallback on
+      _who_for(): for hidden-card events where ownership map is empty,
+      assume opponent (always correct since your own cards are in
+      gameObjects before they hit any logged event).
+- [x] **Surveil + Put + Return + Exile + Sacrifice ZoneTransfer
+      categories.** Surveil events ("You surveil → X" when a card you
+      see is involved, "Kajar surveils" otherwise). Put (bottoming /
+      scry-bottom / hand-to-library): "You bottom/place X". Return,
+      Exile, Sacrifice each get their own line.
+- [x] **Mulligan keep/mull decisions.** Reads
+      ClientToMatchServiceMessageType_ClientToGREMessage messages with
+      payload.type=ClientMessageType_MulliganResp -- emits "You KEEP
+      hand" or "You MULL". Currently only your decisions (Arena
+      doesn't forward opp's mulligan choice to your client).
+- [x] **Declare attackers + declare blockers.** Same
+      ClientToMatchService walker. SubmitAttackersReq -> "You declare
+      attackers: Spyglass Siren, Floodpits Drowner". SubmitBlockersReq
+      -> "You declare blockers: Kaito blocks High Noon".
+- [x] **RevealedCardCreated annotation.** "Kajar reveal: X" when opp
+      reveals a card via mulligan-reveal / Surveil-reveal / etc.
+- [x] **Verified vs Kajar Bo3:** Game 1 turn 5 now shows full play
+      sequence: "You draw Spyglass Siren, You cast Spyglass Siren,
+      Spyglass Siren resolves, token created: Map, 1 counter on
+      Floodpits Drowner, You bottom/place Day of Black Sun, You life
+      16->14, You play Multiversal Passage, 3 damage -> opponent" --
+      complete narrative.
+- [x] **Cache cleared** so next Watch Replay click rebuilds with v0.3.
+- [x] **133/133 tests green.**
+
 ### Match Replay transcript v0.2 -- annotations stream (2026-05-14)
 - [x] **Replay transcript now parses `gameStateMessage.annotations[]`.**
       The annotations stream is the authoritative game-event log

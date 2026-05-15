@@ -265,42 +265,79 @@ def build_transcript(arena_match_id: str,
                                 names.append(grpid_names.get(g, f"grpId:{g}"))
                         return names
 
-                    def _who_for(iid):
+                    def _who_for(iid, default_opp=False):
+                        """Resolve instance owner to a display name.
+
+                        default_opp=True: for events on hidden opp cards
+                        (e.g. opp's draws) where instance ownership isn't
+                        yet in our map, assume opponent rather than '?'.
+                        Almost always right since we know our own cards
+                        before they hit any logged event.
+                        """
                         if iid is None:
-                            return "?"
+                            return opp_name or "Opp" if default_opp else "?"
                         owner = instance_to_owner.get(iid)
                         if owner == my_seat:
                             return "You"
                         if owner == opp_seat:
                             return opp_name or "Opp"
-                        return "?"
+                        return opp_name or "Opp" if default_opp else "?"
 
                     t = types[0]
                     line = None
                     if t == "AnnotationType_ZoneTransfer":
                         cat = _detail_str("category") or ""
+                        zone_src = _detail_str("zone_src")
+                        zone_dest = _detail_str("zone_dest")
                         names = _affected_names()
-                        if not names:
-                            continue
-                        for nm in names:
-                            who = _who_for(affected[0] if affected else None)
-                            if cat == "PlayLand":
-                                line = f"{who} play {nm} (land)"
-                            elif cat == "CastSpell":
-                                line = f"{who} cast {nm}"
-                            elif cat == "Resolve":
-                                line = f"{nm} resolves"
-                            elif cat == "Destroy":
-                                line = f"{nm} destroyed"
-                            elif cat == "Countered":
-                                line = f"{nm} countered"
-                            elif cat == "Discard":
-                                line = f"{who} discards {nm}"
-                            elif cat == "Mill":
-                                line = f"{nm} milled"
-                            else:
-                                continue  # skip noisy ones (Draw, Put, etc.)
-                            turn_entry["actions"].append(line)
+                        # For Draw: name may not yet be resolved (cards
+                        # become known via gameObjects after they hit hand)
+                        for idx, iid in enumerate(affected):
+                            g = instance_to_grpid.get(iid)
+                            nm = grpid_names.get(g, None) if g else None
+                            who = _who_for(iid)
+                            line_local = None
+                            if cat == "PlayLand" and nm:
+                                line_local = f"{who} play {nm} (land)"
+                            elif cat == "CastSpell" and nm:
+                                line_local = f"{who} cast {nm}"
+                            elif cat == "Resolve" and nm:
+                                line_local = f"{nm} resolves"
+                            elif cat == "Destroy" and nm:
+                                line_local = f"{nm} destroyed"
+                            elif cat == "Countered" and nm:
+                                line_local = f"{nm} countered"
+                            elif cat == "Discard" and nm:
+                                line_local = f"{who} discards {nm}"
+                            elif cat == "Mill" and nm:
+                                line_local = f"{nm} milled"
+                            elif cat == "Draw":
+                                # Hidden cards (opp draws) have no grpid yet
+                                who_d = _who_for(iid, default_opp=True)
+                                if who_d == "You" and nm:
+                                    line_local = f"You draw {nm}"
+                                elif who_d != "You":
+                                    line_local = f"{who_d} draws a card"
+                            elif cat == "Surveil":
+                                who_s = _who_for(iid, default_opp=True)
+                                if who_s == "You" and nm:
+                                    line_local = f"You surveil → {nm}"
+                                elif who_s != "You":
+                                    line_local = f"{who_s} surveils"
+                            elif cat == "Put":
+                                # Common case: hand → bottom of library
+                                # (scry/surveil/bottoming). Skip
+                                # battlefield-internal Put events.
+                                if nm:
+                                    line_local = f"{who} bottom/place {nm}"
+                            elif cat == "Return" and nm:
+                                line_local = f"{nm} returned"
+                            elif cat == "Exile" and nm:
+                                line_local = f"{nm} exiled"
+                            elif cat == "Sacrifice" and nm:
+                                line_local = f"{who} sacrifices {nm}"
+                            if line_local:
+                                turn_entry["actions"].append(line_local)
                         continue
                     elif t == "AnnotationType_AbilityInstanceCreated":
                         # Source instanceId from details "ability_source"
@@ -342,9 +379,97 @@ def build_transcript(arena_match_id: str,
                         line = f"scry {count}"
                     elif t == "AnnotationType_Shuffle":
                         line = "shuffle library"
-
+                    elif t == "AnnotationType_RevealedCardCreated":
+                        names = _affected_names()
+                        if names:
+                            who = _who_for(affected[0] if affected else None)
+                            line = f"{who} reveal: {', '.join(names)}"
                     if line:
                         turn_entry["actions"].append(line)
+
+            # ── Client-to-server messages: mulligan + declare attackers ──
+            cmsm = obj.get("clientToMatchServiceMessageType")
+            if cmsm == "ClientToMatchServiceMessageType_ClientToGREMessage":
+                payload = obj.get("payload", {}) or {}
+                ptype = payload.get("type", "")
+                # Build a turn_entry under the current game/turn
+                if current_match_id == arena_match_id:
+                    game_entry = games.setdefault(current_game, {"turns": {}})
+                    turn_entry = game_entry["turns"].setdefault(
+                        current_turn or 1,
+                        {"turn": current_turn or 1, "active_seat": None,
+                         "actions": []}
+                    )
+                    if ptype == "ClientMessageType_MulliganResp":
+                        decision = (payload.get("mulliganResp", {}) or {}).get(
+                            "decision", "")
+                        if decision == "MulliganOption_AcceptHand":
+                            mc = next((p.get("mulliganCount")
+                                       for p in []), 0)  # not in payload
+                            turn_entry["actions"].append(
+                                "You KEEP hand"
+                            )
+                        elif decision == "MulliganOption_Mulligan":
+                            turn_entry["actions"].append(
+                                "You MULL"
+                            )
+                    elif ptype == "ClientMessageType_SubmitTargetsReq":
+                        # Targets selected by user (different from
+                        # PlayerSubmittedTargets annotation which is
+                        # server-confirmed)
+                        pass  # already handled via annotation
+                    elif ptype == "ClientMessageType_PerformActionResp":
+                        # Action chosen -- includes attack/block submissions
+                        actions = (payload.get("performActionResp", {}) or {}).get(
+                            "actions", []) or []
+                        for act in actions:
+                            a = act.get("action", {}) or {}
+                            atype = a.get("actionType", "")
+                            if atype == "ActionType_Cast":
+                                grp = a.get("grpId")
+                                nm = grpid_names.get(grp) if grp else None
+                                if nm:
+                                    key = (current_game, current_turn, "client_cast", grp)
+                                    if key not in logged_action_keys:
+                                        logged_action_keys.add(key)
+                                        # Already covered by CastSpell annotation;
+                                        # don't duplicate
+                                        pass
+                    # Declare attackers / blockers
+                    elif ptype in ("ClientMessageType_SubmitAttackersReq",
+                                   "ClientMessageType_SubmitBlockersReq"):
+                        kind = "attack" if "Attackers" in ptype else "block"
+                        # The payload's submitAttackersReq.attackers or
+                        # submitBlockersReq.blockerToAttackerMap holds the info
+                        if kind == "attack":
+                            req = (payload.get("submitAttackersReq", {})
+                                   or {}).get("attackers", []) or []
+                            names = []
+                            for atk in req:
+                                grp_iid = atk.get("attackerId")
+                                g = instance_to_grpid.get(grp_iid)
+                                if g:
+                                    names.append(grpid_names.get(g, "?"))
+                            if names:
+                                turn_entry["actions"].append(
+                                    f"You declare attackers: {', '.join(names)}"
+                                )
+                        else:
+                            req = (payload.get("submitBlockersReq", {})
+                                   or {}).get("blockerToAttackerMap", []) or []
+                            blocks = []
+                            for b in req:
+                                blocker = b.get("blockerId")
+                                attacker = b.get("attackerId")
+                                bg = instance_to_grpid.get(blocker)
+                                ag = instance_to_grpid.get(attacker)
+                                bnm = grpid_names.get(bg, "?") if bg else "?"
+                                anm = grpid_names.get(ag, "?") if ag else "?"
+                                blocks.append(f"{bnm} blocks {anm}")
+                            if blocks:
+                                turn_entry["actions"].append(
+                                    f"You declare blockers: {'; '.join(blocks)}"
+                                )
 
     if not target_found:
         return None
