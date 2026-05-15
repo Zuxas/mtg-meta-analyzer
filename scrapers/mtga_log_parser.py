@@ -209,6 +209,11 @@ def parse_log_file(path: str) -> list[dict]:
                         # "sb": [grpids]}. Game 1 = ConnectResp, game 2/3
                         # = subsequent SubmitDeckReq messages.
                         "per_game_decks": [],
+                        # per-game stats keyed by game number (1, 2, 3)
+                        # Each entry: {my_life_min, my_life_end, opp_life_min,
+                        #              opp_life_end, n_turns, my_mull_to,
+                        #              opp_mull_to}
+                        "per_game_stats": {},
                     }
                     current_match_id = match_id
                     mulligan_counts[match_id] = {}
@@ -332,13 +337,36 @@ def parse_log_file(path: str) -> list[dict]:
                                     if grp_id and grp_id > 0 and grp_id not in m["opp_card_ids"]:
                                         m["opp_card_ids"].append(grp_id)
 
-                        # Track mulligan count from player data
+                        # Per-game stats: life totals, turn count, mulligans
+                        game = current_game_num.get(current_match_id, 1)
+                        gst = m["per_game_stats"].setdefault(game, {
+                            "my_life_min": 20, "my_life_end": 20,
+                            "opp_life_min": 20, "opp_life_end": 20,
+                            "n_turns": 0, "my_mull_to": 7, "opp_mull_to": 7,
+                        })
+                        # Turn count from game-info turnInfo
+                        ti = gs.get("turnInfo", {}) or {}
+                        tn = ti.get("turnNumber")
+                        if isinstance(tn, int) and tn > gst["n_turns"]:
+                            gst["n_turns"] = tn
+
                         for p in gs.get("players", []):
-                            if p.get("systemSeatNumber") == m["my_team_id"]:
-                                mc = p.get("mulliganCount", 0)
-                                if mc > 0:
-                                    game = current_game_num.get(current_match_id, 1)
-                                    m["my_mulligans"][game] = mc
+                            seat = p.get("systemSeatNumber")
+                            lt = p.get("lifeTotal")
+                            mc = p.get("mulliganCount", 0)
+                            is_mine = seat == m["my_team_id"]
+                            life_min_key = "my_life_min" if is_mine else "opp_life_min"
+                            life_end_key = "my_life_end" if is_mine else "opp_life_end"
+                            mull_key = "my_mull_to" if is_mine else "opp_mull_to"
+                            if isinstance(lt, int):
+                                if lt < gst[life_min_key]:
+                                    gst[life_min_key] = lt
+                                gst[life_end_key] = lt
+                            if isinstance(mc, int) and mc > 0:
+                                gst[mull_key] = 7 - mc
+                            # Mirror legacy my_mulligans dict for backwards compat
+                            if is_mine and isinstance(mc, int) and mc > 0:
+                                m["my_mulligans"][game] = mc
 
                     # Mulligan decision
                     if msg_type == "GREMessageType_MulliganReq":
@@ -669,6 +697,15 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
                 save_plans_for_match(row_id, per_game)
             except Exception as e:
                 print(f"[mtga-sb] failed to write SB plans for match {row_id}: {e}")
+
+        # Per-game stats: life trajectory, turn count, mulligans
+        per_game_stats = m.get("per_game_stats") or {}
+        if row_id and per_game_stats:
+            try:
+                from db.match_games import save_stats_for_match
+                save_stats_for_match(row_id, per_game_stats)
+            except Exception as e:
+                print(f"[mtga-games] failed to write game stats for match {row_id}: {e}")
 
         saved += 1
 

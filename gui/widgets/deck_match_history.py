@@ -128,11 +128,12 @@ class DeckMatchHistory(QWidget):
         outer.addWidget(self._rm_tbl, 3)
         self._rm_tbl.itemSelectionChanged.connect(self._on_recent_selection)
 
-        # ── Per-match SB plan detail ──────────────────────────────────
+        # ── Per-match detail (game-by-game stats + SB plan) ───────────
         self._sb_lbl = QLabel(
-            "<b>Sideboard plan</b>  "
+            "<b>Match detail</b>  "
             f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
-            "(click a Recent Matches row above)</span>"
+            "(click a Recent Matches row above; shows per-game life / "
+            "turn count / mulligan + SB plan)</span>"
         )
         outer.addWidget(self._sb_lbl)
         self._sb_detail = QLabel(
@@ -322,21 +323,60 @@ class DeckMatchHistory(QWidget):
         if match_log_id is None:
             self._sb_detail.setText("<i style='color:#9aa3b8;'>No match id.</i>")
             return
+
+        # Pull match-level info to know per-game W/L outcomes
+        match_row = next((m for m in self._matches if m.get("id") == match_log_id),
+                         None)
+        g_results = {}
+        if match_row:
+            for gn, key in ((1, "g1_result"), (2, "g2_result"), (3, "g3_result")):
+                r = (match_row.get(key) or "").lower()
+                if r:
+                    g_results[gn] = r
+
+        parts = []
+
+        # Per-game stats (life, mulligan, turn count, decisive-vs-close)
+        try:
+            from db.match_games import get_stats_for_match, classify_game
+            games = get_stats_for_match(match_log_id)
+        except Exception as e:
+            games = []
+            parts.append(f"<i style='color:#e07060;'>Game stats lookup failed: {e}</i>")
+        if games:
+            for g in games:
+                gn = g["game_num"]
+                gres = g_results.get(gn, "")
+                my_won = (gres == "win")
+                klass = classify_game(g, my_won)
+                klass_color = {"blowout": "#80c890", "close": "#e0a060",
+                               "normal": "#9aa3b8"}.get(klass, "#9aa3b8")
+                gres_label = ("<span style='color:#80c890;'>W</span>" if gres == "win"
+                              else "<span style='color:#d88060;'>L</span>"
+                              if gres == "loss" else "-")
+                my_life = max(0, g.get("my_life_end") or 0)
+                opp_life = max(0, g.get("opp_life_end") or 0)
+                turns = g.get("n_turns") or 0
+                mull = g.get("my_mull_to") or 7
+                mull_str = f"keep 7" if mull == 7 else f"mull to {mull}"
+                opp_mull = g.get("opp_mull_to") or 7
+                opp_mull_str = "" if opp_mull == 7 else f" opp mull-{opp_mull}"
+                parts.append(
+                    f"<b>Game {gn}</b> {gres_label} "
+                    f"<span style='color:{klass_color};font-size:10px;'>"
+                    f"&#9679; {klass}</span> "
+                    f"&nbsp;<span style='color:#9aa3b8;font-size:11px;'>"
+                    f"T{turns} &middot; {mull_str}{opp_mull_str} &middot; "
+                    f"my life {my_life} / opp life {opp_life}</span>"
+                )
+
+        # Per-game sideboard plans
         try:
             from db.match_sb_plans import get_plans_for_match
             plans = get_plans_for_match(match_log_id)
         except Exception as e:
-            self._sb_detail.setText(
-                f"<i style='color:#e07060;'>SB plan lookup failed: {e}</i>"
-            )
-            return
-        if not plans:
-            self._sb_detail.setText(
-                "<i style='color:#9aa3b8;'>No SB plan stored for this match. "
-                "(Bo1 game, single-game match, or pre-feature import.)</i>"
-            )
-            return
-        parts = []
+            plans = []
+            parts.append(f"<i style='color:#e07060;'>SB plan lookup failed: {e}</i>")
         for p in plans:
             in_str = ", ".join(
                 f"<span style='color:#80c890;'>+{q} {n}</span>"
@@ -347,9 +387,16 @@ class DeckMatchHistory(QWidget):
                 for n, q in sorted(p["cards_out"].items(), key=lambda kv: (-kv[1], kv[0]))
             ) or "<i>(no cards out)</i>"
             parts.append(
-                f"<b>Game {p['from_game']} &rarr; Game {p['to_game']}</b> "
+                f"<b>SB plan G{p['from_game']} &rarr; G{p['to_game']}</b> "
                 f"&nbsp;<span style='color:#9aa3b8;'>({p['n_swapped']} swapped)</span>"
                 f"<br/>&nbsp;&nbsp;IN: {in_str}"
                 f"<br/>&nbsp;&nbsp;OUT: {out_str}"
             )
-        self._sb_detail.setText("<br/><br/>".join(parts))
+
+        if not parts:
+            self._sb_detail.setText(
+                "<i style='color:#9aa3b8;'>No per-game data yet. "
+                "(Match imported pre-feature, or Bo1 with no SB plan.)</i>"
+            )
+        else:
+            self._sb_detail.setText("<br/><br/>".join(parts))

@@ -80,7 +80,7 @@ Setup wizard page 0 saves formats immediately. `fill_database.py` and `scripts/r
 ### Schema
 - **Active:** `data/mtg_meta.db` — events within retention window (gitignored)
 - **Archive:** `data/mtg_archive.db` — older data (moved, never deleted)
-- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes, match_log, deck_variants, untapped_decklists (per-player canonical decklist from local replay corpus), match_log_sb_plans (per-match SB plan extracted from MTGA Player.log SubmitDeckReq events)
+- **Tables:** events, decks, cards, deck_cards, card_data, matches, predictions, guides, bookmarks, saved_decks, saved_sb_plans, matchup_matrix, matchup_notes, match_log, deck_variants, untapped_decklists (per-player canonical decklist from local replay corpus), match_log_sb_plans (per-match SB plan extracted from MTGA Player.log SubmitDeckReq events), match_log_games (per-game stats: life endpoints, mull-to, turn count)
 - **card_data:** keyed by card name (TEXT PK) — works across both DBs. Populated by `python -m scrapers.scryfall`
 - **Use** `get_combined_connection()` to query across both DBs
 

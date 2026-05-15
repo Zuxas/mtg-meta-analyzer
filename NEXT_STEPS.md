@@ -76,6 +76,38 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Per-game mulligan + life trajectory (2026-05-14)
+- [x] **`db/match_games.py` + parser per-game tracking.**
+      `mtga_log_parser` now snapshots `lifeTotal`, `mulliganCount`, and
+      `turnInfo.turnNumber` from every GameStateMessage per player.
+      Captures the min and end-of-game life for both seats plus the
+      mull-to (computed `7 - mulliganCount`) and total turn count.
+      Stored in `m["per_game_stats"][game_num]` and persisted to
+      `match_log_games` (UNIQUE on `match_log_id, game_num`).
+- [x] **`classify_game(stat, my_won)` decisive-vs-close-vs-normal.**
+      Judged from the WINNER's perspective: `close` = winner ended at
+      <=3 life (nailbiter), `blowout` = winner ended at >=15 life
+      (never threatened), `normal` = winner ended 4-14. Useful for
+      contextualizing matchup data ("I'm 0-3 but all losses were
+      close" vs "I'm 0-3 and got blown out three times").
+- [x] **`keep_stats_for_deck` mulligan aggregation.** Returns
+      keep-7/mull-to-6/mull-to-5/mull-to-4/3-or-less buckets with
+      per-bucket WR. Future: compare against
+      `analysis/mulligan_study.py` Monte Carlo to validate in-game
+      decisions empirically.
+- [x] **GUI: extended Match History sub-tab detail panel.** Selecting
+      a Recent Matches row now shows per-game W/L + class
+      (close/blowout/normal) + T#_turns + mull-to + life endpoints
+      alongside the SB plan. Visual example: "Game 1 W &#9679; close
+      &middot; T11 &middot; keep 7 &middot; my life 2 / opp life 0".
+- [x] **Backfill on existing matches:** 57 per-game stat rows written
+      across today's matches. Verified vs Tokyo Prowess matches:
+      Rawdogger g1 won at 20 life (blowout), g2 lost at 0 life,
+      g3 won at 20 -- mixed outcomes per game now visible.
+- [x] **Tests:** 6 cases in `tests/test_match_games.py` covering
+      roundtrip, idempotent upsert, classifier (blowout/close/normal),
+      and keep-stats aggregation. 129/129 total green.
+
 ### Per-game SB plan extraction from Player.log (2026-05-14)
 - [x] **`db/match_sb_plans.py` + parser per-game capture.** Each Bo3 Arena
       match emits `GREMessageType_ConnectResp` (game 1 mainboard) followed
