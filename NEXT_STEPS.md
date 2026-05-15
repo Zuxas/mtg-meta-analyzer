@@ -76,6 +76,36 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Canonical vs Actual SB Plan diff (2026-05-14)
+- [x] **`analysis.sb_plan_diff.compare_match_to_canonical`** — for each
+      match with a stored SB plan, looks up the canonical SB plan in
+      `saved_sb_plans` (deck_id + opponent_archetype) and computes per
+      game transition: cards followed (right call), missing (canonical
+      said bring, you didn't), unplanned (you brought, canonical
+      didn't list).
+- [x] **Fuzzy archetype matching** — exact case-insensitive first, then
+      normalized (drop parenthetical suffixes like "(Stormchaser)"),
+      then first-word match (so "Selesnya Aggro" matches "Selesnya
+      Landfall"). Single-color codes (W/U/B/R/G) excluded from
+      first-word fallback.
+- [x] **Match History detail panel surfaces it.** Under each SB plan
+      line, when canonical exists: "vs canonical plan (Izzet Prowess,
+      Medium) -- G1→G2 IN match: 75% · missed: -1 Abrade -1 Spell
+      Pierce". Percentage colored green/yellow/red by match rate
+      (>=80% / >=50% / <50%).
+- [x] **Verified vs Tokyo Prowess matches:**
+        vs Izzet Elementals → matched Izzet Prowess plan, 75% IN
+            match. Missed: 1 Abrade + 1 Spell Pierce.
+        vs Golgari Control → matched Golgari Midrange plan, 67%.
+            Missed: 2 Disdainful Stroke. Brought 4 unplanned cards
+            (Bounce Off, Spell Pierce, 2 Slagstorm).
+        vs Gruul Aggro, Simic Rhythm, Azorius Control → no canonical
+            plan stored yet (worth adding to saved_sb_plans for
+            Tokyo Prowess pre-RC).
+- [x] **5 tests in tests/test_sb_plan_diff.py** covering full match,
+      partial match, no-canonical-plan, no-my_deck_id, fuzzy
+      archetype matching. 143/143 total green.
+
 ### MTGA live-import: 3-layer freshness (2026-05-14)
 - [x] **↻ Sync MTGA button** on Match Log tab toolbar next to Sync
       Untapped. Worker-threaded re-parse of Player.log + Player-prev.log;

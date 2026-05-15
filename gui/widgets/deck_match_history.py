@@ -529,6 +529,46 @@ class DeckMatchHistory(QWidget):
                 f"<br/>&nbsp;&nbsp;OUT: {out_str}"
             )
 
+        # Canonical-vs-actual SB plan diff
+        try:
+            from analysis.sb_plan_diff import compare_match_to_canonical
+            diff = compare_match_to_canonical(match_log_id)
+        except Exception:
+            diff = None
+        if diff:
+            for t in diff["transitions"]:
+                missing_in = ", ".join(
+                    f"<span style='color:#e07060;'>-{q} {n}</span>"
+                    for n, q in t["in_missing"].items()
+                )
+                unplanned_in = ", ".join(
+                    f"<span style='color:#e0a060;'>+{q} {n}</span>"
+                    for n, q in t["in_unplanned"].items()
+                )
+                # Color the percentage by match rate
+                pct = t["in_match_pct"]
+                if pct >= 80:
+                    pct_color = "#80c890"
+                elif pct >= 50:
+                    pct_color = "#c8c060"
+                else:
+                    pct_color = "#e07060"
+                detail_bits = []
+                if missing_in:
+                    detail_bits.append(f"missed: {missing_in}")
+                if unplanned_in:
+                    detail_bits.append(f"extra: {unplanned_in}")
+                detail_str = (" &middot; " + " &middot; ".join(detail_bits)) if detail_bits else ""
+                parts.append(
+                    f"<b>vs canonical plan</b> "
+                    f"<span style='color:#9aa3b8;font-size:10px;'>"
+                    f"({diff['canonical_archetype']}, {diff['difficulty']})"
+                    f"</span><br/>"
+                    f"&nbsp;&nbsp;G{t['from_game']}&rarr;G{t['to_game']} IN match: "
+                    f"<b style='color:{pct_color};'>{pct:.0f}%</b>"
+                    f"{detail_str}"
+                )
+
         if not parts:
             self._sb_detail.setText(
                 "<i style='color:#9aa3b8;'>No per-game data yet. "
