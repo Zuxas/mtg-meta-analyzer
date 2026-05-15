@@ -14,7 +14,7 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QComboBox, QFrame,
+    QComboBox, QFrame, QSplitter, QScrollArea,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
@@ -125,19 +125,35 @@ class DeckMatchHistory(QWidget):
         hh2.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         hh2.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         hh2.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        outer.addWidget(self._rm_tbl, 3)
         self._rm_tbl.itemSelectionChanged.connect(self._on_recent_selection)
 
-        # ── Per-match detail (game-by-game stats + SB plan) ───────────
+        # ── Horizontal splitter: Recent matches (left) | Match detail (right) ─
+        split = QSplitter(Qt.Orientation.Horizontal)
+        # Left side: the recent-matches table (already built above)
+        # Re-parent it into a wrapper so the splitter owns it
+        left_wrap = QWidget()
+        left_v = QVBoxLayout(left_wrap)
+        left_v.setContentsMargins(0, 0, 0, 0)
+        left_v.setSpacing(2)
+        # rm_lbl was added to outer already; leave it in outer above this section,
+        # and only put the table into the splitter
+        left_v.addWidget(self._rm_tbl, 1)
+        split.addWidget(left_wrap)
+
+        # Right side: match detail (game-by-game stats + SB plan)
+        right_wrap = QWidget()
+        right_v = QVBoxLayout(right_wrap)
+        right_v.setContentsMargins(4, 0, 0, 0)
+        right_v.setSpacing(4)
         self._sb_lbl = QLabel(
             "<b>Match detail</b>  "
             f"<span style='color:{theme.TEXT_DIM};font-size:10px;'>"
-            "(click a Recent Matches row above; shows per-game life / "
-            "turn count / mulligan + SB plan)</span>"
+            "(click a row ←)</span>"
         )
-        outer.addWidget(self._sb_lbl)
+        right_v.addWidget(self._sb_lbl)
         self._sb_detail = QLabel(
-            "<i style='color:#9aa3b8;'>No SB plan loaded.</i>"
+            "<i style='color:#9aa3b8;'>Click a Recent Matches row "
+            "to see per-game life / turn count / mulligan + SB plan.</i>"
         )
         self._sb_detail.setTextFormat(Qt.TextFormat.RichText)
         self._sb_detail.setWordWrap(True)
@@ -146,8 +162,18 @@ class DeckMatchHistory(QWidget):
             f"border: 1px solid {theme.BORDER}; padding: 6px; "
             f"font-size: 11px;"
         )
-        self._sb_detail.setMinimumHeight(60)
-        outer.addWidget(self._sb_detail, 1)
+        self._sb_detail.setAlignment(Qt.AlignmentFlag.AlignTop)
+        # Wrap detail in a scroll area so long plans don't blow up the layout
+        detail_scroll = QScrollArea()
+        detail_scroll.setWidgetResizable(True)
+        detail_scroll.setWidget(self._sb_detail)
+        detail_scroll.setStyleSheet("QScrollArea { border: none; }")
+        right_v.addWidget(detail_scroll, 1)
+        split.addWidget(right_wrap)
+
+        split.setStretchFactor(0, 3)
+        split.setStretchFactor(1, 2)
+        outer.addWidget(split, 3)
 
     # ------------------------------------------------------------------
     # Public API
