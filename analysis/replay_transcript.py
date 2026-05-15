@@ -29,6 +29,17 @@ from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "data" / "match_replays"
+
+# Known counter spells -- when one of these is cast, we attribute the
+# next "X countered" event to it (Arena doesn't emit target annotations
+# for counterspells, only the resulting Countered event).
+_COUNTER_SPELLS = frozenset({
+    "Annul", "Counterspell", "Disdainful Stroke", "Spell Pierce",
+    "Negate", "Make Disappear", "Mana Leak", "Cancel",
+    "Force of Negation", "Force of Will", "Daze", "Counterspell",
+    "Three Steps Ahead", "Lose Focus", "Tishana's Tidebinder",
+    "Phantom Interference",
+})
 PLAYER_LOG = Path(os.environ.get("LOCALAPPDATA", "")) / ".." / "LocalLow" / "Wizards Of The Coast" / "MTGA" / "Player.log"
 PLAYER_PREV_LOG = Path(os.environ.get("LOCALAPPDATA", "")) / ".." / "LocalLow" / "Wizards Of The Coast" / "MTGA" / "Player-prev.log"
 
@@ -122,6 +133,9 @@ def build_transcript(arena_match_id: str,
     instance_to_owner: dict[int, int] = {}
     # Annotation IDs already consumed (Arena retransmits messages in diffs)
     seen_annotations: set[int] = set()
+    # Stack of recently-cast counter spells, oldest first. We pop when
+    # a Countered event resolves nearby to attribute the counter.
+    last_counter_cast: list[str] = []
 
     target_found = False
 
@@ -165,6 +179,7 @@ def build_transcript(arena_match_id: str,
                     instance_to_grpid = {}
                     instance_to_owner = {}
                     seen_annotations = set()
+                    last_counter_cast = []
                 elif state == "MatchGameRoomStateType_MatchCompleted":
                     if match_id == arena_match_id:
                         current_match_id = None  # done; ignore further events
@@ -301,12 +316,27 @@ def build_transcript(arena_match_id: str,
                                 line_local = f"{who} play {nm} (land)"
                             elif cat == "CastSpell" and nm:
                                 line_local = f"{who} cast {nm}"
+                                # Track counter spells so we can attribute
+                                # the next Countered event to them
+                                if nm in _COUNTER_SPELLS:
+                                    last_counter_cast.append(nm)
                             elif cat == "Resolve" and nm:
                                 line_local = f"{nm} resolves"
                             elif cat == "Destroy" and nm:
                                 line_local = f"{nm} destroyed"
                             elif cat == "Countered" and nm:
-                                line_local = f"{nm} countered"
+                                # Heuristic: tie back to the most recent
+                                # CastSpell of a known counter spell that
+                                # hasn't resolved yet -- so "High Noon
+                                # countered (by Annul)" instead of just
+                                # "High Noon countered". Arena doesn't
+                                # emit a target annotation for counterspells.
+                                counterer = (last_counter_cast.pop()
+                                             if last_counter_cast else None)
+                                if counterer:
+                                    line_local = f"{nm} countered (by {counterer})"
+                                else:
+                                    line_local = f"{nm} countered"
                             elif cat == "Discard" and nm:
                                 line_local = f"{who} discards {nm}"
                             elif cat == "Mill" and nm:
@@ -349,9 +379,18 @@ def build_transcript(arena_match_id: str,
                                 who = _who_for(src_iid)
                                 line = f"{who} ability: {nm}"
                     elif t == "AnnotationType_PlayerSubmittedTargets":
-                        # "X targeted Y"
-                        # affectedIds are usually the targets
-                        target_names = _affected_names()
+                        # affectedIds = the chosen targets (instance IDs)
+                        target_names = []
+                        for tiid in affected:
+                            g = instance_to_grpid.get(tiid)
+                            if g:
+                                target_names.append(grpid_names.get(g, f"grpId:{g}"))
+                            else:
+                                # Instance not yet in our map -- could be
+                                # an opp-side card we haven't seen the
+                                # grpId for. Still emit the line so the
+                                # user knows targeting happened.
+                                target_names.append(f"instance#{tiid}")
                         if target_names:
                             line = f"  → targets: {', '.join(target_names)}"
                     elif t == "AnnotationType_DamageDealt":
@@ -375,8 +414,28 @@ def build_transcript(arena_match_id: str,
                         if names:
                             line = f"{ctype} counter on {names[0]}"
                     elif t == "AnnotationType_Scry":
-                        count = _detail_str("count") or "?"
-                        line = f"scry {count}"
+                        # Scry annotations carry the instance IDs of the
+                        # cards that went top vs bottom in details:
+                        #   topIds:    KeyValuePairValueType_int32 (list)
+                        #   bottomIds: KeyValuePairValueType_int32 (list)
+                        top_d = details.get("topIds", {}) or {}
+                        bot_d = details.get("bottomIds", {}) or {}
+                        top_iids = top_d.get("valueInt32") or []
+                        bot_iids = bot_d.get("valueInt32") or []
+                        top_names = [grpid_names.get(instance_to_grpid.get(i),
+                                     f"instance#{i}") for i in top_iids]
+                        bot_names = [grpid_names.get(instance_to_grpid.get(i),
+                                     f"instance#{i}") for i in bot_iids]
+                        parts_scry = []
+                        if top_names:
+                            parts_scry.append(f"top: {', '.join(top_names)}")
+                        if bot_names:
+                            parts_scry.append(f"bottom: {', '.join(bot_names)}")
+                        n = len(top_iids) + len(bot_iids)
+                        if parts_scry:
+                            line = f"scry {n} → {' | '.join(parts_scry)}"
+                        else:
+                            line = "scry"
                     elif t == "AnnotationType_Shuffle":
                         line = "shuffle library"
                     elif t == "AnnotationType_RevealedCardCreated":

@@ -76,6 +76,26 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match Replay v0.4 -- scry top/bottom + counterspell attribution (2026-05-14)
+- [x] **Scry top/bottom resolution.** Annotation Scry carries
+      details.topIds and details.bottomIds (instance ID lists).
+      Resolved to card names: "scry 1 → top: Kaito, Bane of Nightmares".
+      Previously just emitted "scry 2" with no detail.
+- [x] **Counterspell attribution heuristic.** Arena doesn't emit a
+      target annotation when a counter spell is cast (the targeting
+      is implicit via UI state). We track recent casts of known
+      counter spells (_COUNTER_SPELLS list: Annul, Negate, Spell
+      Pierce, Disdainful Stroke, Three Steps Ahead, Tishana's
+      Tidebinder, etc.) and tie the next "X countered" event back
+      to the most-recent counter spell on the stack: "High Noon
+      countered (by Annul)".
+- [x] **Target line fallback.** When PlayerSubmittedTargets annotation
+      fires but the target instance isn't yet in our grpid map (e.g.
+      opp's hidden card just revealed), we emit "→ targets: instance#N"
+      instead of silently dropping the line, so the user knows
+      targeting happened.
+- [x] **133/133 tests green. Cache cleared.**
+
 ### Match Replay v0.3 -- draws, mulligans, attackers, bottoming (2026-05-14)
 - [x] **ZoneTransfer Draw extraction.** Cards drawn each turn now in
       the transcript: "You draw Bitter Triumph" for your draws (named),
