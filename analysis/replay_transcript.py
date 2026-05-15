@@ -138,6 +138,13 @@ def build_transcript(arena_match_id: str,
     # event fires we pop and edit the cast line to add "-> targets: X"
     # in place -- single-pass over the log gives us both events in order.
     pending_counters: list[tuple] = []
+    # Track which games we've already emitted an opening-hand snapshot
+    # for (so we don't re-emit when later GameStateMessages still
+    # report turn=1).
+    opening_hand_emitted: set[int] = set()
+    # Locked-on-first-sighting hand iids per game; resolved to names
+    # on subsequent messages as instance->grpid mappings accumulate.
+    opening_hand_iids: dict[int, list] = {}
 
     target_found = False
 
@@ -182,6 +189,8 @@ def build_transcript(arena_match_id: str,
                     instance_to_owner = {}
                     seen_annotations = set()
                     pending_counters = []
+                    opening_hand_emitted = set()
+                    opening_hand_iids = {}
                 elif state == "MatchGameRoomStateType_MatchCompleted":
                     if match_id == arena_match_id:
                         current_match_id = None  # done; ignore further events
@@ -202,8 +211,16 @@ def build_transcript(arena_match_id: str,
                 gn = gi.get("gameNumber")
                 if gn:
                     if gn != current_game:
-                        # New game; reset dedup
+                        # New game: reset per-game state. Arena reuses
+                        # instance IDs across games AND turn numbers
+                        # restart at 1, so carrying state from the
+                        # previous game would mislocate events.
                         logged_action_keys = set()
+                        instance_to_grpid = {}
+                        instance_to_owner = {}
+                        pending_counters = []
+                        prev_life = {}  # both players start at 20 again
+                        current_turn = 0  # let next turnInfo.turnNumber set it
                     current_game = gn
                 ti = gsm.get("turnInfo", {})
                 tn = ti.get("turnNumber")
@@ -236,6 +253,8 @@ def build_transcript(arena_match_id: str,
                         )
                     prev_life[seat] = lt
 
+                # (opening-hand snapshot moved below gameObjects loop)
+
                 # Track instanceId -> grpId mapping (state machine across
                 # all gameObjects in the match). Annotation `affectedIds`
                 # reference instanceIds; we need to resolve to card names.
@@ -248,6 +267,47 @@ def build_transcript(arena_match_id: str,
                     owner = go.get("ownerSeatId") or go.get("controllerSeatId")
                     if isinstance(inst, int) and isinstance(owner, int):
                         instance_to_owner[inst] = owner
+
+                # Opening-hand snapshot: remember the earliest hand iids
+                # per game (when Hand zone first has >=4 cards). Resolve
+                # to names on every subsequent message (instances may not
+                # all be mapped right away). Once all are named, emit and
+                # mark the game done.
+                if current_game and current_game not in opening_hand_emitted:
+                    for zone in gsm.get("zones", []) or []:
+                        if (zone.get("type") == "ZoneType_Hand" and
+                                zone.get("ownerSeatId") == my_seat):
+                            hand_iids = zone.get("objectInstanceIds") or []
+                            if len(hand_iids) < 4:
+                                continue
+                            # Lock the iids for this game on first
+                                # qualifying observation
+                            if current_game not in opening_hand_iids:
+                                opening_hand_iids[current_game] = list(hand_iids)
+                            # Try to resolve the locked iids
+                            locked = opening_hand_iids[current_game]
+                            names = []
+                            for iid in locked:
+                                g = instance_to_grpid.get(iid)
+                                if g:
+                                    names.append(grpid_names.get(g, f"grpId:{g}"))
+                                else:
+                                    names.append(None)
+                            if any(n is None for n in names):
+                                # Not all resolved yet; keep waiting
+                                break
+                            kept_on = len(locked)
+                            snap = (f"Opening hand (kept on {kept_on}): "
+                                    f"{', '.join(sorted(names))}")
+                            game_entry_for_snap = games.get(current_game) or {}
+                            turns_dict = game_entry_for_snap.get("turns") or {}
+                            if turns_dict:
+                                earliest_tn = min(turns_dict.keys())
+                                turns_dict[earliest_tn]["actions"].insert(0, snap)
+                            else:
+                                turn_entry["actions"].insert(0, snap)
+                            opening_hand_emitted.add(current_game)
+                            break
 
                 # Walk annotations -- the real event stream (plays, casts,
                 # abilities, triggers, damage, targets)

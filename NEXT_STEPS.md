@@ -76,6 +76,35 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match Replay v0.6 -- opening hand per game (2026-05-14)
+- [x] **Opening hand snapshot per game.** Captures the cards in your
+      Hand zone at game start (via gameStateMessage.zones[]). Lands
+      at the top of each game's earliest turn entry:
+        Opening hand (kept on 7): Annul, Enduring Curiosity, Floodpits
+        Drowner, Kaito Bane of Nightmares, Shoot the Sheriff, Watery
+        Grave, Watery Grave
+- [x] **Two infrastructure bugs surfaced and fixed along the way:**
+      - **Instance IDs reused across games.** Arena reuses instance
+        IDs 159-165 across games -- the same instance ID can map to
+        different cards in G1 vs G2. Now reset `instance_to_grpid`
+        and `instance_to_owner` on every game change so we don't
+        carry stale G1 mappings into G2.
+      - **Turn number carryover.** `current_turn` persisted across
+        game transitions, so G2's opening-hand emit was landing in
+        turn 18 (G1's last turn) instead of turn 1. Fixed: reset
+        `current_turn = 0` on game change; next `turnInfo.turnNumber`
+        in the new game sets it correctly. Also resets `prev_life`
+        so the +20 life "swing" at game start no longer logs as a
+        fake life gain.
+- [x] **Locked-iid pattern** for resolution. We snapshot the hand iids
+      on first sighting per game, then resolve them on each subsequent
+      gameStateMessage as instance->grpid mappings accumulate. Emit
+      once all are named. Handles the timing issue where Hand zone is
+      known before gameObjects-with-grpid for those instances arrives.
+- [x] **Verified vs Kajar Bo3:** all 3 games now show opening hands
+      with correct cards (G1 main, G2/G3 post-board).
+- [x] 133/133 tests green. Cache cleared.
+
 ### Match Replay v0.5 -- look-ahead counterspell targets (2026-05-14)
 - [x] **Cast line now carries the countered target.** User pointed out
       that since we're walking the whole log in one pass, we can
