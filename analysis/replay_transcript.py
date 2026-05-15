@@ -133,9 +133,11 @@ def build_transcript(arena_match_id: str,
     instance_to_owner: dict[int, int] = {}
     # Annotation IDs already consumed (Arena retransmits messages in diffs)
     seen_annotations: set[int] = set()
-    # Stack of recently-cast counter spells, oldest first. We pop when
-    # a Countered event resolves nearby to attribute the counter.
-    last_counter_cast: list[str] = []
+    # Stack of pending counter casts. Each entry is
+    # (counter_name, turn_entry_ref, action_idx). When a Countered
+    # event fires we pop and edit the cast line to add "-> targets: X"
+    # in place -- single-pass over the log gives us both events in order.
+    pending_counters: list[tuple] = []
 
     target_found = False
 
@@ -179,7 +181,7 @@ def build_transcript(arena_match_id: str,
                     instance_to_grpid = {}
                     instance_to_owner = {}
                     seen_annotations = set()
-                    last_counter_cast = []
+                    pending_counters = []
                 elif state == "MatchGameRoomStateType_MatchCompleted":
                     if match_id == arena_match_id:
                         current_match_id = None  # done; ignore further events
@@ -316,27 +318,42 @@ def build_transcript(arena_match_id: str,
                                 line_local = f"{who} play {nm} (land)"
                             elif cat == "CastSpell" and nm:
                                 line_local = f"{who} cast {nm}"
-                                # Track counter spells so we can attribute
-                                # the next Countered event to them
+                                # If this is a counter spell, remember
+                                # where we wrote the line so we can
+                                # patch in the target when the next
+                                # Countered event arrives.
                                 if nm in _COUNTER_SPELLS:
-                                    last_counter_cast.append(nm)
+                                    # action_idx is the position the new
+                                    # line will occupy after the append
+                                    pending_counters.append((
+                                        nm, turn_entry,
+                                        len(turn_entry["actions"]),  # idx of soon-to-be-appended line
+                                    ))
                             elif cat == "Resolve" and nm:
                                 line_local = f"{nm} resolves"
                             elif cat == "Destroy" and nm:
                                 line_local = f"{nm} destroyed"
                             elif cat == "Countered" and nm:
-                                # Heuristic: tie back to the most recent
-                                # CastSpell of a known counter spell that
-                                # hasn't resolved yet -- so "High Noon
-                                # countered (by Annul)" instead of just
-                                # "High Noon countered". Arena doesn't
-                                # emit a target annotation for counterspells.
-                                counterer = (last_counter_cast.pop()
-                                             if last_counter_cast else None)
-                                if counterer:
-                                    line_local = f"{nm} countered (by {counterer})"
-                                else:
-                                    line_local = f"{nm} countered"
+                                # Tie the most recent unresolved counter
+                                # cast to this countered target. Since
+                                # we're single-pass through the log and
+                                # the cast precedes the Countered event,
+                                # we already have the cast line buffered
+                                # and can edit it in place to add the
+                                # target.
+                                line_local = f"{nm} countered"
+                                if pending_counters:
+                                    cname, ce_turn, ce_idx = pending_counters.pop()
+                                    line_local = f"{nm} countered (by {cname})"
+                                    # Append the target to the cast line
+                                    try:
+                                        existing = ce_turn["actions"][ce_idx]
+                                        if "→ targets:" not in existing:
+                                            ce_turn["actions"][ce_idx] = (
+                                                f"{existing} → targets: {nm}"
+                                            )
+                                    except (IndexError, KeyError):
+                                        pass  # safety; shouldn't happen
                             elif cat == "Discard" and nm:
                                 line_local = f"{who} discards {nm}"
                             elif cat == "Mill" and nm:

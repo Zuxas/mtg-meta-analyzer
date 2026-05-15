@@ -76,6 +76,24 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Match Replay v0.5 -- look-ahead counterspell targets (2026-05-14)
+- [x] **Cast line now carries the countered target.** User pointed out
+      that since we're walking the whole log in one pass, we can
+      forward-attach the countered card to the original counter-spell
+      cast line. Previously v0.4 only suffixed the Countered event;
+      the cast line was bare.
+- [x] **Implementation: in-place edit of buffered cast line.** When a
+      counter spell is cast, we remember `(name, turn_entry, action_idx)`
+      in `pending_counters`. When the next Countered event arrives, we
+      pop the most-recent entry and mutate the earlier cast line in
+      place to append "→ targets: X". Both lines remain (cast + countered)
+      so the timeline is intact.
+- [x] **Result for vs Kajar G2 T4:**
+        You cast Annul → targets: High Noon
+        High Noon countered (by Annul)
+        Annul resolves
+- [x] **133/133 green. Cache cleared.**
+
 ### Match Replay v0.4 -- scry top/bottom + counterspell attribution (2026-05-14)
 - [x] **Scry top/bottom resolution.** Annotation Scry carries
       details.topIds and details.bottomIds (instance ID lists).
