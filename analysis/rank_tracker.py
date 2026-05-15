@@ -70,8 +70,11 @@ def capture_current_rank(notes: str = "") -> Optional[dict]:
     Returns a summary dict {constructed, limited, snapshot_ids} or None
     if no rank data found.
     """
+    # Iterate older log FIRST, current log SECOND, so `latest` ends up
+    # being the most-recent rank object encountered (Player.log is the
+    # active file; Player-prev.log is the archived rotation).
     latest = None
-    for log_path in (PLAYER_LOG, PLAYER_PREV_LOG):
+    for log_path in (PLAYER_PREV_LOG, PLAYER_LOG):
         for obj in _iter_json_blobs(log_path):
             if not isinstance(obj, dict):
                 continue

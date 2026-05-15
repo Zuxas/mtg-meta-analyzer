@@ -83,6 +83,12 @@ class MtgaLogWatcher(QThread):
                 if all_matches:
                     n_new = save_matches_to_db(all_matches,
                                                 format_name="standard")
+                # Also capture latest rank (dedup'd; only inserts on change)
+                try:
+                    from analysis.rank_tracker import capture_current_rank
+                    capture_current_rank(notes="live_tail")
+                except Exception:
+                    pass
                 self._last_mtime = cur_mtime
                 if n_new > 0:
                     self.matches_imported.emit(n_new)

@@ -675,8 +675,10 @@ class DashboardTab(QWidget):
         self._chart_worker = None
 
     def _open_rank_chart(self, _event) -> None:
-        """Click handler for the rank label -- open progression chart."""
+        """Click handler for the rank label -- capture latest rank from
+        Player.log, refresh the label, then open the progression chart."""
         try:
+            self._refresh_rank_label()  # picks up any new W-L from log
             from gui.widgets.rank_progression_dialog import RankProgressionDialog
             dlg = RankProgressionDialog(parent=self)
             dlg.exec()
