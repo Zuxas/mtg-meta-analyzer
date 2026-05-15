@@ -174,6 +174,88 @@ def test_does_not_create_unknown_archetype(seeded_env, monkeypatch):
     assert len(db.saved_decks.get_decks(format_name="standard")) == 0
 
 
+def test_creates_with_sideboard_when_provided(seeded_env, monkeypatch):
+    """When sideboard_grp_ids is passed and the deck is newly created,
+    those cards land in the saved_deck's sideboard."""
+    monkeypatch.setattr(
+        "scrapers.mtga_log_parser.classify_opponent_deck",
+        lambda ids, fmt: "Dimir Midrange",
+    )
+    from analysis.auto_save_deck import find_or_create_deck
+    new_id = find_or_create_deck(
+        observed_grp_ids=list(range(1001, 1023)),
+        format_name="standard",
+        event_category="ranked-bo3",
+        sideboard_grp_ids=[1015, 1015, 1016, 1017],  # Shoot the Sheriff x2 + 2 others
+    )
+    assert new_id is not None
+    import db.saved_decks
+    deck = next(d for d in db.saved_decks.get_decks(format_name="standard")
+                if d["id"] == new_id)
+    assert "Shoot the Sheriff" in deck["sideboard"]
+    assert deck["sideboard"]["Shoot the Sheriff"] == 2
+
+
+def test_fills_in_empty_sideboard_on_existing_deck(seeded_env, monkeypatch):
+    """If we find a matching-archetype deck that has no SB stored, fill
+    it in from the observed SB. Don't stomp non-empty SB."""
+    import db.saved_decks
+    existing_id = db.saved_decks.save_deck(
+        name="Auto-imported Dimir",
+        format_name="standard",
+        archetype="Dimir Midrange",
+        mainboard={"Spyglass Siren": 4},
+        sideboard={},  # empty -- the case we want to fill
+    )
+    monkeypatch.setattr(
+        "scrapers.mtga_log_parser.classify_opponent_deck",
+        lambda ids, fmt: "Dimir Midrange",
+    )
+
+    from analysis.auto_save_deck import find_or_create_deck
+    result = find_or_create_deck(
+        observed_grp_ids=list(range(1001, 1023)),
+        format_name="standard",
+        event_category="ranked-bo3",
+        sideboard_grp_ids=[1015, 1016, 1017],
+    )
+    assert result == existing_id
+
+    deck = next(d for d in db.saved_decks.get_decks(format_name="standard")
+                if d["id"] == existing_id)
+    assert "Shoot the Sheriff" in deck["sideboard"]
+    # Mainboard preserved
+    assert deck["mainboard"] == {"Spyglass Siren": 4}
+
+
+def test_does_not_stomp_existing_non_empty_sideboard(seeded_env, monkeypatch):
+    """If the existing deck already has SB cards, leave them alone."""
+    import db.saved_decks
+    existing_id = db.saved_decks.save_deck(
+        name="Curated Dimir",
+        format_name="standard",
+        archetype="Dimir Midrange",
+        mainboard={"Spyglass Siren": 4},
+        sideboard={"Negate": 2, "Disdainful Stroke": 1},
+    )
+    monkeypatch.setattr(
+        "scrapers.mtga_log_parser.classify_opponent_deck",
+        lambda ids, fmt: "Dimir Midrange",
+    )
+    from analysis.auto_save_deck import find_or_create_deck
+    result = find_or_create_deck(
+        observed_grp_ids=list(range(1001, 1023)),
+        format_name="standard",
+        event_category="ranked-bo3",
+        sideboard_grp_ids=[1015, 1016],
+    )
+    assert result == existing_id
+    deck = next(d for d in db.saved_decks.get_decks(format_name="standard")
+                if d["id"] == existing_id)
+    # Curated SB untouched
+    assert deck["sideboard"] == {"Negate": 2, "Disdainful Stroke": 1}
+
+
 def test_idempotent_across_multiple_calls(seeded_env, monkeypatch):
     """Calling find_or_create_deck twice for the same deck should reuse,
     not duplicate."""

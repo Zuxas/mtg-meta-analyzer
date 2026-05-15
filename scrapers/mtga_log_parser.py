@@ -615,7 +615,8 @@ def save_matches_to_db(matches: list[dict], format_name: str = "standard",
                 event_cat = classify_event(m.get("event_name") or "")
                 try:
                     my_deck_id = find_or_create_deck(
-                        my_grp_ids, format_name, event_cat
+                        my_grp_ids, format_name, event_cat,
+                        sideboard_grp_ids=m.get("sideboard_card_ids") or [],
                     )
                 except Exception:
                     my_deck_id = None

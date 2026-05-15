@@ -76,6 +76,23 @@ play sessions to populate Match Log.
       data (was 0). `tests/test_is_all_formats.py` covers the helper + the
       trend regression. 89/89 tests green.
 
+### Auto-create: sideboard capture (2026-05-14, follow-up)
+- [x] **find_or_create_deck now accepts sideboard_grp_ids.** Previously it
+      wrote `sideboard={}` even though the parser already captured
+      `connectResp.deckMessage.sideboardCards` via
+      `m["sideboard_card_ids"]`. Now resolves SB grpIds the same way as
+      mainboard. On NEW deck creation, SB lands populated. On EXISTING
+      matching-archetype deck where SB is empty (typical for an
+      auto-imported deck created before this fix), the SB is filled in
+      opportunistically. Non-empty SB on existing decks is preserved
+      (no stomping of curated lists).
+- [x] **Backfilled the 4 pre-fix auto-imported decks:** Dimir Aggro
+      (id=18), Izzet Looting (id=19), Bant Rhythm (id=20), Esper Pixie
+      (id=21) all got their 15-card sideboards filled from
+      sideboard_card_ids of a linked match. Verified Dimir Aggro
+      sideboard matches the user's pasted decklist exactly (Annul x2,
+      Day of Black Sun x2, Deceit x2, Tishana's Tidebinder x1, etc.).
+
 ### Auto-create saved deck on unknown match (2026-05-14)
 - [x] **`analysis/auto_save_deck.find_or_create_deck()`.** When
       `mtga_log_parser` writes a match where `classify_my_deck` returns

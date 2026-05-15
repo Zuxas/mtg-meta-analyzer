@@ -115,13 +115,17 @@ def _classify_archetype(observed_grp_ids: list[int],
 
 def find_or_create_deck(observed_grp_ids: list[int],
                        format_name: str,
-                       event_category: str = "") -> Optional[int]:
+                       event_category: str = "",
+                       sideboard_grp_ids: list[int] | None = None) -> Optional[int]:
     """Find or create a saved_decks row that fits these observed grpIds.
 
     event_category: one of {'ranked-bo3', 'ranked-bo1', 'unranked',
-                            'limited', 'other'} from
-                    gui.widgets.deck_match_history._classify_event.
-                    Limited events are skipped (returns None).
+                            'limited', 'other'}.  Limited events are
+                    skipped (returns None).
+    sideboard_grp_ids: the user's sideboard from
+                      connectResp.deckMessage.sideboardCards if available.
+                      Used only when creating a new deck OR when filling
+                      in an empty SB on an existing auto-imported deck.
 
     Returns saved_decks.id, or None if we declined to create / link.
     """
@@ -137,9 +141,26 @@ def find_or_create_deck(observed_grp_ids: list[int],
         # Don't pollute saved_decks with unclassifiable rows.
         return None
 
+    sideboard_grp_ids = sideboard_grp_ids or []
+    sideboard = _resolve_grpids_to_name_counts(sideboard_grp_ids)
+
     # Look for an existing saved deck with this archetype + format
     for d in get_decks(format_name=format_name):
         if d.get("archetype", "").strip().lower() == archetype.lower():
+            # If the existing deck has an empty sideboard (typical for
+            # an auto-imported deck from before SB capture was wired in)
+            # AND we now have SB grpIds, fill it in opportunistically.
+            existing_sb = d.get("sideboard") or {}
+            if sideboard and not existing_sb:
+                save_deck(
+                    name=d["name"],
+                    format_name=d.get("format", format_name),
+                    archetype=d.get("archetype", archetype),
+                    mainboard=d.get("mainboard") or {},
+                    sideboard=sideboard,
+                    notes=d.get("notes", ""),
+                    deck_id=d["id"],
+                )
             return d["id"]
 
     # No existing -- create a new one with the observed cards
@@ -154,11 +175,11 @@ def find_or_create_deck(observed_grp_ids: list[int],
         format_name=format_name,
         archetype=archetype,
         mainboard=mainboard,
-        sideboard={},
+        sideboard=sideboard,
         notes=(
             f"Auto-imported from MTGA Player.log on {today_str}. "
-            f"Mainboard derived from observed grpIds across game(s); "
-            f"sideboard is empty -- edit My Decks to fill in."
+            f"Mainboard + sideboard derived from observed grpIds across "
+            f"game(s); edit My Decks to refine."
         ),
     )
     return new_id
