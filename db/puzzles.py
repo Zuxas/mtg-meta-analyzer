@@ -136,27 +136,86 @@ def get_puzzles(
         clauses.append("category = ?"); params.append(category)
     if deck_id is not None:
         clauses.append("deck_id = ?"); params.append(deck_id)
+    if unsolved_only:
+        clauses.append(
+            "id NOT IN (SELECT DISTINCT puzzle_id FROM puzzle_attempts "
+            "WHERE verdict='correct')"
+        )
     sql = "SELECT * FROM puzzles"
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
     sql += " ORDER BY id DESC"
     with get_connection() as conn:
         rows = conn.execute(sql, params).fetchall()
-    puzzles_list = [_row_to_puzzle(r) for r in rows]
-    if unsolved_only:
-        with get_connection() as conn:
-            solved_ids = {
-                r[0] for r in conn.execute(
-                    "SELECT DISTINCT puzzle_id FROM puzzle_attempts "
-                    "WHERE verdict = 'correct'"
-                ).fetchall()
-            }
-        puzzles_list = [p for p in puzzles_list if p["id"] not in solved_ids]
-    return puzzles_list
+    return [_row_to_puzzle(r) for r in rows]
 
 
 def delete_puzzle(puzzle_id: int) -> None:
     _ensure_tables()
     with get_connection() as conn:
         conn.execute("DELETE FROM puzzles WHERE id = ?", (puzzle_id,))
+
+
+def record_attempt(
+    *,
+    puzzle_id: int,
+    user_answer: str,
+    verdict: str,
+    grader_used: str,
+    time_spent_ms: Optional[int] = None,
+) -> int:
+    _ensure_tables()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO puzzle_attempts ("
+            "puzzle_id, attempted_at, user_answer, verdict, grader_used, time_spent_ms"
+            ") VALUES (?, ?, ?, ?, ?, ?)",
+            (puzzle_id, _utc_now(), user_answer, verdict, grader_used, time_spent_ms),
+        )
+        return int(cur.lastrowid)
+
+
+def get_attempts(puzzle_id: int) -> list[dict[str, Any]]:
+    _ensure_tables()
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM puzzle_attempts WHERE puzzle_id = ? ORDER BY id DESC",
+            (puzzle_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_session_stats(*, since: Optional[str] = None) -> dict[str, Any]:
+    """Aggregate solve stats. `since` is ISO timestamp; None = all-time."""
+    _ensure_tables()
+    where = ""; params = []
+    if since:
+        where = "WHERE a.attempted_at >= ?"; params.append(since)
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"SELECT p.category, a.verdict "
+            f"FROM puzzle_attempts a JOIN puzzles p ON p.id = a.puzzle_id "
+            f"{where}",
+            params,
+        ).fetchall()
+    n_solved = sum(1 for r in rows if r[1] == "correct")
+    n_missed = sum(1 for r in rows if r[1] == "incorrect")
+    total = n_solved + n_missed
+    by_cat: dict[str, dict[str, int]] = {}
+    for cat, verdict in rows:
+        b = by_cat.setdefault(cat, {"solved": 0, "missed": 0})
+        if verdict == "correct":
+            b["solved"] += 1
+        elif verdict == "incorrect":
+            b["missed"] += 1
+    wr_by_category = {
+        cat: (b["solved"] / (b["solved"] + b["missed"]))
+        for cat, b in by_cat.items() if (b["solved"] + b["missed"]) > 0
+    }
+    return {
+        "n_solved": n_solved,
+        "n_missed": n_missed,
+        "wr_overall": (n_solved / total) if total else 0.0,
+        "wr_by_category": wr_by_category,
+    }
 

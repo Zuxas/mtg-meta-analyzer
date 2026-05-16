@@ -115,3 +115,80 @@ def test_get_puzzles_filters_by_category(tmp_db):
     assert len(puzzles.get_puzzles(category="find_lethal")) == 1
     assert len(puzzles.get_puzzles(category="stabilize")) == 1
     assert len(puzzles.get_puzzles()) == 2
+
+
+def test_record_attempt_and_get_attempts(tmp_db):
+    from db import puzzles
+    puzzles._ensure_tables()
+    pid = puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m1", game_num=1, turn_num=5,
+        category="stabilize", difficulty=3, question="q",
+        solution_text="s", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    aid = puzzles.record_attempt(
+        puzzle_id=pid, user_answer="block with Crab",
+        verdict="correct", grader_used="self", time_spent_ms=42000,
+    )
+    assert aid >= 1
+    attempts = puzzles.get_attempts(pid)
+    assert len(attempts) == 1
+    assert attempts[0]["verdict"] == "correct"
+
+
+def test_session_stats_wr_by_category(tmp_db):
+    from db import puzzles
+    puzzles._ensure_tables()
+    pid_a = puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m1", game_num=1, turn_num=1,
+        category="find_lethal", difficulty=2, question="q1",
+        solution_text="s", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    pid_b = puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m2", game_num=1, turn_num=1,
+        category="stabilize", difficulty=2, question="q2",
+        solution_text="s", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    puzzles.record_attempt(puzzle_id=pid_a, user_answer="x", verdict="correct", grader_used="self", time_spent_ms=1000)
+    puzzles.record_attempt(puzzle_id=pid_a, user_answer="y", verdict="incorrect", grader_used="self", time_spent_ms=2000)
+    puzzles.record_attempt(puzzle_id=pid_b, user_answer="z", verdict="correct", grader_used="self", time_spent_ms=3000)
+
+    stats = puzzles.get_session_stats()
+    assert stats["n_solved"] == 2
+    assert stats["n_missed"] == 1
+    assert stats["wr_overall"] == pytest.approx(2 / 3)
+    assert stats["wr_by_category"]["find_lethal"] == pytest.approx(0.5)
+    assert stats["wr_by_category"]["stabilize"] == pytest.approx(1.0)
+
+
+def test_get_puzzles_unsolved_only_excludes_solved(tmp_db):
+    """unsolved_only=True must exclude any puzzle with a correct attempt."""
+    from db import puzzles
+    puzzles._ensure_tables()
+    pid_a = puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m1", game_num=1, turn_num=1,
+        category="stabilize", difficulty=2, question="qa",
+        solution_text="s", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    pid_b = puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m2", game_num=1, turn_num=1,
+        category="stabilize", difficulty=2, question="qb",
+        solution_text="s", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    puzzles.record_attempt(
+        puzzle_id=pid_a, user_answer="x", verdict="correct",
+        grader_used="self", time_spent_ms=1000,
+    )
+    # A missed-only puzzle should still be unsolved
+    puzzles.record_attempt(
+        puzzle_id=pid_b, user_answer="y", verdict="incorrect",
+        grader_used="self", time_spent_ms=1000,
+    )
+    unsolved = puzzles.get_puzzles(unsolved_only=True)
+    unsolved_ids = {p["id"] for p in unsolved}
+    assert pid_a not in unsolved_ids   # excluded — correctly attempted
+    assert pid_b in unsolved_ids       # still in queue — only missed
