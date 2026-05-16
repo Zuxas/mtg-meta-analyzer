@@ -28,6 +28,7 @@ from gui.tabs.knowledge_base    import KnowledgeBaseTab
 from gui.tabs.ask_claude        import AskClaudeTab
 from gui.tabs.set_analysis      import SetAnalysisTab
 from gui.tabs.tournament_prep   import TournamentPrepTab
+from gui.tabs.puzzles           import PuzzlesTab
 from gui.tabs.heatmap_tab       import HeatmapTab
 from gui.tabs.ladder_meta       import LadderMetaTab
 from gui.tabs.my_decks          import MyDecksTab
@@ -337,6 +338,7 @@ class MainWindow(QMainWindow):
         self._match_log = MatchLogTab(on_simulate_matchup=_jump_to_simulate_matchup)
         self._claude    = AskClaudeTab()
         self._set_analysis = SetAnalysisTab()
+        self._puzzles   = PuzzlesTab()
         self._settings  = SettingsTab()
 
         # ── Compose merged tabs ───────────────────────────────────
@@ -371,6 +373,7 @@ class MainWindow(QMainWindow):
             (self._search,        "SEARCH",     "Browse cards, search decklists, and compare head-to-head matchups"),
             (self._tournament_tab,"TOURNAMENT", "Event prep, top-cut math, breaker calculator, and match logging"),
             (self._resources_tab, "RESOURCES",  "Sideboard guides, bookmarks, and AI-powered analysis"),
+            (self._puzzles,       "PUZZLES",    "Tactical puzzles and decision training"),
             (self._settings,      "SETTINGS",   "Format preferences, data management, API keys, and ML models"),
         ]
         for i, (widget, label, tip) in enumerate(_tab_info):
@@ -938,7 +941,7 @@ class MainWindow(QMainWindow):
             self._simulate, self._calibration, self._preds,
             self._claude, self._set_analysis, self._search,
             self._my_decks, self._match_log, self._kb,
-            self._tourney, self._settings,
+            self._tourney, self._puzzles, self._settings,
         ):
             if hasattr(tab, "cleanup"):
                 try:
