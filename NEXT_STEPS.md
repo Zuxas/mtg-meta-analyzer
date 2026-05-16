@@ -69,22 +69,31 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
   lose data. The tmp+replace pattern was leaving leftover tail bytes
   on this Windows box, corrupting `preferences.json` after every save.
 
-### Tomorrow's chain (5/17) — staged in harness/plan-2026-05-17-execution-chain.md
+### Tomorrow's chain (5/16, Saturday) — staged in harness/plan-2026-05-16-execution-chain.md
+(consolidates the original 5/15 leftovers + the deferred 5/16 Maps deeplink + the previously-staged 5/17 work)
+
 1. **Real-MTGA endurance test** — play 5-10 actual ranked Bo3s end to
    end. Verify overlay refreshes, hotkeys hold across sessions, no
-   memory growth, no crashes. Crash logger should now catch anything
-   that fires.
-2. **Google Maps deeplink** — deferred from 5/16. ~30-45min.
-3. **Tokyo SB plans for missing matchups** — Simic Rhythm,
+   memory growth, no crashes. Re-smoke the post-feedback fixes that
+   didn't get user-verified yesterday: force-quit fix, horizontal
+   compact, click-pip-expand, UIState write fix.
+2. **Tokyo Prowess SB plan validation** — close the loop on the data
+   pull from 5/15 morning. Decide on Slickshot cut discipline vs
+   control, Golgari Slagstorm inclusion. Fix 3 misclassified matches
+   (m=59, m=72, m=75). Patch the fuzzy archetype matcher with a guild↔
+   color-code dict so Azorius Control finds UW High Noon.
+3. **Single-instance enforcement** — QLockFile + stale-lock detection
+   so multiple `python run_gui.py` invocations don't accumulate
+   (saw 4 zombies on 5/15 before the smart-X fix).
+4. **Google Maps deeplink** — deferred from 5/16 original. ~30-45min.
+5. **Tokyo SB plans for missing matchups** — Simic Rhythm,
    Boros Tremors, Gruul Aggro, 4-Color Allies, generic Azorius.
    Currently the dropdown lists 17 matchups but the live ranked queue
    is throwing 5 archetypes that have no canonical plan stored.
-4. **Pre-launch single-instance check** — QLockFile + stale-lock
-   detection so multiple `python run_gui.py` invocations don't
-   accumulate (saw 4 zombies today before the smart-X fix).
-5. **EV vs Field projection refresh** — capture today's number after
-   the all-formats fix + Untapped data refresh; compare to 5/01
-   53.6% baseline.
+6. **Gauntlet re-run + EV vs Field refresh** — run
+   `parallel_launcher.py --deck izzetprowessstandardtokyo --field rcdc`
+   at N=1000. Compare to 5/01 baseline 68.4% canonical / 75.1% variant.
+   Capture EV vs Field; compare to 5/01 53.6% baseline.
 
 ---
 
