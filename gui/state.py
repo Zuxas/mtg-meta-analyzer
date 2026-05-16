@@ -107,9 +107,38 @@ class UIState:
             self._prefs["ui_state"] = self._data
             try:
                 PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)
-                tmp_path = PREFERENCES_PATH.with_suffix(".json.tmp")
-                with tmp_path.open("w", encoding="utf-8") as f:
-                    json.dump(self._prefs, f, indent=2)
-                tmp_path.replace(PREFERENCES_PATH)
+                # Re-read whatever's on disk first so concurrent writes
+                # from setup_wizard / settings / ask_claude don't lose
+                # their non-ui_state keys (formats, api_key, etc.).
+                # This is best-effort -- if the file is unreadable we
+                # just overwrite with our own state.
+                disk = {}
+                try:
+                    if PREFERENCES_PATH.exists():
+                        with PREFERENCES_PATH.open("r", encoding="utf-8") as f:
+                            disk = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    disk = {}
+                if not isinstance(disk, dict):
+                    disk = {}
+                disk.update(self._prefs)
+                disk["ui_state"] = self._data
+                # Write+replace pattern. Critical: serialize FIRST so a
+                # JSON error doesn't leave the file truncated. THEN open
+                # the real file with "w" which truncates atomically.
+                payload = json.dumps(disk, indent=2)
+                import os as _os
+                # Truncate-and-write directly. Past tmp+replace was
+                # leaving leftover tail bytes on this system, so use a
+                # plain "w" open with explicit truncate + fsync to make
+                # the writer-side fully deterministic.
+                with PREFERENCES_PATH.open("w", encoding="utf-8") as f:
+                    f.truncate(0)
+                    f.write(payload)
+                    f.flush()
+                    try:
+                        _os.fsync(f.fileno())
+                    except (OSError, AttributeError):
+                        pass
             except OSError as e:
                 logger.error("Failed to save preferences.json: %s", e)
