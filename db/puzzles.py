@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS puzzle_attempts (
     puzzle_id       INTEGER NOT NULL REFERENCES puzzles(id) ON DELETE CASCADE,
     attempted_at    TEXT NOT NULL,
     user_answer     TEXT NOT NULL,
-    verdict         TEXT NOT NULL,
+    verdict         TEXT NOT NULL CHECK(verdict IN ('correct','incorrect','partial','user_marked')),
     grader_used     TEXT NOT NULL,
     time_spent_ms   INTEGER
 );
@@ -165,6 +165,8 @@ def record_attempt(
     time_spent_ms: Optional[int] = None,
 ) -> int:
     _ensure_tables()
+    if time_spent_ms is not None:
+        time_spent_ms = int(time_spent_ms)
     with get_connection() as conn:
         cur = conn.execute(
             "INSERT INTO puzzle_attempts ("
@@ -193,9 +195,9 @@ def get_session_stats(*, since: Optional[str] = None) -> dict[str, Any]:
         where = "WHERE a.attempted_at >= ?"; params.append(since)
     with get_connection() as conn:
         rows = conn.execute(
-            f"SELECT p.category, a.verdict "
-            f"FROM puzzle_attempts a JOIN puzzles p ON p.id = a.puzzle_id "
-            f"{where}",
+            "SELECT p.category, a.verdict "
+            "FROM puzzle_attempts a JOIN puzzles p ON p.id = a.puzzle_id "
+            + (where or ""),
             params,
         ).fetchall()
     n_solved = sum(1 for r in rows if r[1] == "correct")

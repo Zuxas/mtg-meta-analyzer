@@ -192,3 +192,20 @@ def test_get_puzzles_unsolved_only_excludes_solved(tmp_db):
     unsolved_ids = {p["id"] for p in unsolved}
     assert pid_a not in unsolved_ids   # excluded — correctly attempted
     assert pid_b in unsolved_ids       # still in queue — only missed
+
+
+def test_record_attempt_rejects_bad_verdict(tmp_db):
+    """puzzle_attempts.verdict has a CHECK constraint."""
+    from db import puzzles
+    puzzles._ensure_tables()
+    pid = puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m1", game_num=1, turn_num=1,
+        category="stabilize", difficulty=2, question="q",
+        solution_text="s", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        puzzles.record_attempt(
+            puzzle_id=pid, user_answer="x", verdict="Yes",  # capital, not in allowed set
+            grader_used="self", time_spent_ms=100,
+        )
