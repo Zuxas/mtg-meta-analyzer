@@ -48,11 +48,14 @@ data/match_replays/
 data/preferences.json
 
 # Generated visuals
-data/card_images/
 data/charts/
 data/*.png
 data/*.jpg
 data/*.jpeg
+
+# Card image cache (fetched from Scryfall on demand)
+data/card_images/*.jpg
+!data/card_images/.gitkeep
 
 # Scryfall bulk (fetched on demand via scripts/fetch_scryfall_bulk.sh)
 data/scryfall_oracle.json
