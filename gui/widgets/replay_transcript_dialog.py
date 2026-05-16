@@ -92,25 +92,46 @@ class ReplayTranscriptDialog(QDialog):
         footer.addWidget(close_btn)
         outer.addLayout(footer)
 
+        self._worker = None
         self._load(force=False)
 
     def _load(self, force: bool) -> None:
+        # Replace any in-flight worker -- block its signals so the late
+        # result doesn't overwrite the new placeholder.
+        if self._worker is not None:
+            try:
+                self._worker.blockSignals(True)
+            except RuntimeError:
+                pass
+            self._worker = None
         self._body.setHtml(
             f"<i style='color:{theme.TEXT_DIM};'>"
             f"{'Re-parsing Player.log' if force else 'Loading transcript'}…</i>"
         )
-        # Force a repaint so the placeholder shows during the parse
-        self._body.repaint()
-        try:
-            from analysis.replay_transcript import build_transcript
-            result = build_transcript(self._arena_match_id, force_refresh=force)
-        except Exception as e:
-            self._body.setHtml(
-                f"<span style='color:#e07060;'>Failed to build transcript: "
-                f"{e}</span>"
-            )
-            return
+        self._refresh_btn.setEnabled(False)
 
+        from gui.worker_threads import DataLoadWorker
+
+        def _do():
+            from analysis.replay_transcript import build_transcript
+            return build_transcript(self._arena_match_id, force_refresh=force)
+
+        w = DataLoadWorker(_do)
+        w.result.connect(self._on_transcript_ready)
+        w.error.connect(self._on_transcript_error)
+        w.finished.connect(w.deleteLater)
+        w.start()
+        self._worker = w
+
+    def _on_transcript_error(self, msg: str) -> None:
+        self._refresh_btn.setEnabled(True)
+        self._body.setHtml(
+            f"<span style='color:#e07060;'>Failed to build transcript: "
+            f"{msg}</span>"
+        )
+
+    def _on_transcript_ready(self, result) -> None:
+        self._refresh_btn.setEnabled(True)
         if result is None:
             self._body.setHtml(
                 "<span style='color:#9aa3b8;'>Match not found in "

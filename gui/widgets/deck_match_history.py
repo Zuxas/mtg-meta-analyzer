@@ -331,6 +331,7 @@ class DeckMatchHistory(QWidget):
         # Sort by matches desc
         rows.sort(key=lambda r: (-r[1], r[0]))
 
+        self._mu_tbl.setUpdatesEnabled(False)
         self._mu_tbl.setSortingEnabled(False)
         self._mu_tbl.setRowCount(len(rows))
         for ri, (opp, n, w, l, wr) in enumerate(rows):
@@ -346,6 +347,7 @@ class DeckMatchHistory(QWidget):
             wr_cell.setForeground(_wr_color(wr))
             self._mu_tbl.setItem(ri, 4, wr_cell)
         self._mu_tbl.setSortingEnabled(True)
+        self._mu_tbl.setUpdatesEnabled(True)
 
     def _render_mulligans(self, filtered_matches: list[dict] | None = None) -> None:
         """Aggregate keep/mull stats across the FILTERED matches only.
@@ -471,6 +473,8 @@ class DeckMatchHistory(QWidget):
     def _render_recent(self, matches: list[dict]) -> None:
         # Already newest-first from get_matches; cap at 50
         view = matches[:50]
+        # Gate paints + sort during population to avoid flicker
+        self._rm_tbl.setUpdatesEnabled(False)
         self._rm_tbl.setSortingEnabled(False)
         self._rm_tbl.setRowCount(len(view))
         for ri, m in enumerate(view):
@@ -493,6 +497,7 @@ class DeckMatchHistory(QWidget):
             pd = (m.get("play_draw") or "").strip()
             self._rm_tbl.setItem(ri, 5, QTableWidgetItem(pd))
         self._rm_tbl.setSortingEnabled(True)
+        self._rm_tbl.setUpdatesEnabled(True)
 
     def _on_recent_selection(self) -> None:
         sel = self._rm_tbl.selectedItems()

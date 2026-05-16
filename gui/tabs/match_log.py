@@ -214,6 +214,9 @@ class MatchLogTab(QWidget):
         self._last_format = "modern"
         self._last_round = 1
         self._on_simulate_matchup = on_simulate_matchup
+        # Cached orphan COUNT(*) — invalidated on sync / resolve so we don't
+        # re-query SQLite on every _load_matches / tab show.
+        self._orphan_count_cache: int | None = None
         self._build_ui()
         QTimer.singleShot(200, self._load_matches)
 
@@ -486,6 +489,7 @@ class MatchLogTab(QWidget):
             self._status_lbl.setText(f"Sync complete: {n} new rows.")
         except Exception as e:
             self._status_lbl.setText(f"Sync error: {e}")
+        self._orphan_count_cache = None  # new rows may include orphans
         self._load_matches()
         deck_id = self._filter_deck.currentData()
         if deck_id is not None:
@@ -526,6 +530,7 @@ class MatchLogTab(QWidget):
                 f"MTGA sync complete: {n_new} new matches imported "
                 f"(dedup'd by arena_match_id)."
             )
+            self._orphan_count_cache = None  # new rows may include orphans
             self._load_matches()
             deck_id = self._filter_deck.currentData()
             if deck_id is not None:
@@ -541,18 +546,20 @@ class MatchLogTab(QWidget):
         w.start()
         self._mtga_sync_worker = w  # keep ref
 
-    def _refresh_orphan_banner(self) -> None:
+    def _refresh_orphan_banner(self, force: bool = False) -> None:
         # Defensive: _load_matches dispatches get_matches() to a worker
         # thread, so the migration may not have run yet on first launch
         # after a schema upgrade. _ensure_table is idempotent + cheap.
-        from db.match_log import _ensure_table
-        _ensure_table()
-        from db.database import get_connection
-        with get_connection() as conn:
-            n = conn.execute(
-                "SELECT COUNT(*) FROM match_log "
-                "WHERE backfill_status='orphan' AND my_deck_id IS NULL"
-            ).fetchone()[0]
+        if force or self._orphan_count_cache is None:
+            from db.match_log import _ensure_table
+            _ensure_table()
+            from db.database import get_connection
+            with get_connection() as conn:
+                self._orphan_count_cache = conn.execute(
+                    "SELECT COUNT(*) FROM match_log "
+                    "WHERE backfill_status='orphan' AND my_deck_id IS NULL"
+                ).fetchone()[0]
+        n = self._orphan_count_cache
         if n > 0:
             self._orphan_banner.setText(
                 f"⚠ {n} historical match{'es' if n != 1 else ''} need a deck"
@@ -567,8 +574,9 @@ class MatchLogTab(QWidget):
         from gui.widgets.orphan_resolver import OrphanResolverDialog
         dlg = OrphanResolverDialog(parent=self)
         dlg.exec()
+        self._orphan_count_cache = None  # resolver may have cleared some
         self._load_matches()
-        self._refresh_orphan_banner()
+        self._refresh_orphan_banner(force=True)
         deck_id = self._filter_deck.currentData()
         if deck_id is not None:
             self._timeline.set_deck(deck_id)
