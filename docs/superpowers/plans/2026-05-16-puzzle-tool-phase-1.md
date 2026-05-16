@@ -96,8 +96,9 @@ def test_ensure_tables_is_idempotent(tmp_db):
 
 - [ ] **Step 3: Run tests to verify they fail**
 
+From the project root:
+
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer"
 python -m pytest tests/test_db_puzzles.py -v
 ```
 
