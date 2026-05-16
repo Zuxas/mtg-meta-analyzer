@@ -96,7 +96,7 @@ def _find_lethal_scene() -> dict:
 
 def _tempo_scene() -> dict:
     return {
-        "arena_match_id": "seeded-3", "game_num": 1, "turn_num": 3,
+        "arena_match_id": "seeded-3", "game_num": 1, "turn_num": 5,
         "play_or_draw": "play",
         "you": {
             "name": "You", "archetype": "Tokyo Prowess", "life": 20,
@@ -106,8 +106,11 @@ def _tempo_scene() -> dict:
                 {"name": "Eddymurk Crab"},
                 {"name": "Burst Lightning"},
             ],
-            "battlefield_lands": [{"name": "Island"}, {"name": "Island"}, {"name": "Mountain"}],
-            "mana_available": {"U": 2, "R": 1},
+            "battlefield_lands": [
+                {"name": "Island"}, {"name": "Island"}, {"name": "Island"},
+                {"name": "Mountain"}, {"name": "Mountain"},
+            ],
+            "mana_available": {"U": 3, "R": 2},
         },
         "opp": {
             "name": "Opp", "archetype": "?", "life": 20,
@@ -117,7 +120,7 @@ def _tempo_scene() -> dict:
                 {"name": "Plains"}, {"name": "Plains"},
             ],
         },
-        "notes": "Opp tapped out; you have 3 mana up next turn for Talent + Stroke.",
+        "notes": "T5 on the play. You have UUURR open (5 mana). Opp has 4 lands, 2 untapped.",
     }
 
 
@@ -154,16 +157,26 @@ _SEED_PUZZLES = [
     {
         "category": "tempo",
         "difficulty": 2,
-        "question": "Hold or deploy?",
+        "question": "Best play this turn?",
         "solution_text": (
-            "Hold Stormchaser's Talent until end-of-opp-turn — they're tapped "
-            "out so they can't punish you for the sorcery-speed cast next "
-            "turn. Pass with UU up to threaten Disdainful Stroke on their "
-            "next 4+ drop. This gives you more information AND keeps the "
-            "Talent as a Bo3 threat without committing too early."
+            "Cast Stormchaser's Talent (UR) this turn, then PASS with "
+            "R + UU held up.\n\n"
+            "Mana math: UUURR available (5). Talent costs U+R = 2 -> "
+            "leaves UU + R. That's exactly enough to hold Burst Lightning "
+            "(R) AND Disdainful Stroke (1U = 1 generic + 1 colored U, paid "
+            "from the two remaining Islands).\n\n"
+            "Why now: Talent is a Saga, sorcery-speed only -- can't be "
+            "held for opp's end step. At 5 lands you can both deploy AND "
+            "keep interaction up, so there's no reason to wait. The line "
+            "that tries to hold Talent AND keep counter mana doesn't help "
+            "since Talent never gets cheaper.\n\n"
+            "Threat: Burst Lightning answers a small creature; Disdainful "
+            "Stroke counters their next 4+ drop. Talent starts ticking "
+            "toward its win con."
         ),
-        "notes": "The tempo principle: don't spend a turn proactively when "
-                 "holding mana information-asymmetrically is stronger.",
+        "notes": "Tempo principle: deploy + leave interaction up when mana "
+                 "allows BOTH. Sorcery-speed plays don't get cheaper from "
+                 "waiting.",
         "scene": _tempo_scene(),
     },
 ]
