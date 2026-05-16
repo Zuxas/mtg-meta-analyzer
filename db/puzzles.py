@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 from db.database import get_connection
+from db.helpers import utc_now as _utc_now
 
 
 _TABLES_SQL = """
@@ -69,5 +69,3 @@ def _ensure_tables() -> None:
         conn.executescript(_TABLES_SQL)
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")

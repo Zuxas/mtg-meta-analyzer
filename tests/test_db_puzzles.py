@@ -35,3 +35,25 @@ def test_ensure_tables_is_idempotent(tmp_db):
     from db import puzzles
     puzzles._ensure_tables()
     puzzles._ensure_tables()  # no-op second call
+
+
+def test_puzzles_table_shape_via_smoke_insert(tmp_db):
+    """Insert + read-back via raw SQL to catch typos in column names / NOT NULLs."""
+    from db import puzzles
+    puzzles._ensure_tables()
+    with sqlite3.connect(tmp_db) as conn:
+        conn.execute(
+            "INSERT INTO puzzles "
+            "(deck_id, arena_match_id, game_num, turn_num, category, "
+            " difficulty, question, solution_text, solution_keywords_json, "
+            " grading_mode, author, notes, scene_json, created_at, updated_at) "
+            "VALUES (NULL, 'm-1', 1, 3, 'find_lethal', "
+            "        2, 'q', 's', '[]', 'self', 'seeder', '', '{}', "
+            "        '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')"
+        )
+        row = conn.execute(
+            "SELECT category, question, scene_json FROM puzzles WHERE id=1"
+        ).fetchone()
+    assert row[0] == "find_lethal"
+    assert row[1] == "q"
+    assert row[2] == "{}"
