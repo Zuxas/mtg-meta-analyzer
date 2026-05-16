@@ -34,3 +34,13 @@ SCOUT_TARGET_ARCHETYPES = "tabs.scout.target_archetypes"
 
 # Palette recents
 PALETTE_RECENTS = "palette_recents"
+
+# Matchup overlay (transparent always-on-top window over MTGA)
+OVERLAY_GEOMETRY = "overlay.geometry"  # [x, y, w, h]
+OVERLAY_LOCKED = "overlay.locked"       # bool (default True = click-through)
+OVERLAY_COMPACT = "overlay.compact"     # bool (default False)
+OVERLAY_NOTES_OPEN = "overlay.notes_open"  # bool (default True)
+OVERLAY_DECKLIST_OPEN = "overlay.decklist_open"  # bool (default False)
+OVERLAY_OPACITY = "overlay.opacity"  # float [0.30, 1.00], default 0.95
+OVERLAY_OPP_OVERRIDE = "overlay.opp_override"  # str, empty => Auto
+OVERLAY_DECK_OVERRIDE = "overlay.deck_override"  # int deck_id, 0 => Auto

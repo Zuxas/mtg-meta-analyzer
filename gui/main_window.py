@@ -99,6 +99,127 @@ class MainWindow(QMainWindow):
         self._palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         self._palette_shortcut.activated.connect(self._open_palette)
 
+        # Application-wide Ctrl+Shift+Q -- always-available quit when
+        # the analyzer has focus. The Win32 global hotkey below ALSO
+        # tries to register the same combo so it fires from MTGA, but
+        # if Discord / NVIDIA / etc. has claimed it globally, this
+        # local fallback still works while the user is in our app.
+        self._quit_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Q"), self)
+        self._quit_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._quit_shortcut.activated.connect(self._force_quit)
+
+        # Transparent matchup overlay (Ctrl+Shift+M show/hide,
+        # Ctrl+Shift+L lock/unlock click-through). Created hidden;
+        # auto-refreshes on every new MTGA match.
+        from gui.widgets.matchup_overlay import MatchupOverlay
+        from gui.state_keys import (
+            OVERLAY_GEOMETRY, OVERLAY_LOCKED,
+            OVERLAY_COMPACT, OVERLAY_NOTES_OPEN, OVERLAY_DECKLIST_OPEN,
+            OVERLAY_OPACITY, OVERLAY_OPP_OVERRIDE, OVERLAY_DECK_OVERRIDE,
+        )
+        self._matchup_overlay = MatchupOverlay()
+        geom = self.ui_state.get(OVERLAY_GEOMETRY)
+        if geom:
+            self._matchup_overlay.restore_geometry(geom)
+        else:
+            # Default position: middle-right of primary screen so it
+            # parks beside MTGA without covering hand/mana/log.
+            try:
+                from PyQt6.QtWidgets import QApplication as _QApp
+                screen = _QApp.primaryScreen()
+                if screen is not None:
+                    avail = screen.availableGeometry()
+                    w, h = 380, 540
+                    self._matchup_overlay.setGeometry(
+                        max(0, avail.right() - w - 20),
+                        max(0, avail.center().y() - h // 2),
+                        w, h,
+                    )
+            except Exception:
+                pass
+        stored_locked = self.ui_state.get(OVERLAY_LOCKED)
+        if stored_locked is False:
+            self._matchup_overlay.set_locked(False)
+        stored_notes_open = self.ui_state.get(OVERLAY_NOTES_OPEN)
+        if stored_notes_open is False:
+            self._matchup_overlay.set_notes_open(False)
+        stored_decklist_open = self.ui_state.get(OVERLAY_DECKLIST_OPEN)
+        if stored_decklist_open is True:
+            self._matchup_overlay.set_decklist_open(True)
+        stored_compact = self.ui_state.get(OVERLAY_COMPACT)
+        if stored_compact is True:
+            self._matchup_overlay.set_compact(True)
+        stored_opacity = self.ui_state.get(OVERLAY_OPACITY)
+        if isinstance(stored_opacity, (int, float)):
+            self._matchup_overlay.set_opacity(float(stored_opacity))
+        stored_deck = self.ui_state.get(OVERLAY_DECK_OVERRIDE)
+        stored_override = self.ui_state.get(OVERLAY_OPP_OVERRIDE)
+        if stored_deck or stored_override:
+            # Set overrides need the combos populated, so refresh once
+            # first (it builds both dropdowns).
+            self._matchup_overlay.refresh()
+            if stored_deck:
+                self._matchup_overlay.set_deck_override(int(stored_deck))
+            if stored_override:
+                self._matchup_overlay.set_opp_override(stored_override)
+        # Persist user changes back to ui_state
+        self._matchup_overlay.notes_open_changed.connect(
+            lambda b: self.ui_state.set(OVERLAY_NOTES_OPEN, b)
+        )
+        self._matchup_overlay.decklist_open_changed.connect(
+            lambda b: self.ui_state.set(OVERLAY_DECKLIST_OPEN, b)
+        )
+        self._matchup_overlay.compact_changed.connect(
+            lambda b: self.ui_state.set(OVERLAY_COMPACT, b)
+        )
+        self._matchup_overlay.opacity_changed.connect(
+            lambda v: self.ui_state.set(OVERLAY_OPACITY, float(v))
+        )
+        self._matchup_overlay.opp_override_changed.connect(
+            lambda s: self.ui_state.set(OVERLAY_OPP_OVERRIDE, s or "")
+        )
+        self._matchup_overlay.deck_override_changed.connect(
+            lambda i: self.ui_state.set(OVERLAY_DECK_OVERRIDE, int(i))
+        )
+        self._mtga_watcher.matches_imported.connect(
+            lambda _n: self._matchup_overlay.refresh()
+        )
+        # QShortcut works while the meta-analyzer window has focus.
+        # For true cross-process hotkeys (while MTGA has focus) we
+        # also start a Win32 global-hotkey listener below.
+        self._overlay_toggle_sc = QShortcut(QKeySequence("Ctrl+Shift+M"), self)
+        self._overlay_toggle_sc.activated.connect(self._toggle_matchup_overlay)
+        self._overlay_lock_sc = QShortcut(QKeySequence("Ctrl+Shift+L"), self)
+        self._overlay_lock_sc.activated.connect(self._toggle_matchup_overlay_lock)
+
+        # OS-level global hotkeys via Win32 RegisterHotKey. Fire even
+        # when MTGA owns keyboard focus. Returns None on non-Windows.
+        from gui.global_hotkey import (
+            register_global_hotkeys, MOD_CONTROL, MOD_SHIFT, VK_M, VK_L, VK_Q,
+        )
+        self._global_hotkey_listener = register_global_hotkeys([
+            (1, MOD_CONTROL | MOD_SHIFT, VK_M),
+            (2, MOD_CONTROL | MOD_SHIFT, VK_L),
+            (3, MOD_CONTROL | MOD_SHIFT, VK_Q),  # always-available quit
+        ])
+        if self._global_hotkey_listener is not None:
+            self._global_hotkey_listener.hotkey_fired.connect(
+                self._on_global_hotkey
+            )
+
+        # Foreground watcher: overlay auto-shows when MTGA is focused,
+        # auto-hides when alt-tabbed elsewhere. The user's Ctrl+Shift+M
+        # toggle decides whether the overlay is "wanted" at all -- the
+        # watcher only gates effective visibility.
+        from gui.foreground_watcher import create_watcher
+        self._overlay_user_wants = False
+        self._mtga_is_foreground = False
+        self._fg_watcher = create_watcher(self)
+        if self._fg_watcher is not None:
+            self._fg_watcher.foreground_changed.connect(
+                self._on_foreground_changed
+            )
+
         # Restore last active tab path, if any
         last_path = self.ui_state.get(LAST_ACTIVE_TAB_PATH)
         if last_path:
@@ -354,15 +475,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-    def closeEvent(self, event):
-        """Clean shutdown of the live-tail watcher."""
-        try:
-            if hasattr(self, "_mtga_watcher"):
-                self._mtga_watcher.stop()
-        except Exception:
-            pass
-        super().closeEvent(event)
-
     def _auto_sync_mtga_on_launch(self) -> None:
         """Re-parse MTGA Player.log on launch so new matches show up
         without waiting for the 6 AM pipeline. Runs in a worker thread
@@ -412,6 +524,86 @@ class MainWindow(QMainWindow):
         recents = [r for r in recents if r != entry_id]
         recents.insert(0, entry_id)
         self.ui_state.set(PALETTE_RECENTS, recents[:20])
+
+    # ------------------------------------------------------------------
+    # Matchup overlay (Ctrl+Shift+M show/hide, Ctrl+Shift+L lock/unlock)
+    # ------------------------------------------------------------------
+
+    def _toggle_matchup_overlay(self) -> None:
+        """Ctrl+Shift+M cycle: toggles whether the overlay is 'wanted'.
+
+        If the foreground watcher exists, effective visibility is gated
+        by whether MTGA is the active window. On non-Windows (no
+        watcher) wanted == visible.
+        """
+        from gui.state_keys import OVERLAY_GEOMETRY
+        # Persist geometry whenever the overlay is currently shown
+        if self._matchup_overlay.isVisible():
+            self.ui_state.set(
+                OVERLAY_GEOMETRY,
+                list(self._matchup_overlay.geometry_tuple()),
+            )
+        self._overlay_user_wants = not self._overlay_user_wants
+        self._apply_overlay_visibility()
+
+    def _on_foreground_changed(self, title: str) -> None:
+        from gui.foreground_watcher import is_mtga_window, is_meta_analyzer_window
+        # Treat the meta-analyzer's own window as "MTGA-equivalent" for
+        # gating purposes so user can alt-tab here to configure the
+        # overlay without losing it.
+        self._mtga_is_foreground = (
+            is_mtga_window(title) or is_meta_analyzer_window(title)
+        )
+        self._apply_overlay_visibility()
+
+    def _apply_overlay_visibility(self) -> None:
+        """Show iff user wants it AND (no watcher OR MTGA / our-window has focus)."""
+        wants = self._overlay_user_wants
+        # If we have a watcher, gate on MTGA focus. Without a watcher
+        # (non-Windows), the user toggle alone decides.
+        gated = self._fg_watcher is not None
+        should_show = wants and (not gated or self._mtga_is_foreground)
+        if should_show and not self._matchup_overlay.isVisible():
+            self._matchup_overlay.refresh()
+            self._matchup_overlay.show()
+        elif not should_show and self._matchup_overlay.isVisible():
+            self._matchup_overlay.hide()
+
+    def _toggle_matchup_overlay_lock(self) -> None:
+        self._matchup_overlay.toggle_locked()
+        from gui.state_keys import OVERLAY_LOCKED
+        self.ui_state.set(OVERLAY_LOCKED, self._matchup_overlay.is_locked())
+
+    def _on_global_hotkey(self, hk_id: int) -> None:
+        """Dispatch a Win32 WM_HOTKEY by registered ID."""
+        if hk_id == 1:
+            self._toggle_matchup_overlay()
+        elif hk_id == 2:
+            self._toggle_matchup_overlay_lock()
+        elif hk_id == 3:
+            self._force_quit()
+
+    def _force_quit(self) -> None:
+        """Always-available exit path. Bypasses the tray-hide logic in
+        closeEvent so the process actually terminates instead of
+        minimizing into a hidden tray slot."""
+        # Mark ourselves so closeEvent accepts instead of hides
+        self._force_closing = True
+        # Run cleanup synchronously so workers stop
+        try:
+            self.cleanup()
+        except Exception:
+            pass
+        from PyQt6.QtWidgets import QApplication
+        QApplication.instance().exit(0)
+        # Belt-and-braces hard exit if Qt's event loop doesn't honor
+        # the exit (e.g. because some signal handler swallows it)
+        import threading, os, time
+        def _hard_exit():
+            time.sleep(1.5)
+            os._exit(0)
+        t = threading.Thread(target=_hard_exit, daemon=True)
+        t.start()
 
     # ------------------------------------------------------------------
     # Tab navigation helpers (used by palette handlers)
@@ -686,6 +878,51 @@ class MainWindow(QMainWindow):
     def cleanup(self):
         """Stop all running workers. Called by app.aboutToQuit before process exits."""
         self._mem_timer.stop()
+        # Stop Win32 global hotkey listener first so the message pump
+        # exits before the overlay it controls disappears.
+        try:
+            listener = getattr(self, "_global_hotkey_listener", None)
+            if listener is not None:
+                listener.stop()
+                self._global_hotkey_listener = None
+        except Exception:
+            pass
+        # Stop foreground watcher (just a QTimer)
+        try:
+            fg = getattr(self, "_fg_watcher", None)
+            if fg is not None:
+                fg.stop()
+                self._fg_watcher = None
+        except Exception:
+            pass
+        # Persist overlay geometry + lock state on shutdown
+        try:
+            if getattr(self, "_matchup_overlay", None) is not None:
+                from gui.state_keys import OVERLAY_GEOMETRY, OVERLAY_LOCKED
+                self.ui_state.set(
+                    OVERLAY_GEOMETRY,
+                    list(self._matchup_overlay.geometry_tuple()),
+                )
+                self.ui_state.set(
+                    OVERLAY_LOCKED, self._matchup_overlay.is_locked()
+                )
+                self._matchup_overlay.close()
+        except Exception:
+            pass
+        # Stop live-tail watcher (was previously in a dead-coded closeEvent)
+        try:
+            if hasattr(self, "_mtga_watcher"):
+                self._mtga_watcher.stop()
+        except Exception:
+            pass
+        # Stop launch-time auto-sync worker if still running
+        try:
+            if getattr(self, "_launch_sync_worker", None) is not None:
+                from gui.worker_utils import stop_worker
+                stop_worker(self._launch_sync_worker)
+                self._launch_sync_worker = None
+        except Exception:
+            pass
         # Stop background scrape worker
         if getattr(self, "_scrape_worker", None) is not None:
             try:
@@ -729,12 +966,23 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+        # _force_quit sets this flag; honor it so the close goes through
+        if getattr(self, "_force_closing", False):
+            event.accept()
+            return
+
         if not event.spontaneous():
             # Programmatic close event — accept it normally, do NOT hide to tray
             event.ignore()
             return
 
-        if self._tray and self._tray.isSystemTrayAvailable():
+        # Hide to tray only if the tray icon is actually visible.
+        tray_usable = (
+            self._tray is not None
+            and self._tray.isSystemTrayAvailable()
+            and self._tray.isVisible()
+        )
+        if tray_usable:
             event.ignore()
             self.hide()
             # Show balloon only on first close-to-tray so it doesn't nag every time

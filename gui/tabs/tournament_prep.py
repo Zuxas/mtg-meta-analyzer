@@ -130,21 +130,28 @@ class TournamentPrepTab(QWidget):
 
         inner = QTabWidget()
         inner.setTabPosition(QTabWidget.TabPosition.North)
-        self._rcq       = EventWidget()
-        self._event_hub = EventHubTab()
-        self._scout     = ScoutTab()
-        inner.addTab(PrepChecklistTab(), "PREP CHECKLIST")
-        inner.addTab(self._rcq,          "EVENT OPTIMIZER")
-        inner.addTab(self._event_hub,    "EVENT HUB")
-        inner.addTab(self._scout,        "SCOUT")
-        inner.addTab(BreakerWidget(),    "BREAKER MATH")
-        inner.addTab(HypothesesTab(),    "HYPOTHESES")
+        self._prep_checklist = PrepChecklistTab()
+        self._rcq            = EventWidget()
+        self._event_hub      = EventHubTab()
+        self._scout          = ScoutTab()
+        self._breaker        = BreakerWidget()
+        self._hypotheses     = HypothesesTab()
+        inner.addTab(self._prep_checklist, "PREP CHECKLIST")
+        inner.addTab(self._rcq,            "EVENT OPTIMIZER")
+        inner.addTab(self._event_hub,      "EVENT HUB")
+        inner.addTab(self._scout,          "SCOUT")
+        inner.addTab(self._breaker,        "BREAKER MATH")
+        inner.addTab(self._hypotheses,     "HYPOTHESES")
         layout.addWidget(inner)
 
     def cleanup(self):
-        for sub in (self._rcq, self._event_hub):
+        for sub in (self._prep_checklist, self._rcq, self._event_hub,
+                    self._scout, self._breaker, self._hypotheses):
             if hasattr(sub, "cleanup"):
-                sub.cleanup()
+                try:
+                    sub.cleanup()
+                except Exception:
+                    pass
 
     def load_deck(self, deck: dict):
         """Called by MainWindow when user clicks 'Open in Event Optimizer' from My Decks."""
