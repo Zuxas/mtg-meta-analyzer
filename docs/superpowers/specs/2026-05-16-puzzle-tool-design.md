@@ -116,7 +116,7 @@ CREATE TABLE puzzles (
     solution_text   TEXT NOT NULL,    -- author's prose solution (revealed)
     solution_keywords_json TEXT,      -- ["bounce_worldwagon","burn_elf"] for keyword grader
     grading_mode    TEXT NOT NULL,    -- 'self' | 'keyword' | 'llm'
-    author          TEXT,             -- 'auto-seeded' | 'jermey' | imported handle
+    author          TEXT,             -- 'auto-seeded' | local user handle | imported handle
     notes           TEXT,             -- explanation, hints, alternate lines
     scene_json      TEXT NOT NULL,    -- serialized Scene snapshot at author time;
                                        -- protects against source replay being deleted later
