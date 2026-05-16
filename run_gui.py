@@ -43,6 +43,10 @@ def main():
 
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtGui import QIcon
+    # Install crash handlers BEFORE importing MainWindow so an import-time
+    # error in the deep widget tree leaves a forensic log on disk.
+    from gui.crash_handler import install_handlers
+    install_handlers()
     from gui.main_window import MainWindow
 
     app = QApplication(sys.argv)
