@@ -49,14 +49,28 @@ class PuzzleSceneWidget(QWidget):
         if scene is not None:
             self.set_scene(scene)
 
+    @staticmethod
+    def _clear_layout(layout) -> None:
+        """Recursively detach all items from a layout, deleting both widgets
+        and nested layouts. Used by set_scene() so re-rendering doesn't leak
+        sub-layouts in memory."""
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+                continue
+            sub = item.layout()
+            if sub is not None:
+                PuzzleSceneWidget._clear_layout(sub)
+                sub.deleteLater()
+
     def set_scene(self, scene: Scene) -> None:
         """Replace the rendered scene."""
         self._scene = scene
-        # Clear existing children
-        while self._outer.count():
-            item = self._outer.takeAt(0)
-            if item.widget():
-                item.widget().setParent(None)
+        # Clear existing children (handles both widgets and nested layouts)
+        self._clear_layout(self._outer)
         # Top → bottom
         self._outer.addLayout(self._make_opp_header(scene.opp))
         self._outer.addLayout(self._make_card_row(scene.opp.battlefield_lands, label="opp lands"))
