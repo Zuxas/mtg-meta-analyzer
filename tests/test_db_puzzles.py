@@ -57,3 +57,61 @@ def test_puzzles_table_shape_via_smoke_insert(tmp_db):
     assert row[0] == "find_lethal"
     assert row[1] == "q"
     assert row[2] == "{}"
+
+
+def _sample_scene_dict() -> dict:
+    """Minimal scene dict for puzzle.scene_json."""
+    return {
+        "arena_match_id": "test-match-1",
+        "game_num": 1,
+        "turn_num": 7,
+        "play_or_draw": "draw",
+        "you": {"name": "Z", "life": 4, "hand": []},
+        "opp": {"name": "M", "life": 12, "hand": []},
+    }
+
+
+def test_save_and_get_puzzle_round_trip(tmp_db):
+    from db import puzzles
+    puzzles._ensure_tables()
+    pid = puzzles.save_puzzle(
+        deck_id=None,
+        arena_match_id="test-match-1",
+        game_num=1,
+        turn_num=7,
+        category="stabilize",
+        difficulty=3,
+        question="Survive opp's T8",
+        solution_text="Cast Slagstorm, keep Crab to block",
+        solution_keywords=["slagstorm", "block_crab"],
+        grading_mode="self",
+        author="seeder",
+        notes="See primer notes",
+        scene=_sample_scene_dict(),
+    )
+    assert pid >= 1
+    got = puzzles.get_puzzle(pid)
+    assert got["category"] == "stabilize"
+    assert got["question"] == "Survive opp's T8"
+    assert got["scene"]["turn_num"] == 7  # scene was JSON-deserialized
+    assert got["solution_keywords"] == ["slagstorm", "block_crab"]
+
+
+def test_get_puzzles_filters_by_category(tmp_db):
+    from db import puzzles
+    puzzles._ensure_tables()
+    puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m1", game_num=1, turn_num=5,
+        category="find_lethal", difficulty=2, question="q1",
+        solution_text="s1", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    puzzles.save_puzzle(
+        deck_id=None, arena_match_id="m2", game_num=1, turn_num=5,
+        category="stabilize", difficulty=2, question="q2",
+        solution_text="s2", solution_keywords=[], grading_mode="self",
+        author="t", notes="", scene=_sample_scene_dict(),
+    )
+    assert len(puzzles.get_puzzles(category="find_lethal")) == 1
+    assert len(puzzles.get_puzzles(category="stabilize")) == 1
+    assert len(puzzles.get_puzzles()) == 2

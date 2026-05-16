@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from db.database import get_connection
 from db.helpers import utc_now as _utc_now
+import db.saved_decks as _saved_decks_mod
 
 
 _TABLES_SQL = """
@@ -65,7 +66,97 @@ CREATE INDEX IF NOT EXISTS idx_inbox_undismissed ON puzzle_inbox(dismissed_at, h
 
 def _ensure_tables() -> None:
     """Idempotent table creation. Safe to call on every module use."""
+    _saved_decks_mod._ensure_tables()  # puzzles FK references saved_decks
     with get_connection() as conn:
         conn.executescript(_TABLES_SQL)
 
+
+def save_puzzle(
+    *,
+    deck_id: Optional[int],
+    arena_match_id: Optional[str],
+    game_num: Optional[int],
+    turn_num: Optional[int],
+    category: str,
+    difficulty: int,
+    question: str,
+    solution_text: str,
+    solution_keywords: list[str],
+    grading_mode: str,
+    author: Optional[str],
+    notes: Optional[str],
+    scene: dict,
+) -> int:
+    """Insert a new puzzle. Returns the new row id."""
+    _ensure_tables()
+    now = _utc_now()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO puzzles ("
+            "deck_id, arena_match_id, game_num, turn_num, category, difficulty, "
+            "question, solution_text, solution_keywords_json, grading_mode, "
+            "author, notes, scene_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                deck_id, arena_match_id, game_num, turn_num, category, difficulty,
+                question, solution_text, json.dumps(solution_keywords or []),
+                grading_mode, author, notes,
+                json.dumps(scene), now, now,
+            ),
+        )
+        return int(cur.lastrowid)
+
+
+def _row_to_puzzle(row: sqlite3.Row) -> dict[str, Any]:
+    d = dict(row)
+    d["solution_keywords"] = json.loads(d.pop("solution_keywords_json") or "[]")
+    d["scene"] = json.loads(d.pop("scene_json") or "{}")
+    return d
+
+
+def get_puzzle(puzzle_id: int) -> Optional[dict[str, Any]]:
+    _ensure_tables()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM puzzles WHERE id = ?", (puzzle_id,)
+        ).fetchone()
+    return _row_to_puzzle(row) if row else None
+
+
+def get_puzzles(
+    *,
+    category: Optional[str] = None,
+    deck_id: Optional[int] = None,
+    unsolved_only: bool = False,
+) -> list[dict[str, Any]]:
+    """Return puzzles, optionally filtered. Newest first."""
+    _ensure_tables()
+    clauses, params = [], []
+    if category:
+        clauses.append("category = ?"); params.append(category)
+    if deck_id is not None:
+        clauses.append("deck_id = ?"); params.append(deck_id)
+    sql = "SELECT * FROM puzzles"
+    if clauses:
+        sql += " WHERE " + " AND ".join(clauses)
+    sql += " ORDER BY id DESC"
+    with get_connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    puzzles_list = [_row_to_puzzle(r) for r in rows]
+    if unsolved_only:
+        with get_connection() as conn:
+            solved_ids = {
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT puzzle_id FROM puzzle_attempts "
+                    "WHERE verdict = 'correct'"
+                ).fetchall()
+            }
+        puzzles_list = [p for p in puzzles_list if p["id"] not in solved_ids]
+    return puzzles_list
+
+
+def delete_puzzle(puzzle_id: int) -> None:
+    _ensure_tables()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM puzzles WHERE id = ?", (puzzle_id,))
 
