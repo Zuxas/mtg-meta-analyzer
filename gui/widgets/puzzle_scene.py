@@ -166,8 +166,8 @@ class PuzzleSceneWidget(QWidget):
                                     Qt.AspectRatioMode.KeepAspectRatio,
                                     Qt.TransformationMode.SmoothTransformation))
             lbl.setToolTip(self._tooltip_for(card))
-            if card.tapped:
-                lbl.setStyleSheet("QLabel { padding: 0; transform: rotate(15deg); }")
+            # Tapped cards are flagged via tooltip "(tapped)" — Qt stylesheet
+            # doesn't support `transform: rotate()`, so no visual rotation.
             return lbl
         return self._make_placeholder(card)
 

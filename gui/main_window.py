@@ -461,7 +461,7 @@ class MainWindow(QMainWindow):
         a manual refresh."""
         # Find the active tab and refresh if it has a reload method.
         # Match Log + My Decks both pull from match_log.
-        current = self.centralWidget().currentWidget() if hasattr(self, "centralWidget") else None
+        current = self._tabs.currentWidget() if hasattr(self, "_tabs") else None
         for attr in ("_load_matches", "refresh", "reload"):
             if current and hasattr(current, attr):
                 try:
