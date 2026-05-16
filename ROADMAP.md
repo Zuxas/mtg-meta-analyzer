@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-14
+> Last updated: 2026-05-15
 
 ---
 
@@ -9,7 +9,7 @@
 
 ## OPEN — Query & Discovery
 - [ ] Card-name decklist search (exact + multi-card AND/OR)
-- [ ] Global "All Formats" option everywhere
+- [x] **Global "All Formats" option everywhere** (2026-05-14) — `analysis.win_rates.is_all_formats()` helper rolled across 7 analysis sites + 2 GUI inline-SQL sites
 
 ## OPEN — Testing & Iteration
 - [ ] Card swap rationale tracker (why you changed cards)
@@ -19,9 +19,26 @@
 - [ ] Testing insights from logged matches
 
 ## OPEN — Match Logging Enhancements
-- [ ] Track record by event type (RCQ vs Open vs RC)
+- [x] **Track record by event type** (2026-05-14) — Match History sub-tab shows per-category breakdown (Ranked Bo3 / Ranked Bo1 / Unranked / Limited / Other) with filter dropdown
+- [x] **Mulligan analysis from logged matches** (2026-05-14) — `db.match_games.keep_stats_for_deck` aggregates keep-7 / mull-to-6 / mull-to-5 / mull-to-4 buckets with per-bucket WR; surfaced in Match History sub-tab with reliability coloring + actionable warning
+- [x] **Canonical vs Actual SB plan diff** (2026-05-14) — `analysis.sb_plan_diff.compare_match_to_canonical` shows IN-match % colored by reliability under each plan line in Match Detail panel
 - [ ] Trend analysis: personal WR over time, improving/declining matchups
 - [ ] Integration with SB advisor: "your WR is low vs X, adjust your plan"
+
+## OPEN — MTGA Live Integration (next: 5/16 chain)
+- [x] **Auto-import MTGA Player.log into match_log** (2026-05-14) — wired into M/W/F pipeline + auto-sync on GUI launch + 30s live-tail QThread
+- [x] **Per-match SB plan extraction** (2026-05-14) — `match_log_sb_plans` from SubmitDeckReq events, alt-art collapsed at name level
+- [x] **Per-game stats** (2026-05-14) — `match_log_games` with life endpoints, mull-to, turn count, close/blowout classifier
+- [x] **Auto-create saved deck on unknown match** (2026-05-14) — alt-art-safe grpId/name overlap classifier with 70% threshold; creates `<archetype> (auto-imported YYYY-MM-DD)` deck when no existing match clears threshold; sideboard auto-fill on creation + on opportunistic backfill
+- [x] **Turn-by-turn replay viewer** (2026-05-14, v0.6) — `analysis/replay_transcript.build_transcript` walks gameStateMessage.annotations + ClientToGREMessage; covers opening hand, mulligans, draws, surveils, scry top/bottom, lands played, casts with countered-target attribution via look-ahead, abilities + targets, declared attackers/blockers, damage, tokens, life trajectory
+- [x] **Rank progression tracking** (2026-05-14) — `rank_snapshots` table + `analysis.rank_tracker.capture_current_rank()` + Dashboard rank label with clickable chart popup + dedup-on-insert
+- [x] **Crash logger** (2026-05-15) — `gui/crash_handler.py` with sys.excepthook + qInstallMessageHandler writing to `logs/gui_crash_*.log` and `logs/qt_msgs_*.log`; QApplication-instance guard prevents C++ abort path on early-failure modals
+- [x] **Transparent overlay for MTGA** (2026-05-15) — frameless always-on-top + WA_TranslucentBackground + conditional WindowTransparentForInput when locked; Win32 RegisterHotKey listener for true global Ctrl+Shift+M / Ctrl+Shift+L / Ctrl+Shift+Q; horizontal 240×44 compact pip at bottom-right with click-anywhere-to-expand; foreground watcher auto-shows when MTGA or meta-analyzer has focus, auto-hides on alt-tab elsewhere; deck dropdown + matchup dropdown with Auto fallback; record vs archetype + per-game chips; cards-seen-vs-archetype aggregated; notes panel (saved_sb_plans.notes); decklist quick-reference; opacity slider; 8+ state slices persisted
+- [ ] **Google Maps deeplink for events** (deferred 5/16 → 5/17)
+- [x] **Thread lifecycle audit** (2026-05-15) — 4 real bugs: dead-coded closeEvent in main_window.py:357 (watcher.stop never ran), tournament_prep.cleanup walked only 2 of 6 sub-tabs, hypotheses + prep_checklist used pre-Qt-6.10 raw blockSignals pattern; all fixed
+- [x] **Responsiveness profiling** (2026-05-15) — `_refresh_orphan_banner` cache+invalidate, Watch Replay async via DataLoadWorker, recent-matches table wraps populate with setUpdatesEnabled(False)+setSortingEnabled(False)
+- [x] **Force-quit + smart-X-button** (2026-05-15) — Ctrl+Shift+Q global hotkey (Win32 + local ApplicationShortcut fallback), `closeEvent` checks `tray.isVisible()` before hiding; prevents zombie process accumulation when tray icon is hidden
+- [x] **UIState atomic-write robustness** (2026-05-15) — switched from tmp+replace (was leaving leftover tail bytes corrupting preferences.json) to truncate+write+fsync with re-read+merge of non-ui_state keys
 
 ## OPEN — Tournament System
 - [ ] Pre-event prep mode (deck + SB guide + expected meta)
@@ -46,6 +63,29 @@
 ---
 
 ## COMPLETED
+
+### 2026-05-14 / 2026-05-15 — MTGA Live Import + Match History + Replay Viewer
+**Huge build day. RC DC 14 days out. Everything below shipped in one session.**
+
+- [x] **MTGA Player.log auto-import** — `scrapers/mtga_log_parser.py` migrated from `save_match` -> `db.match_log.resolve_and_save` with `source='mtga_log'`, auto-classified `my_deck_id`, `opp_grp_ids_json` for future re-classification. Wired into M/W/F pipeline.
+- [x] **classify_opponent_deck SQL fix** — was referencing non-existent `dc.card_name`; now JOINs `cards` table for `c.name`. Backfilled 15 historical rows with real archetypes.
+- [x] **classify_my_deck schema fix + alt-art bug** — was querying `card_data.arena_id` which doesn't exist in production (lives in `untapped_card_db.grpid`); also fixed name-overwrite bug for basic lands. Rewrote name-based comparison, alt-art-safe.
+- [x] **`analysis/auto_save_deck.find_or_create_deck`** — when classifier returns None, auto-creates `<archetype> (auto-imported YYYY-MM-DD)` deck. Skips Limited + <20 unique grpids. Sideboard auto-populated from connectResp.deckMessage.sideboardCards. Backfilled 4 pre-fix decks (Dimir Aggro, Izzet Looting, Bant Rhythm, Esper Pixie).
+- [x] **`db/match_sb_plans.py`** — per-match SB plan extraction from SubmitDeckReq events. Diff at card-name level (alt-art swaps net to zero). 17 plan rows backfilled across 14 multi-game matches.
+- [x] **`db/match_games.py`** — per-game stats (life_min/end, mull_to, n_turns) + `classify_game(stat, my_won)` returning close/blowout/normal from winner's perspective. 57 stat rows backfilled. `keep_stats_for_deck` aggregates mull buckets.
+- [x] **Match History sub-tab** (`gui/widgets/deck_match_history.py`) — 5th sub-tab on My Decks deck-detail panel. Horizontal QSplitter: Recent Matches left, Match Detail right. Summary header + per-category breakdown + filter dropdown (default "Ranked (any)"). Matchup aggregation table. Recent-matches list (top 50). Click a row -> per-game W/L/class/turn/mull/life + SB plan diff + Watch Replay button.
+- [x] **`analysis/replay_transcript.build_transcript`** (v0.6) — cached file-per-match transcript at `data/match_replays/<arena_match_id>.json`. Walks gameStateMessage.annotations (ZoneTransfer/AbilityInstanceCreated/PlayerSubmittedTargets/DamageDealt/TokenCreated/CounterAdded/Scry/RevealedCardCreated) + ClientToGREMessage (MulliganResp/SubmitAttackersReq/SubmitBlockersReq). Resets instance_to_grpid + current_turn + prev_life on game change (Arena reuses instance IDs).
+- [x] **Counter-spell target attribution via look-ahead** — track pending_counters as (name, turn_entry, action_idx); on Countered event, pop and mutate earlier cast line in-place to append "-> targets: X". Both lines remain.
+- [x] **Scry top/bottom resolution** — details.topIds/bottomIds resolved to card names ("scry 1 -> top: Kaito, Bane of Nightmares").
+- [x] **`gui/widgets/replay_transcript_dialog.ReplayTranscriptDialog`** — popup QDialog with monospace QTextEdit; HTML coloring for life changes; Refresh-from-log button.
+- [x] **`analysis/sb_plan_diff.compare_match_to_canonical`** — fuzzy archetype matching (exact -> normalized -> first-word with W/U/B/R/G excluded); per-transition cards-followed/missing/unplanned with IN-match % colored.
+- [x] **Mulligan analysis UI on Match History** — keep-7/mull-to-6/mull-to-5/mull-to-4 buckets with reliability coloring. Yellow warning when mull-to-6 has n>=3 AND WR<30%.
+- [x] **3-layer MTGA freshness** — ↻ Sync MTGA button on Match Log toolbar + auto-sync on GUI launch (QTimer.singleShot(500)) + 30s live-tail QThread (`gui/mtga_log_watcher.py`). Clean shutdown via closeEvent. Effective latency: 30s from match end to Match History appearance.
+- [x] **`db/rank_snapshots.py`** + **`analysis/rank_tracker.capture_current_rank`** — scans both Player.log + Player-prev.log (older first so latest wins) for rank objects; dedup'd on insert (only inserts when class/level/wins/losses actually changed). Captures constructed + limited.
+- [x] **Dashboard rank label** — `⚔ MTGA: Platinum 3 (25-28)` (ranked-only constructed W-L). Underlined + clickable; opens `RankProgressionDialog` with matplotlib chart (tier-name Y-axis ticks, format dropdown). Click refreshes the label first.
+- [x] **Spicerack HTTP 400 fix** — title-case `Standard`/`Modern` at API boundary so either casing works from callers.
+- [x] **Untapped pipeline expansion** — meta_scraper + matchup_scraper + replay_fetcher (--top 50) + mtga_log_parser + capture_current_rank + populate_for_all_local_replays wired into M/W/F pipeline.
+- [x] **Mythic decklist ingestion** — `db/untapped_decklists.py` schema + extract_decklist_from_replay + resolve_grpids + populate_for_short_ids + populate_for_all_local_replays. Ladder sub-tab gets ↻ Cache local + ↻ Pull current top 30 buttons + decklist panel below leaderboard + right-click Save to My Decks.
 
 ### 2026-05-13 — Match Log Variant Tracking + Timeline Panel
 - [x] `deck_variants` table + 5 additive columns on `match_log` (`my_deck_id`, `my_variant_hash`, `opp_grp_ids_json`, `source`, `backfill_status`) + `arena_match_id` for Untapped dedup

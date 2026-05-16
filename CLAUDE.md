@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15 (evening after overlay shipped)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -399,13 +399,25 @@ Project-scoped (in `.agents/skills/`, managed via `npx skills`):
 To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 
 ---
-*Last documentation update: 2026-05-14 — Match Log variant-tracking + Timeline panel ship
-  (feat/match-log-variant-tracking, Tasks 1-12). Shipped: deck_variants schema,
-  match_log additive columns (my_deck_id, my_variant_hash, opp_grp_ids_json, source,
-  backfill_status, arena_match_id), analysis/wilson.py, analysis/my_deck_classifier.py,
-  scrapers/untapped_match_log_writer.py, scripts/backfill_match_log_decks.py,
-  VariantTimelinePanel (Layout B Option C), OrphanResolverDialog, saved-deck dropdown
-  in match dialog. 12 impl commits + spec/plan docs.*
+*Last documentation update: 2026-05-15 (1:41 AM after huge 5/14 build day) — MTGA live import +
+  Match History + Watch Replay + Rank Progression shipped end-to-end. Concrete additions:
+  scrapers/mtga_log_parser migrated to resolve_and_save + auto-classification + auto-create-deck fallback;
+  db/match_sb_plans.py (per-match SB plan from SubmitDeckReq, alt-art name-collapsed);
+  db/match_games.py (per-game stats, classify_game close/blowout/normal);
+  analysis/auto_save_deck.find_or_create_deck (alt-art-safe, Limited-skip, sideboard auto-fill);
+  analysis/replay_transcript.build_transcript v0.6 (annotations + ClientToGREMessage + opening hand
+  with locked-iid pattern + counter-spell look-ahead attribution + scry top/bottom resolution +
+  per-game state reset for Arena's reused instance IDs); gui/widgets/deck_match_history.py
+  (Match History sub-tab on My Decks, ranked-filter default, mulligan analysis UI);
+  gui/widgets/replay_transcript_dialog.py (popup transcript viewer);
+  analysis/sb_plan_diff.compare_match_to_canonical (fuzzy archetype matching);
+  db/rank_snapshots.py + analysis/rank_tracker.capture_current_rank (dedup on insert,
+  Player-prev.log iterated first so latest wins); gui/widgets/rank_progression_dialog.py
+  (matplotlib chart, tier-name Y-axis); Dashboard rank label clickable; 3-layer MTGA freshness
+  (↻ Sync button + auto-sync on launch + 30s live-tail gui/mtga_log_watcher.py QThread);
+  db/untapped_decklists.py (Mythic decklist ingestion from local replay corpus). 143/143 tests green.
+  Tomorrow's chain staged in harness/plan-2026-05-16-execution-chain.md
+  (crash logger -> MTGA QA -> thread audit -> responsiveness -> Maps deeplink -> transparent overlay).*
 
 ## graphify
 

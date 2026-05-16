@@ -62,6 +62,16 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 - Add sideboard plans per matchup (play/draw IN/OUT, difficulty rating)
 - Export to MTGO/MTGA/decklist.org or printable HTML tournament guide
 - "Open in Event Optimizer" loads deck directly into tournament analysis
+- **Match History sub-tab**: per-deck W-L log filtered by ranked/unranked/limited, opponent-archetype aggregation, recent-matches list, per-game stats (life endpoints, mull-to, turn count, close/blowout classification), and SB plan diff (canonical vs actual transitions)
+- **Watch Replay**: opens a turn-by-turn dialog with the full Player.log transcript — opening hand, mulligans, draws, surveils, scry top/bottom, lands played, spells cast (with countered-target attribution via stack look-ahead), abilities + targets, attackers/blockers, damage, token creation, life trajectory
+
+**MTGA Arena integration (live)**
+- Auto-imports your Arena match results from Player.log on every launch
+- Live tail QThread watches the log mtime every 30s — new matches and rank changes appear without any manual sync
+- Auto-classifies your deck via grpId overlap against saved decks; auto-creates a new entry when no match clears the threshold (alt-art-safe name-based matching)
+- Extracts per-match SB plan from `SubmitDeckReq` events for G1->G2 and G2->G3 diffs
+- Captures per-game stats: life endpoints, mulligan-to, turn count, close/blowout classification
+- Rank progression: scrapes constructed + limited rank from Player.log, dedup'd on insert, time series visualised on the Dashboard via a clickable rank chart (matplotlib, tier-name Y-axis ticks)
 
 **Other features**
 - Weekly meta predictions with accuracy tracking (which signals are most reliable)
@@ -127,15 +137,16 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 
 | Tab | What's in it |
 |-----|-------------|
-| **Dashboard** | Meta standings with tier badges, win rates (real or estimated), popularity/win rate charts with weekly/daily toggle + format event markers, per-archetype click-through with exact decklist tab |
+| **Dashboard** | Meta standings with tier badges, win rates (real or estimated), popularity/win rate charts with weekly/daily toggle + format event markers, per-archetype click-through with exact decklist tab. Live MTGA rank label (constructed W-L, ranked-only); click to open rank progression chart |
 | **Deck Analyzer** | Paste an Arena decklist — blunder detection, Chapin Principles scoring, legality checker, export to MTGO/MTGA/decklist.org |
-| **My Decks** | Save decks with sideboard plans (play/draw IN/OUT), export printable HTML tournament guides, open in Event Optimizer |
+| **My Decks** | Save decks with sideboard plans (play/draw IN/OUT), export printable HTML tournament guides, open in Event Optimizer. 5 sub-tabs per deck: Decklist / Sideboard Plans / Test Hand / EV vs Field / **Match History** (auto-imported from MTGA Player.log with Watch Replay viewer) |
 | **Search** | Card lookup, deck search by archetype, head-to-head matchup comparison |
 | **Charts** | Meta share trend, archetype trend, compare trends (multi-archetype overlay), matchup heatmap |
 | **Predictions** | Generate and validate weekly meta predictions; accuracy report by prediction type |
 | **Knowledge Base** | Bookmark articles and guides; sync Skill Issue Magic sideboard guides |
 | **Tournament Prep** | Event Optimizer (RCQ/RC/PTQ presets, top-cut equity, matchup breakdown, flip detection) + Breaker Math (live W/L/D + ID calc) |
-| **Matchup Data** | NxN heatmap: Real Match Data (262k matches) + MTGDecks Live scrapes + paste CSV/JSON. Overall WR column, source indicators (★ = real) |
+| **Matchup Data** | NxN heatmap: Real Match Data (262k matches) + MTGDecks Live scrapes + Untapped Bo3 ladder + paste CSV/JSON. Overall WR column, source indicators (★ = real) |
+| **Ladder (Meta group)** | MTGA-ladder meta from Untapped Mythic leaderboard: rollup by archetype, Bo3 skill curve Bronze->Mythic, top-30 leaderboard with deck linkout + save-to-My-Decks. Cache local replays or pull current top-30 |
 | **Ask Claude** | AI assistant with meta context — hidden until API key is set in Settings |
 | **Settings** | Format selection, data window, auto-update frequency, AI key |
 

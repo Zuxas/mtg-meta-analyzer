@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15 (evening after the 5/16 chain shipped same-day)
 
 ---
 
@@ -12,10 +12,79 @@ with 17 SB plans (Nick's primer + Tokyo SB map). Current field-weighted
 EV vs 14d Standard meta: **53.6%** (Spellementals worst -10.8pp,
 Golgari best +24.5pp Easy SB bump).
 
-**Status:** Skipping RC Cincinnati 5/15-5/17. Focus is RC DC 5/29-5/31
-(15 days out as of 2026-05-14). Practice match data on Arena is the
-freshest input to the variant-tracking pipeline; Sync Untapped after
-play sessions to populate Match Log.
+**Status (5/15 evening):** RC DC **14 days out**. The 5/16 staged chain
+all shipped today instead of tomorrow: crash logger, thread lifecycle
+audit, responsiveness profiling, transparent matchup overlay. Tested
+against real MTGA in borderless windowed: hotkeys work, click-through
+works, foreground watcher auto-shows on MTGA focus and auto-hides on
+alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
+
+### What shipped 5/15 evening
+
+- **Crash logger** (`gui/crash_handler.py`) — sys.excepthook +
+  qInstallMessageHandler writing to `logs/gui_crash_YYYY-MM-DD.log` and
+  `logs/qt_msgs_YYYY-MM-DD.log`. Modal popup on uncaught exception when
+  QApplication exists, silent log when not. The Qt log already caught
+  one real bug today (compact mode being silently overridden by Qt's
+  layout enforcement).
+- **Thread audit** — 4 real bugs fixed: dead-coded closeEvent in
+  main_window.py:357 (watcher.stop never ran); tournament_prep.cleanup
+  walked only 2 of 6 sub-tabs; hypotheses + prep_checklist used the
+  pre-Qt-6.10 raw blockSignals pattern. All four can plausibly explain
+  the "GUI closes randomly" complaint.
+- **Responsiveness** — 3 named hot spots fixed: `_refresh_orphan_banner`
+  now caches the COUNT (invalidated on sync/resolve), Watch Replay
+  build moved to a DataLoadWorker (UI no longer freezes 1-2s on first
+  open), recent-matches table now wraps populate with
+  `setUpdatesEnabled(False)+setSortingEnabled(False)` to gate flicker.
+- **Transparent matchup overlay** (`gui/widgets/matchup_overlay.py`,
+  `gui/global_hotkey.py`, `gui/foreground_watcher.py`) — frameless
+  always-on-top + WA_TranslucentBackground + conditional
+  WindowTransparentForInput when locked. Win32 `RegisterHotKey` listener
+  on a dedicated message-pump thread for true cross-process hotkeys
+  (Ctrl+Shift+M show/hide, Ctrl+Shift+L lock/unlock, Ctrl+Shift+Q
+  force-quit). Win32 foreground watcher polls
+  `GetForegroundWindow` every 500ms and auto-toggles overlay
+  visibility based on whether MTGA or the meta-analyzer has focus.
+  Compact mode = horizontal 240×44 pip at bottom-right, click anywhere
+  on the pip to expand. Auto-unlocks during compact so the click
+  registers. Notes panel pulls `saved_sb_plans.notes` (4646 chars of
+  primer prose for some matchups). Decklist quick-reference panel
+  shows the user's saved 60+15 since MTGA hides own list during a
+  match. Recent record vs current archetype with per-game W/L chips.
+  Cards-seen-vs-archetype aggregated across past matches. Opacity
+  slider. Deck dropdown + matchup dropdown both with "Auto" + manual
+  override. 8+ slices of state persisted to `preferences.json`.
+- **Force-quit + smart-X-button** — `closeEvent` now checks
+  `tray.isVisible()` before hiding to tray; if invisible, the X button
+  actually exits. `Ctrl+Shift+Q` is wired both as a Win32 global hotkey
+  AND as a local `ApplicationShortcut` (so it works even when another
+  app like Discord has the global combo claimed). Sets a
+  `_force_closing` flag that bypasses `closeEvent` ignore, runs
+  cleanup, calls `QApplication.exit(0)`, and has an `os._exit(0)`
+  hard-fallback after 1.5s.
+- **UIState atomic-write robustness** — switched from tmp+replace to
+  truncate+write+fsync, plus a re-read of disk to merge non-ui_state
+  keys (formats, api_key) so concurrent writes from setup_wizard don't
+  lose data. The tmp+replace pattern was leaving leftover tail bytes
+  on this Windows box, corrupting `preferences.json` after every save.
+
+### Tomorrow's chain (5/17) — staged in harness/plan-2026-05-17-execution-chain.md
+1. **Real-MTGA endurance test** — play 5-10 actual ranked Bo3s end to
+   end. Verify overlay refreshes, hotkeys hold across sessions, no
+   memory growth, no crashes. Crash logger should now catch anything
+   that fires.
+2. **Google Maps deeplink** — deferred from 5/16. ~30-45min.
+3. **Tokyo SB plans for missing matchups** — Simic Rhythm,
+   Boros Tremors, Gruul Aggro, 4-Color Allies, generic Azorius.
+   Currently the dropdown lists 17 matchups but the live ranked queue
+   is throwing 5 archetypes that have no canonical plan stored.
+4. **Pre-launch single-instance check** — QLockFile + stale-lock
+   detection so multiple `python run_gui.py` invocations don't
+   accumulate (saw 4 zombies today before the smart-X fix).
+5. **EV vs Field projection refresh** — capture today's number after
+   the all-formats fix + Untapped data refresh; compare to 5/01
+   53.6% baseline.
 
 ---
 
