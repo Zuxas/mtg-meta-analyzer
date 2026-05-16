@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-15 (evening after the 5/16 chain shipped same-day)
+Last updated: 2026-05-16 (puzzle tool Phase 1 shipped)
 
 ---
 
@@ -94,6 +94,15 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
    `parallel_launcher.py --deck izzetprowessstandardtokyo --field rcdc`
    at N=1000. Compare to 5/01 baseline 68.4% canonical / 75.1% variant.
    Capture EV vs Field; compare to 5/01 53.6% baseline.
+
+### Puzzle tool — Phase 1 shipped (2026-05-16)
+- `db/puzzles.py` schema + CRUD for puzzles + puzzle_attempts; puzzle_inbox table created idempotently (wired in Phase 2)
+- `analysis/puzzles/scene_builder.py` — Scene / PlayerState / CardInZone dataclasses, build_scene() pulls life from cached transcripts
+- `gui/widgets/card_image_cache.py` — Scryfall JPEG cache at `data/card_images/<grpid_or_slug>.jpg`
+- `gui/widgets/puzzle_scene.py` — MTGA-style render widget (corner avatars, centered life, mirrored zones, fanned hand)
+- `gui/tabs/puzzles.py` — PUZZLES top-level tab, Solve mode with self-grade verification
+- `scripts/seed_puzzles.py` — 3 hand-authored puzzles (one per category)
+- Spec at `docs/superpowers/specs/2026-05-16-puzzle-tool-design.md`; Phase 2 (scanner + Inbox + Author dialog) scheduled by 5/20.
 
 ---
 

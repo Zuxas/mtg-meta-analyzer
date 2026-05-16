@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-15 (evening after overlay shipped)
+Last updated: 2026-05-16 (puzzle tool Phase 1 shipped)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -156,7 +156,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 ## 6. GUI
 
 **Entry point:** `run_gui.py` | **Theme:** `gui/theme.py` — modern dark theme, Inter font, Team Resolve branding
-**7 top-level tabs** (consolidated from 13): Dashboard, Meta (Charts/Matchup Data/Predictions/Simulate/Calibration/Ladder), Decks (Analyze/My Decks), Search, Tournament (Event Optimizer/Match Log), Resources (Guides/Ask Claude/Set Analysis), Settings
+**8 top-level tabs** (consolidated from 13): Dashboard, Meta (Charts/Matchup Data/Predictions/Simulate/Calibration/Ladder), Decks (Analyze/My Decks), Search, Tournament (Event Optimizer/Match Log), Resources (Guides/Ask Claude/Set Analysis), Puzzles (Solve), Settings
 
 ### Dashboard (Untapped.gg-inspired)
 - Three-column top: Recent Top Finishes / Win Rate / Popular
@@ -184,6 +184,14 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **Tournament Prep:** 6 sub-tabs — Prep Checklist / Event Optimizer / Event Hub / Scout / Breaker Math / Hypotheses.
 - **Scout sub-tab:** Pre-event pilot intel. Surfaces top-N finishers playing target archetypes (defaults to Tokyo Prowess priority matchups) in last K days. "Repeat offenders" table ranks pilots by top-cut count; "All finishes" table lists every result. Right-click context menu opens decklist URL or `@handle` on x.com (handles from `data/player_handles.json`). Double-click finisher row opens deck URL.
 - **Match Log (refreshed 2026-05-13):** Each row links to a specific saved-deck variant (mainboard+sideboard hash). Right-side **Variant Timeline** panel renders the deck's history when you filter to one deck: per-variant match count, WR, Wilson-significance flag (validated / promising / noisy), +/- card-swap delta from the previous variant. "↻ Sync Untapped" button kicks off `scrapers.untapped_match_log_writer.run()` ad-hoc; same writer runs in the M/W/F pipeline. Orphan banner + "Resolve..." dialog walks historical rows where `my_deck_id IS NULL`.
+- **Puzzles tab (Solve mode, Phase 1)**: MTGA-style "find-the-line"
+  practice. Renders a saved scene (life circles, mirrored zones, fanned
+  hand, Scryfall card images) with a typed-answer + reveal-solution +
+  self-grade flow. Records every attempt in `puzzle_attempts`. Hand-
+  authored puzzles seeded via `scripts/seed_puzzles.py`. Spec at
+  `docs/superpowers/specs/2026-05-16-puzzle-tool-design.md`. Phase 2
+  (scanner + Inbox + Author dialog + Match-History right-click) scheduled
+  for 5/20; Phase 3 (keyword + LLM graders) for 5/22.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 
