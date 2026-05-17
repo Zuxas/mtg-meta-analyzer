@@ -148,6 +148,8 @@ class DeckMatchHistory(QWidget):
         hh2.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         hh2.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         self._rm_tbl.itemSelectionChanged.connect(self._on_recent_selection)
+        self._rm_tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._rm_tbl.customContextMenuRequested.connect(self._on_recent_match_context_menu)
 
         # ── Horizontal splitter: Recent matches (left) | Match detail (right) ─
         split = QSplitter(Qt.Orientation.Horizontal)
@@ -651,4 +653,64 @@ class DeckMatchHistory(QWidget):
             my_deck_label=match_row.get("my_deck") or "",
             parent=self,
         )
+        dlg.exec()
+
+    def _on_recent_match_context_menu(self, position) -> None:
+        """Right-click on a recent-matches row -> context menu with the
+        'Create puzzle from this turn' action."""
+        from PyQt6.QtWidgets import QMenu, QMessageBox, QInputDialog
+        row = self._rm_tbl.rowAt(position.y())
+        if row < 0:
+            return
+        # The date cell carries the match_log id via UserRole (set in _render_recent)
+        date_item = self._rm_tbl.item(row, 0)
+        if date_item is None:
+            return
+        match_log_id = date_item.data(Qt.ItemDataRole.UserRole)
+        if match_log_id is None:
+            return
+
+        # Look up arena_match_id from the match row
+        from db.database import get_connection
+        with get_connection() as c:
+            r = c.execute(
+                "SELECT arena_match_id FROM match_log WHERE id = ?",
+                (int(match_log_id),),
+            ).fetchone()
+        arena_match_id = (r and r["arena_match_id"]) or ""
+
+        menu = QMenu(self)
+        create_act = menu.addAction("Create puzzle from this turn")
+        chosen = menu.exec(self._rm_tbl.viewport().mapToGlobal(position))
+        if chosen is not create_act:
+            return
+
+        if not arena_match_id:
+            QMessageBox.warning(
+                self, "No replay",
+                "This match has no arena_match_id -- can't reconstruct the scene.",
+            )
+            return
+
+        # Ask the user which turn (default 5; they pick from a number prompt)
+        turn_num, ok = QInputDialog.getInt(
+            self, "Pick turn", "Which turn to capture?",
+            value=5, min=1, max=30,
+        )
+        if not ok:
+            return
+
+        from analysis.puzzles.scene_builder import build_scene
+        from gui.widgets.puzzle_author_dialog import PuzzleAuthorDialog
+        scene = build_scene(
+            arena_match_id=arena_match_id, game_num=1, turn_num=turn_num,
+        )
+        if scene is None:
+            QMessageBox.warning(
+                self, "Scene unavailable",
+                f"No cached replay JSON for {arena_match_id}. "
+                "Open Watch Replay first to build the cache, then retry.",
+            )
+            return
+        dlg = PuzzleAuthorDialog(scene=scene, parent=self)
         dlg.exec()
