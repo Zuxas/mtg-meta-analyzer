@@ -1,9 +1,4 @@
-"""PUZZLES tab — Solve mode (Phase 1).
-
-Loads one unsolved puzzle at a time, renders the scene, takes the user's
-typed answer, reveals the author's solution on demand, and records the
-self-grade verdict. Author and Inbox modes ship in Phase 2.
-"""
+"""PUZZLES tab — Solve | Inbox | Author sub-modes (Phase 2)."""
 from __future__ import annotations
 
 import time
@@ -12,12 +7,14 @@ from typing import Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit,
-    QComboBox, QSplitter, QFrame,
+    QComboBox, QSplitter, QFrame, QTabWidget, QTableWidget,
+    QTableWidgetItem, QHeaderView, QMessageBox,
 )
 
-from analysis.puzzles.scene_builder import Scene
+from analysis.puzzles.scene_builder import Scene, PlayerState, build_scene
 from db import puzzles as db_puzzles
 from gui.widgets.puzzle_scene import PuzzleSceneWidget
+from gui.widgets.puzzle_author_dialog import PuzzleAuthorDialog
 
 import gui.theme as theme
 
@@ -31,7 +28,7 @@ _CATEGORY_OPTIONS = [
 
 
 class PuzzlesTab(QWidget):
-    """Solo solve loop. Author / Inbox sub-modes deferred to Phase 2."""
+    """Solo solve loop + Inbox candidate review. Author opens as a dialog."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -39,6 +36,7 @@ class PuzzlesTab(QWidget):
         self._reveal_t0_ms: Optional[int] = None
         self._build_ui()
         self._load_next_puzzle()
+        self._refresh_inbox()
 
     # ── Construction ───────────────────────────────────────────
     def _build_ui(self) -> None:
@@ -46,7 +44,17 @@ class PuzzlesTab(QWidget):
         outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(6)
 
-        # Top bar — category filter + session stats
+        self._sub_tabs = QTabWidget()
+        self._sub_tabs.addTab(self._build_solve_panel(), "Solve")
+        self._sub_tabs.addTab(self._build_inbox_panel(), "Inbox")
+        outer.addWidget(self._sub_tabs, 1)
+
+    def _build_solve_panel(self) -> QWidget:
+        panel = QWidget()
+        v = QVBoxLayout(panel)
+        v.setContentsMargins(4, 4, 4, 4)
+        v.setSpacing(6)
+
         top = QHBoxLayout()
         self._category_combo = QComboBox()
         for label, value in _CATEGORY_OPTIONS:
@@ -57,9 +65,8 @@ class PuzzlesTab(QWidget):
         top.addStretch(1)
         self._stats_lbl = QLabel("")
         top.addWidget(self._stats_lbl)
-        outer.addLayout(top)
+        v.addLayout(top)
 
-        # Split: scene on left, answer panel on right
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self._scene_widget = PuzzleSceneWidget()
         splitter.addWidget(self._scene_widget)
@@ -105,9 +112,56 @@ class PuzzlesTab(QWidget):
 
         splitter.addWidget(right)
         splitter.setSizes([720, 320])
-        outer.addWidget(splitter, 1)
+        v.addWidget(splitter, 1)
+        return panel
 
-    # ── Data flow ──────────────────────────────────────────────
+    def _build_inbox_panel(self) -> QWidget:
+        panel = QWidget()
+        v = QVBoxLayout(panel)
+        v.setContentsMargins(4, 4, 4, 4)
+        v.setSpacing(6)
+
+        # Toolbar: refresh + category filter
+        top = QHBoxLayout()
+        self._inbox_category_combo = QComboBox()
+        for label, value in _CATEGORY_OPTIONS:
+            self._inbox_category_combo.addItem(label, value)
+        self._inbox_category_combo.currentIndexChanged.connect(self._refresh_inbox)
+        top.addWidget(QLabel("Filter:"))
+        top.addWidget(self._inbox_category_combo)
+        refresh_btn = QPushButton("↻ Refresh")
+        refresh_btn.clicked.connect(self._refresh_inbox)
+        top.addWidget(refresh_btn)
+        top.addStretch(1)
+        v.addLayout(top)
+
+        # Table: id / category / score / match / game / turn / evidence
+        self._inbox_table = QTableWidget(0, 7)
+        self._inbox_table.setHorizontalHeaderLabels(
+            ["id", "category", "score", "match", "game", "turn", "evidence"]
+        )
+        self._inbox_table.horizontalHeader().setSectionResizeMode(
+            6, QHeaderView.ResizeMode.Stretch
+        )
+        self._inbox_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._inbox_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        v.addWidget(self._inbox_table, 1)
+
+        # Action buttons
+        btns = QHBoxLayout()
+        promote_btn = QPushButton("📥 Promote → Author")
+        promote_btn.clicked.connect(self._on_promote_selected)
+        dismiss_btn = QPushButton("✗ Dismiss")
+        dismiss_btn.clicked.connect(self._on_dismiss_selected)
+        btns.addWidget(promote_btn)
+        btns.addWidget(dismiss_btn)
+        btns.addStretch(1)
+        v.addLayout(btns)
+        return panel
+
+    # ── Solve mode data flow ───────────────────────────────────
     def _on_category_changed(self, _idx: int) -> None:
         self._load_next_puzzle()
 
@@ -119,8 +173,8 @@ class PuzzlesTab(QWidget):
             self._current_puzzle = None
             self._question_lbl.setText(
                 f"<i style='color:{theme.TEXT_DIM};'>Queue is empty. "
-                "No puzzles yet — author one via the seeder script, "
-                "or come back after Phase 2 ships the Inbox.</i>"
+                "Promote a candidate from the Inbox tab or run "
+                "scripts/scan_for_puzzles.py to populate it.</i>"
             )
             self._answer_edit.clear(); self._answer_edit.setEnabled(False)
             self._reveal_btn.setEnabled(False)
@@ -128,7 +182,7 @@ class PuzzlesTab(QWidget):
             self._got_it_btn.hide(); self._missed_btn.hide()
             self._scene_widget.set_scene(_empty_scene())
             return
-        puzzle = candidates[-1]  # oldest first (queue style)
+        puzzle = candidates[-1]
         self._current_puzzle = puzzle
         self._render_puzzle(puzzle)
 
@@ -191,7 +245,68 @@ class PuzzlesTab(QWidget):
             f"{wr_pct:.0f}%"
         )
 
-    # Test helper — returns concatenated text of all visible labels
+    # ── Inbox mode ─────────────────────────────────────────────
+    def _refresh_inbox(self) -> None:
+        cat = self._inbox_category_combo.currentData() or None
+        rows = db_puzzles.get_inbox(category=cat, top_n=200)
+        self._inbox_table.setUpdatesEnabled(False)
+        self._inbox_table.setSortingEnabled(False)
+        self._inbox_table.setRowCount(len(rows))
+        for r, row in enumerate(rows):
+            self._inbox_table.setItem(r, 0, QTableWidgetItem(str(row["id"])))
+            self._inbox_table.setItem(r, 1, QTableWidgetItem(row["category"]))
+            self._inbox_table.setItem(r, 2, QTableWidgetItem(
+                f"{row['heuristic_score']:.2f}"))
+            self._inbox_table.setItem(r, 3, QTableWidgetItem(row["arena_match_id"]))
+            self._inbox_table.setItem(r, 4, QTableWidgetItem(
+                str(row["game_num"] or "")))
+            self._inbox_table.setItem(r, 5, QTableWidgetItem(str(row["turn_num"])))
+            self._inbox_table.setItem(r, 6, QTableWidgetItem(row.get("evidence") or ""))
+        self._inbox_table.setSortingEnabled(True)
+        self._inbox_table.setUpdatesEnabled(True)
+
+    def _selected_inbox_row(self) -> Optional[dict]:
+        sel = self._inbox_table.currentRow()
+        if sel < 0:
+            return None
+        rows = db_puzzles.get_inbox(top_n=200)
+        if sel >= len(rows):
+            return None
+        return rows[sel]
+
+    def _on_promote_selected(self) -> None:
+        row = self._selected_inbox_row()
+        if row is None:
+            QMessageBox.information(self, "No selection", "Pick a candidate row first.")
+            return
+        scene = build_scene(
+            arena_match_id=row["arena_match_id"],
+            game_num=int(row["game_num"] or 1),
+            turn_num=int(row["turn_num"]),
+        )
+        if scene is None:
+            QMessageBox.warning(
+                self, "Scene unavailable",
+                f"No cached replay for {row['arena_match_id']}. "
+                "Run replay_fetcher or play the match again.",
+            )
+            return
+        dlg = PuzzleAuthorDialog(
+            scene=scene, inbox_id=row["id"],
+            suggested_category=row["category"], parent=self,
+        )
+        if dlg.exec():
+            self._refresh_inbox()
+            self._load_next_puzzle()
+
+    def _on_dismiss_selected(self) -> None:
+        row = self._selected_inbox_row()
+        if row is None:
+            return
+        db_puzzles.dismiss_inbox(row["id"])
+        self._refresh_inbox()
+
+    # Test helper
     def findChild_text_recursive(self) -> str:
         out = []
         for lbl in self.findChildren(QLabel):
@@ -202,14 +317,10 @@ class PuzzlesTab(QWidget):
         return " ".join(out)
 
     def cleanup(self) -> None:
-        """Stop running workers. Phase 1 has none."""
         pass
 
 
-# ── Module-level helpers ────────────────────────────────────────
-
 def _empty_scene() -> Scene:
-    from analysis.puzzles.scene_builder import PlayerState
     return Scene(
         arena_match_id="", game_num=0, turn_num=0, play_or_draw="play",
         you=PlayerState(name="You"), opp=PlayerState(name="Opp"),
