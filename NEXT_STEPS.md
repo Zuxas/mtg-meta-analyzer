@@ -115,9 +115,7 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
    control, Golgari Slagstorm inclusion. Fix 3 misclassified matches
    (m=59, m=72, m=75). Patch the fuzzy archetype matcher with a guild↔
    color-code dict so Azorius Control finds UW High Noon.
-3. **Single-instance enforcement** — QLockFile + stale-lock detection
-   so multiple `python run_gui.py` invocations don't accumulate
-   (saw 4 zombies on 5/15 before the smart-X fix).
+3. ~~**Single-instance enforcement**~~ ✓ shipped (`gui/single_instance.py` + QLockFile, 30s stale TTL, 6 unit tests). Second launch shows clean error dialog. Manual smoke + crash-test both verified end-to-end: first launch / second-launch refusal / close + relaunch / Ctrl+C kill + immediate refusal / wait 31s + stale-lock self-clear all work.
 4. **Google Maps deeplink** — deferred from 5/16 original. ~30-45min.
 5. **Tokyo SB plans for missing matchups** — Simic Rhythm,
    Boros Tremors, Gruul Aggro, 4-Color Allies, generic Azorius.

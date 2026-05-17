@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-16 (puzzle tool Phase 2 shipped — scanner + Inbox + Author)
+Last updated: 2026-05-16 (puzzle tool Phase 2 + single-instance enforcement shipped)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -369,6 +369,9 @@ GUI uses `gui/widgets/chart_canvas.py`. `run_gui.py` calls `matplotlib.use("QtAg
 
 ### Worker lifecycle
 All workers: `finished → deleteLater()`. All tabs expose `cleanup()`. `_cancel_worker()` uses `blockSignals(True)` with `RuntimeError` guard.
+
+### Single-instance enforcement
+`gui/single_instance.py::SingleInstanceLock` wraps `QLockFile` with a 30s stale-lock TTL. `run_gui.py` acquires at startup (after `QApplication(sys.argv)` since the error dialog needs an event loop) and releases via `aboutToQuit`. Lock at `data/.run_gui.lock` (gitignored). A second launch attempt shows a `QMessageBox` and exits with code 1. After an ungraceful crash, wait ~30s for the stale-lock to clear before relaunching.
 
 ### PyInstaller packaging (when ready)
 ```bash
