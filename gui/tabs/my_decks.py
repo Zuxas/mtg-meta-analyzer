@@ -535,15 +535,6 @@ class MyDecksTab(QWidget):
             "Uses community guides + card role analysis")
         self._suggest_btn.clicked.connect(self._suggest_sb_plans)
         sb_btn_row.addWidget(self._suggest_btn)
-
-        self._export_cheat_sheet_btn = QPushButton("Export Cheat Sheet")
-        self._export_cheat_sheet_btn.setEnabled(False)
-        self._export_cheat_sheet_btn.setStyleSheet(theme.btn_secondary())
-        self._export_cheat_sheet_btn.setToolTip(
-            "Export all SB plans as a 1-page printable PNG or PDF (color-coded by difficulty)"
-        )
-        self._export_cheat_sheet_btn.clicked.connect(self._on_export_cheat_sheet)
-        sb_btn_row.addWidget(self._export_cheat_sheet_btn)
         sb_btn_row.addStretch()
         sb_layout.addLayout(sb_btn_row)
 
@@ -787,7 +778,6 @@ class MyDecksTab(QWidget):
         self._del_plan_btn.setEnabled(True)
         self._sb_guide_btn.setEnabled(True)
         self._suggest_btn.setEnabled(True)
-        self._export_cheat_sheet_btn.setEnabled(True)
         # Persist selected deck so it can be restored on next session/tab-show
         deck_id = deck.get("id")
         if deck_id is not None:
@@ -1105,7 +1095,6 @@ class MyDecksTab(QWidget):
         self._del_plan_btn.setEnabled(False)
         self._sb_guide_btn.setEnabled(False)
         self._suggest_btn.setEnabled(False)
-        self._export_cheat_sheet_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
     # CRUD actions
@@ -1500,33 +1489,6 @@ class MyDecksTab(QWidget):
         w.finished.connect(w.deleteLater)
         w.start()
         self._workers.append(w)
-
-    def _on_export_cheat_sheet(self) -> None:
-        """Export the current deck's SB plans as a 1-page printable PNG or PDF."""
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
-        from PyQt6.QtCore import QUrl
-        from PyQt6.QtGui import QDesktopServices
-        if not self._current_deck:
-            QMessageBox.information(self, "No deck", "Pick a deck first.")
-            return
-        deck_id = self._current_deck["id"]
-        default_name = f"{self._current_deck['name'].replace(' ', '_')}_SB_cheat_sheet.pdf"
-        out_path, _selected_filter = QFileDialog.getSaveFileName(
-            self, "Export SB Cheat Sheet", default_name,
-            "PDF (*.pdf);;PNG (*.png)",
-        )
-        if not out_path:
-            return
-        fmt = "pdf" if out_path.lower().endswith(".pdf") else "png"
-        try:
-            from analysis.sb_cheat_sheet import export_cheat_sheet
-            from pathlib import Path
-            written = export_cheat_sheet(deck_id, Path(out_path), fmt=fmt)
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(written)))
-        except ValueError as e:
-            QMessageBox.warning(self, "Export failed", str(e))
-        except Exception as e:
-            QMessageBox.critical(self, "Export error", f"Unexpected error: {e}")
 
     def _export_deck(self):
         if not self._current_deck:
