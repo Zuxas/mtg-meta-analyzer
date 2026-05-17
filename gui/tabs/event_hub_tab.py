@@ -487,10 +487,31 @@ class SearchView(QWidget):
         ))
         store_action = QAction("Bookmark Store", menu)
         store_action.triggered.connect(lambda: self._bookmark_store(e))
+        maps_action = QAction("Open store in Google Maps", menu)
+        maps_action.triggered.connect(lambda: self._open_in_maps(e))
         menu.addAction(bm_action)
         menu.addSeparator()
         menu.addAction(store_action)
+        menu.addAction(maps_action)
         menu.exec(self._table.viewport().mapToGlobal(pos))
+
+    def _open_in_maps(self, event: dict):
+        """Build a Google Maps deeplink for this event's store and open it
+        in the default browser. Prefers store name + lat/lng for accuracy;
+        falls back to whichever is present."""
+        from urllib.parse import quote_plus
+        store = (event.get("store") or "").strip()
+        lat = event.get("lat")
+        lng = event.get("lng")
+        if lat is not None and lng is not None:
+            query = f"{store} {lat},{lng}".strip() if store else f"{lat},{lng}"
+        elif store:
+            query = store
+        else:
+            self._set_status("No store name or coordinates for this event", error=True)
+            return
+        url = f"https://www.google.com/maps/search/?api=1&query={quote_plus(query)}"
+        QDesktopServices.openUrl(QUrl(url))
 
     def _bookmark_store(self, event: dict):
         upsert_store_bookmark({
