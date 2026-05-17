@@ -166,4 +166,57 @@ def _scan_stabilize(
 def _scan_tempo(
     match_id: str, game_num: int, turns: list[dict]
 ) -> list[Candidate]:
-    return []
+    """Simplified Phase 2 tempo heuristic: turn N (your turn) where
+    you cast >= 2 INSTANT-typed cards. Instant-speed cards used at
+    sorcery speed often represent missed tempo (could have held them
+    for opp's turn for more info).
+
+    Score: 0.5 * (instants_cast / 3) + 0.5 (constant for "interesting"
+    until we have richer data to differentiate)."""
+    out: list[Candidate] = []
+    for t in turns:
+        if int(t.get("active_seat", 0)) != 1:
+            continue  # only your turns
+        actions = t.get("actions") or []
+        instant_names: list[str] = []
+        for a in actions:
+            m = _YOU_CAST_RE.search(a or "")
+            if not m:
+                continue
+            name = m.group(1).strip()
+            if _is_instant_card(name):
+                instant_names.append(name)
+        if len(instant_names) < 2:
+            continue
+        score = round(
+            0.5 * min(1.0, len(instant_names) / 3.0) + 0.5, 3
+        )
+        out.append(Candidate(
+            arena_match_id=match_id,
+            game_num=game_num,
+            turn_num=int(t.get("turn", 0)),
+            category="tempo",
+            heuristic_score=score,
+            evidence=f"{len(instant_names)} instants on own turn: "
+                     + ", ".join(instant_names[:3]),
+        ))
+    return out
+
+
+def _is_instant_card(card_name: str) -> bool:
+    """Cheap card_data lookup for the 'is this an Instant?' check.
+
+    Returns False on lookup miss — don't flag cards we can't identify
+    (avoids false positives for fabricated / token / split-card names)."""
+    try:
+        from db.database import get_connection
+        with get_connection() as c:
+            row = c.execute(
+                "SELECT type_line FROM card_data WHERE name = ?",
+                (card_name,),
+            ).fetchone()
+        if row is None:
+            return False
+        return "instant" in (row["type_line"] or "").lower()
+    except Exception:
+        return False

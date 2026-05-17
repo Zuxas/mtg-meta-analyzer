@@ -109,3 +109,41 @@ def test_stabilize_does_not_fire_if_match_ended_with_loss():
     out = scanner.scan_match("m-lose", transcript)
     stab = [c for c in out if c.category == "stabilize"]
     assert stab == []
+
+
+def test_tempo_fires_when_multiple_instants_cast_on_own_turn(monkeypatch):
+    """Simplified Phase 2 heuristic: 2+ instants cast on your own turn.
+
+    Patches card_data lookup so the test doesn't depend on prod DB."""
+    from analysis.puzzles import scanner
+
+    def _fake_is_instant(name: str) -> bool:
+        return name.strip() in {"Burst Lightning", "Boomerang Basics"}
+
+    monkeypatch.setattr(scanner, "_is_instant_card", _fake_is_instant)
+    transcript = _fake_transcript([{"game_num": 1, "turns": [
+        _turn(5, [
+            "You cast Burst Lightning → opp creature",
+            "You cast Boomerang Basics → opp permanent",
+        ], active_seat=1),
+    ]}])
+    out = scanner.scan_match("m-tempo", transcript)
+    tempo = [c for c in out if c.category == "tempo"]
+    assert len(tempo) >= 1
+    assert tempo[0].turn_num == 5
+
+
+def test_tempo_does_not_fire_on_opp_turn(monkeypatch):
+    """Instants cast on opp's turn are reactive, not tempo mis-plays."""
+    from analysis.puzzles import scanner
+    monkeypatch.setattr(scanner, "_is_instant_card",
+                         lambda n: n.strip() in {"Burst Lightning"})
+    transcript = _fake_transcript([{"game_num": 1, "turns": [
+        _turn(5, [
+            "You cast Burst Lightning → opp creature",
+            "You cast Burst Lightning → opp creature",
+        ], active_seat=2),  # opp's turn
+    ]}])
+    out = scanner.scan_match("m-tempo-opp", transcript)
+    tempo = [c for c in out if c.category == "tempo"]
+    assert tempo == []
