@@ -35,22 +35,44 @@ class Candidate:
 
 
 # Regex pattern bank — reused by individual heuristics
-_LIFE_RE = re.compile(r"(opp|you)\s+life[:\s]+(-?\d+)", re.IGNORECASE)
-_YOU_CAST_RE = re.compile(r"^You cast\s+(.+?)(\s+→|\s+\(|$)", re.IGNORECASE)
+#
+# _LIFE_RE matches both real-transcript "X → Y" form and legacy "Opp life: 12" form:
+#   who   — non-greedy label ("You", "Opp", or an actual player display name)
+#   before — mandatory integer (the starting value, or the only value in the short form)
+#   after  — optional integer after "→" (the ending value in the real transcript form)
+_LIFE_RE = re.compile(
+    r"^(?P<who>\S[\S\s]*?)\s+life:\s*(?P<before>-?\d+)"
+    r"(?:\s*→\s*(?P<after>-?\d+))?",
+    re.IGNORECASE,
+)
+_YOU_CAST_RE = re.compile(r"^You\s+cast\s+(.+?)(\s+→|\s+\(|$)", re.IGNORECASE)
 
 
-def _parse_life_from_actions(actions: list[str]) -> tuple[Optional[int], Optional[int]]:
+def _parse_life_from_actions(
+    actions: list[str], *, opp_name: Optional[str] = None
+) -> tuple[Optional[int], Optional[int]]:
     """Return (your_life, opp_life) parsed from a turn's actions list,
-    or (None, None) if neither was logged that turn."""
+    or (None, None) if neither was logged that turn.
+
+    Supports both the real transcript form  ("ViewtifulYosh life: 8 → 0 (-8)")
+    and the legacy/test form ("Opp life: 12").  When opp_name is provided, the
+    actual display name is matched against it; "Opp" is always accepted as a
+    legacy fallback.  When the X → Y form is present the AFTER value is used;
+    otherwise the BEFORE value is used."""
     you = opp = None
     for a in actions or []:
         m = _LIFE_RE.search(a or "")
         if not m:
             continue
-        who, val = m.group(1).lower(), int(m.group(2))
-        if who == "you":
+        who = (m.group("who") or "").strip()
+        # Prefer AFTER if the X→Y form is present, otherwise use BEFORE
+        val = int(m.group("after") or m.group("before"))
+        if who.lower() == "you":
             you = val
-        elif who == "opp":
+        elif (
+            who.lower() == "opp"
+            or (opp_name is not None and who.lower() == opp_name.lower())
+        ):
             opp = val
     return you, opp
 
@@ -59,13 +81,14 @@ def scan_match(arena_match_id: str, transcript: dict) -> list[Candidate]:
     """Run all 3 category heuristics on one match transcript. Returns
     Candidate list (may be empty). Pure — no I/O."""
     candidates: list[Candidate] = []
+    opp_name = transcript.get("opp_name") or None
     games = transcript.get("games") or []
     for g in games:
         game_num = int(g.get("game_num", 1))
         turns = g.get("turns") or []
         # Each heuristic returns its own candidates for this game
-        candidates.extend(_scan_find_lethal(arena_match_id, game_num, turns))
-        candidates.extend(_scan_stabilize(arena_match_id, game_num, turns))
+        candidates.extend(_scan_find_lethal(arena_match_id, game_num, turns, opp_name=opp_name))
+        candidates.extend(_scan_stabilize(arena_match_id, game_num, turns, opp_name=opp_name))
         candidates.extend(_scan_tempo(arena_match_id, game_num, turns))
     return candidates
 
@@ -73,7 +96,8 @@ def scan_match(arena_match_id: str, transcript: dict) -> list[Candidate]:
 # ── Stub heuristics — filled in by later tasks ────────────────────
 
 def _scan_find_lethal(
-    match_id: str, game_num: int, turns: list[dict]
+    match_id: str, game_num: int, turns: list[dict], *,
+    opp_name: Optional[str] = None,
 ) -> list[Candidate]:
     """Find lethal heuristic: turn N where you cast >= 3 noncreature
     spells AND opp life went from >= 8 down to 0 in that turn.
@@ -88,12 +112,24 @@ def _scan_find_lethal(
         )
         if spells_cast < 3:
             continue
-        # Capture opp life trajectory across this turn
+        # Collect opp life trajectory across this turn (before AND after values)
         opp_lives: list[int] = []
         for a in actions:
             m = _LIFE_RE.search(a or "")
-            if m and m.group(1).lower() == "opp":
-                opp_lives.append(int(m.group(2)))
+            if not m:
+                continue
+            who = (m.group("who") or "").strip()
+            is_opp = (
+                who.lower() == "opp"
+                or (opp_name is not None and who.lower() == opp_name.lower())
+            )
+            if not is_opp:
+                continue
+            before = int(m.group("before"))
+            after = m.group("after")
+            opp_lives.append(before)
+            if after is not None:
+                opp_lives.append(int(after))
         if not opp_lives:
             continue
         starting = max(opp_lives)
@@ -110,13 +146,14 @@ def _scan_find_lethal(
             turn_num=int(t.get("turn", 0)),
             category="find_lethal",
             heuristic_score=score,
-            evidence=f"{spells_cast} spells, opp {starting}→{final}",
+            evidence=f"{spells_cast} spells, opp {starting}->{final}",
         ))
     return out
 
 
 def _scan_stabilize(
-    match_id: str, game_num: int, turns: list[dict]
+    match_id: str, game_num: int, turns: list[dict], *,
+    opp_name: Optional[str] = None,
 ) -> list[Candidate]:
     """Stabilize heuristic: turn N where your life <= 5 AND match
     continued past N AND you eventually won the match.
@@ -125,20 +162,33 @@ def _scan_stabilize(
     """
     if not turns:
         return []
-    # Determine if user eventually won this game (opp life hit 0 last)
+    # Determine if user eventually won this game (opp life hit 0 in any turn)
     did_win = False
     for t in turns:
         for a in t.get("actions") or []:
             m = _LIFE_RE.search(a or "")
-            if m and m.group(1).lower() == "opp" and int(m.group(2)) <= 0:
-                did_win = True
+            if not m:
+                continue
+            who = (m.group("who") or "").strip().lower()
+            is_opp = (
+                who == "opp"
+                or (opp_name is not None and who == opp_name.lower())
+            )
+            if not is_opp:
+                continue
+            # Check both before AND after for the lethal moment
+            for val in (m.group("before"), m.group("after")):
+                if val is not None and int(val) <= 0:
+                    did_win = True
+                    break
+            if did_win:
                 break
         if did_win:
             break
 
     out: list[Candidate] = []
     for idx, t in enumerate(turns):
-        your_life, _ = _parse_life_from_actions(t.get("actions") or [])
+        your_life, _ = _parse_life_from_actions(t.get("actions") or [], opp_name=opp_name)
         if your_life is None or your_life > 5:
             continue
         # Match must continue past this turn — i.e. there's at least one
@@ -149,16 +199,15 @@ def _scan_stabilize(
             continue
         if not did_win:
             continue
-        win_term = 1.0
         life_term = 1.0 - (max(your_life, 0) / 20.0)
-        score = round(0.5 * life_term + 0.5 * win_term, 3)
+        score = round(0.5 * life_term + 0.5, 3)
         out.append(Candidate(
             arena_match_id=match_id,
             game_num=game_num,
             turn_num=int(t.get("turn", 0)),
             category="stabilize",
             heuristic_score=score,
-            evidence=f"your life {your_life}, won={did_win}",
+            evidence=f"your life {your_life}, won=True",
         ))
     return out
 
