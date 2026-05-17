@@ -100,6 +100,12 @@ class PuzzlesTab(QWidget):
         self._solution_lbl.hide()
         right_v.addWidget(self._solution_lbl)
 
+        self._verdict_chip = QLabel("")
+        self._verdict_chip.setTextFormat(Qt.TextFormat.RichText)
+        self._verdict_chip.setWordWrap(True)
+        self._verdict_chip.hide()
+        right_v.addWidget(self._verdict_chip)
+
         verdict_row = QHBoxLayout()
         self._got_it_btn = QPushButton("✓ I had it")
         self._got_it_btn.clicked.connect(lambda: self._record_and_next("correct"))
@@ -179,6 +185,7 @@ class PuzzlesTab(QWidget):
             self._answer_edit.clear(); self._answer_edit.setEnabled(False)
             self._reveal_btn.setEnabled(False)
             self._solution_lbl.hide()
+            self._verdict_chip.hide()
             self._got_it_btn.hide(); self._missed_btn.hide()
             self._scene_widget.set_scene(_empty_scene())
             return
@@ -191,6 +198,7 @@ class PuzzlesTab(QWidget):
         self._answer_edit.clear(); self._answer_edit.setEnabled(True)
         self._reveal_btn.setEnabled(True)
         self._solution_lbl.hide()
+        self._verdict_chip.hide()
         self._got_it_btn.hide(); self._missed_btn.hide()
         cat_label = {
             "find_lethal": "🎯 Find lethal",
@@ -208,6 +216,32 @@ class PuzzlesTab(QWidget):
         scene = Scene.from_dict(puzzle["scene"])
         self._scene_widget.set_scene(scene)
 
+    def _render_verdict_chip(self, result: dict) -> None:
+        """Show the auto-grader verdict as a colored chip below the
+        author's solution. Self-grade buttons remain for user override."""
+        requested = (self._current_puzzle or {}).get("grading_mode") or "self"
+        colors = {
+            "correct":     "#80c890",
+            "partial":     "#d4a050",
+            "incorrect":   "#d88060",
+            "user_marked": "#808080",
+        }
+        color = colors.get(result.get("verdict"), "#808080")
+        fallback_tag = ""
+        if result.get("grader_used") != requested and requested != "self":
+            fallback_tag = (
+                f" <span style='color:#808080;font-size:9px;'>"
+                f"(fallback from {requested})</span>"
+            )
+        self._verdict_chip.setText(
+            f"<div style='border-left:3px solid {color};padding:4px 8px;"
+            f"background:#1a1a22;color:#e6e6e6;font-size:11px;'>"
+            f"<b style='color:{color};'>{result.get('verdict', '?').upper()}</b>"
+            f"{fallback_tag}<br/>"
+            f"<span style='color:#aaa;'>{result.get('explanation', '')}</span></div>"
+        )
+        self._verdict_chip.show()
+
     def _on_reveal(self) -> None:
         if self._current_puzzle is None:
             return
@@ -217,6 +251,18 @@ class PuzzlesTab(QWidget):
                .replace("\n", "<br/>"))
         )
         self._solution_lbl.show()
+        # Auto-grade if puzzle's grading_mode is keyword or llm
+        from analysis.puzzles.graders import grade
+        user_answer = self._answer_edit.toPlainText().strip()
+        if user_answer:
+            try:
+                result = grade(self._current_puzzle, user_answer)
+                self._render_verdict_chip(result)
+            except BaseException:
+                # Defensive: grading should never crash the reveal
+                pass
+        else:
+            self._verdict_chip.hide()
         self._got_it_btn.show(); self._missed_btn.show()
         self._reveal_btn.setEnabled(False)
 
