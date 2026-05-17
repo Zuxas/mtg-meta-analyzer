@@ -196,8 +196,13 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
   puzzle from this turn". Scanner CLI: `python scripts/scan_for_puzzles.py`.
   Card data verified via `db.card_data` at every authoring path —
   invented cards can't ship. Spec at
-  `docs/superpowers/specs/2026-05-16-puzzle-tool-design.md`. Phase 3
-  (keyword + LLM graders) scheduled for 5/22.
+  `docs/superpowers/specs/2026-05-16-puzzle-tool-design.md`. **Phase 3
+  shipped 2026-05-17:** `analysis/puzzles/graders.py` provides
+  `grade_keyword` (rapidfuzz partial_ratio threshold 80 for typo tolerance),
+  `grade_llm` (inline Anthropic claude-haiku-4-5 ~$0.001/grading),
+  and a `grade()` dispatcher with fallback chain
+  (llm → keyword → self). Verdict appears as a colored chip below the
+  author's solution on Reveal; self-grade ✓/✗ buttons remain as user override.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 
