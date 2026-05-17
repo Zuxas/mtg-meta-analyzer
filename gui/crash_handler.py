@@ -25,12 +25,20 @@ def _exception_hook(exc_type, exc_value, tb):
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"\n=== {datetime.now().isoformat()} ===\n")
             traceback.print_exception(exc_type, exc_value, tb, file=f)
-    except Exception:
+    except BaseException:
+        # BaseException (not Exception) so KeyboardInterrupt + SystemExit
+        # raised inside the formatter (Python 3.13 traceback formatter bug
+        # triggered by SIGINT mid-format) don't propagate out of the crash
+        # handler itself.
         pass
     # Always also print to stderr so the dev console shows it.
     try:
         traceback.print_exception(exc_type, exc_value, tb, file=sys.stderr)
-    except Exception:
+    except BaseException:
+        # BaseException (not Exception) so KeyboardInterrupt + SystemExit
+        # raised inside the formatter (Python 3.13 traceback formatter bug
+        # triggered by SIGINT mid-format) don't propagate out of the crash
+        # handler itself.
         pass
     # Only surface a modal if a QApplication exists — calling QMessageBox
     # without one hard-aborts at the C++ level past any Python try/except.
@@ -38,7 +46,7 @@ def _exception_hook(exc_type, exc_value, tb):
         try:
             body = "".join(traceback.format_exception(exc_type, exc_value, tb))
             QMessageBox.critical(None, "Unhandled exception", body[-2000:])
-        except Exception:
+        except BaseException:
             pass
 
 
@@ -50,5 +58,5 @@ def _qt_message_handler(msg_type, context, message):
             log_path = _LOG_DIR / f"qt_msgs_{datetime.now().strftime('%Y-%m-%d')}.log"
             with open(log_path, "a", encoding="utf-8") as f:
                 f.write(f"{datetime.now().isoformat()} [{msg_type}] {message}\n")
-        except Exception:
+        except BaseException:
             pass
