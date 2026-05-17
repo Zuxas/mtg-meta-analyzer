@@ -34,8 +34,13 @@ Last updated: 2026-05-16 (puzzle tool Phase 2 shipped — scanner + Inbox + Auth
   and PUZZLES tab Inbox sub-mode.
 - **Manual smoke remaining:** launch GUI, open PUZZLES → Inbox tab,
   right-click a match in Match History → Create puzzle. Scanner ran
-  green CLI but flagged 0 (small corpus). Phase 3 (keyword + LLM
-  graders) scheduled for 5/22.
+  green CLI but flagged 0 (small corpus).
+- **Phase 3 shipped 2026-05-17** (5 days early): `analysis/puzzles/graders.py`
+  with keyword + LLM dispatcher + fallback chain. 16 new tests (210 total).
+  The 5 real-data puzzles seeded earlier (`grading_mode='keyword'`) auto-grade
+  on Reveal via rapidfuzz with typo tolerance. LLM grader uses
+  claude-haiku-4-5 (~$0.001/grading) when API key present, falls back to
+  keyword (or self if no keywords) otherwise.
 
 
 

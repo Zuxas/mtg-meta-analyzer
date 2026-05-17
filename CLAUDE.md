@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-16 (puzzle tool Phase 2 + single-instance enforcement shipped)
+Last updated: 2026-05-17 (puzzle Phase 3 graders + crash-handler BaseException fix shipped)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
