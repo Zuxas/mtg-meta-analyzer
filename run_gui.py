@@ -47,11 +47,27 @@ def main():
     # error in the deep widget tree leaves a forensic log on disk.
     from gui.crash_handler import install_handlers
     install_handlers()
+    from gui.single_instance import SingleInstanceLock
     from gui.main_window import MainWindow
 
     app = QApplication(sys.argv)
     app.setApplicationName("MTG Meta Analyzer")
     app.setOrganizationName("MTGMeta")
+
+    # Single-instance enforcement: refuse second-launch attempts
+    _instance_lock = SingleInstanceLock()
+    if not _instance_lock.acquire():
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.critical(
+            None,
+            "MTG Meta Analyzer already running",
+            "Another instance is already running.\n\n"
+            "Check the system tray (bottom-right corner of your taskbar) "
+            "for the Team Resolve icon.\n\n"
+            "If the existing window is unresponsive, use Ctrl+Shift+Q on "
+            "it to force-quit, then wait 30 seconds before relaunching.",
+        )
+        sys.exit(1)
 
     # Application icon — shown in taskbar, title bar, alt-tab
     _icon_path = os.path.join(_root, "gui", "icons", "app.ico")
@@ -77,6 +93,7 @@ def main():
 
     # Stop all workers cleanly before the process exits
     app.aboutToQuit.connect(window.cleanup)
+    app.aboutToQuit.connect(_instance_lock.release)
 
     sys.exit(app.exec())
 
