@@ -220,3 +220,18 @@ def _is_instant_card(card_name: str) -> bool:
         return "instant" in (row["type_line"] or "").lower()
     except Exception:
         return False
+
+
+def scan_all() -> list[Candidate]:
+    """Walk every transcript in CACHE_DIR and aggregate Candidates."""
+    if not CACHE_DIR.exists():
+        return []
+    out: list[Candidate] = []
+    for path in sorted(CACHE_DIR.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        match_id = path.stem  # filename minus .json
+        out.extend(scan_match(match_id, data))
+    return out

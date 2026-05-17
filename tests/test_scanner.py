@@ -147,3 +147,31 @@ def test_tempo_does_not_fire_on_opp_turn(monkeypatch):
     out = scanner.scan_match("m-tempo-opp", transcript)
     tempo = [c for c in out if c.category == "tempo"]
     assert tempo == []
+
+
+def test_scan_all_walks_cache_dir(tmp_path, monkeypatch):
+    """scan_all() walks every *.json in CACHE_DIR and aggregates Candidates."""
+    from analysis.puzzles import scanner
+    monkeypatch.setattr(scanner, "CACHE_DIR", tmp_path)
+    # Drop one stabilize-shaped match + one quiet match
+    (tmp_path / "stab.json").write_text(json.dumps(_fake_transcript([
+        {"game_num": 1, "turns": [
+            _turn(6, ["You life: 4"]),
+            _turn(7, ["You life: 6"]),
+            _turn(8, ["Opp life: 0"]),
+        ]},
+    ])))
+    (tmp_path / "quiet.json").write_text(json.dumps(_fake_transcript([
+        {"game_num": 1, "turns": [_turn(1, ["You play Island"])]},
+    ])))
+    out = scanner.scan_all()
+    # At least the stabilize one
+    cats = [c.category for c in out]
+    assert "stabilize" in cats
+
+
+def test_scan_all_returns_empty_for_missing_cache_dir(tmp_path, monkeypatch):
+    from analysis.puzzles import scanner
+    missing = tmp_path / "does-not-exist"
+    monkeypatch.setattr(scanner, "CACHE_DIR", missing)
+    assert scanner.scan_all() == []
