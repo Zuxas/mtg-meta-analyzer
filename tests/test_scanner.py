@@ -44,3 +44,41 @@ def test_scan_match_returns_list_of_candidates():
     assert isinstance(out, list)
     for c in out:
         assert hasattr(c, "category") and hasattr(c, "heuristic_score")
+
+
+def test_find_lethal_fires_when_opp_dies_after_3_plus_spells():
+    """Spec heuristic: cast >= 3 noncreature spells AND opp life
+    went from >= 8 to 0 in one turn."""
+    from analysis.puzzles import scanner
+    transcript = _fake_transcript([{"game_num": 1, "turns": [
+        _turn(6, ["Opp life: 12"]),
+        _turn(7, [
+            "Opp life: 12",
+            "You cast Burst Lightning → opponent",
+            "You cast Burst Lightning → opponent",
+            "You cast Burst Lightning → opponent",
+            "You cast Burst Lightning → opponent",
+            "Opp life: 0",
+        ]),
+    ]}])
+    out = scanner.scan_match("m-lethal", transcript)
+    lethal = [c for c in out if c.category == "find_lethal"]
+    assert len(lethal) >= 1
+    c = lethal[0]
+    assert c.turn_num == 7
+    assert 0.0 < c.heuristic_score <= 1.0
+
+
+def test_find_lethal_does_not_fire_for_low_spell_count():
+    """One spell is not a find-lethal puzzle, even if opp died."""
+    from analysis.puzzles import scanner
+    transcript = _fake_transcript([{"game_num": 1, "turns": [
+        _turn(7, [
+            "Opp life: 12",
+            "You cast Lightning Bolt → opponent",
+            "Opp life: 0",
+        ]),
+    ]}])
+    out = scanner.scan_match("m-one", transcript)
+    lethal = [c for c in out if c.category == "find_lethal"]
+    assert lethal == []

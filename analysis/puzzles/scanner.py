@@ -75,7 +75,44 @@ def scan_match(arena_match_id: str, transcript: dict) -> list[Candidate]:
 def _scan_find_lethal(
     match_id: str, game_num: int, turns: list[dict]
 ) -> list[Candidate]:
-    return []
+    """Find lethal heuristic: turn N where you cast >= 3 noncreature
+    spells AND opp life went from >= 8 down to 0 in that turn.
+
+    Score: 0.6 * (spells_cast / 5) + 0.4 * (1 - opp_final_life / starting_life)
+    (per spec; first-pass formula, tunes after real data lands)."""
+    out: list[Candidate] = []
+    for t in turns:
+        actions = t.get("actions") or []
+        spells_cast = sum(
+            1 for a in actions if _YOU_CAST_RE.search(a or "")
+        )
+        if spells_cast < 3:
+            continue
+        # Capture opp life trajectory across this turn
+        opp_lives: list[int] = []
+        for a in actions:
+            m = _LIFE_RE.search(a or "")
+            if m and m.group(1).lower() == "opp":
+                opp_lives.append(int(m.group(2)))
+        if not opp_lives:
+            continue
+        starting = max(opp_lives)
+        final = min(opp_lives)
+        if starting < 8 or final > 0:
+            continue
+        # Score
+        spell_term = min(1.0, spells_cast / 5.0) * 0.6
+        life_term = (1.0 - final / max(starting, 1)) * 0.4
+        score = round(spell_term + life_term, 3)
+        out.append(Candidate(
+            arena_match_id=match_id,
+            game_num=game_num,
+            turn_num=int(t.get("turn", 0)),
+            category="find_lethal",
+            heuristic_score=score,
+            evidence=f"{spells_cast} spells, opp {starting}→{final}",
+        ))
+    return out
 
 
 def _scan_stabilize(
