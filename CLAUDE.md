@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-16 (puzzle tool Phase 1 shipped)
+Last updated: 2026-05-16 (puzzle tool Phase 2 shipped — scanner + Inbox + Author)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -184,14 +184,20 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **Tournament Prep:** 6 sub-tabs — Prep Checklist / Event Optimizer / Event Hub / Scout / Breaker Math / Hypotheses.
 - **Scout sub-tab:** Pre-event pilot intel. Surfaces top-N finishers playing target archetypes (defaults to Tokyo Prowess priority matchups) in last K days. "Repeat offenders" table ranks pilots by top-cut count; "All finishes" table lists every result. Right-click context menu opens decklist URL or `@handle` on x.com (handles from `data/player_handles.json`). Double-click finisher row opens deck URL.
 - **Match Log (refreshed 2026-05-13):** Each row links to a specific saved-deck variant (mainboard+sideboard hash). Right-side **Variant Timeline** panel renders the deck's history when you filter to one deck: per-variant match count, WR, Wilson-significance flag (validated / promising / noisy), +/- card-swap delta from the previous variant. "↻ Sync Untapped" button kicks off `scrapers.untapped_match_log_writer.run()` ad-hoc; same writer runs in the M/W/F pipeline. Orphan banner + "Resolve..." dialog walks historical rows where `my_deck_id IS NULL`.
-- **Puzzles tab (Solve mode, Phase 1)**: MTGA-style "find-the-line"
-  practice. Renders a saved scene (life circles, mirrored zones, fanned
-  hand, Scryfall card images) with a typed-answer + reveal-solution +
-  self-grade flow. Records every attempt in `puzzle_attempts`. Hand-
-  authored puzzles seeded via `scripts/seed_puzzles.py`. Spec at
-  `docs/superpowers/specs/2026-05-16-puzzle-tool-design.md`. Phase 2
-  (scanner + Inbox + Author dialog + Match-History right-click) scheduled
-  for 5/20; Phase 3 (keyword + LLM graders) for 5/22.
+- **Puzzles tab (Phase 2)**: MTGA-style "find-the-line" practice with
+  Solve | Inbox sub-modes. Solve = render saved scenes (life circles,
+  mirrored zones, fanned hand, Scryfall card images) + typed-answer +
+  reveal + self-grade; attempts recorded in `puzzle_attempts`. Inbox =
+  scanner-extracted candidates from `data/match_replays/` ranked by
+  per-category heuristics (find_lethal / stabilize / simplified-tempo);
+  Promote opens the Author dialog with scene preview pre-loaded; Dismiss
+  hides the row. Author dialog (`gui/widgets/puzzle_author_dialog.py`)
+  also reachable from Match History recent-matches right-click → "Create
+  puzzle from this turn". Scanner CLI: `python scripts/scan_for_puzzles.py`.
+  Card data verified via `db.card_data` at every authoring path —
+  invented cards can't ship. Spec at
+  `docs/superpowers/specs/2026-05-16-puzzle-tool-design.md`. Phase 3
+  (keyword + LLM graders) scheduled for 5/22.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 

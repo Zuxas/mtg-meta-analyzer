@@ -1,10 +1,43 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-16 (puzzle tool Phase 1 shipped)
+Last updated: 2026-05-16 (puzzle tool Phase 2 shipped — scanner + Inbox + Author)
 
 ---
 
 ## TOP OF MIND
+
+### Puzzle tool — Phase 2 shipped (2026-05-16)
+
+- `db/puzzles.py` — inbox CRUD: `save_inbox_candidates`, `get_inbox`,
+  `dismiss_inbox`, `promote_inbox`. Dedups on (match, turn, category);
+  filters out dismissed + promoted rows.
+- `analysis/puzzles/scanner.py` — `Candidate` dataclass + 3 heuristics
+  (find_lethal, stabilize, simplified-tempo) + `scan_all()` walker.
+  Regex matches the real transcript format (`You life: 20 → 18 (-2)`
+  and `<OppName> life: ...`), using the transcript's `opp_name` field
+  to disambiguate "who" in life lines.
+- `scripts/scan_for_puzzles.py` — CLI: walks `data/match_replays/`,
+  saves Candidates to `puzzle_inbox`. Currently flags 0 on the 2-replay
+  corpus (legitimate; tune formulas later if needed).
+- `gui/widgets/puzzle_author_dialog.py` — `PuzzleAuthorDialog(QDialog)`
+  with form + scene preview + save. Reused by Inbox-promote AND by
+  Match-History right-click.
+- `gui/tabs/puzzles.py` restructured to `Solve | Inbox` sub-tabs.
+  Inbox table: id/category/score/match/game/turn/evidence with Promote
+  and Dismiss buttons.
+- `gui/widgets/deck_match_history.py` — right-click "Create puzzle
+  from this turn" on the recent-matches table. Pops a turn-picker
+  dialog, builds the scene, opens the Author dialog.
+- **185 tests passing** (was 162 at Phase 1 ship). New tests cover
+  inbox CRUD, all 3 heuristics including real-transcript-format
+  fixtures, scanner orchestrator, dialog save + inbox-promote linkage,
+  and PUZZLES tab Inbox sub-mode.
+- **Manual smoke remaining:** launch GUI, open PUZZLES → Inbox tab,
+  right-click a match in Match History → Create puzzle. Scanner ran
+  green CLI but flagged 0 (small corpus). Phase 3 (keyword + LLM
+  graders) scheduled for 5/22.
+
+
 
 **May 29 Standard RC Cincinnati (Day 1 qualified).** Deck lock: **Izzet
 Prowess (Worldly Council "Tokyo" list)**. Saved as `saved_decks.id=17`
