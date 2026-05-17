@@ -221,3 +221,92 @@ def get_session_stats(*, since: Optional[str] = None) -> dict[str, Any]:
         "wr_by_category": wr_by_category,
     }
 
+
+# ---------------------------------------------------------------------------
+# Inbox CRUD
+# ---------------------------------------------------------------------------
+
+def save_inbox_candidates(candidates: list[dict[str, Any]]) -> int:
+    """Bulk-upsert candidates into puzzle_inbox.
+
+    Dedups on (arena_match_id, game_num, turn_num, category) — re-running
+    the scanner on the same corpus is idempotent. Returns the count of
+    rows actually inserted (skipped duplicates not counted)."""
+    _ensure_tables()
+    inserted = 0
+    with get_connection() as conn:
+        for cand in candidates:
+            existing = conn.execute(
+                "SELECT id FROM puzzle_inbox WHERE "
+                "arena_match_id = ? AND game_num IS ? AND turn_num = ? "
+                "AND category = ?",
+                (cand["arena_match_id"], cand.get("game_num"),
+                 cand["turn_num"], cand["category"]),
+            ).fetchone()
+            if existing:
+                continue
+            conn.execute(
+                "INSERT INTO puzzle_inbox ("
+                "arena_match_id, game_num, turn_num, category, "
+                "heuristic_score, evidence, discovered_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    cand["arena_match_id"], cand.get("game_num"),
+                    cand["turn_num"], cand["category"],
+                    cand["heuristic_score"], cand.get("evidence", ""),
+                    _utc_now(),
+                ),
+            )
+            inserted += 1
+    return inserted
+
+
+def get_inbox(
+    *,
+    category: Optional[str] = None,
+    top_n: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """Return undismissed, unpromoted inbox candidates, ranked by
+    heuristic_score DESC. Optional category filter + top-N cap."""
+    _ensure_tables()
+    clauses = [
+        "dismissed_at IS NULL",
+        "promoted_puzzle_id IS NULL",
+    ]
+    params: list[Any] = []
+    if category:
+        clauses.append("category = ?")
+        params.append(category)
+    sql = (
+        "SELECT * FROM puzzle_inbox WHERE "
+        + " AND ".join(clauses)
+        + " ORDER BY heuristic_score DESC, id DESC"
+    )
+    if top_n is not None:
+        sql += " LIMIT ?"
+        params.append(top_n)
+    with get_connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def dismiss_inbox(inbox_id: int) -> None:
+    """Mark a candidate dismissed so it stops appearing in get_inbox()."""
+    _ensure_tables()
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE puzzle_inbox SET dismissed_at = ? WHERE id = ?",
+            (_utc_now(), inbox_id),
+        )
+
+
+def promote_inbox(inbox_id: int, puzzle_id: int) -> None:
+    """Link the inbox row to the new puzzle so it stops appearing in
+    get_inbox() and we can trace which puzzle came from which candidate."""
+    _ensure_tables()
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE puzzle_inbox SET promoted_puzzle_id = ? WHERE id = ?",
+            (puzzle_id, inbox_id),
+        )
+
