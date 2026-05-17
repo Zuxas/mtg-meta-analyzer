@@ -1,10 +1,33 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-16 (puzzle tool Phase 2 shipped — scanner + Inbox + Author)
+Last updated: 2026-05-17 (Phase 3 graders + real-data puzzles + crash handler + Maps deeplink + single-instance)
 
 ---
 
 ## TOP OF MIND
+
+### 5/17 session wrap (shipped)
+
+- **Single-instance enforcement** — `gui/single_instance.py` + `QLockFile` (30s stale TTL). 2nd-launch attempts show a modal + exit. Crash-test verified end-to-end. 6 unit tests.
+- **Crash handler BaseException fix** — wrappers in `gui/crash_handler.py` now catch `BaseException` so KeyboardInterrupt/SystemExit raised inside Python 3.13's traceback formatter don't propagate. 3 regression tests.
+- **5 real-data puzzles** — `scripts/seed_real_puzzles.py` seeds puzzles from cached replays (ViewtifulYosh + Drosme), all `grading_mode='keyword'`. `scripts/enrich_puzzle_notes.py` patches GY state + card abilities into notes (until Scene gets a graveyard field).
+- **Puzzle Phase 3 graders** — `analysis/puzzles/graders.py` (5 days early vs 5/22 plan). 16 tests. Keyword grader uses rapidfuzz (typo-tolerant). LLM grader uses claude-haiku-4-5 inline (~$0.001). Dispatcher fallback chain: llm → keyword → self. Verdict chip rendered below author's solution.
+- **Maps deeplink in Event Hub** — right-click event row → "Open store in Google Maps". URL built from `store + lat,lng` (already in event dict). No API key.
+- **Solve mode ordering fix** — newest puzzle first (was oldest first due to `candidates[-1]` instead of `[0]`).
+- **210 tests passing** (was 191 at start of 5/17 session).
+
+### Reverted (false start)
+
+- **SB cheat-sheet PDF/PNG export** — 5 commits reverted (`441a088`). Duplicated the existing "Print SB Guide" button at `gui/tabs/my_decks.py:523` (`_export_sb_only` → `_generate_sb_print_html`). Lessons saved to memory (`feedback_check-existing-ui-features-before-pitching` + `feedback_ask-where-before-what`).
+
+### Next session pickup
+
+- Manual GUI smoke for Phase 3 grader chip (correct/incorrect verdict colors on Reveal).
+- Manual GUI smoke for Maps deeplink (right-click an Event Hub row).
+- Remaining 5/16 chain items: missing matchup SB plans (Simic Rhythm / Boros / Gruul / 4C Allies / generic Azorius), gauntlet re-run + EV refresh, Tokyo SB validation (3 misclass fixes).
+- Scene graveyard field + PuzzleSceneWidget render (makes the enrichment script obsolete).
+
+---
 
 ### Puzzle tool — Phase 2 shipped (2026-05-16)
 

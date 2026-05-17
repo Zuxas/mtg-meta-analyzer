@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-15
+> Last updated: 2026-05-17
 
 ---
 
@@ -34,11 +34,21 @@
 - [x] **Rank progression tracking** (2026-05-14) — `rank_snapshots` table + `analysis.rank_tracker.capture_current_rank()` + Dashboard rank label with clickable chart popup + dedup-on-insert
 - [x] **Crash logger** (2026-05-15) — `gui/crash_handler.py` with sys.excepthook + qInstallMessageHandler writing to `logs/gui_crash_*.log` and `logs/qt_msgs_*.log`; QApplication-instance guard prevents C++ abort path on early-failure modals
 - [x] **Transparent overlay for MTGA** (2026-05-15) — frameless always-on-top + WA_TranslucentBackground + conditional WindowTransparentForInput when locked; Win32 RegisterHotKey listener for true global Ctrl+Shift+M / Ctrl+Shift+L / Ctrl+Shift+Q; horizontal 240×44 compact pip at bottom-right with click-anywhere-to-expand; foreground watcher auto-shows when MTGA or meta-analyzer has focus, auto-hides on alt-tab elsewhere; deck dropdown + matchup dropdown with Auto fallback; record vs archetype + per-game chips; cards-seen-vs-archetype aggregated; notes panel (saved_sb_plans.notes); decklist quick-reference; opacity slider; 8+ state slices persisted
-- [ ] **Google Maps deeplink for events** (deferred 5/16 → 5/17)
+- [x] **Google Maps deeplink for events** (2026-05-17) — right-click event row in Event Hub RCQ search → "Open store in Google Maps" → URL built from `store + lat,lng` (already in event dict). No API key; uses `maps.google.com/maps/search/?api=1&query=`. `gui/tabs/event_hub_tab.py::SearchView._open_in_maps`.
+- [x] **Single-instance enforcement** (2026-05-16) — `gui/single_instance.py::SingleInstanceLock` wrapping `QLockFile` with 30s stale-lock TTL; 2nd-launch attempts get a `QMessageBox` and exit; crash-recovery verified end-to-end (Ctrl+C kill + relaunch shows refusal; 31s wait clears stale lock). 6 unit tests.
+- [x] **Crash handler BaseException fix** (2026-05-17) — defensive wrappers in `gui/crash_handler.py` changed from `except Exception` to `except BaseException` so KeyboardInterrupt + SystemExit raised inside Python 3.13's buggy traceback formatter (when SIGINT arrives mid-format) don't propagate. 3 regression tests.
 - [x] **Thread lifecycle audit** (2026-05-15) — 4 real bugs: dead-coded closeEvent in main_window.py:357 (watcher.stop never ran), tournament_prep.cleanup walked only 2 of 6 sub-tabs, hypotheses + prep_checklist used pre-Qt-6.10 raw blockSignals pattern; all fixed
 - [x] **Responsiveness profiling** (2026-05-15) — `_refresh_orphan_banner` cache+invalidate, Watch Replay async via DataLoadWorker, recent-matches table wraps populate with setUpdatesEnabled(False)+setSortingEnabled(False)
 - [x] **Force-quit + smart-X-button** (2026-05-15) — Ctrl+Shift+Q global hotkey (Win32 + local ApplicationShortcut fallback), `closeEvent` checks `tray.isVisible()` before hiding; prevents zombie process accumulation when tray icon is hidden
 - [x] **UIState atomic-write robustness** (2026-05-15) — switched from tmp+replace (was leaving leftover tail bytes corrupting preferences.json) to truncate+write+fsync with re-read+merge of non-ui_state keys
+
+## OPEN — Puzzle Tool (RC training)
+- [x] **Phase 1 — Solve mode + hand-authored seeder** (2026-05-16) — `db/puzzles.py` schema + CRUD, `analysis/puzzles/scene_builder.py`, `gui/widgets/puzzle_scene.py` MTGA-style renderer, `gui/widgets/card_image_cache.py` Scryfall JPEG cache, PUZZLES top-level tab. `scripts/seed_puzzles.py` with 3 hand-authored puzzles + `_card()` assertion against `card_data` so invented cards can't ship.
+- [x] **Phase 2 — Scanner + Inbox + Author + Match-History right-click** (2026-05-16) — `analysis/puzzles/scanner.py` walks `data/match_replays/*.json` with 3 heuristics (find_lethal / stabilize / simplified-tempo); regex matches the real transcript format (`You life: 20 → 18 (-2)` and `<OppName> life: ...`). `gui/widgets/puzzle_author_dialog.py` reused by Inbox-promote AND Match-History right-click. PUZZLES tab restructured to `Solve | Inbox` sub-tabs.
+- [x] **Phase 3 — Keyword + LLM graders** (2026-05-17, 5 days early vs 5/22 plan) — `analysis/puzzles/graders.py` with `grade_keyword` (rapidfuzz threshold 80, typo-tolerant), `grade_llm` (inline Anthropic claude-haiku-4-5, ~$0.001/grading), and `grade()` dispatcher with fallback chain (llm → keyword → self). Verdict appears as colored chip below author's solution on Reveal; self-grade ✓/✗ buttons remain as override.
+- [x] **5 real-data puzzles seeded from cached replays** (2026-05-17) — `scripts/seed_real_puzzles.py` references real `arena_match_id`s (ViewtifulYosh + Drosme), uses verified cards from Tokyo Prowess (saved_decks.id=17), all with `grading_mode='keyword'` so Phase 3 graders auto-grade. `scripts/enrich_puzzle_notes.py` patches notes with GY state + card abilities (until Scene gets a graveyard field).
+- [ ] **Phase 4 — Sharing format** (JSON import/export of puzzles) — deferred
+- [ ] **Scene enhancement: graveyard zone** (data + render) — currently captured in notes text only
 
 ## OPEN — Tournament System
 - [ ] Pre-event prep mode (deck + SB guide + expected meta)

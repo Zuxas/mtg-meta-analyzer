@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-17 (puzzle Phase 3 graders + crash-handler BaseException fix shipped)
+Last updated: 2026-05-17 (5/17 session: puzzle Phase 3 graders, crash-handler BaseException fix, 5 real-data puzzles, Maps deeplink in Event Hub; carry-over from 5/16: single-instance enforcement)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
