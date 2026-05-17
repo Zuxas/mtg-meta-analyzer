@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-16 (puzzle tool Phase 2 + single-instance enforcement shipped)
+Last updated: 2026-05-16 (puzzle Phase 2 + single-instance + SB cheat-sheet shipped)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -175,7 +175,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **Event peers:** Click Event column → `EventPeersDialog` showing all decks from tournament
 - **Card image tooltips:** Scryfall API, in-memory cache, floating widget
 - **Matchup Data:** Three sources merged (real★ + scraped + paste) + Untapped Bo3 ladder as 4th gap-fill source, team notes via right-click, equilibrium button
-- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON. Deck-detail panel has 5 sub-tabs: Decklist / Sideboard Plans (master-detail layout) / Test Hand / EV vs Field / Match History.
+- **My Decks:** CRUD + SB plans + export (MTGO/MTGA/decklist.org) + Share/Import JSON. Deck-detail panel has 5 sub-tabs: Decklist / Sideboard Plans (master-detail layout) / Test Hand / EV vs Field / Match History. "Export Cheat Sheet" button generates a 1-page printable PNG/PDF of all SB plans for at-table reference, with tiles color-coded by difficulty (Easy=green / Medium=navy / Hard=red).
 - **Test Hand sub-tab:** Primer-rule mulligan evaluator — random 7-card draw, classifies cards (land/cantrip/threat/answer), KEEP/MARGINAL/MULL verdict with reasoning by play-draw and matchup. "Run 1000-hand study" button opens MulliganStudyDialog (12k Monte Carlo simulations across primer's 5 matchups × play/draw, keep/mull-to-6/mull-to-5/mull-to-4 rates).
 - **EV vs Field sub-tab:** Field-weighted WR for the saved deck — combines paper matchup data + Untapped Bo3 + SB difficulty bumps (Easy +5pp / Hard -5pp). Headline EV number, top favorable/unfavorable matchups, per-matchup breakdown table with source color-coding (paper/untapped/mirror/guess) and low-N flagging.
 - **Match History sub-tab (2026-05-14):** Per-deck match log filtered by `my_deck_id`. Summary header shows overall W-L + WR%, plus per-category breakdown (Ranked Bo3 / Ranked Bo1 / Unranked / Limited / Other) sourced from the raw MTGA event_name. Filter dropdown narrows to one category. Matchup aggregation table sums W-L per opponent archetype. Recent-matches list (top 50, newest first) with date / event / opponent / archetype / result / play-draw. **Click a recent-matches row** → right pane (horizontal splitter) shows per-game W/L + class (close/blowout/normal) + turn count + mull-to + life endpoints, followed by the SB plan (G1→G2 / G2→G3 with +N CardName in / -N CardName out from `match_log_sb_plans` table). A **`▶ Watch replay` button** on the detail panel opens a popup dialog (`gui/widgets/replay_transcript_dialog.py`) with the full turn-by-turn life trajectory parsed from Player.log via `analysis/replay_transcript.py` (cached to `data/match_replays/<arena_match_id>.json` for instant re-open). Lives at `gui/widgets/deck_match_history.py`.

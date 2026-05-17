@@ -145,8 +145,7 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
 - [ ] RC-realistic field model — replace 14d paper-meta default in
       `analysis/deck_ev.py` with an RCQ-weighted blend (recent RCQ top-8s +
       Untapped Mythic), since RC fields differ from MTGO/online.
-- [ ] Sideboard quick-reference printout — 1-page exportable card (PDF
-      or PNG) of the 12-matchup SB grid for Tokyo Prowess.
+- [x] ~~Sideboard quick-reference printout~~ -- shipped (`analysis/sb_cheat_sheet.py` + "Export Cheat Sheet" button on My Decks -> Sideboard Plans). 1-page PDF/PNG, color-coded by difficulty.
 
 ### Sim Integration (cross-repo mtg-sim)
 - [ ] Author Standard goldfish APLs for the remaining 6 archetypes
