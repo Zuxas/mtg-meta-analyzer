@@ -182,7 +182,7 @@ class PuzzlesTab(QWidget):
             self._got_it_btn.hide(); self._missed_btn.hide()
             self._scene_widget.set_scene(_empty_scene())
             return
-        puzzle = candidates[-1]
+        puzzle = candidates[0]  # newest first (get_puzzles returns DESC by id)
         self._current_puzzle = puzzle
         self._render_puzzle(puzzle)
 
