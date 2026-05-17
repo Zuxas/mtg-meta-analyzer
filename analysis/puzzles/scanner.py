@@ -118,7 +118,49 @@ def _scan_find_lethal(
 def _scan_stabilize(
     match_id: str, game_num: int, turns: list[dict]
 ) -> list[Candidate]:
-    return []
+    """Stabilize heuristic: turn N where your life <= 5 AND match
+    continued past N AND you eventually won the match.
+
+    Score: 0.5 * (1 - your_life_at_turn / 20) + 0.5 * (did_win ? 1.0 : 0.5)
+    """
+    if not turns:
+        return []
+    # Determine if user eventually won this game (opp life hit 0 last)
+    did_win = False
+    for t in turns:
+        for a in t.get("actions") or []:
+            m = _LIFE_RE.search(a or "")
+            if m and m.group(1).lower() == "opp" and int(m.group(2)) <= 0:
+                did_win = True
+                break
+        if did_win:
+            break
+
+    out: list[Candidate] = []
+    for idx, t in enumerate(turns):
+        your_life, _ = _parse_life_from_actions(t.get("actions") or [])
+        if your_life is None or your_life > 5:
+            continue
+        # Match must continue past this turn — i.e. there's at least one
+        # later turn AND user didn't die during this turn.
+        if your_life <= 0:
+            continue
+        if idx >= len(turns) - 1:
+            continue
+        if not did_win:
+            continue
+        win_term = 1.0
+        life_term = 1.0 - (max(your_life, 0) / 20.0)
+        score = round(0.5 * life_term + 0.5 * win_term, 3)
+        out.append(Candidate(
+            arena_match_id=match_id,
+            game_num=game_num,
+            turn_num=int(t.get("turn", 0)),
+            category="stabilize",
+            heuristic_score=score,
+            evidence=f"your life {your_life}, won={did_win}",
+        ))
+    return out
 
 
 def _scan_tempo(

@@ -82,3 +82,30 @@ def test_find_lethal_does_not_fire_for_low_spell_count():
     out = scanner.scan_match("m-one", transcript)
     lethal = [c for c in out if c.category == "find_lethal"]
     assert lethal == []
+
+
+def test_stabilize_fires_when_low_life_and_match_continued():
+    """Spec heuristic: turn N where your life <= 5 AND match continued
+    past N AND you eventually won."""
+    from analysis.puzzles import scanner
+    transcript = _fake_transcript([{"game_num": 1, "turns": [
+        _turn(6, ["You life: 4"]),
+        _turn(7, ["You life: 6"]),  # survived the spot
+        _turn(8, ["Opp life: 0"]),  # eventually won
+    ]}])
+    out = scanner.scan_match("m-stab", transcript)
+    stab = [c for c in out if c.category == "stabilize"]
+    assert len(stab) >= 1
+    assert stab[0].turn_num == 6  # the low-life turn
+
+
+def test_stabilize_does_not_fire_if_match_ended_with_loss():
+    """If you died, the low-life turn isn't a stabilize candidate."""
+    from analysis.puzzles import scanner
+    transcript = _fake_transcript([{"game_num": 1, "turns": [
+        _turn(6, ["You life: 4"]),
+        _turn(7, ["You life: 0"]),  # died
+    ]}])
+    out = scanner.scan_match("m-lose", transcript)
+    stab = [c for c in out if c.category == "stabilize"]
+    assert stab == []
