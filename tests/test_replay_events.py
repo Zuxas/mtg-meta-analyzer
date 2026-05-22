@@ -887,3 +887,42 @@ def test_cli_dump_exits_zero_for_known_match(tmp_path, monkeypatch):
     assert result.returncode == 0, f"stderr: {result.stderr}"
     assert "phase_change" in result.stdout
     assert "Phase_Main1" in result.stdout
+
+
+def test_watcher_calls_both_builders(monkeypatch):
+    """MtgaLogWatcher._build_missing_transcripts calls build_event_stream
+    in addition to build_transcript."""
+    from gui import mtga_log_watcher
+
+    calls = {"transcript": 0, "events": 0}
+
+    def _fake_build_transcript(mid, force_refresh=False):
+        calls["transcript"] += 1
+        return {"games": []}
+
+    def _fake_build_events(mid, force_refresh=False):
+        calls["events"] += 1
+        return {"events": []}
+
+    def _fake_cache_path(mid):
+        from pathlib import Path
+        # Pretend cache never exists so both builders are invoked
+        return Path("/nonexistent/never-here.json")
+
+    monkeypatch.setattr("analysis.replay_transcript.build_transcript",
+                        _fake_build_transcript)
+    monkeypatch.setattr("analysis.replay_events.build_event_stream",
+                        _fake_build_events)
+    monkeypatch.setattr("analysis.replay_transcript.transcript_cache_path",
+                        _fake_cache_path)
+
+    w = mtga_log_watcher.MtgaLogWatcher()
+    matches = [
+        {"match_id": "test-1", "match_result": "win"},
+        {"match_id": "test-2", "match_result": "loss"},
+        {"match_id": "test-3", "match_result": ""},  # in-progress, skip
+    ]
+    built = w._build_missing_transcripts(matches)
+    assert calls["transcript"] == 2  # 2 completed matches
+    assert calls["events"] == 2      # both builders called per completed match
+    assert built == 2

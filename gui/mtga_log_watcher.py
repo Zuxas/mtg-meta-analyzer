@@ -46,31 +46,42 @@ class MtgaLogWatcher(QThread):
         self.wait(timeout=5000)
 
     def _build_missing_transcripts(self, matches: list[dict]) -> int:
-        """Cache replay transcripts for completed matches not yet on disk.
+        """Cache replay transcripts AND event streams for completed matches
+        not yet on disk.
 
-        Only matches with a non-empty match_result are considered (skip
-        in-progress games). build_transcript() re-parses both Player
-        logs to extract one match, so this is O(N * log_size). For a
-        normal watcher tick N is small (0-5); the initial warmup may be
-        larger but is bounded by however many matches MTGA still has in
-        its rotation window (~last few days).
+        Calls both builders so caches land complete on first write:
+          - analysis.replay_transcript.build_transcript (classic action strings)
+          - analysis.replay_events.build_event_stream  (M1 event stream)
         """
         from analysis.replay_transcript import (
             build_transcript, transcript_cache_path,
         )
+        from analysis.replay_events import build_event_stream
+
         built = 0
         for m in matches:
             mid = m.get("match_id")
             if not mid:
                 continue
             if not m.get("match_result"):
-                continue  # in-progress -- wait for next tick
+                continue
             if transcript_cache_path(mid).exists():
+                # Cache exists -- run only the event builder; its
+                # capability check will no-op if events[] is already
+                # populated, or rebuild only the event stream if not.
+                try:
+                    build_event_stream(mid)
+                except Exception:
+                    pass
                 continue
             try:
                 t = build_transcript(mid)
                 if t is not None:
                     built += 1
+                    try:
+                        build_event_stream(mid)
+                    except Exception:
+                        pass  # event stream failure must not kill transcript
             except Exception:
                 continue
         return built
