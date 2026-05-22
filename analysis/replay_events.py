@@ -278,6 +278,20 @@ def build_event_stream(arena_match_id: str,
                                           actor_seat=owner,
                                           card_name=nm, card_grpid=grp,
                                           details={"category": cat})
+                        elif t == "AnnotationType_PlayerSubmittedTargets":
+                            target_objs = []
+                            for tiid in affected:
+                                grp = instance_to_grpid.get(tiid)
+                                target_objs.append({
+                                    "name": grpid_names.get(grp, f"instance#{tiid}") if grp else f"instance#{tiid}",
+                                    "grpid": grp,
+                                    "kind": "spell_or_permanent",
+                                })
+                            _emit("target_chosen", game_state_id=gs_id, targets=target_objs)
+                        elif t == "AnnotationType_DamageDealt":
+                            amount = _ds("damage")
+                            _emit("damage_dealt", game_state_id=gs_id,
+                                  details={"damage": amount, "affected_ids": list(affected)})
 
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority

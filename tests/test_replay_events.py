@@ -173,3 +173,45 @@ def test_cast_resolve_counter_events(monkeypatch):
     assert cast["card_name"] == "Lightning Strike"
     assert cast["card_grpid"] == 100
     assert cast["actor_seat"] == 1
+
+
+def test_targets_and_damage(monkeypatch):
+    """PlayerSubmittedTargets -> target_chosen; DamageDealt -> damage_dealt."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "tgt-test-match-001"
+    grpid_names = {100: "Lightning Strike", 200: "Goblin"}
+    blobs = [
+        match_start(MID),
+        game_state(
+            turn_num=1, priority_seat=1, game_state_id=500,
+            game_objects=[
+                {"instanceId": 5, "grpId": 100, "ownerSeatId": 1,
+                 "controllerSeatId": 1},
+                {"instanceId": 6, "grpId": 200, "ownerSeatId": 2,
+                 "controllerSeatId": 2},
+            ],
+            annotations=[
+                {"id": 10, "type": ["AnnotationType_PlayerSubmittedTargets"],
+                 "affectedIds": [6]},
+                {"id": 11, "type": ["AnnotationType_DamageDealt"],
+                 "affectedIds": [5, 6],
+                 "details": [{"key": "damage",
+                              "valueInt32": [3]}]},
+            ],
+        ),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    kinds = [e["kind"] for e in result["events"]]
+    assert "target_chosen" in kinds
+    assert "damage_dealt" in kinds
+    tgt = [e for e in result["events"] if e["kind"] == "target_chosen"][0]
+    assert tgt["targets"][0]["name"] == "Goblin"
+    dmg = [e for e in result["events"] if e["kind"] == "damage_dealt"][0]
+    assert dmg["details"]["damage"] == 3
