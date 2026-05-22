@@ -292,6 +292,44 @@ def build_event_stream(arena_match_id: str,
                             amount = _ds("damage")
                             _emit("damage_dealt", game_state_id=gs_id,
                                   details={"damage": amount, "affected_ids": list(affected)})
+                        elif t == "AnnotationType_Scry":
+                            top_d = details_map.get("topIds", {})
+                            bot_d = details_map.get("bottomIds", {})
+                            top_iids = top_d.get("valueInt32") or [] if top_d else []
+                            bot_iids = bot_d.get("valueInt32") or [] if bot_d else []
+                            revealed = []
+                            for iid in top_iids:
+                                grp = instance_to_grpid.get(iid)
+                                revealed.append({
+                                    "grpid": grp,
+                                    "name": grpid_names.get(grp, f"instance#{iid}") if grp else f"instance#{iid}",
+                                    "source": "scry_top",
+                                    "seat": my_seat,
+                                    "library_position": "top",
+                                })
+                            for iid in bot_iids:
+                                grp = instance_to_grpid.get(iid)
+                                revealed.append({
+                                    "grpid": grp,
+                                    "name": grpid_names.get(grp, f"instance#{iid}") if grp else f"instance#{iid}",
+                                    "source": "scry_top",  # source is still scry; position differs
+                                    "seat": my_seat,
+                                    "library_position": "bottom",
+                                })
+                            _emit("scry", game_state_id=gs_id, revealed_cards=revealed,
+                                  details={"top_count": len(top_iids), "bottom_count": len(bot_iids)})
+                        elif t == "AnnotationType_Surveil":
+                            revealed = []
+                            for iid in affected:
+                                grp = instance_to_grpid.get(iid)
+                                revealed.append({
+                                    "grpid": grp,
+                                    "name": grpid_names.get(grp, f"instance#{iid}") if grp else f"instance#{iid}",
+                                    "source": "surveil_top",
+                                    "seat": my_seat,
+                                    "library_position": "top",
+                                })
+                            _emit("surveil", game_state_id=gs_id, revealed_cards=revealed)
 
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority

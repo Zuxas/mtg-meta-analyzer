@@ -215,3 +215,40 @@ def test_targets_and_damage(monkeypatch):
     assert tgt["targets"][0]["name"] == "Goblin"
     dmg = [e for e in result["events"] if e["kind"] == "damage_dealt"][0]
     assert dmg["details"]["damage"] == 3
+
+
+def test_scry_populates_revealed_cards(monkeypatch):
+    """Scry annotation produces an event with revealed_cards populated."""
+    from tests.fixtures.replay_events.scry_surveil_shuffle import (
+        MATCH_ID as SCRY_MID, GRPID_NAMES, build_scry,
+    )
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(build_scry()))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: GRPID_NAMES)
+    result = replay_events.build_event_stream(SCRY_MID, force_refresh=True)
+    assert result is not None
+    scry = [e for e in result["events"] if e["kind"] == "scry"]
+    assert len(scry) == 1
+    revealed = scry[0]["revealed_cards"]
+    assert any(r["name"] == "Island" and r["library_position"] == "top"
+               for r in revealed)
+    assert any(r["name"] == "Mountain" and r["library_position"] == "bottom"
+               for r in revealed)
+
+
+def test_surveil_populates_revealed_cards(monkeypatch):
+    """Surveil annotation produces an event with revealed_cards populated."""
+    from tests.fixtures.replay_events.scry_surveil_shuffle import (
+        MATCH_ID as MID, GRPID_NAMES, build_surveil,
+    )
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(build_surveil()))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: GRPID_NAMES)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    surveil_evs = [e for e in result["events"] if e["kind"] == "surveil"]
+    assert len(surveil_evs) == 1
+    revealed = surveil_evs[0]["revealed_cards"]
+    assert revealed and revealed[0]["name"] == "Opt"
+    assert revealed[0]["source"] == "surveil_top"
