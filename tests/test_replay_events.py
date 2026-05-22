@@ -850,3 +850,40 @@ def test_round_trip_against_synthetic_classic(monkeypatch):
     assert "You cast Lightning Strike" in rendered_text
     assert "Lightning Strike resolves" in rendered_text
     assert "TestOpp life: 20 → 17 (-3)" in rendered_text
+
+
+def test_cli_dump_exits_zero_for_known_match(tmp_path, monkeypatch):
+    """`python scripts/replay_event_dump.py <id>` exits 0 on a cached match."""
+    import subprocess, sys, json
+    from pathlib import Path
+    MID = "cli-test-001"
+    cache = {
+        "arena_match_id": MID,
+        "schema_version": 1,
+        "capabilities": dict(replay_events.M1_CAPABILITIES),
+        "match_meta": {"games": [], "key_events_by_turn": [],
+                       "event_name": "Ranked"},
+        "events": [
+            {"seq": 0, "kind": "phase_change", "turn_num": 1,
+             "phase": "Phase_Main1", "step": None,
+             "active_seat": 1, "priority_seat": 1,
+             "card_name": None, "card_grpid": None, "targets": [],
+             "details": {}, "stack_after": [], "board_diff": [],
+             "revealed_cards": [], "shuffle_cause": None,
+             "actor_seat": None, "life_after": None,
+             "mana_pool_after": None, "log_offset": None,
+             "game_state_id": None, "game_num": 1},
+        ],
+        "my_seat": 1, "opp_seat": 2, "opp_name": "CLITestOpp",
+    }
+    cache_file = tmp_path / f"{MID}.json"
+    cache_file.write_text(json.dumps(cache), encoding="utf-8")
+    project_root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, str(project_root / "scripts" / "replay_event_dump.py"),
+         "--cache-dir", str(tmp_path), MID],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    assert result.returncode == 0, f"stderr: {result.stderr}"
+    assert "phase_change" in result.stdout
+    assert "Phase_Main1" in result.stdout
