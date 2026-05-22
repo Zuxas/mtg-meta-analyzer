@@ -12,6 +12,9 @@ from tests.fixtures.replay_events import make_blob_iter
 from tests.fixtures.replay_events.minimal_match import (
     MATCH_ID as MINIMAL_MATCH_ID, build as build_minimal,
 )
+from tests.fixtures.replay_events.full_phase_match import (
+    MATCH_ID as PHASE_MATCH_ID, build as build_phase_match, _PHASES_STEPS,
+)
 
 
 def test_unknown_match_returns_none(monkeypatch):
@@ -42,3 +45,21 @@ def test_match_boundary_populates_seats(monkeypatch):
     assert result["schema_version"] == 1
     assert result["capabilities"]["events"] is True
     assert result["capabilities"]["odds_ready"] is False
+
+
+def test_phase_coverage(monkeypatch):
+    """events[] includes a phase_change/step_change for every MTG phase+step pair."""
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(build_phase_match()))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(PHASE_MATCH_ID,
+                                              force_refresh=True)
+    assert result is not None
+    seen_pairs = set()
+    for ev in result["events"]:
+        if ev["kind"] in ("phase_change", "step_change"):
+            seen_pairs.add((ev["phase"], ev["step"]))
+    for phase, step in _PHASES_STEPS:
+        assert (phase, step) in seen_pairs, \
+            f"missing phase/step pair: {phase}/{step}"

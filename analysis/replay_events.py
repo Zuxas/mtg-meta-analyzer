@@ -108,6 +108,46 @@ def build_event_stream(arena_match_id: str,
     target_found = False
     my_user_id = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
 
+    # ── Event-emission state ──────────────────────────────────
+    seq = 0
+    current_phase: Optional[str] = None
+    current_step: Optional[str] = None
+    current_game = 1
+    current_turn = 0
+    current_active_seat: Optional[int] = None
+    current_priority_seat: Optional[int] = None
+
+    def _emit(kind: str, **payload):
+        nonlocal seq
+        if kind not in EVENT_KINDS:
+            payload.setdefault("details", {})["original_kind"] = kind
+            kind = "raw"
+        ev = {
+            "seq": seq,
+            "game_state_id": payload.pop("game_state_id", None),
+            "game_num": current_game,
+            "turn_num": current_turn,
+            "phase": current_phase,
+            "step": current_step,
+            "active_seat": current_active_seat,
+            "priority_seat": current_priority_seat,
+            "actor_seat": payload.pop("actor_seat", None),
+            "kind": kind,
+            "card_name": payload.pop("card_name", None),
+            "card_grpid": payload.pop("card_grpid", None),
+            "targets": payload.pop("targets", []),
+            "details": payload.pop("details", {}),
+            "life_after": payload.pop("life_after", None),
+            "mana_pool_after": payload.pop("mana_pool_after", None),
+            "stack_after": payload.pop("stack_after", []),
+            "board_diff": payload.pop("board_diff", []),
+            "log_offset": payload.pop("log_offset", None),
+            "revealed_cards": payload.pop("revealed_cards", []),
+            "shuffle_cause": payload.pop("shuffle_cause", None),
+        }
+        events.append(ev)
+        seq += 1
+
     for log_path in (PLAYER_LOG, PLAYER_PREV_LOG):
         for obj in _iter_json_blobs(log_path):
             mrse = obj.get("matchGameRoomStateChangedEvent")
@@ -124,6 +164,42 @@ def build_event_stream(arena_match_id: str,
                             opp_seat = p.get("systemSeatId")
                             opp_name = p.get("playerName") or opp_name
                 continue
+
+            # ── GameStateMessage handler ─────────────────────────
+            gre = obj.get("greToClientEvent")
+            if gre:
+                for msg in gre.get("greToClientMessages", []) or []:
+                    if msg.get("type") != "GREMessageType_GameStateMessage":
+                        continue
+                    gsm = msg.get("gameStateMessage", {})
+                    gi = gsm.get("gameInfo", {})
+                    gn = gi.get("gameNumber")
+                    if gn and gn != current_game:
+                        current_game = gn
+                    ti = gsm.get("turnInfo", {})
+                    tn = ti.get("turnNumber")
+                    if tn:
+                        current_turn = tn
+                    active = ti.get("activePlayer")
+                    if active:
+                        current_active_seat = active
+                    priority = ti.get("priorityPlayer")
+                    if priority:
+                        current_priority_seat = priority
+                    new_phase = ti.get("phase")
+                    new_step = ti.get("step")
+                    gs_id = gsm.get("gameStateId")
+
+                    if new_phase and new_phase != current_phase:
+                        # Phase changed (includes first phase seen when
+                        # current_phase is None).
+                        current_phase = new_phase
+                        current_step = new_step  # update simultaneously
+                        _emit("phase_change", game_state_id=gs_id)
+                    elif new_step and new_step != current_step:
+                        # Same phase, step advanced within the phase.
+                        current_step = new_step
+                        _emit("step_change", game_state_id=gs_id)
 
     if not target_found:
         return None
