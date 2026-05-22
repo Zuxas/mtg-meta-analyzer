@@ -57,6 +57,17 @@ EVENT_KINDS = frozenset({
     "game_end", "raw",
 })
 
+_ZONE_TYPE_TO_NAME = {
+    "ZoneType_Hand": "hand",
+    "ZoneType_Library": "library",
+    "ZoneType_Battlefield": "battlefield",
+    "ZoneType_Graveyard": "graveyard",
+    "ZoneType_Exile": "exile",
+    "ZoneType_Stack": "stack",
+    "ZoneType_Command": "command",
+    "ZoneType_Pending": "pending",
+}
+
 # Capabilities reported in the cache header. Update both this constant
 # and the spec's capabilities block when adding a new capability.
 M1_CAPABILITIES = {
@@ -118,6 +129,8 @@ def build_event_stream(arena_match_id: str,
     current_priority_seat: Optional[int] = None
     instance_to_grpid: dict[int, int] = {}
     instance_to_owner: dict[int, int] = {}
+    instance_to_zone: dict[int, str] = {}
+    pending_zone_diffs: list[dict] = []
     current_stack: list[dict] = []
     seen_annotations: set[int] = set()
     prev_life: dict[int, int] = {}
@@ -126,10 +139,14 @@ def build_event_stream(arena_match_id: str,
     current_mana_pool_after: Optional[dict] = None
 
     def _emit(kind: str, **payload):
-        nonlocal seq
+        nonlocal seq, pending_zone_diffs
         if kind not in EVENT_KINDS:
             payload.setdefault("details", {})["original_kind"] = kind
             kind = "raw"
+        diffs_for_this_event = payload.pop("board_diff", None)
+        if diffs_for_this_event is None:
+            diffs_for_this_event = pending_zone_diffs
+            pending_zone_diffs = []
         ev = {
             "seq": seq,
             "game_state_id": payload.pop("game_state_id", None),
@@ -148,7 +165,7 @@ def build_event_stream(arena_match_id: str,
             "life_after": payload.pop("life_after", dict(current_life_after) if current_life_after else None),
             "mana_pool_after": payload.pop("mana_pool_after", dict(current_mana_pool_after) if current_mana_pool_after else None),
             "stack_after": payload.pop("stack_after", list(current_stack)),
-            "board_diff": payload.pop("board_diff", []),
+            "board_diff": diffs_for_this_event,
             "log_offset": payload.pop("log_offset", None),
             "revealed_cards": payload.pop("revealed_cards", []),
             "shuffle_cause": payload.pop("shuffle_cause", None),
@@ -255,6 +272,48 @@ def build_event_stream(arena_match_id: str,
                                 "you": prev_mana.get(my_seat, ""),
                                 "opp": prev_mana.get(opp_seat, ""),
                             }
+
+                    # Build current zone snapshot from zones[]
+                    current_zones: dict[int, str] = {}
+                    for zone in gsm.get("zones", []) or []:
+                        zname = _ZONE_TYPE_TO_NAME.get(zone.get("type"))
+                        if not zname:
+                            continue
+                        for iid in zone.get("objectInstanceIds", []) or []:
+                            current_zones[iid] = zname
+
+                    # Compute diffs against the running instance_to_zone map
+                    zone_diffs: list[dict] = []
+                    for iid, new_zone in current_zones.items():
+                        old_zone = instance_to_zone.get(iid)
+                        if old_zone != new_zone:
+                            grp = instance_to_grpid.get(iid)
+                            owner = instance_to_owner.get(iid)
+                            zone_diffs.append({
+                                "instance_id": iid,
+                                "card": grpid_names.get(grp) if grp else None,
+                                "grpid": grp,
+                                "from": old_zone,
+                                "to": new_zone,
+                                "controller": "you" if owner == my_seat else "opp" if owner == opp_seat else None,
+                            })
+                            instance_to_zone[iid] = new_zone
+                    # Detect instances that disappeared (no longer in any zone)
+                    for iid in list(instance_to_zone.keys()):
+                        if iid not in current_zones:
+                            old_zone = instance_to_zone.pop(iid)
+                            grp = instance_to_grpid.get(iid)
+                            owner = instance_to_owner.get(iid)
+                            zone_diffs.append({
+                                "instance_id": iid,
+                                "card": grpid_names.get(grp) if grp else None,
+                                "grpid": grp,
+                                "from": old_zone,
+                                "to": None,
+                                "controller": "you" if owner == my_seat else "opp" if owner == opp_seat else None,
+                            })
+
+                    pending_zone_diffs = zone_diffs
 
                     for ann in gsm.get("annotations", []) or []:
                         ann_id = ann.get("id")
@@ -366,6 +425,11 @@ def build_event_stream(arena_match_id: str,
                         elif t == "AnnotationType_Shuffle":
                             cause = _ds("cause") or "unknown"
                             _emit("shuffle", game_state_id=gs_id, shuffle_cause=cause)
+
+                    # If zone diffs weren't consumed by an annotation-driven
+                    # event, emit a synthetic zone_change event holding them.
+                    if pending_zone_diffs:
+                        _emit("zone_change", game_state_id=gs_id)
 
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority

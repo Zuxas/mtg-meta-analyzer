@@ -344,3 +344,60 @@ def test_life_change_emitted(monkeypatch):
     assert lifechanges[0]["details"]["seat"] == 2
     assert lifechanges[0]["details"]["delta"] == -3
     assert lifechanges[0]["life_after"]["opp"] == 17
+
+
+def test_board_diff_validity(monkeypatch):
+    """Applying all board_diff[] entries from seq=0 produces the same
+    zone counts MTGA reports in zones[]."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "board-test-001"
+    grpid_names = {500: "Mountain"}
+    blobs = [
+        match_start(MID),
+        # T1: Mountain in hand
+        game_state(turn_num=1, priority_seat=1, game_state_id=700,
+                   game_objects=[
+                       {"instanceId": 50, "grpId": 500, "ownerSeatId": 1,
+                        "controllerSeatId": 1, "zoneId": 1},
+                   ],
+                   zones=[
+                       {"type": "ZoneType_Hand", "ownerSeatId": 1,
+                        "objectInstanceIds": [50]},
+                       {"type": "ZoneType_Battlefield",
+                        "objectInstanceIds": []},
+                   ]),
+        # T1: Mountain played
+        game_state(turn_num=1, priority_seat=1, game_state_id=701,
+                   game_objects=[
+                       {"instanceId": 50, "grpId": 500, "ownerSeatId": 1,
+                        "controllerSeatId": 1, "zoneId": 2},
+                   ],
+                   zones=[
+                       {"type": "ZoneType_Hand", "ownerSeatId": 1,
+                        "objectInstanceIds": []},
+                       {"type": "ZoneType_Battlefield",
+                        "objectInstanceIds": [50]},
+                   ]),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    # Walk all board_diff entries and apply them
+    zones_now = {"hand": set(), "battlefield": set()}
+    for ev in result["events"]:
+        for diff in ev["board_diff"]:
+            src = diff.get("from")
+            dst = diff.get("to")
+            iid = diff["instance_id"]
+            if src in zones_now:
+                zones_now[src].discard(iid)
+            if dst in zones_now:
+                zones_now[dst].add(iid)
+    # Final state should match the last MTGA zones[] snapshot
+    assert 50 in zones_now["battlefield"]
+    assert 50 not in zones_now["hand"]
