@@ -529,6 +529,73 @@ def build_event_stream(arena_match_id: str,
     if not target_found:
         return None
 
+    # Post-pass: extract key events
+    def _extract_key_events(events_list: list[dict]) -> list[dict]:
+        keys = []
+        mull_count = 0
+        first_spell_seen = False
+        first_combat_seen = False
+        low_life_marked = False
+        for ev in events_list:
+            if ev["kind"] == "mulligan_decision":
+                mull_count += 1
+            elif ev["kind"] == "keep_hand":
+                if mull_count > 0:
+                    keys.append({
+                        "turn": ev["turn_num"],
+                        "kind": f"mulligan_to_{7 - mull_count}",
+                        "actor": "you",
+                        "seq": ev["seq"],
+                    })
+            elif ev["kind"] == "cast_spell" and not first_spell_seen:
+                first_spell_seen = True
+                keys.append({
+                    "turn": ev["turn_num"],
+                    "kind": "first_spell",
+                    "actor": "you" if ev.get("actor_seat") == my_seat else "opp",
+                    "seq": ev["seq"],
+                    "card": ev.get("card_name"),
+                })
+            elif ev["kind"] == "attack_declared" and not first_combat_seen:
+                first_combat_seen = True
+                keys.append({
+                    "turn": ev["turn_num"],
+                    "kind": "first_combat",
+                    "seq": ev["seq"],
+                })
+            elif ev["kind"] == "life_change":
+                life_after = ev.get("life_after") or {}
+                my_life = life_after.get("you")
+                if my_life is not None and my_life <= 5 and not low_life_marked:
+                    low_life_marked = True
+                    keys.append({
+                        "turn": ev["turn_num"],
+                        "kind": "low_life_threshold",
+                        "actor": "you",
+                        "seq": ev["seq"],
+                        "detail": f"{my_life} life",
+                    })
+            elif ev["kind"] == "game_end":
+                reason = (ev.get("details") or {}).get("reason", "") or ""
+                if reason == "Concede":
+                    winning = (ev.get("details") or {}).get("winning_seat")
+                    actor = "you" if winning != my_seat else "opp"
+                    keys.append({
+                        "turn": ev["turn_num"],
+                        "kind": "concede",
+                        "actor": actor,
+                        "seq": ev["seq"],
+                    })
+                elif reason == "DamageDealt":
+                    keys.append({
+                        "turn": ev["turn_num"],
+                        "kind": "lethal_attack",
+                        "seq": ev["seq"],
+                    })
+        return keys
+
+    match_meta["key_events_by_turn"] = _extract_key_events(events)
+
     return {
         "arena_match_id": arena_match_id,
         "schema_version": SCHEMA_VERSION,

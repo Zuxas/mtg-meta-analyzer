@@ -587,3 +587,63 @@ def test_per_game_decklists(monkeypatch):
     # G2 sideboarded in 105 x2, out 104 x1
     assert 105 in games[1]["sideboard_in"]
     assert 104 in games[1]["sideboard_out"]
+
+
+def test_key_events_extracted(monkeypatch):
+    """key_events_by_turn includes first_spell, mulligan_to_6, concede."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "key-events-test-001"
+    grpid_names = {700: "Lightning Strike"}
+    blobs = [
+        match_start(MID),
+        # Mull -> keep on 6
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {"type": "ClientMessageType_MulliganResp",
+                     "mulliganResp": {"decision": "MulliganOption_Mulligan"}}},
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {"type": "ClientMessageType_MulliganResp",
+                     "mulliganResp": {"decision": "MulliganOption_AcceptHand"}}},
+        # First spell turn 3
+        game_state(turn_num=3, priority_seat=1, game_state_id=900,
+                   game_objects=[
+                       {"instanceId": 200, "grpId": 700, "ownerSeatId": 1,
+                        "controllerSeatId": 1},
+                   ],
+                   annotations=[
+                       {"id": 50, "type": ["AnnotationType_ZoneTransfer"],
+                        "affectedIds": [200],
+                        "details": [{"key": "category",
+                                     "valueString": ["CastSpell"]}]},
+                   ]),
+        # Concede
+        {"greToClientEvent": {"greToClientMessages": [{
+            "type": "GREMessageType_GameStateMessage",
+            "gameStateMessage": {
+                "gameInfo": {"gameNumber": 1,
+                             "stage": "GameStage_GameOver",
+                             "results": [{"winningTeamId": 2,
+                                          "reason": "ResultReason_Concede"}]},
+                "turnInfo": {"turnNumber": 4, "phase": "Phase_Main1"},
+                "players": [], "gameObjects": [], "zones": [],
+                "annotations": [],
+            },
+        }]}},
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    keys = result["match_meta"]["key_events_by_turn"]
+    kinds = [k["kind"] for k in keys]
+    assert "mulligan_to_6" in kinds
+    assert "first_spell" in kinds
+    assert "concede" in kinds
+    first_spell = [k for k in keys if k["kind"] == "first_spell"][0]
+    assert first_spell["turn"] == 3
+    assert first_spell["card"] == "Lightning Strike"
