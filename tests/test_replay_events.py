@@ -281,3 +281,42 @@ def test_surveil_distinguishes_top_vs_gy(monkeypatch):
     assert len(gy) == 1
     assert gy[0]["name"] == "Mountain"
     assert gy[0]["library_position"] is None  # in graveyard, not in library
+
+
+def test_shuffle_populates_cause(monkeypatch):
+    """Shuffle annotation produces an event with details.cause populated."""
+    from tests.fixtures.replay_events.scry_surveil_shuffle import (
+        MATCH_ID as MID, GRPID_NAMES, build_shuffle,
+    )
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(build_shuffle(cause="fetch")))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: GRPID_NAMES)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    shuffles = [e for e in result["events"] if e["kind"] == "shuffle"]
+    assert len(shuffles) == 1
+    assert shuffles[0]["shuffle_cause"] == "fetch"
+
+
+def test_shuffle_unknown_cause_defaults(monkeypatch):
+    """Shuffle without cause detail gets shuffle_cause='unknown'."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "shuffle-unknown-001"
+    blobs = [
+        match_start(MID),
+        game_state(turn_num=1, priority_seat=1, annotations=[
+            {"id": 30, "type": ["AnnotationType_Shuffle"],
+             "affectedIds": [], "details": []},
+        ]),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    shuffles = [e for e in result["events"] if e["kind"] == "shuffle"]
+    assert len(shuffles) == 1
+    assert shuffles[0]["shuffle_cause"] == "unknown"

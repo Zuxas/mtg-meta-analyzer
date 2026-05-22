@@ -334,6 +334,9 @@ def build_event_stream(arena_match_id: str,
                                     "library_position": "top" if kept_on_top else None,
                                 })
                             _emit("surveil", game_state_id=gs_id, revealed_cards=revealed)
+                        elif t == "AnnotationType_Shuffle":
+                            cause = _ds("cause") or "unknown"
+                            _emit("shuffle", game_state_id=gs_id, shuffle_cause=cause)
 
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority
