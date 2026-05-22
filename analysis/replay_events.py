@@ -91,16 +91,20 @@ def build_event_stream(arena_match_id: str,
     match isn't found in Player.log / Player-prev.log.
     """
     cache_path = transcript_cache_path(arena_match_id)
-    # Cache read happens in Task 19; for M1 scaffold we always rebuild.
     if not force_refresh and cache_path.exists():
         try:
             with open(cache_path, "r", encoding="utf-8") as f:
                 cached = json.load(f)
             caps = cached.get("capabilities") or {}
-            if caps.get("events") is True:
+            # Require ALL M1 capabilities present and True
+            required = ("events", "board_diff", "public_info",
+                        "per_game_decklists", "stack_history",
+                        "log_offsets")
+            if all(caps.get(c) is True for c in required):
                 return cached
+            # capability missing -> fall through to rebuild
         except Exception:
-            pass  # fall through to rebuild
+            pass  # corrupted cache -> rebuild
 
     grpid_names = _load_grpid_names(
         Path(__file__).resolve().parent.parent / "data" / "mtg_meta.db"

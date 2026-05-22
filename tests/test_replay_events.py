@@ -702,4 +702,65 @@ def test_cache_write_preserves_classic_keys(tmp_path, monkeypatch):
     assert "events" in merged
     assert "match_meta" in merged
     assert merged["schema_version"] == 1
-    assert merged["capabilities"]["events"] is True
+
+
+def test_cache_auto_rebuilds_when_capability_missing(tmp_path, monkeypatch):
+    """A cache with capabilities.events=False (or missing) triggers a
+    rebuild on next read."""
+    import json
+    MID = "auto-rebuild-001"
+    stale = {
+        "arena_match_id": MID,
+        "capabilities": {"events": False},
+        "events": [],
+        "games": [],
+    }
+    # The autouse fixture already sets CACHE_DIR / transcript_cache_path
+    # to tmp_path, but we need to write the stale cache to that same dir.
+    # Use the patched transcript_cache_path to find where:
+    cache_path = replay_events.transcript_cache_path(MID)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(stale), encoding="utf-8")
+
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    blobs = [match_start(MID), game_state(turn_num=1, priority_seat=1),
+             match_end(MID)]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    # NOT passing force_refresh -- must auto-rebuild because cap is missing
+    result = replay_events.build_event_stream(MID, force_refresh=False)
+    assert result is not None
+    assert result["capabilities"]["events"] is True
+
+
+def test_cache_read_returns_when_capabilities_ok(tmp_path, monkeypatch):
+    """When the cache has all required capabilities=True the cached version is returned."""
+    import json
+    MID = "cache-hit-001"
+    full = {
+        "arena_match_id": MID,
+        "schema_version": 1,
+        "capabilities": dict(replay_events.M1_CAPABILITIES),
+        "match_meta": {"games": [], "key_events_by_turn": []},
+        "events": [{"seq": 0, "kind": "phase_change", "turn_num": 1}],
+        "my_seat": 1, "opp_seat": 2, "opp_name": "Test",
+    }
+    cache_path = replay_events.transcript_cache_path(MID)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(full), encoding="utf-8")
+
+    # Should NOT call _iter_json_blobs because the cache is current
+    called = {"n": 0}
+    def _spy(_p):
+        called["n"] += 1
+        return iter([])
+    monkeypatch.setattr(replay_events, "_iter_json_blobs", _spy)
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=False)
+    assert called["n"] == 0
+    assert result["events"][0]["kind"] == "phase_change"
