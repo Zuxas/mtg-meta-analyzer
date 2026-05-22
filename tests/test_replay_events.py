@@ -320,3 +320,27 @@ def test_shuffle_unknown_cause_defaults(monkeypatch):
     shuffles = [e for e in result["events"] if e["kind"] == "shuffle"]
     assert len(shuffles) == 1
     assert shuffles[0]["shuffle_cause"] == "unknown"
+
+
+def test_life_change_emitted(monkeypatch):
+    """When a player's lifeTotal changes between game states, a life_change event lands."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "life-test-001"
+    blobs = [
+        match_start(MID),
+        game_state(turn_num=1, life=(20, 20), priority_seat=1),
+        game_state(turn_num=1, life=(20, 17), priority_seat=1),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    lifechanges = [e for e in result["events"] if e["kind"] == "life_change"]
+    assert len(lifechanges) == 1
+    assert lifechanges[0]["details"]["seat"] == 2
+    assert lifechanges[0]["details"]["delta"] == -3
+    assert lifechanges[0]["life_after"]["opp"] == 17

@@ -120,6 +120,10 @@ def build_event_stream(arena_match_id: str,
     instance_to_owner: dict[int, int] = {}
     current_stack: list[dict] = []
     seen_annotations: set[int] = set()
+    prev_life: dict[int, int] = {}
+    prev_mana: dict[int, str] = {}
+    current_life_after: Optional[dict] = None
+    current_mana_pool_after: Optional[dict] = None
 
     def _emit(kind: str, **payload):
         nonlocal seq
@@ -141,8 +145,8 @@ def build_event_stream(arena_match_id: str,
             "card_grpid": payload.pop("card_grpid", None),
             "targets": payload.pop("targets", []),
             "details": payload.pop("details", {}),
-            "life_after": payload.pop("life_after", None),
-            "mana_pool_after": payload.pop("mana_pool_after", None),
+            "life_after": payload.pop("life_after", dict(current_life_after) if current_life_after else None),
+            "mana_pool_after": payload.pop("mana_pool_after", dict(current_mana_pool_after) if current_mana_pool_after else None),
             "stack_after": payload.pop("stack_after", list(current_stack)),
             "board_diff": payload.pop("board_diff", []),
             "log_offset": payload.pop("log_offset", None),
@@ -226,6 +230,31 @@ def build_event_stream(arena_match_id: str,
                                     "targets": [],  # populated by later target_chosen events
                                 })
                             current_stack = new_stack
+
+                    # Track life + mana from players[]; emit life_change on delta.
+                    for p in gsm.get("players", []) or []:
+                        seat = p.get("systemSeatNumber")
+                        lt = p.get("lifeTotal")
+                        mp = p.get("manaPool", "") or ""
+                        if seat is None:
+                            continue
+                        if lt is not None:
+                            last = prev_life.get(seat)
+                            prev_life[seat] = lt  # update FIRST
+                            current_life_after = {
+                                "you": prev_life.get(my_seat),
+                                "opp": prev_life.get(opp_seat),
+                            }
+                            if last is not None and lt != last:
+                                _emit("life_change", game_state_id=gs_id,
+                                      details={"seat": seat, "delta": lt - last,
+                                               "from": last, "to": lt})
+                        if mp != prev_mana.get(seat, ""):
+                            prev_mana[seat] = mp
+                            current_mana_pool_after = {
+                                "you": prev_mana.get(my_seat, ""),
+                                "opp": prev_mana.get(opp_seat, ""),
+                            }
 
                     for ann in gsm.get("annotations", []) or []:
                         ann_id = ann.get("id")
