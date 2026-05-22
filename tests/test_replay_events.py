@@ -9,6 +9,15 @@ import pytest
 
 from analysis import replay_events
 from tests.fixtures.replay_events import make_blob_iter
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cache_dir(tmp_path, monkeypatch):
+    """Every test gets its own cache dir to prevent polluting data/match_replays."""
+    monkeypatch.setattr(replay_events, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(replay_events, "transcript_cache_path",
+                        lambda mid: tmp_path / f"{mid}.json")
+    return tmp_path
 from tests.fixtures.replay_events.minimal_match import (
     MATCH_ID as MINIMAL_MATCH_ID, build as build_minimal,
 )
@@ -647,3 +656,50 @@ def test_key_events_extracted(monkeypatch):
     first_spell = [k for k in keys if k["kind"] == "first_spell"][0]
     assert first_spell["turn"] == 3
     assert first_spell["card"] == "Lightning Strike"
+
+
+def test_cache_write_preserves_classic_keys(tmp_path, monkeypatch):
+    """Writing event stream to an existing classic cache preserves the
+    games/turns keys the classic dialog reads."""
+    import json
+    MID = "cache-test-001"
+    # Seed an existing classic transcript cache
+    classic = {
+        "arena_match_id": MID,
+        "my_seat": 1, "opp_seat": 2, "opp_name": "TestOpp",
+        "games": [
+            {"game_num": 1, "turns": [
+                {"turn": 1, "active_seat": 1, "active_label": "You",
+                 "actions": ["You play Mountain (land)"]},
+            ]},
+        ],
+    }
+    monkeypatch.setattr(replay_events, "CACHE_DIR", tmp_path)
+    (tmp_path / f"{MID}.json").write_text(json.dumps(classic),
+                                          encoding="utf-8")
+    # Also patch transcript_cache_path so it points into tmp_path
+    monkeypatch.setattr(replay_events, "transcript_cache_path",
+                        lambda mid: tmp_path / f"{mid}.json")
+
+    # Feed minimal blobs through extractor
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    blobs = [match_start(MID), game_state(turn_num=1, priority_seat=1),
+             match_end(MID)]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    assert result is not None
+
+    # Cache file now has BOTH classic and new keys
+    with open(tmp_path / f"{MID}.json", encoding="utf-8") as f:
+        merged = json.load(f)
+    assert "games" in merged
+    assert merged["games"][0]["turns"][0]["actions"] == ["You play Mountain (land)"]
+    assert "events" in merged
+    assert "match_meta" in merged
+    assert merged["schema_version"] == 1
+    assert merged["capabilities"]["events"] is True

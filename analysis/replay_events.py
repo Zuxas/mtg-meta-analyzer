@@ -596,7 +596,9 @@ def build_event_stream(arena_match_id: str,
 
     match_meta["key_events_by_turn"] = _extract_key_events(events)
 
-    return {
+    # Build the merged cache: preserve any existing classic keys
+    # (games/turns/actions etc.) and add our new event-stream keys.
+    out = {
         "arena_match_id": arena_match_id,
         "schema_version": SCHEMA_VERSION,
         "capabilities": dict(M1_CAPABILITIES),
@@ -606,3 +608,25 @@ def build_event_stream(arena_match_id: str,
         "opp_name": opp_name,
         "events": events,
     }
+
+    # Merge with existing classic cache if present
+    existing_cache_path = transcript_cache_path(arena_match_id)
+    if existing_cache_path.exists():
+        try:
+            with open(existing_cache_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            # Preserve classic keys we don't write ourselves
+            for k in ("games",):
+                if k in existing and k not in out:
+                    out[k] = existing[k]
+        except Exception:
+            pass  # ignore corrupted classic cache
+
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(existing_cache_path, "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # best-effort cache
+
+    return out
