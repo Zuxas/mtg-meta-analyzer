@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-17 (5/17 session: puzzle Phase 3 graders, crash-handler BaseException fix, 5 real-data puzzles, Maps deeplink in Event Hub; carry-over from 5/16: single-instance enforcement)
+Last updated: 2026-05-22 (5/22: MTGA watcher auto-caches replay transcripts on every tick + one-shot startup backfill so completed matches survive Player.log rotation; 5/17 session: puzzle Phase 3 graders, crash-handler BaseException fix, 5 real-data puzzles, Maps deeplink in Event Hub; carry-over from 5/16: single-instance enforcement)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -437,6 +437,10 @@ To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lo
   Player-prev.log iterated first so latest wins); gui/widgets/rank_progression_dialog.py
   (matplotlib chart, tier-name Y-axis); Dashboard rank label clickable; 3-layer MTGA freshness
   (↻ Sync button + auto-sync on launch + 30s live-tail gui/mtga_log_watcher.py QThread);
+  watcher additionally runs _build_missing_transcripts after each parse + as a one-shot
+  startup backfill so completed matches in the current Player.log rotation window get
+  data/match_replays/<arena_match_id>.json cached BEFORE MTGA overwrites the raw lines
+  (5/22; was the silent "Watch replay missing" failure mode);
   db/untapped_decklists.py (Mythic decklist ingestion from local replay corpus). 143/143 tests green.
   Tomorrow's chain staged in harness/plan-2026-05-16-execution-chain.md
   (crash logger -> MTGA QA -> thread audit -> responsiveness -> Maps deeplink -> transparent overlay).*

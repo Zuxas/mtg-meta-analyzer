@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-17
+> Last updated: 2026-05-22
 
 ---
 
@@ -31,6 +31,8 @@
 - [x] **Per-game stats** (2026-05-14) — `match_log_games` with life endpoints, mull-to, turn count, close/blowout classifier
 - [x] **Auto-create saved deck on unknown match** (2026-05-14) — alt-art-safe grpId/name overlap classifier with 70% threshold; creates `<archetype> (auto-imported YYYY-MM-DD)` deck when no existing match clears threshold; sideboard auto-fill on creation + on opportunistic backfill
 - [x] **Turn-by-turn replay viewer** (2026-05-14, v0.6) — `analysis/replay_transcript.build_transcript` walks gameStateMessage.annotations + ClientToGREMessage; covers opening hand, mulligans, draws, surveils, scry top/bottom, lands played, casts with countered-target attribution via look-ahead, abilities + targets, declared attackers/blockers, damage, tokens, life trajectory
+- [x] **Auto-cache replay transcripts before MTGA log rotation** (2026-05-22) — `gui/mtga_log_watcher.py::_build_missing_transcripts` runs after every parse + once at startup. Eagerly calls `build_transcript` for every completed match in the current rotation window that lacks `data/match_replays/<arena_match_id>.json`. Skips in-progress games. Closes the silent failure mode where the user lost replays because the lazy "Watch replay" path was the only thing that ever wrote a cache.
+- [ ] **Interactive turn-by-turn replay viewer** (next) — upgrade `gui/widgets/replay_transcript_dialog.py` from a static text dump to prev/next turn navigation with hover-card tooltips reusing `gui/widgets/card_tooltip.py`. Reads from cached `data/match_replays/<id>.json` (no log re-parse). Optional: life trajectory mini-chart synced to the turn cursor.
 - [x] **Rank progression tracking** (2026-05-14) — `rank_snapshots` table + `analysis.rank_tracker.capture_current_rank()` + Dashboard rank label with clickable chart popup + dedup-on-insert
 - [x] **Crash logger** (2026-05-15) — `gui/crash_handler.py` with sys.excepthook + qInstallMessageHandler writing to `logs/gui_crash_*.log` and `logs/qt_msgs_*.log`; QApplication-instance guard prevents C++ abort path on early-failure modals
 - [x] **Transparent overlay for MTGA** (2026-05-15) — frameless always-on-top + WA_TranslucentBackground + conditional WindowTransparentForInput when locked; Win32 RegisterHotKey listener for true global Ctrl+Shift+M / Ctrl+Shift+L / Ctrl+Shift+Q; horizontal 240×44 compact pip at bottom-right with click-anywhere-to-expand; foreground watcher auto-shows when MTGA or meta-analyzer has focus, auto-hides on alt-tab elsewhere; deck dropdown + matchup dropdown with Auto fallback; record vs archetype + per-game chips; cards-seen-vs-archetype aggregated; notes panel (saved_sb_plans.notes); decklist quick-reference; opacity slider; 8+ state slices persisted
