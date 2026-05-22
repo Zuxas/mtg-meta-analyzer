@@ -92,3 +92,41 @@ def test_priority_sequencing(monkeypatch):
     grants = [e for e in result["events"] if e["kind"] == "priority_grant"]
     assert len(grants) == 3
     assert [g["priority_seat"] for g in grants] == [1, 2, 1]
+
+
+def test_stack_after_populated_from_zones(monkeypatch):
+    """When zones[] contains ZoneType_Stack with object IDs, stack_after
+    on the next event reflects the stack."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "stack-test-match-001"
+    grpid_names = {100: "Lightning Strike", 200: "Make Disappear"}
+    blobs = [
+        match_start(MID),
+        game_state(
+            turn_num=1, priority_seat=1, game_state_id=300,
+            game_objects=[
+                {"instanceId": 1, "grpId": 100, "ownerSeatId": 1,
+                 "controllerSeatId": 1},
+                {"instanceId": 2, "grpId": 200, "ownerSeatId": 2,
+                 "controllerSeatId": 2},
+            ],
+            zones=[
+                {"type": "ZoneType_Stack", "objectInstanceIds": [1, 2]},
+            ],
+        ),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    assert result is not None
+    assert len(result["events"]) >= 1
+    last = result["events"][-1]
+    names = [s["name"] for s in last["stack_after"]]
+    assert names == ["Lightning Strike", "Make Disappear"]
+    controllers = [s["controller"] for s in last["stack_after"]]
+    assert controllers == ["you", "opp"]

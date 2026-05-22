@@ -116,6 +116,9 @@ def build_event_stream(arena_match_id: str,
     current_turn = 0
     current_active_seat: Optional[int] = None
     current_priority_seat: Optional[int] = None
+    instance_to_grpid: dict[int, int] = {}
+    instance_to_owner: dict[int, int] = {}
+    current_stack: list[dict] = []
 
     def _emit(kind: str, **payload):
         nonlocal seq
@@ -139,7 +142,7 @@ def build_event_stream(arena_match_id: str,
             "details": payload.pop("details", {}),
             "life_after": payload.pop("life_after", None),
             "mana_pool_after": payload.pop("mana_pool_after", None),
-            "stack_after": payload.pop("stack_after", []),
+            "stack_after": payload.pop("stack_after", list(current_stack)),
             "board_diff": payload.pop("board_diff", []),
             "log_offset": payload.pop("log_offset", None),
             "revealed_cards": payload.pop("revealed_cards", []),
@@ -198,6 +201,30 @@ def build_event_stream(arena_match_id: str,
                         # Same phase, step advanced within the phase.
                         current_step = new_step
                         _emit("step_change", game_state_id=gs_id)
+
+                    # Track instance->grpid + instance->owner from gameObjects
+                    for go in gsm.get("gameObjects", []) or []:
+                        inst = go.get("instanceId")
+                        grp = go.get("grpId")
+                        owner = go.get("ownerSeatId") or go.get("controllerSeatId")
+                        if isinstance(inst, int) and isinstance(grp, int) and grp > 0:
+                            instance_to_grpid[inst] = grp
+                        if isinstance(inst, int) and isinstance(owner, int):
+                            instance_to_owner[inst] = owner
+
+                    # Update stack snapshot from zones[]
+                    for zone in gsm.get("zones", []) or []:
+                        if zone.get("type") == "ZoneType_Stack":
+                            new_stack = []
+                            for iid in zone.get("objectInstanceIds", []) or []:
+                                grp = instance_to_grpid.get(iid)
+                                owner = instance_to_owner.get(iid)
+                                new_stack.append({
+                                    "name": grpid_names.get(grp, f"grpId:{grp}") if grp else f"instance#{iid}",
+                                    "controller": ("you" if owner == my_seat else "opp"),
+                                    "targets": [],  # populated by later target_chosen events
+                                })
+                            current_stack = new_stack
 
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority
