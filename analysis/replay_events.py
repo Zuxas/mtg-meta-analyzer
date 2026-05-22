@@ -78,4 +78,63 @@ def build_event_stream(arena_match_id: str,
     Returns dict with shape documented at module top, or None if the
     match isn't found in Player.log / Player-prev.log.
     """
-    raise NotImplementedError("scaffold; tests drive the implementation")
+    cache_path = transcript_cache_path(arena_match_id)
+    # Cache read happens in Task 19; for M1 scaffold we always rebuild.
+    if not force_refresh and cache_path.exists():
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            caps = cached.get("capabilities") or {}
+            if caps.get("events") is True:
+                return cached
+        except Exception:
+            pass  # fall through to rebuild
+
+    grpid_names = _load_grpid_names(
+        Path(__file__).resolve().parent.parent / "data" / "mtg_meta.db"
+    )
+
+    events: list[dict] = []
+    match_meta: dict = {
+        "format": None, "event_name": None,
+        "start_time": None, "end_time": None, "duration_sec": None,
+        "winner_seat": None, "winner_reason": None,
+        "decklist_my_grpids": [], "decklist_opp_observed_grpids": [],
+        "games": [], "key_events_by_turn": [],
+    }
+    my_seat: Optional[int] = None
+    opp_seat: Optional[int] = None
+    opp_name = ""
+    target_found = False
+    my_user_id = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
+
+    for log_path in (PLAYER_LOG, PLAYER_PREV_LOG):
+        for obj in _iter_json_blobs(log_path):
+            mrse = obj.get("matchGameRoomStateChangedEvent")
+            if mrse:
+                room = mrse.get("gameRoomInfo", {})
+                cfg = room.get("gameRoomConfig", {})
+                mid = cfg.get("matchId")
+                if mid == arena_match_id:
+                    target_found = True
+                    for p in cfg.get("reservedPlayers", []) or []:
+                        if p.get("userId") == my_user_id:
+                            my_seat = p.get("systemSeatId")
+                        else:
+                            opp_seat = p.get("systemSeatId")
+                            opp_name = p.get("playerName") or opp_name
+                continue
+
+    if not target_found:
+        return None
+
+    return {
+        "arena_match_id": arena_match_id,
+        "schema_version": SCHEMA_VERSION,
+        "capabilities": dict(M1_CAPABILITIES),
+        "match_meta": match_meta,
+        "my_seat": my_seat,
+        "opp_seat": opp_seat,
+        "opp_name": opp_name,
+        "events": events,
+    }
