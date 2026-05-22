@@ -9,11 +9,21 @@ from typing import Iterator
 
 
 def make_blob_iter(blobs):
-    """Return a callable that yields the given blobs.
+    """Return a callable that yields the given blobs ONCE.
 
-    Replaces _iter_json_blobs in tests via monkeypatch.
+    Replaces _iter_json_blobs in tests via monkeypatch. The real
+    _iter_json_blobs is called twice (once for Player.log, once for
+    Player-prev.log) and yields different content from each file. Our
+    test helper simulates "all blobs live in Player.log, Player-prev.log
+    is empty" by yielding everything on the first call and nothing
+    afterward. Otherwise event counts would double in every test.
     """
+    state = {"called": False}
+
     def _iter(log_path):
+        if state["called"]:
+            return
+        state["called"] = True
         for b in blobs:
             yield b
     return _iter
