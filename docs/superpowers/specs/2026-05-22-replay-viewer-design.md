@@ -141,8 +141,13 @@ Every event in the `events[]` array has this shape:
   "duration_sec": 1122,
   "winner_seat": 1,
   "winner_reason": "OpponentConceded",  # or "Lethal" / "Decking" / "Forfeit"
-  "decklist_my_grpids": [...],
+  "decklist_my_grpids": [...],          # pre-board game 1 (mainboard)
   "decklist_opp_observed_grpids": [...],
+  "games": [                              # per-game decklists (required for postboard odds)
+    {"game_num": 1, "decklist_my_grpids": [...], "sideboard_in": [], "sideboard_out": []},
+    {"game_num": 2, "decklist_my_grpids": [...], "sideboard_in": [...], "sideboard_out": [...]},
+    {"game_num": 3, "decklist_my_grpids": [...], "sideboard_in": [...], "sideboard_out": [...]},
+  ],
   "key_events_by_turn": [
     {"turn": 1, "kind": "mulligan_to_6", "actor": "you", "seq": 7},
     {"turn": 3, "kind": "first_spell", "actor": "you", "seq": 42, "card": "Stormchaser's Talent"},
@@ -165,10 +170,33 @@ dispatch on:
 `mana_added`, `resolve`, `counter_spell`, `counter_ability`,
 `damage_dealt`, `life_change`, `zone_change`, `token_created`,
 `counter_added`, `counter_removed`, `scry`, `surveil`, `shuffle`, `reveal`,
-`attack_declared`, `block_declared`, `combat_damage_assigned`,
-`game_end`. Any annotation we don't yet map falls through to `kind="raw"`
-with the full annotation dict in `details.raw` — so we never silently drop
-events.
+`cascade`, `library_look`, `attack_declared`, `block_declared`,
+`combat_damage_assigned`, `game_end`. Any annotation we don't yet map falls
+through to `kind="raw"` with the full annotation dict in `details.raw` — so
+we never silently drop events.
+
+### Public-information fields (required for future Odds Engine)
+
+Every event carries two additional optional fields that ship in M1 but only
+get populated when the underlying annotation provides the data:
+
+```python
+"revealed_cards": [                # public info visible to both players
+  {"grpid": 70404, "name": "Lightning Strike",
+   "source": "scry_top" | "surveil_top" | "surveil_gy" | "cascade" |
+             "reveal_to_opp" | "look_at_top" | "search_library" |
+             "opp_reveal" | "exile_face_up",
+   "seat": 1, "library_position": "top" | "bottom" | None},
+  ...
+],
+"shuffle_cause": "fetch" | "effect" | "etb" | "turn_end" | "unknown" | None,
+```
+
+These fields are how the Odds Engine reconstructs the public-information
+state at any seq: known-top-of-library, known-shuffled-away cards,
+known-bottomed cards, known-exiled cards from cascade-style effects, opp's
+revealed-but-not-cast cards. M1 ships the data; the Odds Engine consumes it
+later.
 
 ### Board snapshots are reconstructed, not stored
 
@@ -208,6 +236,14 @@ start M2.**
    - **Board diff validity** — applying all diffs from seq=0 to seq=N
      produces the same battlefield/hand/GY zone counts that the raw
      `zones[]` array reports at the message with `seq=N`.
+   - **Public-information capture** — for every `scry`, `surveil`,
+     `reveal`, `cascade`, or library-look annotation, the resulting event
+     must populate `revealed_cards` so the future Odds Engine can build
+     a public-information set. Test asserts ≥1 revealed entry per
+     surveil/scry annotation in the fixture matches.
+   - **Shuffle cause capture** — every `shuffle` event includes
+     `details.cause` (`fetch` / `effect` / `etb` / `turn_end` / `unknown`)
+     so the Odds Engine knows when library knowledge resets.
 
 Reversibility: deletable in one commit. Old caches still work. Watcher still
 works. Classic dialog still works.
@@ -257,6 +293,76 @@ you bottom) mirroring MTGO:
 - Highlight ring on whichever card the currently-selected event involves
   (`card_grpid` or any item in `targets[]`).
 - Reconstructor lives at `analysis.replay_events.replay_board_at(events, seq)`.
+
+### **M-future · Odds Engine (post-M4, deferred — not in this implementation plan)**
+
+The Untapped.gg overlay's odds panel is the explicit visual reference. The
+Odds Engine is a separate future milestone that **consumes** the event stream
+and board-state reconstruction; M1's job is to **preserve enough data** that
+M-future doesn't have to re-parse Player.log.
+
+**Goals (deferred):**
+
+1. **Next-draw odds** — P(target card is top of library | known zones,
+   known shuffles, known reveals)
+2. **Multi-draw odds** — P(see target within N draws) via hypergeometric
+3. **Grouped-category odds** — P(any land | any threat | any removal |
+   any counter | any sweeper) using user-tagged card roles from
+   `analysis/deck_roles.py`
+4. **Conditional outs** — P(target | "I survive this attack" | "I draw a
+   land first")
+5. **Replay-analysis percentages** — retrospective: "at T6, you had 24%
+   to hit your out for the next turn"
+6. **EV comparison between lines** — given two candidate plays at a
+   priority point, Monte Carlo / analytic EV across remaining outcomes
+
+**M1 data-preservation requirements (ALREADY IN SPEC ABOVE):**
+
+| Need | Where it lives in M1 |
+|---|---|
+| Known zones at any seq | `board_diff[]` reconstructable via `replay_board_at()` |
+| Revealed cards (scry tops, surveil reveals, cascade exiles, opp reveals) | `revealed_cards[]` field on each event |
+| Surveil/scry decisions with chosen action | `details.topIds` / `details.bottomIds` / `details.action` on `scry`/`surveil` events |
+| Shuffle events with cause | `kind="shuffle"`, `details.cause` |
+| Library counts | reconstructable from `board_diff` zone counts |
+| Public information tracking | union of `revealed_cards[]` across events[0..seq] |
+| Sideboard tracking for postboard games | `match_meta.games[i].decklist_my_grpids` |
+
+The M1 acceptance gate **already includes** the public-information capture
+and shuffle-cause capture tests — those exist to lock the data contract for
+the future Odds Engine even though no consumer exists yet.
+
+**Future modules (post-M4):**
+
+- `analysis/deck_odds.py` — hypergeometric + conditional probability over
+  known/unknown zones; given `(remaining_library, target_set, public_info)`
+  returns `P(draw_target | conditions)`
+- `analysis/out_calculator.py` — given a board position, enumerate the
+  cards-in-library that beat the current threat; surfaces "what beats
+  this?" answers
+- `analysis/line_ev.py` — given two candidate plays at a priority point,
+  compute expected outcome via short Monte Carlo (~1000 rollouts) or
+  analytic decomposition when the branching is small
+
+**Future UI surfaces (post-M4):**
+
+- **Right-side Odds tab** in the replay viewer — switches the right pane
+  from Event Details to a live-as-you-scrub odds panel. Shows P(top
+  card), grouped category odds, per-card outs against the current threat.
+  Bindings: cursor on a hand card → "P(this is drawn in next 2 turns)";
+  cursor on an opp creature → "P(I draw removal next turn)".
+- **Live overlay mode** — extends the existing transparent overlay
+  (shipped 2026-05-15, `gui/widgets/transparent_overlay.py`) with the
+  same odds panel for real-time decision support during MTGA play.
+  Mirrors Untapped.gg's overlay form factor.
+- **"What were my outs?" panel** — retrospective view for any past
+  event: enumerates the cards that would have beaten the position and
+  the probability the user had of drawing each. The decision-quality
+  feedback loop the pilot uses for review.
+
+**Explicit non-goal for M1-M4:** No odds computation happens in this spec.
+M1 ships the data fields populated and tested; the Odds Engine is its own
+spec + plan when the pilot is ready to start it.
 
 ### **M4 · Polish (~1-2 days, ~300 LOC)**
 
@@ -310,8 +416,17 @@ reversible.**
 
 7. **Schema versioning forward.** `schema_version: 1` lets us evolve the
    event model later without breaking caches. M2 viewer must handle missing
-   keys gracefully (e.g., `stack_after` defaulting to `[]`) so a future M5
-   adding new fields doesn't break older cached events.
+   keys gracefully (e.g., `stack_after` defaulting to `[]`, `revealed_cards`
+   defaulting to `[]`, `shuffle_cause` defaulting to `None`) so a future
+   milestone adding new fields doesn't break older cached events.
+
+8. **Odds Engine data contract is locked in M1.** The `revealed_cards[]`
+   list, `shuffle_cause` field, and per-game decklist tracking in
+   `match_meta.games[]` are the data contract for the future Odds Engine.
+   If M1 ships without these fields populated correctly, we'd have to
+   re-extract the entire replay cache when the Odds Engine lands.
+   Mitigation: the M1 acceptance gate explicitly tests public-information
+   capture and shuffle-cause capture.
 
 ## Files touched
 
@@ -330,6 +445,13 @@ reversible.**
 
 **Removed in M4:**
 - `gui/widgets/replay_transcript_dialog.py` — after the classic→full transition stabilizes
+
+**Future (post-M4, not in this implementation plan):**
+- `analysis/deck_odds.py` — Odds Engine: hypergeometric + conditional probability
+- `analysis/out_calculator.py` — Odds Engine: enumerate outs vs current position
+- `analysis/line_ev.py` — Odds Engine: EV comparison between candidate lines
+- New right-side **Odds** tab in `gui/widgets/replay_viewer_window.py`
+- Odds panel addition to `gui/widgets/transparent_overlay.py` (live mode)
 
 ## Acceptance criteria
 
