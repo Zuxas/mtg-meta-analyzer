@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-22 (MTGA replay transcript auto-cache landed; viewer upgrade staged)
+Last updated: 2026-05-22 (Replay-viewer M1 shipped; M2 viewer window next)
 
 ---
 
@@ -10,9 +10,13 @@ Last updated: 2026-05-22 (MTGA replay transcript auto-cache landed; viewer upgra
 
 - **MTGA watcher auto-caches replay transcripts** — `gui/mtga_log_watcher.py::_build_missing_transcripts` runs after every successful parse and once at startup as a backfill pass. For every completed match (`match_result != ""`) present in the current `Player.log` / `Player-prev.log` rotation window that doesn't already have `data/match_replays/<arena_match_id>.json`, it eagerly calls `analysis.replay_transcript.build_transcript`. Replay JSON becomes durable BEFORE MTGA rotates the raw lines away (the silent failure mode that caused the user to lose a replay they tried to view). Status surface: `cached N replay transcript(s)`. 31/31 mtga+watcher+replay+match_log-related tests green; no API changes; no regression. Cost: O(N · log_size) per tick (~1-2s per match in the warmup; live ticks usually 0-5 matches).
 
-### 5/22 session (next)
+### 5/22 session (shipped, end of day)
 
-- **Turn-based replay viewer** — replace the dump-text `gui/widgets/replay_transcript_dialog.py` with an interactive turn-by-turn viewer: prev/next turn nav, per-turn action list, hover-card tooltips reusing `gui/widgets/card_tooltip.py`, life trajectory mini-chart synced to the cursor. Scoped via brainstorm before code; pulling data straight from cached `data/match_replays/<id>.json`.
+- **Replay-viewer M1: event-stream data layer** — `analysis/replay_events.py::build_event_stream` walks Player.log/Player-prev.log and emits a flat events[] list (~30 normalized kinds) plus a match_meta header (event_name, winner, per-game decklists with sideboard diffs, key_events_by_turn). Cache header self-describes via schema_version + capabilities; consumers auto-trigger force_refresh when required capabilities aren't present. Watcher (`gui/mtga_log_watcher.py::_build_missing_transcripts`) invokes both builders so new caches land complete. CLI dump tool at `scripts/replay_event_dump.py`. 25+ new tests covering all M1 acceptance gates: round-trip invariant, phase coverage, priority sequencing, board diff validity, revealed_cards capture (scry tops/bottoms + surveil_top + surveil_gy), shuffle_cause capture, per-game decklist tracking, cache merge preserving classic keys, auto-rebuild on missing capability. Zero GUI changes — classic dialog still ships unchanged. Data contract for the future Odds Engine is locked in.
+
+### 5/22 session (next: M2)
+
+- **Replay-viewer M2: full-depth viewer window** — new `gui/widgets/replay_viewer_window.py` (QMainWindow), match-history split button "Watch (Full)" / "Watch (Classic)", left timeline tree + center event table + right detail tabs. Mockup at `docs/superpowers/specs/assets/2026-05-22-replay-viewer-mockup.png`. Spec: `docs/superpowers/specs/2026-05-22-replay-viewer-design.md`. M2 plan to be written via writing-plans skill when ready to start.
 
 ### 5/17 session wrap (shipped)
 

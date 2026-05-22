@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-05-22 (5/22: MTGA watcher auto-caches replay transcripts on every tick + one-shot startup backfill so completed matches survive Player.log rotation; 5/17 session: puzzle Phase 3 graders, crash-handler BaseException fix, 5 real-data puzzles, Maps deeplink in Event Hub; carry-over from 5/16: single-instance enforcement)
+Last updated: 2026-05-22 (M1 of full-depth replay viewer shipped: analysis/replay_events.py + scripts/replay_event_dump.py + watcher wired to call both builders; data-layer-only, no GUI; events[] / match_meta / capabilities header land alongside existing games[] in data/match_replays/*.json; ~25 new tests including round-trip invariant, phase coverage, priority sequencing, board diff validity, revealed_cards capture (scry+surveil_top+surveil_gy), shuffle_cause capture, per-game decklists, capabilities auto-rebuild; carry-over from 5/22: auto-cache watcher patch; 5/17 puzzle Phase 3 graders)
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -442,6 +442,7 @@ To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lo
   data/match_replays/<arena_match_id>.json cached BEFORE MTGA overwrites the raw lines
   (5/22; was the silent "Watch replay missing" failure mode);
   db/untapped_decklists.py (Mythic decklist ingestion from local replay corpus). 143/143 tests green.
+  As of M1 (2026-05-22), `_build_missing_transcripts` also invokes `analysis.replay_events.build_event_stream` so every newly-cached transcript also lands with the structured `events[]` data layer populated. Existing caches get auto-upgraded via the capabilities check on next read.
   Tomorrow's chain staged in harness/plan-2026-05-16-execution-chain.md
   (crash logger -> MTGA QA -> thread audit -> responsiveness -> Maps deeplink -> transparent overlay).*
 
