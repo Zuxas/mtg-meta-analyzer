@@ -130,3 +130,46 @@ def test_stack_after_populated_from_zones(monkeypatch):
     assert names == ["Lightning Strike", "Make Disappear"]
     controllers = [s["controller"] for s in last["stack_after"]]
     assert controllers == ["you", "opp"]
+
+
+def test_cast_resolve_counter_events(monkeypatch):
+    """ZoneTransfer annotations with category=CastSpell/Resolve/Countered
+    produce cast_spell/resolve/counter_spell events."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "cast-test-match-001"
+    grpid_names = {100: "Lightning Strike"}
+    blobs = [
+        match_start(MID),
+        game_state(
+            turn_num=1, priority_seat=1, game_state_id=400,
+            game_objects=[
+                {"instanceId": 5, "grpId": 100, "ownerSeatId": 1,
+                 "controllerSeatId": 1},
+            ],
+            annotations=[
+                {"id": 1, "type": ["AnnotationType_ZoneTransfer"],
+                 "affectedIds": [5],
+                 "details": [{"key": "category",
+                              "valueString": ["CastSpell"]}]},
+                {"id": 2, "type": ["AnnotationType_ZoneTransfer"],
+                 "affectedIds": [5],
+                 "details": [{"key": "category",
+                              "valueString": ["Resolve"]}]},
+            ],
+        ),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    kinds = [e["kind"] for e in result["events"]]
+    assert "cast_spell" in kinds
+    assert "resolve" in kinds
+    cast = [e for e in result["events"] if e["kind"] == "cast_spell"][0]
+    assert cast["card_name"] == "Lightning Strike"
+    assert cast["card_grpid"] == 100
+    assert cast["actor_seat"] == 1

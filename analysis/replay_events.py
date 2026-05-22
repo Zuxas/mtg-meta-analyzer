@@ -119,6 +119,7 @@ def build_event_stream(arena_match_id: str,
     instance_to_grpid: dict[int, int] = {}
     instance_to_owner: dict[int, int] = {}
     current_stack: list[dict] = []
+    seen_annotations: set[int] = set()
 
     def _emit(kind: str, **payload):
         nonlocal seq
@@ -225,6 +226,58 @@ def build_event_stream(arena_match_id: str,
                                     "targets": [],  # populated by later target_chosen events
                                 })
                             current_stack = new_stack
+
+                    for ann in gsm.get("annotations", []) or []:
+                        ann_id = ann.get("id")
+                        if ann_id is None or ann_id in seen_annotations:
+                            continue
+                        seen_annotations.add(ann_id)
+                        types = ann.get("type") or []
+                        if not types:
+                            continue
+                        t = types[0]
+                        affected = ann.get("affectedIds") or []
+                        details_list = ann.get("details") or []
+                        details_map = {d["key"]: d for d in details_list}
+
+                        def _ds(key):
+                            d = details_map.get(key)
+                            if not d:
+                                return None
+                            v = d.get("valueString")
+                            if v:
+                                return v[0] if isinstance(v, list) else v
+                            v = d.get("valueInt32")
+                            if v:
+                                return v[0] if isinstance(v, list) else v
+                            return None
+
+                        if t == "AnnotationType_ZoneTransfer":
+                            cat = _ds("category") or ""
+                            for iid in affected:
+                                grp = instance_to_grpid.get(iid)
+                                nm = grpid_names.get(grp) if grp else None
+                                owner = instance_to_owner.get(iid)
+                                kind_map = {
+                                    "CastSpell": "cast_spell",
+                                    "Resolve": "resolve",
+                                    "Countered": "counter_spell",
+                                    "PlayLand": "play_land",
+                                    "Draw": "draw_card",
+                                    "Discard": "zone_change",
+                                    "Destroy": "zone_change",
+                                    "Mill": "zone_change",
+                                    "Exile": "zone_change",
+                                    "Sacrifice": "zone_change",
+                                    "Return": "zone_change",
+                                    "Put": "zone_change",
+                                }
+                                kind = kind_map.get(cat)
+                                if kind:
+                                    _emit(kind, game_state_id=gs_id,
+                                          actor_seat=owner,
+                                          card_name=nm, card_grpid=grp,
+                                          details={"category": cat})
 
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority
