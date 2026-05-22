@@ -69,19 +69,44 @@ def build_event_stream(arena_match_id: str,
     Returns dict with shape:
         {
           "arena_match_id": str,
+          "schema_version": 1,
+          "capabilities": {...},
           "match_meta": {...},
           "events": [...],
-          "schema_version": 1,
         }
     Returns None if the match isn't found in Player.log/Player-prev.log."""
 ```
 
-Cache file: same as transcript today (`data/match_replays/<arena_match_id>.json`).
-We extend the existing JSON object with two new top-level keys (`events`,
-`match_meta`, `schema_version`) **alongside** the existing `games` key. The
-classic dialog keeps reading `games` and never sees the new fields. This is
+**Cache header — self-describing capabilities.** Every cached replay JSON
+carries a `capabilities` block declaring what data it contains. Future
+consumers (Odds Engine, future puzzle scanner upgrades, line-EV module,
+coaching tools) check capability flags rather than assuming a key exists.
+This makes safe migration mechanical: when a new capability is added to the
+extractor, old caches automatically rebuild on first read by any consumer
+that requires it.
+
+```python
+"schema_version": 1,
+"capabilities": {
+  "turns": True,         # legacy text dump (existing classic dialog)
+  "events": True,        # M1 event stream
+  "board_diff": True,    # M1 board reconstruction inputs
+  "public_info": True,   # M1 revealed_cards + shuffle_cause
+  "per_game_decklists": True,  # M1 match_meta.games[i] sideboard tracking
+  "odds_ready": False,   # Odds Engine consumer not yet present
+  "stack_history": True, # M1 stack_after on every event
+  "log_offsets": True,   # M1 log_offset for "View Raw JSON"
+}
+```
+
+**Cache file location:** same as transcript today
+(`data/match_replays/<arena_match_id>.json`). We extend the existing JSON
+object with new top-level keys (`schema_version`, `capabilities`, `events`,
+`match_meta`) **alongside** the existing `games` key. The classic dialog
+keeps reading `games` and never sees the new fields. This is
 forward-compatible — old caches without `events` get auto-rebuilt on first
-Full viewer open, with a small "Building event stream…" status message.
+Full viewer open. Auto-rebuild trigger: any consumer reading the cache that
+finds `capabilities.<required_feature> != True` re-runs `build_event_stream(force_refresh=True)`.
 
 ### `gui/widgets/replay_viewer_window.py` (new)
 
@@ -91,6 +116,46 @@ from Match History via a new "Watch (Full)" button. The existing "Watch
 Replay" button stays, opens the classic dialog, and is renamed to
 "Watch (Classic)" so users can fall back. Classic is removed in M4 after
 Full has been the default for ~1 week with no regressions reported.
+
+## Source of Truth Hierarchy
+
+The replay event model is becoming the foundation that multiple downstream
+systems (Odds Engine, puzzle scanner, line-EV module, coaching tools,
+matchup analytics) will share. To prevent architectural rot as those systems
+land, the layering is explicit and the boundaries are one-way:
+
+```
+Layer 1 · Player.log raw blobs      (immutable, on disk; the ground truth)
+            ↓ extraction
+Layer 2 · events[]                  (immutable once written; the data contract)
+            ↓ derivation
+Layer 3 · board reconstruction      (derived on demand; never stored)
+            ↓ analysis
+Layer 4 · derived analytics         (Odds Engine, puzzle scanner, EV, etc.)
+            ↓ presentation
+Layer 5 · UI                        (viewer windows, dialogs, overlays)
+```
+
+**Allowed dependencies (downward only):**
+- UI → analytics → board reconstruction → events → raw blobs
+- Any layer may read from any layer below it.
+
+**Forbidden:**
+- UI → analytics shortcuts (e.g., a viewer widget that re-parses `Player.log`
+  directly instead of going through `events[]`)
+- Analytics → UI inversions (e.g., the Odds Engine reading widget state
+  instead of `events[]`)
+- Layer 2 events being mutated after write — once an event is in
+  `events[]`, only the extractor can change it via a re-extract; consumers
+  treat it as immutable
+- Layer 3 board state being cached to disk — board reconstruction is
+  always reproducible from `events[]` and lives only in memory
+
+This hierarchy is enforced by **module placement** (the `analysis/`
+package depends on the cache JSON but not on `gui/`; the `gui/` package
+imports from `analysis/` and never re-parses logs directly) and **API
+shape** (`build_event_stream` is the only function that reads
+`Player.log` for replay purposes — anything else is a bug).
 
 ## Data model
 
@@ -247,6 +312,30 @@ start M2.**
 
 Reversibility: deletable in one commit. Old caches still work. Watcher still
 works. Classic dialog still works.
+
+**M1 discipline guardrail — what M1 explicitly does NOT do.**
+M1 is the foundation that everything downstream depends on. To prevent
+scope drift and protect schedule, the following are explicitly out of
+scope for M1 and any pull request that adds them must be rejected:
+
+- ❌ No new GUI changes. M1 is data + CLI only. The Full viewer ships in M2.
+- ❌ No board state simulator beyond what M1 acceptance tests require
+  (round-trip + zone-count assertions against raw `zones[]`).
+- ❌ No odds computation, no hypergeometric helpers, no probability code.
+- ❌ No Monte Carlo, no line-EV, no AI coaching, no card-suggestion logic.
+- ❌ No new card-data dependencies beyond `db.card_data` lookups.
+- ❌ No changes to `gui/widgets/transparent_overlay.py` (live overlay).
+- ❌ No card-name normalization beyond what Scryfall already provides.
+- ❌ No speculative abstractions — concrete shapes only. If a second
+  consumer doesn't exist yet, the abstraction waits until it does.
+- ❌ No schema additions beyond the documented event/match_meta fields.
+  New fields go through schema_version + capabilities, not ad-hoc
+  additions.
+
+If a need arises mid-implementation that requires one of the above, the
+correct action is: pause, document the requirement as a future-milestone
+addition, and ship M1 without it. The data contract is more valuable than
+any individual convenience.
 
 ### **M2 · Full-depth viewer (~2-3 days, ~600 LOC)**
 
