@@ -507,3 +507,39 @@ def test_board_diff_validity(monkeypatch):
     # Final state should match the last MTGA zones[] snapshot
     assert 50 in zones_now["battlefield"]
     assert 50 not in zones_now["hand"]
+
+
+def test_match_meta_populated(monkeypatch):
+    """match_meta has event_name from gameRoomConfig.eventId."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "meta-test-001"
+    blobs = [
+        # MatchPending blob also carries event metadata
+        {"matchGameRoomStateChangedEvent": {
+            "gameRoomInfo": {
+                "gameRoomConfig": {
+                    "matchId": MID,
+                    "reservedPlayers": [
+                        {"userId": "GCIUQPR6DRC4XL7L2ZTNU2OMNI",
+                         "systemSeatId": 1, "playerName": "You"},
+                        {"userId": "OPP", "systemSeatId": 2,
+                         "playerName": "Opp"},
+                    ],
+                    "eventId": "Constructed_BestOf3_Ranked",
+                },
+                "stateType": "MatchGameRoomStateType_Playing",
+            },
+        }},
+        game_state(turn_num=1, priority_seat=1),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    assert result["match_meta"]["event_name"] == "Constructed_BestOf3_Ranked"
+    # decklist_my_grpids defaults to [] in M1 without a SubmitDeckResp blob
+    assert result["match_meta"]["decklist_my_grpids"] == []

@@ -189,6 +189,8 @@ def build_event_stream(arena_match_id: str,
                         else:
                             opp_seat = p.get("systemSeatId")
                             opp_name = p.get("playerName") or opp_name
+                    if cfg.get("eventId") and not match_meta["event_name"]:
+                        match_meta["event_name"] = cfg["eventId"]
                 continue
 
             # ── GameStateMessage handler ─────────────────────────
