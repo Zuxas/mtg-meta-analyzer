@@ -319,15 +319,19 @@ def build_event_stream(arena_match_id: str,
                             _emit("scry", game_state_id=gs_id, revealed_cards=revealed,
                                   details={"top_count": len(top_iids), "bottom_count": len(bot_iids)})
                         elif t == "AnnotationType_Surveil":
+                            top_d = details_map.get("topIds", {})
+                            top_iids = (top_d.get("valueInt32") or []) if top_d else []
+                            top_set = set(top_iids)
                             revealed = []
                             for iid in affected:
                                 grp = instance_to_grpid.get(iid)
+                                kept_on_top = iid in top_set
                                 revealed.append({
                                     "grpid": grp,
                                     "name": grpid_names.get(grp, f"instance#{iid}") if grp else f"instance#{iid}",
-                                    "source": "surveil_top",
+                                    "source": "surveil_top" if kept_on_top else "surveil_gy",
                                     "seat": my_seat,
-                                    "library_position": "top",
+                                    "library_position": "top" if kept_on_top else None,
                                 })
                             _emit("surveil", game_state_id=gs_id, revealed_cards=revealed)
 

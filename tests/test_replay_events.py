@@ -252,3 +252,32 @@ def test_surveil_populates_revealed_cards(monkeypatch):
     revealed = surveil_evs[0]["revealed_cards"]
     assert revealed and revealed[0]["name"] == "Opt"
     assert revealed[0]["source"] == "surveil_top"
+
+
+def test_surveil_distinguishes_top_vs_gy(monkeypatch):
+    """Surveil annotation differentiates cards kept on top vs sent to GY.
+
+    affectedIds contains BOTH; details.topIds is the subset that stayed on
+    top. Cards in affectedIds-minus-topIds went to the graveyard and must
+    be labeled source=surveil_gy (not surveil_top) so the Odds Engine can
+    track GY public-information correctly.
+    """
+    from tests.fixtures.replay_events.scry_surveil_shuffle import (
+        MATCH_ID as MID, GRPID_NAMES, build_surveil_mixed,
+    )
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(build_surveil_mixed()))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: GRPID_NAMES)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    surveil_evs = [e for e in result["events"] if e["kind"] == "surveil"]
+    assert len(surveil_evs) == 1
+    revealed = surveil_evs[0]["revealed_cards"]
+    top = [r for r in revealed if r["source"] == "surveil_top"]
+    gy = [r for r in revealed if r["source"] == "surveil_gy"]
+    assert len(top) == 1
+    assert top[0]["name"] == "Island"
+    assert top[0]["library_position"] == "top"
+    assert len(gy) == 1
+    assert gy[0]["name"] == "Mountain"
+    assert gy[0]["library_position"] is None  # in graveyard, not in library

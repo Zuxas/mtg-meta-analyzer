@@ -53,6 +53,30 @@ def build_surveil():
     ]
 
 
+def build_surveil_mixed():
+    """Surveil revealing 2 cards: iid 14 kept on top, iid 15 sent to graveyard."""
+    return [
+        match_start(MATCH_ID),
+        game_state(
+            turn_num=1, priority_seat=1, game_state_id=605,
+            game_objects=[
+                {"instanceId": 14, "grpId": 301, "ownerSeatId": 1,
+                 "controllerSeatId": 1},  # Island
+                {"instanceId": 15, "grpId": 302, "ownerSeatId": 1,
+                 "controllerSeatId": 1},  # Mountain
+            ],
+            annotations=[
+                {"id": 23, "type": ["AnnotationType_Surveil"],
+                 "affectedIds": [14, 15],
+                 "details": [
+                     {"key": "topIds", "valueInt32": [14]},  # only iid 14 kept on top
+                 ]},
+            ],
+        ),
+        match_end(MATCH_ID),
+    ]
+
+
 def build_shuffle(cause="effect"):
     return [
         match_start(MATCH_ID),
