@@ -184,8 +184,6 @@ def build_event_stream(arena_match_id: str,
                     if active:
                         current_active_seat = active
                     priority = ti.get("priorityPlayer")
-                    if priority:
-                        current_priority_seat = priority
                     new_phase = ti.get("phase")
                     new_step = ti.get("step")
                     gs_id = gsm.get("gameStateId")
@@ -200,6 +198,10 @@ def build_event_stream(arena_match_id: str,
                         # Same phase, step advanced within the phase.
                         current_step = new_step
                         _emit("step_change", game_state_id=gs_id)
+
+                    if priority is not None and priority != current_priority_seat:
+                        current_priority_seat = priority
+                        _emit("priority_grant", game_state_id=gs_id)
 
     if not target_found:
         return None

@@ -63,3 +63,32 @@ def test_phase_coverage(monkeypatch):
     for phase, step in _PHASES_STEPS:
         assert (phase, step) in seen_pairs, \
             f"missing phase/step pair: {phase}/{step}"
+
+
+def _make_priority_fixture():
+    """3 game-state messages alternating priorityPlayer: 1, 2, 1."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "priority-test-match-001"
+    return MID, [
+        match_start(MID),
+        game_state(turn_num=1, priority_seat=1, game_state_id=200),
+        game_state(turn_num=1, priority_seat=2, game_state_id=201),
+        game_state(turn_num=1, priority_seat=1, game_state_id=202),
+        match_end(MID),
+    ]
+
+
+def test_priority_sequencing(monkeypatch):
+    """Every event between two priority_grant events has the same priority_seat."""
+    mid, blobs = _make_priority_fixture()
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(mid, force_refresh=True)
+    assert result is not None
+    grants = [e for e in result["events"] if e["kind"] == "priority_grant"]
+    assert len(grants) == 3
+    assert [g["priority_seat"] for g in grants] == [1, 2, 1]
