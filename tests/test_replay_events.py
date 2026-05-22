@@ -298,6 +298,59 @@ def test_shuffle_populates_cause(monkeypatch):
     assert shuffles[0]["shuffle_cause"] == "fetch"
 
 
+def test_attack_and_block_declared(monkeypatch):
+    """SubmitAttackersReq -> attack_declared; SubmitBlockersReq -> block_declared."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "combat-test-001"
+    grpid_names = {600: "Goblin Guide", 601: "Wall of Omens"}
+    blobs = [
+        match_start(MID),
+        game_state(
+            turn_num=2, priority_seat=1, game_state_id=800,
+            game_objects=[
+                {"instanceId": 100, "grpId": 600, "ownerSeatId": 1,
+                 "controllerSeatId": 1},
+                {"instanceId": 101, "grpId": 601, "ownerSeatId": 2,
+                 "controllerSeatId": 2},
+            ],
+        ),
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {
+             "type": "ClientMessageType_SubmitAttackersReq",
+             "submitAttackersReq": {
+                 "attackers": [{"attackerId": 100}],
+             },
+         }},
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {
+             "type": "ClientMessageType_SubmitBlockersReq",
+             "submitBlockersReq": {
+                 "blockerToAttackerMap": [
+                     {"blockerId": 101, "attackerId": 100},
+                 ],
+             },
+         }},
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    kinds = [e["kind"] for e in result["events"]]
+    assert "attack_declared" in kinds
+    assert "block_declared" in kinds
+    atk = [e for e in result["events"] if e["kind"] == "attack_declared"][0]
+    assert atk["details"]["attackers"][0]["name"] == "Goblin Guide"
+    blk = [e for e in result["events"] if e["kind"] == "block_declared"][0]
+    assert blk["details"]["blocks"][0]["blocker"] == "Wall of Omens"
+    assert blk["details"]["blocks"][0]["attacker"] == "Goblin Guide"
+
+
 def test_shuffle_unknown_cause_defaults(monkeypatch):
     """Shuffle without cause detail gets shuffle_cause='unknown'."""
     from tests.fixtures.replay_events import (

@@ -462,6 +462,39 @@ def build_event_stream(arena_match_id: str,
                               details={"decision": "mulligan", "actor": "you"})
                     elif decision == "MulliganOption_AcceptHand":
                         _emit("keep_hand", details={"actor": "you"})
+                elif ptype == "ClientMessageType_SubmitAttackersReq":
+                    atks = (payload.get("submitAttackersReq", {}) or {}).get(
+                        "attackers", []) or []
+                    attackers = []
+                    for a in atks:
+                        iid = a.get("attackerId")
+                        grp = instance_to_grpid.get(iid)
+                        attackers.append({
+                            "instance_id": iid,
+                            "grpid": grp,
+                            "name": grpid_names.get(grp, f"instance#{iid}") if grp else f"instance#{iid}",
+                        })
+                    if attackers:
+                        _emit("attack_declared",
+                              details={"attackers": attackers, "actor": "you"},
+                              actor_seat=my_seat)
+                elif ptype == "ClientMessageType_SubmitBlockersReq":
+                    bmap = (payload.get("submitBlockersReq", {}) or {}).get(
+                        "blockerToAttackerMap", []) or []
+                    blocks = []
+                    for b in bmap:
+                        biid = b.get("blockerId")
+                        aiid = b.get("attackerId")
+                        bg = instance_to_grpid.get(biid)
+                        ag = instance_to_grpid.get(aiid)
+                        blocks.append({
+                            "blocker_id": biid, "blocker": grpid_names.get(bg, "?"),
+                            "attacker_id": aiid, "attacker": grpid_names.get(ag, "?"),
+                        })
+                    if blocks:
+                        _emit("block_declared",
+                              details={"blocks": blocks, "actor": "you"},
+                              actor_seat=my_seat)
 
     if not target_found:
         return None
