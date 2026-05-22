@@ -346,6 +346,59 @@ def test_life_change_emitted(monkeypatch):
     assert lifechanges[0]["life_after"]["opp"] == 17
 
 
+def test_mulligan_and_game_end(monkeypatch):
+    """ClientMessageType_MulliganResp -> mulligan_decision; game stage
+    Completed -> game_end."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "mull-test-001"
+    blobs = [
+        match_start(MID),
+        # Mull decision from client
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {
+             "type": "ClientMessageType_MulliganResp",
+             "mulliganResp": {"decision": "MulliganOption_Mulligan"},
+         }},
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {
+             "type": "ClientMessageType_MulliganResp",
+             "mulliganResp": {"decision": "MulliganOption_AcceptHand"},
+         }},
+        game_state(turn_num=1, priority_seat=1),
+        # Game ends with seat 1 winning
+        {"greToClientEvent": {"greToClientMessages": [{
+            "type": "GREMessageType_GameStateMessage",
+            "gameStateMessage": {
+                "gameInfo": {
+                    "gameNumber": 1,
+                    "stage": "GameStage_GameOver",
+                    "results": [{"winningTeamId": 1,
+                                 "reason": "ResultReason_Concede"}],
+                },
+                "turnInfo": {"turnNumber": 1, "phase": "Phase_Main1"},
+                "players": [], "gameObjects": [], "zones": [],
+                "annotations": [],
+            },
+        }]}},
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    kinds = [e["kind"] for e in result["events"]]
+    assert "mulligan_decision" in kinds
+    assert "keep_hand" in kinds
+    assert "game_end" in kinds
+    assert result["match_meta"]["winner_seat"] == 1
+    assert result["match_meta"]["winner_reason"] == "Concede"
+
+
 def test_board_diff_validity(monkeypatch):
     """Applying all board_diff[] entries from seq=0 produces the same
     zone counts MTGA reports in zones[]."""

@@ -133,6 +133,7 @@ def build_event_stream(arena_match_id: str,
     pending_zone_diffs: list[dict] = []
     current_stack: list[dict] = []
     seen_annotations: set[int] = set()
+    game_over_emitted: set[int] = set()
     prev_life: dict[int, int] = {}
     prev_mana: dict[int, str] = {}
     current_life_after: Optional[dict] = None
@@ -201,6 +202,20 @@ def build_event_stream(arena_match_id: str,
                     gn = gi.get("gameNumber")
                     if gn and gn != current_game:
                         current_game = gn
+                    stage = gi.get("stage")
+                    if stage == "GameStage_GameOver" and current_game not in game_over_emitted:
+                        game_over_emitted.add(current_game)
+                        results = gi.get("results") or []
+                        if results:
+                            winning_team = results[0].get("winningTeamId")
+                            reason = results[0].get("reason", "")
+                            reason_clean = reason.replace("ResultReason_", "") if reason else None
+                            if match_meta["winner_seat"] is None:
+                                match_meta["winner_seat"] = winning_team
+                                match_meta["winner_reason"] = reason_clean
+                        _emit("game_end", game_state_id=gsm.get("gameStateId"),
+                              details={"winning_seat": match_meta["winner_seat"],
+                                       "reason": match_meta["winner_reason"]})
                     ti = gsm.get("turnInfo", {})
                     tn = ti.get("turnNumber")
                     if tn:
@@ -434,6 +449,19 @@ def build_event_stream(arena_match_id: str,
                     if priority is not None and priority != current_priority_seat:
                         current_priority_seat = priority
                         _emit("priority_grant", game_state_id=gs_id)
+
+            # ── Client-to-server messages (mulligan, attackers, blockers) ─
+            cmsm = obj.get("clientToMatchServiceMessageType")
+            if cmsm == "ClientToMatchServiceMessageType_ClientToGREMessage":
+                payload = obj.get("payload", {}) or {}
+                ptype = payload.get("type", "")
+                if ptype == "ClientMessageType_MulliganResp":
+                    decision = (payload.get("mulliganResp", {}) or {}).get("decision", "")
+                    if decision == "MulliganOption_Mulligan":
+                        _emit("mulligan_decision",
+                              details={"decision": "mulligan", "actor": "you"})
+                    elif decision == "MulliganOption_AcceptHand":
+                        _emit("keep_hand", details={"actor": "you"})
 
     if not target_found:
         return None
