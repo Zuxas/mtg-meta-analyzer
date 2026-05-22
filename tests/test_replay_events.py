@@ -23,3 +23,22 @@ def test_unknown_match_returns_none(monkeypatch):
     result = replay_events.build_event_stream("nonexistent-id",
                                               force_refresh=True)
     assert result is None
+
+
+def test_match_boundary_populates_seats(monkeypatch):
+    """match_start blob populates my_seat, opp_seat, opp_name."""
+    blobs = build_minimal()
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MINIMAL_MATCH_ID,
+                                              force_refresh=True)
+    assert result is not None
+    assert result["arena_match_id"] == MINIMAL_MATCH_ID
+    assert result["my_seat"] == 1
+    assert result["opp_seat"] == 2
+    assert result["opp_name"] == "TestOpp"
+    assert result["schema_version"] == 1
+    assert result["capabilities"]["events"] is True
+    assert result["capabilities"]["odds_ready"] is False
