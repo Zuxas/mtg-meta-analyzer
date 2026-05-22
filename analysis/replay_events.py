@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+from collections import Counter
 from pathlib import Path
 from typing import Optional, Iterable, Iterator
 
@@ -497,6 +498,33 @@ def build_event_stream(arena_match_id: str,
                         _emit("block_declared",
                               details={"blocks": blocks, "actor": "you"},
                               actor_seat=my_seat)
+                elif ptype == "ClientMessageType_SubmitDeckResp":
+                    deck = (payload.get("submitDeckResp", {}) or {}).get("deck", {}) or {}
+                    cards = deck.get("deckCards", []) or []
+                    # First SubmitDeckResp is G1; subsequent ones are G2/G3
+                    gnum = len(match_meta["games"]) + 1
+                    prev_cards = match_meta["games"][-1]["decklist_my_grpids"] if match_meta["games"] else []
+                    # Compute multiset diff vs previous game
+                    prev_count = Counter(prev_cards)
+                    cur_count = Counter(cards)
+                    sb_in = []
+                    sb_out = []
+                    for grp, n_cur in cur_count.items():
+                        n_prev = prev_count.get(grp, 0)
+                        if n_cur > n_prev:
+                            sb_in.extend([grp] * (n_cur - n_prev))
+                    for grp, n_prev in prev_count.items():
+                        n_cur = cur_count.get(grp, 0)
+                        if n_prev > n_cur:
+                            sb_out.extend([grp] * (n_prev - n_cur))
+                    match_meta["games"].append({
+                        "game_num": gnum,
+                        "decklist_my_grpids": list(cards),
+                        "sideboard_in": sb_in,
+                        "sideboard_out": sb_out,
+                    })
+                    if gnum == 1:
+                        match_meta["decklist_my_grpids"] = list(cards)
 
     if not target_found:
         return None

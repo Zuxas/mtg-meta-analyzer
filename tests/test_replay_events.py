@@ -543,3 +543,47 @@ def test_match_meta_populated(monkeypatch):
     assert result["match_meta"]["event_name"] == "Constructed_BestOf3_Ranked"
     # decklist_my_grpids defaults to [] in M1 without a SubmitDeckResp blob
     assert result["match_meta"]["decklist_my_grpids"] == []
+
+
+def test_per_game_decklists(monkeypatch):
+    """SubmitDeckResp blobs populate match_meta.games[i].decklist_my_grpids."""
+    from tests.fixtures.replay_events import (
+        match_start, match_end, game_state,
+    )
+    MID = "deck-test-001"
+    deck_g1 = [101, 102, 103, 104, 101]  # game 1 mainboard
+    deck_g2 = [101, 102, 103, 105, 105]  # game 2 — swapped 104 -> 105 (+1 more 105)
+    blobs = [
+        match_start(MID),
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {
+             "type": "ClientMessageType_SubmitDeckResp",
+             "submitDeckResp": {
+                 "deck": {"deckCards": deck_g1, "sideboardCards": []},
+             },
+         }},
+        game_state(game_num=1, turn_num=1, priority_seat=1),
+        {"clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+         "payload": {
+             "type": "ClientMessageType_SubmitDeckResp",
+             "submitDeckResp": {
+                 "deck": {"deckCards": deck_g2, "sideboardCards": []},
+             },
+         }},
+        game_state(game_num=2, turn_num=1, priority_seat=1),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs",
+                        make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names",
+                        lambda _path: {})
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    games = result["match_meta"]["games"]
+    assert len(games) == 2
+    assert games[0]["decklist_my_grpids"] == deck_g1
+    assert games[1]["decklist_my_grpids"] == deck_g2
+    # G2 sideboarded in 105 x2, out 104 x1
+    assert 105 in games[1]["sideboard_in"]
+    assert 104 in games[1]["sideboard_out"]
