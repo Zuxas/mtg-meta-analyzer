@@ -126,3 +126,42 @@ def test_nav_target_directions():
     assert vm.nav_target([], 0, "next") is None
     # current None on next => first
     assert vm.nav_target(visible, None, "next") == 0
+
+
+def test_build_timeline_tree_variable_depth():
+    events = [
+        _ev(seq=0, game_num=1, turn_num=1, phase="Phase_Beginning",
+            step="Step_Upkeep", kind="phase_change", active_seat=1),
+        _ev(seq=1, game_num=1, turn_num=1, phase="Phase_Beginning",
+            step="Step_Draw", kind="draw_card", active_seat=1),
+        _ev(seq=2, game_num=1, turn_num=1, phase="Phase_Main1", step=None,
+            kind="cast_spell", active_seat=1),
+        _ev(seq=3, game_num=1, turn_num=2, phase="Phase_Main1", step=None,
+            kind="cast_spell", active_seat=2),
+    ]
+    tree = vm.build_timeline_tree(events, my_seat=1, opp_seat=2, opp_name="Bob")
+    # One game
+    assert len(tree) == 1
+    game = tree[0]
+    assert game["type"] == "game" and game["game_num"] == 1
+    # Two turns
+    assert len(game["children"]) == 2
+    t1 = game["children"][0]
+    assert t1["type"] == "turn" and t1["turn_num"] == 1
+    assert "You" in t1["label"]
+    # Turn 1 has two phases
+    phases = t1["children"]
+    assert [p["phase"] for p in phases] == ["Phase_Beginning", "Phase_Main1"]
+    # Beginning has step children (Upkeep, Draw)
+    beg = phases[0]
+    assert all(c["type"] == "step" for c in beg["children"])
+    assert [c["step"] for c in beg["children"]] == ["Step_Upkeep", "Step_Draw"]
+    # Each step holds its event(s)
+    assert beg["children"][0]["children"][0]["type"] == "event"
+    # Main1 (no steps) has event children directly
+    main1 = phases[1]
+    assert all(c["type"] == "event" for c in main1["children"])
+    assert main1["children"][0]["seq"] == 2
+    # Turn 2 label shows opp
+    t2 = game["children"][1]
+    assert "Bob" in t2["label"]

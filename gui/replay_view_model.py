@@ -234,3 +234,91 @@ def nav_target(visible_seqs: list, current_seq, direction: str):
                 return s
         return ordered[0]
     return current_seq
+
+
+def _turn_label(turn_num, active_seat, my_seat, opp_seat, opp_name) -> str:
+    if active_seat == my_seat:
+        who = "You"
+    elif active_seat == opp_seat:
+        who = opp_name or "Opp"
+    else:
+        who = "?"
+    return f"Turn {turn_num} — {who}"
+
+
+def _event_node(event: dict, opp_name: str) -> dict:
+    return {
+        "type": "event",
+        "seq": event.get("seq"),
+        "kind": event.get("kind"),
+        "label": event_summary(event, opp_name=opp_name),
+    }
+
+
+def build_timeline_tree(events: list, my_seat, opp_seat, opp_name: str = "Opp") -> list:
+    """Nested Game -> Turn -> Phase -> [Step] -> Event structure for the
+    QTreeWidget. Step layer only appears when the phase has stepped events.
+    Preserves first-seen order at every level."""
+    games: list = []
+    game_idx: dict = {}
+
+    def _get_child(parent_children, key, factory):
+        """Find-or-create a child node by an identity key, preserving order."""
+        for node in parent_children:
+            if node.get("_key") == key:
+                return node
+        node = factory()
+        node["_key"] = key
+        parent_children.append(node)
+        return node
+
+    for ev in events:
+        gnum = ev.get("game_num")
+        g = _get_child(games, ("g", gnum), lambda: {
+            "type": "game", "game_num": gnum,
+            "label": f"Game {gnum}", "children": []})
+        tnum = ev.get("turn_num")
+        t = _get_child(g["children"], ("t", tnum), lambda: {
+            "type": "turn", "turn_num": tnum,
+            "label": _turn_label(tnum, ev.get("active_seat"), my_seat,
+                                 opp_seat, opp_name),
+            "children": []})
+        ph = ev.get("phase")
+        p = _get_child(t["children"], ("p", ph), lambda: {
+            "type": "phase", "phase": ph,
+            "label": phase_label(ph), "children": [],
+            "_events": []})
+        p["_events"].append(ev)
+
+    # Second pass: now that every phase knows its events, decide step grouping.
+    for g in games:
+        for t in g["children"]:
+            for p in t["children"]:
+                evs = p.pop("_events")
+                has_step = any(e.get("step") for e in evs)
+                if not has_step:
+                    p["children"] = [_event_node(e, opp_name) for e in evs]
+                    continue
+                children: list = []
+                step_idx: dict = {}
+                for e in evs:
+                    st = e.get("step")
+                    if st is None:
+                        children.append(_event_node(e, opp_name))
+                        continue
+                    if st not in step_idx:
+                        node = {"type": "step", "step": st,
+                                "label": step_label(st), "children": []}
+                        step_idx[st] = node
+                        children.append(node)
+                    step_idx[st]["children"].append(_event_node(e, opp_name))
+                p["children"] = children
+
+    # Strip the internal _key bookkeeping before returning.
+    def _clean(node):
+        node.pop("_key", None)
+        for c in node.get("children", []):
+            _clean(c)
+    for g in games:
+        _clean(g)
+    return games
