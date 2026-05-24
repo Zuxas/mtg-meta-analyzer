@@ -213,3 +213,19 @@ def test_window_all_chips_off_clears_counter():
     assert w._model.rowCount() == 0
     assert "0" in w._counter_lbl.text()
     assert w._current_seq is None
+
+
+def test_window_tree_populates_and_selects():
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtCore import Qt
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    # Tree has at least one game root
+    assert w._tree.topLevelItemCount() >= 1
+    # Find an event leaf carrying seq 3 and activate it
+    leaf = w._find_tree_leaf(3)
+    assert leaf is not None
+    w._on_tree_item_clicked(leaf, 0)
+    assert w._current_seq == 3

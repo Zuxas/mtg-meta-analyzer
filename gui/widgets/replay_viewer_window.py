@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableView, QSplitter, QHeaderView, QSizePolicy, QAbstractItemView,
     QToolButton, QLineEdit, QButtonGroup, QCheckBox,
+    QTreeWidget, QTreeWidgetItem,
 )
 
 import gui.theme as theme
@@ -195,7 +196,19 @@ class ReplayViewerWindow(QMainWindow):
             f"QHeaderView::section {{ background: {theme.SURFACE}; color: {theme.TEXT_DIM}; "
             f"border: none; padding: 4px; }}"
         )
-        outer.addWidget(self._table, 1)
+        body = QSplitter(Qt.Orientation.Horizontal)
+        self._tree = QTreeWidget()
+        self._tree.setHeaderHidden(True)
+        self._tree.setStyleSheet(
+            f"QTreeWidget {{ background: {theme.PANEL}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; }}"
+        )
+        self._tree.itemClicked.connect(self._on_tree_item_clicked)
+        body.addWidget(self._tree)
+        body.addWidget(self._table)
+        body.setStretchFactor(0, 1)
+        body.setStretchFactor(1, 3)
+        outer.addWidget(body, 1)
 
     # ── data load ─────────────────────────────────────────────────────
     def _start_load(self, force: bool) -> None:
@@ -235,7 +248,8 @@ class ReplayViewerWindow(QMainWindow):
         self._proxy.setFilterKeyColumn(3)  # Event column
         self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._table.setModel(self._proxy)
-        self._apply_kind_filter()
+        self._populate_tree()
+        self._apply_kind_filter()   # already present from Task 9; tree now precedes it
         hdr = self._table.horizontalHeader()
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self._table.selectionModel().selectionChanged.connect(
@@ -264,6 +278,10 @@ class ReplayViewerWindow(QMainWindow):
                 self._table.selectRow(proxy_idx.row())
         total = self._model.rowCount()
         self._counter_lbl.setText(f"Event {src_row + 1}/{total}")
+        leaf = getattr(self, "_leaf_by_seq", {}).get(seq)
+        if leaf is not None:
+            self._tree.setCurrentItem(leaf)
+            self._tree.scrollToItem(leaf)
 
     def _on_table_selection(self, *args) -> None:
         idxs = self._table.selectionModel().selectedRows()
@@ -309,6 +327,42 @@ class ReplayViewerWindow(QMainWindow):
         if self._model.row_for_seq(self._current_seq) is None:
             visible = [self._model.seq_for_row(r) for r in range(self._model.rowCount())]
             self._select_seq(vm.nav_target(visible, self._current_seq, "next"))
+
+    def _populate_tree(self) -> None:
+        if self._stream is None:
+            return
+        from gui import replay_view_model as _vm
+        self._tree.clear()
+        self._leaf_by_seq = {}
+        tree = _vm.build_timeline_tree(
+            self._stream.get("events") or [], self._my_seat, self._opp_seat,
+            self._opp_name,
+        )
+
+        def _add(parent_item, node):
+            item = QTreeWidgetItem([node.get("label", "")])
+            if node.get("type") == "event":
+                item.setData(0, Qt.ItemDataRole.UserRole, node.get("seq"))
+                self._leaf_by_seq[node.get("seq")] = item
+            if parent_item is None:
+                self._tree.addTopLevelItem(item)
+            else:
+                parent_item.addChild(item)
+            for child in node.get("children", []):
+                _add(item, child)
+            return item
+
+        for game_node in tree:
+            top = _add(None, game_node)
+            top.setExpanded(True)
+
+    def _find_tree_leaf(self, seq):
+        return getattr(self, "_leaf_by_seq", {}).get(seq)
+
+    def _on_tree_item_clicked(self, item, _col) -> None:
+        seq = item.data(0, Qt.ItemDataRole.UserRole)
+        if seq is not None:
+            self._select_seq(seq)
 
     def _on_search_changed(self, text: str) -> None:
         if self._proxy is not None:
