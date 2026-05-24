@@ -168,3 +168,41 @@ def format_event_row(event: dict, my_seat: Optional[int], opp_seat: Optional[int
         "summary": event_summary(event, opp_name=opp_name),
         "kind": event.get("kind", "raw"),
     }
+
+
+# Kind chips are grouped -- 34 individual chips would be unusable. Groups in
+# DEFAULT_OFF_GROUPS start unchecked (priority passes + raw fallthrough are
+# noise for most review). Every kind in analysis.replay_events.EVENT_KINDS
+# must appear in exactly one group (asserted by a test).
+KIND_GROUPS: dict[str, set] = {
+    "Casts": {"cast_spell", "play_land", "activate_ability", "trigger_ability"},
+    "Combat": {"attack_declared", "block_declared", "combat_damage_assigned",
+               "damage_dealt"},
+    "Stack": {"counter_spell", "counter_ability", "resolve", "target_chosen"},
+    "Priority": {"priority_grant", "priority_pass"},
+    "Reveals": {"scry", "surveil", "reveal", "cascade", "library_look", "shuffle"},
+    "Zone/Life": {"zone_change", "draw_card", "life_change", "token_created",
+                  "counter_added", "counter_removed", "mana_paid", "mana_added"},
+    "Flow": {"phase_change", "step_change", "mulligan_decision", "keep_hand",
+             "game_end"},
+    "Raw": {"raw"},
+}
+DEFAULT_OFF_GROUPS = {"Priority", "Raw"}
+
+
+def kinds_for_groups(active_groups) -> set:
+    """Return the union of all individual kinds for the given group names."""
+    out: set = set()
+    for g in active_groups:
+        out |= KIND_GROUPS.get(g, set())
+    return out
+
+
+def filter_events(events: list, allowed_kinds) -> list:
+    """Return the seq of every event whose kind is allowed.
+
+    allowed_kinds None => all events visible.
+    """
+    if allowed_kinds is None:
+        return [e.get("seq") for e in events]
+    return [e.get("seq") for e in events if e.get("kind") in allowed_kinds]

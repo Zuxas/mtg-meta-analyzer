@@ -79,3 +79,32 @@ def test_format_event_row_shape():
     assert row["player"] == "You"
     assert "Lightning Strike" in row["summary"]
     assert row["kind"] == "cast_spell"
+
+
+def test_kind_groups_cover_all_event_kinds():
+    from analysis.replay_events import EVENT_KINDS
+    covered = set()
+    for kinds in vm.KIND_GROUPS.values():
+        covered |= kinds
+    assert covered == set(EVENT_KINDS), covered.symmetric_difference(set(EVENT_KINDS))
+
+
+def test_kinds_for_groups_union():
+    kinds = vm.kinds_for_groups({"Casts", "Combat"})
+    assert "cast_spell" in kinds
+    assert "attack_declared" in kinds
+    assert "scry" not in kinds
+
+
+def test_filter_events_returns_visible_seqs():
+    events = [_ev(seq=0, kind="cast_spell"), _ev(seq=1, kind="priority_grant"),
+              _ev(seq=2, kind="life_change")]
+    seqs = vm.filter_events(events, {"cast_spell", "life_change"})
+    assert seqs == [0, 2]
+    # None => all
+    assert vm.filter_events(events, None) == [0, 1, 2]
+
+
+def test_default_off_groups():
+    assert "Priority" in vm.DEFAULT_OFF_GROUPS
+    assert "Raw" in vm.DEFAULT_OFF_GROUPS
