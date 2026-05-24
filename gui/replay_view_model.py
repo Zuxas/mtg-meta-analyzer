@@ -322,3 +322,100 @@ def build_timeline_tree(events: list, my_seat, opp_seat, opp_name: str = "Opp") 
     for g in games:
         _clean(g)
     return games
+
+
+def event_details_rows(event: dict, my_seat, opp_seat, opp_name: str = "Opp") -> list:
+    """Ordered (label, value) pairs for the Event Details tab. Omits rows
+    whose value is None/empty so the pane stays compact."""
+    rows: list = []
+
+    def add(label, value):
+        if value is None or value == "" or value == []:
+            return
+        rows.append((label, str(value)))
+
+    add("Seq", event.get("seq"))
+    add("Turn", event.get("turn_num"))
+    ph = phase_label(event.get("phase"))
+    st = step_label(event.get("step"))
+    add("Phase", f"{ph} — {st}" if st else (ph if ph != "—" else None))
+    add("Player", player_label(event, my_seat, opp_seat, opp_name))
+    add("Kind", kind_label(event.get("kind", "raw")))
+    add("Card", event.get("card_name"))
+    tgts = _targets_str(event)
+    add("Targets", tgts)
+    la = event.get("life_after")
+    if la:
+        add("Life", f"You {la.get('you')} / {opp_name} {la.get('opp')}")
+    mp = event.get("mana_pool_after")
+    if mp and (mp.get("you") or mp.get("opp")):
+        add("Mana", f"You {mp.get('you') or '—'} / {opp_name} {mp.get('opp') or '—'}")
+    details = event.get("details") or {}
+    if "damage" in details:
+        add("Damage", details.get("damage"))
+    if event.get("shuffle_cause"):
+        add("Shuffle cause", event.get("shuffle_cause"))
+    rc = event.get("revealed_cards") or []
+    if rc:
+        add("Revealed", ", ".join(r.get("name", "?") for r in rc))
+    return rows
+
+
+def stack_rows(event: dict) -> list:
+    """Rows for the Stack tab, from stack_after (top of list = as logged)."""
+    stack = event.get("stack_after") or []
+    out = []
+    for i, item in enumerate(stack):
+        out.append({
+            "pos": i + 1,
+            "name": item.get("name", "?"),
+            "controller": item.get("controller", "?"),
+            "targets": ", ".join(item.get("targets") or []),
+        })
+    return out
+
+
+_JUMP_LABELS = {
+    "first_spell": "First spell", "first_combat": "First combat",
+    "low_life_threshold": "Low life", "lethal_attack": "Lethal attack",
+    "concede": "Concede",
+}
+
+
+def jump_to_targets(match_meta: dict) -> list:
+    """Flatten match_meta.key_events_by_turn into [{label, seq}] for the
+    Jump-To menu."""
+    out = []
+    for ke in (match_meta or {}).get("key_events_by_turn") or []:
+        kind = ke.get("kind", "")
+        if kind.startswith("mulligan_to_"):
+            base = f"Mulligan to {kind.rsplit('_', 1)[-1]}"
+        else:
+            base = _JUMP_LABELS.get(kind, kind.replace("_", " ").title())
+        turn = ke.get("turn")
+        label = f"T{turn} {base}" if turn is not None else base
+        if ke.get("card"):
+            label += f": {ke['card']}"
+        elif ke.get("detail"):
+            label += f" ({ke['detail']})"
+        elif ke.get("actor"):
+            label += f" ({ke['actor']})"
+        out.append({"label": label, "seq": ke.get("seq")})
+    return out
+
+
+def always_visible_value(event: dict, field: str) -> str:
+    """Render the field the user pinned in the 'Always Visible' dropdown."""
+    if field == "life":
+        la = event.get("life_after") or {}
+        return f"Life — You {la.get('you', '?')} / Opp {la.get('opp', '?')}"
+    if field == "mana":
+        mp = event.get("mana_pool_after") or {}
+        return f"Mana — You {mp.get('you') or '—'} / Opp {mp.get('opp') or '—'}"
+    if field == "phase":
+        ph = phase_label(event.get("phase"))
+        st = step_label(event.get("step"))
+        return f"{ph} — {st}" if st else ph
+    if field == "stack_count":
+        return f"{len(event.get('stack_after') or [])} on stack"
+    return ""

@@ -165,3 +165,58 @@ def test_build_timeline_tree_variable_depth():
     # Turn 2 label shows opp
     t2 = game["children"][1]
     assert "Bob" in t2["label"]
+
+
+def test_event_details_rows_skips_none():
+    e = _ev(seq=3, turn_num=7, phase="Phase_Main1", kind="cast_spell",
+            card_name="Lightning Strike", actor_seat=1,
+            life_after={"you": 8, "opp": 14}, mana_pool_after=None,
+            targets=[{"name": "Make Disappear", "grpid": 1, "kind": "spell"}])
+    rows = vm.event_details_rows(e, my_seat=1, opp_seat=2, opp_name="Bob")
+    keys = {k for k, _v in rows}
+    assert "Seq" in keys and "Kind" in keys and "Card" in keys
+    assert "Targets" in keys
+    assert "Life" in keys
+    # mana_pool_after is None -> no Mana row
+    assert "Mana" not in keys
+
+
+def test_stack_rows_from_stack_after():
+    e = _ev(stack_after=[
+        {"name": "Lightning Strike", "controller": "you", "targets": ["Make Disappear"]},
+        {"name": "Make Disappear", "controller": "opp", "targets": []},
+    ])
+    rows = vm.stack_rows(e)
+    assert len(rows) == 2
+    assert rows[0]["name"] == "Lightning Strike"
+    assert rows[0]["controller"] == "you"
+    # empty / None stack
+    assert vm.stack_rows(_ev(stack_after=[])) == []
+    assert vm.stack_rows(_ev(stack_after=None)) == []
+
+
+def test_jump_to_targets_from_match_meta():
+    meta = {"key_events_by_turn": [
+        {"turn": 1, "kind": "mulligan_to_6", "actor": "you", "seq": 7},
+        {"turn": 3, "kind": "first_spell", "actor": "you", "seq": 42, "card": "Stormchaser's Talent"},
+        {"turn": 10, "kind": "concede", "actor": "opp", "seq": 1476},
+    ]}
+    targets = vm.jump_to_targets(meta)
+    assert targets[0]["seq"] == 7
+    assert "Mulligan" in targets[0]["label"]
+    assert "Stormchaser's Talent" in targets[1]["label"]
+    assert "Concede" in targets[2]["label"]
+    # missing key gracefully -> empty
+    assert vm.jump_to_targets({}) == []
+
+
+def test_always_visible_value_defaults():
+    e = _ev(life_after={"you": 8, "opp": 14}, mana_pool_after={"you": "{R}", "opp": ""},
+            phase="Phase_Main1", stack_after=[{"name": "X", "controller": "you", "targets": []}])
+    assert "8" in vm.always_visible_value(e, "life")
+    assert "14" in vm.always_visible_value(e, "life")
+    assert "{R}" in vm.always_visible_value(e, "mana")
+    assert "Precombat Main" in vm.always_visible_value(e, "phase")
+    assert "1" in vm.always_visible_value(e, "stack_count")
+    # None life -> safe placeholder, no crash
+    assert vm.always_visible_value(_ev(life_after=None), "life")
