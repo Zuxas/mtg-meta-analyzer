@@ -22,3 +22,49 @@ def test_kind_label():
     assert vm.kind_label("priority_grant") == "Priority"
     # Unknown kind title-cases the slug
     assert vm.kind_label("some_new_kind") == "Some New Kind"
+
+
+def _ev(**kw):
+    base = {
+        "seq": 0, "game_num": 1, "turn_num": 1, "phase": "Phase_Main1",
+        "step": None, "active_seat": 1, "priority_seat": 1, "actor_seat": 1,
+        "kind": "cast_spell", "card_name": None, "card_grpid": None,
+        "targets": [], "details": {}, "life_after": None,
+        "mana_pool_after": None, "stack_after": [], "board_diff": [],
+        "log_offset": None, "revealed_cards": [], "shuffle_cause": None,
+    }
+    base.update(kw)
+    return base
+
+
+def test_player_label_maps_seat():
+    assert vm.player_label(_ev(actor_seat=1), my_seat=1, opp_seat=2, opp_name="Bob") == "You"
+    assert vm.player_label(_ev(actor_seat=2), my_seat=1, opp_seat=2, opp_name="Bob") == "Bob"
+    # No actor -> fall back to active_seat
+    assert vm.player_label(_ev(actor_seat=None, active_seat=2), my_seat=1, opp_seat=2, opp_name="Bob") == "Bob"
+    # Unknown -> em dash
+    assert vm.player_label(_ev(actor_seat=None, active_seat=None), my_seat=1, opp_seat=2, opp_name="Bob") == "—"
+
+
+def test_event_summary_cast_with_targets():
+    e = _ev(kind="cast_spell", card_name="Lightning Strike",
+            targets=[{"name": "Make Disappear", "grpid": 1, "kind": "spell"}])
+    s = vm.event_summary(e, opp_name="Bob")
+    assert "Lightning Strike" in s
+    assert "Make Disappear" in s
+
+
+def test_event_summary_life_change():
+    e = _ev(kind="life_change", details={"seat": 1, "delta": -3, "from": 11, "to": 8})
+    s = vm.event_summary(e, opp_name="Bob")
+    assert "8" in s and ("-3" in s or "−3" in s or "3" in s)
+
+
+def test_event_summary_phase_change():
+    e = _ev(kind="phase_change", phase="Phase_Combat", step="Step_DeclareAttackers")
+    s = vm.event_summary(e, opp_name="Bob")
+    assert "Combat" in s and "Declare Attackers" in s
+
+
+def test_event_summary_falls_back_to_kind_label():
+    assert vm.event_summary(_ev(kind="shuffle", shuffle_cause="fetch"), opp_name="Bob")

@@ -87,3 +87,72 @@ def kind_label(kind: str) -> str:
     if kind in _KIND_LABELS:
         return _KIND_LABELS[kind]
     return kind.replace("_", " ").title()
+
+
+def player_label(event: dict, my_seat: Optional[int], opp_seat: Optional[int],
+                 opp_name: str = "Opp") -> str:
+    """Who acted. Prefer actor_seat, fall back to active_seat."""
+    seat = event.get("actor_seat")
+    if seat is None:
+        seat = event.get("active_seat")
+    if seat is None:
+        return "—"
+    if seat == my_seat:
+        return "You"
+    if seat == opp_seat:
+        return opp_name or "Opp"
+    return opp_name or "Opp"
+
+
+def _targets_str(event: dict) -> str:
+    names = [t.get("name") for t in (event.get("targets") or []) if t.get("name")]
+    return ", ".join(names)
+
+
+def event_summary(event: dict, *, opp_name: str = "Opp") -> str:
+    """One human-readable line describing the event for the table / tree."""
+    kind = event.get("kind", "raw")
+    card = event.get("card_name")
+    tgts = _targets_str(event)
+    details = event.get("details") or {}
+
+    if kind in ("cast_spell", "play_land", "activate_ability",
+                "trigger_ability", "resolve", "counter_spell",
+                "counter_ability", "draw_card", "zone_change",
+                "token_created"):
+        label = kind_label(kind)
+        text = f"{label}: {card}" if card else label
+        if tgts:
+            text += f" → {tgts}"
+        return text
+    if kind == "target_chosen":
+        return f"Targets → {tgts}" if tgts else "Targets chosen"
+    if kind == "life_change":
+        delta = details.get("delta")
+        to = details.get("to")
+        sign = f"{delta:+d}" if isinstance(delta, int) else "?"
+        return f"Life {sign} → {to}"
+    if kind == "damage_dealt":
+        return f"Damage: {details.get('damage', '?')}"
+    if kind in ("phase_change", "step_change"):
+        ph = phase_label(event.get("phase"))
+        st = step_label(event.get("step"))
+        return f"{ph} — {st}" if st else ph
+    if kind in ("scry", "surveil"):
+        n = len(event.get("revealed_cards") or [])
+        return f"{kind_label(kind)} ({n} seen)"
+    if kind == "shuffle":
+        return f"Shuffle ({event.get('shuffle_cause') or 'unknown'})"
+    if kind in ("mulligan_decision", "keep_hand"):
+        return kind_label(kind)
+    if kind in ("attack_declared", "block_declared"):
+        items = details.get("attackers") or details.get("blocks") or []
+        names = [i.get("name") or i.get("blocker") for i in items]
+        names = [n for n in names if n]
+        return f"{kind_label(kind)}: {', '.join(names)}" if names else kind_label(kind)
+    if kind == "game_end":
+        return f"Game end ({details.get('reason') or '?'})"
+    if kind in ("priority_grant", "priority_pass"):
+        return kind_label(kind)
+    # raw + anything unmapped
+    return kind_label(kind)
