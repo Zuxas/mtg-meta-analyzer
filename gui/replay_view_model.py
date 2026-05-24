@@ -206,3 +206,31 @@ def filter_events(events: list, allowed_kinds) -> list:
     if allowed_kinds is None:
         return [e.get("seq") for e in events]
     return [e.get("seq") for e in events if e.get("kind") in allowed_kinds]
+
+
+def nav_target(visible_seqs: list, current_seq, direction: str):
+    """Next/prev/first/last seq within the currently-visible rows.
+
+    visible_seqs is the model's row order (monotonic seq). Clamps at both
+    ends. If current_seq isn't visible, next picks the first greater seq and
+    prev the last lesser seq."""
+    if not visible_seqs:
+        return None
+    ordered = sorted(visible_seqs)
+    if direction == "first":
+        return ordered[0]
+    if direction == "last":
+        return ordered[-1]
+    if current_seq is None:
+        return ordered[0] if direction == "next" else ordered[-1]
+    if direction == "next":
+        for s in ordered:
+            if s > current_seq:
+                return s
+        return ordered[-1]
+    if direction == "prev":
+        for s in reversed(ordered):
+            if s < current_seq:
+                return s
+        return ordered[0]
+    return current_seq

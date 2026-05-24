@@ -108,3 +108,21 @@ def test_filter_events_returns_visible_seqs():
 def test_default_off_groups():
     assert "Priority" in vm.DEFAULT_OFF_GROUPS
     assert "Raw" in vm.DEFAULT_OFF_GROUPS
+
+
+def test_nav_target_directions():
+    visible = [0, 3, 5, 9]
+    assert vm.nav_target(visible, None, "first") == 0
+    assert vm.nav_target(visible, None, "last") == 9
+    assert vm.nav_target(visible, 3, "next") == 5
+    assert vm.nav_target(visible, 3, "prev") == 0
+    # clamp at ends
+    assert vm.nav_target(visible, 9, "next") == 9
+    assert vm.nav_target(visible, 0, "prev") == 0
+    # current not in visible: next => first greater, prev => last lesser
+    assert vm.nav_target(visible, 4, "next") == 5
+    assert vm.nav_target(visible, 4, "prev") == 3
+    # empty
+    assert vm.nav_target([], 0, "next") is None
+    # current None on next => first
+    assert vm.nav_target(visible, None, "next") == 0
