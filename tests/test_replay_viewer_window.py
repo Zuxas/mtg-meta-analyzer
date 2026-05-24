@@ -130,3 +130,17 @@ def test_window_handles_none_stream():
     w = ReplayViewerWindow(arena_match_id="missing", defer_load=True)
     w._on_data_ready(None)  # match not in log
     assert w._model is None or w._model.rowCount() == 0
+
+
+def test_open_full_viewer_helper_returns_window():
+    """deck_match_history.open_full_replay_viewer builds a ReplayViewerWindow."""
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.deck_match_history import open_full_replay_viewer
+    w = open_full_replay_viewer(
+        arena_match_id="test-match", opp_name="Bob", my_deck_label="Izzet",
+        parent=None, defer_load=True,
+    )
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    assert isinstance(w, ReplayViewerWindow)
+    assert w._arena_match_id == "test-match"
