@@ -186,3 +186,30 @@ def test_window_search_filters_proxy():
     assert w._proxy.rowCount() == 1
     w._on_search_changed("")
     assert w._proxy.rowCount() == w._model.rowCount()
+
+
+def test_window_nav_respects_search_filter():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._on_search_changed("Lightning")   # only the cast (seq 3) matches
+    assert w._proxy.rowCount() == 1
+    w._select_seq(3)
+    w._on_nav("next")                    # nothing else visible -> clamp to 3
+    assert w._current_seq == 3
+    assert w._table.selectionModel().hasSelection()
+
+
+def test_window_all_chips_off_clears_counter():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._active_groups = set()             # uncheck everything
+    w._apply_kind_filter()
+    assert w._model.rowCount() == 0
+    assert "0" in w._counter_lbl.text()
+    assert w._current_seq is None

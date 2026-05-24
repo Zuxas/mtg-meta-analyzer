@@ -275,9 +275,16 @@ class ReplayViewerWindow(QMainWindow):
             self._select_seq(seq)
 
     def _on_nav(self, direction: str) -> None:
-        if self._model is None:
+        if self._model is None or self._proxy is None:
             return
-        visible = [self._model.seq_for_row(r) for r in range(self._model.rowCount())]
+        # Navigate among rows currently visible in the proxy (kind filter AND
+        # search), so Next/Prev never jumps to a row the search hides.
+        visible = []
+        for pr in range(self._proxy.rowCount()):
+            src = self._proxy.mapToSource(self._proxy.index(pr, 0))
+            seq = self._model.seq_for_row(src.row())
+            if seq is not None:
+                visible.append(seq)
         target = vm.nav_target(visible, self._current_seq, direction)
         if target is not None:
             self._select_seq(target)
@@ -294,6 +301,10 @@ class ReplayViewerWindow(QMainWindow):
         events = self._stream.get("events") or []
         allowed = vm.kinds_for_groups(self._active_groups)
         self._model.set_visible_seqs(vm.filter_events(events, allowed))
+        if self._model.rowCount() == 0:
+            self._counter_lbl.setText("0 events")
+            self._current_seq = None
+            return
         # Keep cursor valid after the row set changes.
         if self._model.row_for_seq(self._current_seq) is None:
             visible = [self._model.seq_for_row(r) for r in range(self._model.rowCount())]
