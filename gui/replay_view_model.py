@@ -156,3 +156,15 @@ def event_summary(event: dict, *, opp_name: str = "Opp") -> str:
         return kind_label(kind)
     # raw + anything unmapped
     return kind_label(kind)
+
+
+def format_event_row(event: dict, my_seat: Optional[int], opp_seat: Optional[int],
+                     opp_name: str = "Opp") -> dict:
+    """The 4 display cells for one table row: # / Turn / Player / Event."""
+    return {
+        "seq": event.get("seq"),
+        "turn": event.get("turn_num"),
+        "player": player_label(event, my_seat, opp_seat, opp_name),
+        "summary": event_summary(event, opp_name=opp_name),
+        "kind": event.get("kind", "raw"),
+    }

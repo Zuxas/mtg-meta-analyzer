@@ -68,3 +68,14 @@ def test_event_summary_phase_change():
 
 def test_event_summary_falls_back_to_kind_label():
     assert vm.event_summary(_ev(kind="shuffle", shuffle_cause="fetch"), opp_name="Bob")
+
+
+def test_format_event_row_shape():
+    e = _ev(seq=42, turn_num=7, kind="cast_spell", card_name="Lightning Strike",
+            actor_seat=1)
+    row = vm.format_event_row(e, my_seat=1, opp_seat=2, opp_name="Bob")
+    assert row["seq"] == 42
+    assert row["turn"] == 7
+    assert row["player"] == "You"
+    assert "Lightning Strike" in row["summary"]
+    assert row["kind"] == "cast_spell"
