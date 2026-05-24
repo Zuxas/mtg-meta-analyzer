@@ -229,3 +229,51 @@ def test_window_tree_populates_and_selects():
     assert leaf is not None
     w._on_tree_item_clicked(leaf, 0)
     assert w._current_seq == 3
+
+
+def test_window_detail_pane_updates_on_select():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)  # the Lightning Strike cast
+    txt = w._detail_text()
+    assert "Lightning Strike" in txt
+    assert w._stack_list.count() == 1
+    assert w._always_lbl.text()
+
+
+def test_window_jump_menu_built():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    assert len(w._jump_btn.menu().actions()) == 2
+
+
+def test_window_board_panel_is_placeholder():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    assert "M3" in w._board_panel.text()
+
+
+def test_window_select_expands_tree_ancestors():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    leaf = w._find_tree_leaf(1)  # a draw under Beginning/Draw (nested under game/turn)
+    assert leaf is not None
+    # collapse all ancestors first
+    p = leaf.parent()
+    while p is not None:
+        p.setExpanded(False)
+        p = p.parent()
+    w._select_seq(1)
+    # after selecting, the leaf's immediate parent must be expanded (revealed)
+    assert leaf.parent().isExpanded()

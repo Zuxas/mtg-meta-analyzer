@@ -18,7 +18,10 @@ from PyQt6.QtWidgets import (
     QTableView, QSplitter, QHeaderView, QSizePolicy, QAbstractItemView,
     QToolButton, QLineEdit, QButtonGroup, QCheckBox,
     QTreeWidget, QTreeWidgetItem,
+    QTabWidget, QTableWidget, QTableWidgetItem, QListWidget, QTextEdit,
+    QComboBox, QMenu,
 )
+from PyQt6.QtGui import QAction, QPixmap
 
 import gui.theme as theme
 from gui import replay_view_model as vm
@@ -157,6 +160,13 @@ class ReplayViewerWindow(QMainWindow):
             self._topbar.insertWidget(self._topbar.count() - 1, b)
             self._nav_btns[key] = b
 
+        self._jump_btn = QToolButton()
+        self._jump_btn.setText("Jump To ▾")
+        self._jump_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._jump_btn.setStyleSheet(theme.btn_secondary())
+        self._jump_btn.setMenu(QMenu(self._jump_btn))
+        self._topbar.insertWidget(self._topbar.count() - 1, self._jump_btn)
+
         # Filter row: kind-group chips + search box
         filt = QHBoxLayout()
         filt.setSpacing(theme.SPACE_XS)
@@ -206,9 +216,74 @@ class ReplayViewerWindow(QMainWindow):
         self._tree.itemClicked.connect(self._on_tree_item_clicked)
         body.addWidget(self._tree)
         body.addWidget(self._table)
-        body.setStretchFactor(0, 1)
-        body.setStretchFactor(1, 3)
+
+        # Right pane: detail tabs + card preview
+        right = QWidget()
+        right_v = QVBoxLayout(right)
+        right_v.setContentsMargins(0, 0, 0, 0)
+        self._tabs = QTabWidget()
+        self._detail_tbl = QTableWidget(0, 2)
+        self._detail_tbl.setHorizontalHeaderLabels(["Field", "Value"])
+        self._detail_tbl.horizontalHeader().setStretchLastSection(True)
+        self._detail_tbl.verticalHeader().setVisible(False)
+        self._tabs.addTab(self._detail_tbl, "Event Details")
+        self._stack_list = QListWidget()
+        self._tabs.addTab(self._stack_list, "Stack")
+        self._notes = QTextEdit()
+        # Read-only in M2: placeholder text vanishes once the user types, so
+        # an editable box would silently lose input on close. Persistence is M4.
+        self._notes.setReadOnly(True)
+        self._notes.setPlainText("Per-replay notes ship in M4 (not saved in M2).")
+        self._tabs.addTab(self._notes, "Notes")
+        right_v.addWidget(self._tabs, 1)
+        self._preview = QLabel()
+        self._preview.setMinimumHeight(180)
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview.setStyleSheet(
+            f"background: {theme.PANEL}; border: 1px solid {theme.BORDER};"
+        )
+        right_v.addWidget(self._preview)
+        body.addWidget(right)
+
+        body.setStretchFactor(0, 1)  # tree
+        body.setStretchFactor(1, 3)  # table
+        body.setStretchFactor(2, 2)  # right pane
         outer.addWidget(body, 1)
+
+        self._board_panel = QLabel("Board view ships in M3")
+        self._board_panel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._board_panel.setMinimumHeight(90)
+        self._board_panel.setStyleSheet(
+            f"background: {theme.PANEL}; color: {theme.TEXT_DIM}; "
+            f"border: 1px dashed {theme.BORDER};"
+        )
+        outer.addWidget(self._board_panel)
+
+        controls = QHBoxLayout()
+        controls.setSpacing(theme.SPACE_SM)
+        speed = QComboBox()
+        speed.addItems(["0.5x", "1x", "2x", "4x"])
+        speed.setCurrentText("1x")
+        speed.setEnabled(False)  # playback is M5
+        controls.addWidget(QLabel("Speed:"))
+        controls.addWidget(speed)
+        animate = QCheckBox("Animate")
+        animate.setEnabled(False)
+        controls.addWidget(animate)
+        self._show_board_changes = QCheckBox("Show Board Changes")
+        controls.addWidget(self._show_board_changes)
+        controls.addStretch()
+        controls.addWidget(QLabel("Always Visible:"))
+        self._always_combo = QComboBox()
+        self._always_combo.addItems(["life", "mana", "phase", "stack_count"])
+        self._always_combo.currentTextChanged.connect(
+            lambda *_: self._refresh_always_visible()
+        )
+        controls.addWidget(self._always_combo)
+        self._always_lbl = QLabel("")
+        self._always_lbl.setStyleSheet(f"color: {theme.ACCENT};")
+        controls.addWidget(self._always_lbl)
+        outer.addLayout(controls)
 
     # ── data load ─────────────────────────────────────────────────────
     def _start_load(self, force: bool) -> None:
@@ -250,6 +325,7 @@ class ReplayViewerWindow(QMainWindow):
         self._table.setModel(self._proxy)
         self._populate_tree()
         self._apply_kind_filter()   # already present from Task 9; tree now precedes it
+        self._build_jump_menu()
         hdr = self._table.horizontalHeader()
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self._table.selectionModel().selectionChanged.connect(
@@ -280,8 +356,17 @@ class ReplayViewerWindow(QMainWindow):
         self._counter_lbl.setText(f"Event {src_row + 1}/{total}")
         leaf = getattr(self, "_leaf_by_seq", {}).get(seq)
         if leaf is not None:
+            p = leaf.parent()
+            while p is not None:
+                p.setExpanded(True)
+                p = p.parent()
             self._tree.setCurrentItem(leaf)
             self._tree.scrollToItem(leaf)
+        ev = self._model.event_for_row(self._model.row_for_seq(seq)) if self._model else None
+        if ev is not None:
+            self._update_detail(ev)
+            self._update_preview(ev)
+            self._refresh_always_visible()
 
     def _on_table_selection(self, *args) -> None:
         idxs = self._table.selectionModel().selectedRows()
@@ -367,3 +452,61 @@ class ReplayViewerWindow(QMainWindow):
     def _on_search_changed(self, text: str) -> None:
         if self._proxy is not None:
             self._proxy.setFilterFixedString(text)
+
+    def _update_detail(self, event: dict) -> None:
+        rows = vm.event_details_rows(event, self._my_seat, self._opp_seat,
+                                     self._opp_name)
+        self._detail_tbl.setRowCount(len(rows))
+        for r, (label, value) in enumerate(rows):
+            self._detail_tbl.setItem(r, 0, QTableWidgetItem(label))
+            self._detail_tbl.setItem(r, 1, QTableWidgetItem(value))
+        self._stack_list.clear()
+        for sr in vm.stack_rows(event):
+            tgt = f" -> {sr['targets']}" if sr["targets"] else ""
+            self._stack_list.addItem(
+                f"{sr['pos']}. {sr['name']} ({sr['controller']}){tgt}"
+            )
+
+    def _detail_text(self) -> str:
+        """Concatenated detail-table text (used by tests + accessibility)."""
+        out = []
+        for r in range(self._detail_tbl.rowCount()):
+            for c in range(2):
+                it = self._detail_tbl.item(r, c)
+                if it:
+                    out.append(it.text())
+        return " ".join(out)
+
+    def _update_preview(self, event: dict) -> None:
+        name = event.get("card_name")
+        grpid = event.get("card_grpid")
+        if not name:
+            self._preview.clear()
+            self._preview.setText("(no card)")
+            return
+        from gui.widgets.card_image_cache import load_pixmap
+        px = load_pixmap(card_name=name, grpid=grpid)
+        if px is not None:
+            self._preview.setPixmap(
+                px.scaledToHeight(176, Qt.TransformationMode.SmoothTransformation)
+            )
+        else:
+            self._preview.setText(name)
+
+    def _refresh_always_visible(self) -> None:
+        if self._current_seq is None or self._model is None:
+            return
+        ev = self._model.event_for_row(self._model.row_for_seq(self._current_seq))
+        if ev is not None:
+            self._always_lbl.setText(
+                vm.always_visible_value(ev, self._always_combo.currentText())
+            )
+
+    def _build_jump_menu(self) -> None:
+        menu = self._jump_btn.menu()
+        menu.clear()
+        meta = (self._stream or {}).get("match_meta") or {}
+        for tgt in vm.jump_to_targets(meta):
+            act = QAction(tgt["label"], self)
+            act.triggered.connect(lambda _=False, s=tgt["seq"]: self._select_seq(s))
+            menu.addAction(act)
