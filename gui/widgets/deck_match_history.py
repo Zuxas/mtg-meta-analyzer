@@ -205,7 +205,6 @@ class DeckMatchHistory(QWidget):
             Qt.ToolButtonStyle.ToolButtonTextOnly
         )
         self._replay_btn.setStyleSheet(theme.btn_secondary())
-        self._replay_btn.setEnabled(False)
 
         self._act_full = QAction("▶ Watch (Full)", self)
         self._act_full.triggered.connect(lambda: self._watch_replay("full"))
@@ -224,6 +223,9 @@ class DeckMatchHistory(QWidget):
         self._replay_btn.setDefaultAction(
             self._act_classic if mode == "classic" else self._act_full
         )
+        # setDefaultAction copies the action's (enabled) state onto the button,
+        # so disable LAST -- stays disabled until a row is selected.
+        self._replay_btn.setEnabled(False)
         sb_head_row.addWidget(self._replay_btn)
         right_v.addLayout(sb_head_row)
         self._sb_detail = QLabel(
