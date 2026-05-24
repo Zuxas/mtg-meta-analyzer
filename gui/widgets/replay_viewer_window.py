@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex
+from PyQt6.QtCore import QAbstractTableModel, Qt, QModelIndex, QSortFilterProxyModel
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableView, QSplitter, QHeaderView, QSizePolicy, QAbstractItemView,
+    QToolButton, QLineEdit, QButtonGroup, QCheckBox,
 )
 
 import gui.theme as theme
@@ -141,6 +142,47 @@ class ReplayViewerWindow(QMainWindow):
         self._topbar.addWidget(self._counter_lbl)
         outer.addLayout(self._topbar)
 
+        # Nav buttons (added to the existing topbar, left of the counter)
+        self._nav_btns = {}
+        for key, glyph, tip in (("first", "◀◀", "First event"),
+                                ("prev", "◀", "Previous"),
+                                ("next", "▶", "Next"),
+                                ("last", "▶▶", "Last event")):
+            b = QToolButton()
+            b.setText(glyph)
+            b.setToolTip(tip)
+            b.setStyleSheet(theme.btn_secondary())
+            b.clicked.connect(lambda _=False, k=key: self._on_nav(k))
+            self._topbar.insertWidget(self._topbar.count() - 1, b)
+            self._nav_btns[key] = b
+
+        # Filter row: kind-group chips + search box
+        filt = QHBoxLayout()
+        filt.setSpacing(theme.SPACE_XS)
+        self._chip_boxes = {}
+        for group in vm.KIND_GROUPS:
+            cb = QCheckBox(group)
+            cb.setChecked(group not in vm.DEFAULT_OFF_GROUPS)
+            cb.setStyleSheet(f"color: {theme.TEXT_DIM};")
+            cb.stateChanged.connect(self._on_chip_changed)
+            filt.addWidget(cb)
+            self._chip_boxes[group] = cb
+        filt.addStretch()
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search events…")
+        self._search.setStyleSheet(
+            f"QLineEdit {{ background: {theme.INPUT}; color: {theme.TEXT}; "
+            f"border: 1px solid {theme.BORDER}; border-radius: 4px; padding: 3px 8px; }}"
+        )
+        self._search.textChanged.connect(self._on_search_changed)
+        filt.addWidget(self._search)
+        outer.addLayout(filt)
+
+        self._active_groups = {
+            g for g in vm.KIND_GROUPS if g not in vm.DEFAULT_OFF_GROUPS
+        }
+        self._proxy = None
+
         # Center: event table (tree + detail added in later tasks)
         self._table = QTableView()
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -188,7 +230,12 @@ class ReplayViewerWindow(QMainWindow):
             events, [e.get("seq") for e in events],
             self._my_seat, self._opp_seat, self._opp_name,
         )
-        self._table.setModel(self._model)
+        self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setSourceModel(self._model)
+        self._proxy.setFilterKeyColumn(3)  # Event column
+        self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._table.setModel(self._proxy)
+        self._apply_kind_filter()
         hdr = self._table.horizontalHeader()
         hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self._table.selectionModel().selectionChanged.connect(
@@ -205,22 +252,53 @@ class ReplayViewerWindow(QMainWindow):
 
     # ── selection ─────────────────────────────────────────────────────────
     def _select_seq(self, seq: Optional[int]) -> None:
-        """The one place that moves the cursor. Later tasks extend this to
-        also sync the tree, detail tabs, and card preview."""
         if seq is None or self._model is None:
             return
+        src_row = self._model.row_for_seq(seq)
+        if src_row is None:
+            return  # seq filtered out of the visible set; leave the cursor put
         self._current_seq = seq
-        row = self._model.row_for_seq(seq)
-        if row is not None:
-            self._table.selectRow(row)
+        if self._proxy is not None:
+            proxy_idx = self._proxy.mapFromSource(self._model.index(src_row, 0))
+            if proxy_idx.isValid():
+                self._table.selectRow(proxy_idx.row())
         total = self._model.rowCount()
-        cur = (self._model.row_for_seq(seq) or 0) + 1
-        self._counter_lbl.setText(f"Event {cur}/{total}")
+        self._counter_lbl.setText(f"Event {src_row + 1}/{total}")
 
     def _on_table_selection(self, *args) -> None:
         idxs = self._table.selectionModel().selectedRows()
-        if not idxs or self._model is None:
+        if not idxs or self._model is None or self._proxy is None:
             return
-        seq = self._model.seq_for_row(idxs[0].row())
+        src_idx = self._proxy.mapToSource(idxs[0])
+        seq = self._model.seq_for_row(src_idx.row())
         if seq is not None and seq != self._current_seq:
             self._select_seq(seq)
+
+    def _on_nav(self, direction: str) -> None:
+        if self._model is None:
+            return
+        visible = [self._model.seq_for_row(r) for r in range(self._model.rowCount())]
+        target = vm.nav_target(visible, self._current_seq, direction)
+        if target is not None:
+            self._select_seq(target)
+
+    def _on_chip_changed(self, *args) -> None:
+        self._active_groups = {
+            g for g, cb in self._chip_boxes.items() if cb.isChecked()
+        }
+        self._apply_kind_filter()
+
+    def _apply_kind_filter(self) -> None:
+        if self._model is None or self._stream is None:
+            return
+        events = self._stream.get("events") or []
+        allowed = vm.kinds_for_groups(self._active_groups)
+        self._model.set_visible_seqs(vm.filter_events(events, allowed))
+        # Keep cursor valid after the row set changes.
+        if self._model.row_for_seq(self._current_seq) is None:
+            visible = [self._model.seq_for_row(r) for r in range(self._model.rowCount())]
+            self._select_seq(vm.nav_target(visible, self._current_seq, "next"))
+
+    def _on_search_changed(self, text: str) -> None:
+        if self._proxy is not None:
+            self._proxy.setFilterFixedString(text)

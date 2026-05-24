@@ -144,3 +144,45 @@ def test_open_full_viewer_helper_returns_window():
     from gui.widgets.replay_viewer_window import ReplayViewerWindow
     assert isinstance(w, ReplayViewerWindow)
     assert w._arena_match_id == "test-match"
+
+
+def test_window_kind_filter_rebuilds_visible():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    # Turn OFF everything except "Casts" -> only cast_spell (seq 3) + play_land remain.
+    w._active_groups = {"Casts"}
+    w._apply_kind_filter()
+    visible = [w._model.seq_for_row(r) for r in range(w._model.rowCount())]
+    assert 3 in visible          # the cast
+    assert 5 not in visible      # life_change filtered out
+
+
+def test_window_nav_buttons_move_cursor():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(0)
+    w._on_nav("next")
+    assert w._current_seq == 1
+    w._on_nav("last")
+    assert w._current_seq == 6
+    w._on_nav("first")
+    assert w._current_seq == 0
+
+
+def test_window_search_filters_proxy():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._on_search_changed("Lightning")
+    # Proxy now shows only rows whose Event text contains "Lightning"
+    assert w._proxy.rowCount() == 1
+    w._on_search_changed("")
+    assert w._proxy.rowCount() == w._model.rowCount()
