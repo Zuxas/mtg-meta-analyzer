@@ -95,3 +95,38 @@ def test_table_model_visible_subset():
     # Reset to a different subset
     model.set_visible_seqs([0, 1, 2, 3, 4, 5, 6])
     assert model.rowCount() == 7
+
+
+def test_window_constructs_and_populates():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", opp_name="Bob",
+                           defer_load=True)
+    # No data yet -> table model empty / None
+    w._on_data_ready(_sample_stream())
+    assert w._model is not None
+    assert w._model.rowCount() == 7
+    # Current selection defaults to first event
+    assert w._current_seq == 0
+    # Title carries the match id
+    assert "test-match" in w.windowTitle()
+
+
+def test_window_select_seq_updates_current():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)
+    assert w._current_seq == 3
+
+
+def test_window_handles_none_stream():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="missing", defer_load=True)
+    w._on_data_ready(None)  # match not in log
+    assert w._model is None or w._model.rowCount() == 0
