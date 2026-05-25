@@ -308,6 +308,7 @@ class ReplayViewerWindow(QMainWindow):
                 "(log may have rotated)."
             )
             return
+        self._last_board_seq = None  # reset board memo so a reload re-renders
         self._stream = stream
         self._my_seat = stream.get("my_seat")
         self._opp_seat = stream.get("opp_seat")
