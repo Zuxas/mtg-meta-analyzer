@@ -362,7 +362,7 @@ class ReplayViewerWindow(QMainWindow):
                 p = p.parent()
             self._tree.setCurrentItem(leaf)
             self._tree.scrollToItem(leaf)
-        ev = self._model.event_for_row(self._model.row_for_seq(seq)) if self._model else None
+        ev = self._model.event_for_row(src_row)
         if ev is not None:
             self._update_detail(ev)
             self._update_preview(ev)
@@ -408,10 +408,15 @@ class ReplayViewerWindow(QMainWindow):
             self._counter_lbl.setText("0 events")
             self._current_seq = None
             return
-        # Keep cursor valid after the row set changes.
+        # Keep cursor valid after the row set changes. set_visible_seqs reset
+        # the model and cleared the table selection, so re-select in BOTH cases:
+        # if the current event was filtered out, jump to the next visible one;
+        # otherwise re-sync the surviving selection (highlight + counter).
         if self._model.row_for_seq(self._current_seq) is None:
             visible = [self._model.seq_for_row(r) for r in range(self._model.rowCount())]
             self._select_seq(vm.nav_target(visible, self._current_seq, "next"))
+        else:
+            self._select_seq(self._current_seq)
 
     def _populate_tree(self) -> None:
         if self._stream is None:

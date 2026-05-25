@@ -277,3 +277,20 @@ def test_window_select_expands_tree_ancestors():
     w._select_seq(1)
     # after selecting, the leaf's immediate parent must be expanded (revealed)
     assert leaf.parent().isExpanded()
+
+
+def test_window_kind_filter_keeps_surviving_selection_synced():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)               # the cast (Casts group) -- survives the filter below
+    w._active_groups = {"Casts"}   # only seq 3 remains visible
+    w._apply_kind_filter()
+    # The surviving selection stays current AND the table highlight is restored.
+    assert w._current_seq == 3
+    assert w._table.selectionModel().hasSelection()
+    # Counter reflects seq 3's NEW position in the filtered set (row 0 -> "Event 1/...").
+    row = w._model.row_for_seq(3)
+    assert f"{row + 1}/" in w._counter_lbl.text()

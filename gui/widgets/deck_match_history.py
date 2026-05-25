@@ -195,7 +195,6 @@ class DeckMatchHistory(QWidget):
         from gui import state_keys
 
         self._replay_window = None  # live ReplayViewerWindow (reopen guard)
-        self._replay_dialog = None  # live classic dialog
 
         self._replay_btn = QToolButton()
         self._replay_btn.setPopupMode(

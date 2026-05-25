@@ -260,7 +260,6 @@ def build_timeline_tree(events: list, my_seat, opp_seat, opp_name: str = "Opp") 
     QTreeWidget. Step layer only appears when the phase has stepped events.
     Preserves first-seen order at every level."""
     games: list = []
-    game_idx: dict = {}
 
     def _get_child(parent_children, key, factory):
         """Find-or-create a child node by an identity key, preserving order."""
