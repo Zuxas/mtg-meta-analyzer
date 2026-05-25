@@ -634,3 +634,94 @@ def build_event_stream(arena_match_id: str,
         pass  # best-effort cache
 
     return out
+
+
+def replay_board_at(events: list, seq: int) -> dict:
+    """Reconstruct the board state as of (and including) the event at `seq`.
+
+    Layer-3 reconstruction (Source-of-Truth Hierarchy): derived on demand by
+    applying each event's board_diff in order; never stored. Resets per game
+    because the M1 extractor does NOT reset instance tracking on game change,
+    so the board_diff stream is a continuous cross-game delta -- we scope to
+    the current game by clearing state whenever game_num increases.
+
+    Returns a dict::
+
+        {
+            "seq": int,
+            "you": {
+                "battlefield": [{"instance_id", "grpid", "name"}, ...],
+                "graveyard":   [...],
+                "exile":       [...],
+                "hand":        [...],   # only known (your) cards
+                "hand_count":  int,
+                "library_count": int,
+                "graveyard_count": int,
+                "exile_count": int,
+            },
+            "opp": { ... same shape ... },
+        }
+
+    Instances with controller=None are excluded from both seat buckets.
+    Requesting a seq beyond the last event is safe -- returns full final state.
+    """
+    instances: dict[int, dict] = {}
+    cur_game = None
+    for ev in events:
+        if ev.get("seq", 0) > seq:
+            break
+        g = ev.get("game_num")
+        if cur_game is None:
+            cur_game = g
+        elif g is not None and g != cur_game:
+            instances = {}          # new game -> fresh board
+            cur_game = g
+        for d in ev.get("board_diff") or []:
+            iid = d.get("instance_id")
+            if iid is None:
+                continue
+            to = d.get("to")
+            if to is None:
+                instances.pop(iid, None)
+            else:
+                instances[iid] = {
+                    "instance_id": iid,
+                    "grpid": d.get("grpid"),
+                    "name": d.get("card"),
+                    "controller": d.get("controller"),
+                    "zone": to,
+                }
+
+    def _empty() -> dict:
+        return {"battlefield": [], "graveyard": [], "exile": [], "hand": [],
+                "hand_count": 0, "library_count": 0,
+                "graveyard_count": 0, "exile_count": 0}
+
+    you, opp = _empty(), _empty()
+    for inst in sorted(instances.values(), key=lambda i: i["instance_id"]):
+        ctrl = inst["controller"]
+        if ctrl == "you":
+            bucket = you
+        elif ctrl == "opp":
+            bucket = opp
+        else:
+            continue  # controller unknown -> excluded
+        card = {"instance_id": inst["instance_id"], "grpid": inst["grpid"],
+                "name": inst["name"]}
+        z = inst["zone"]
+        if z == "battlefield":
+            bucket["battlefield"].append(card)
+        elif z == "graveyard":
+            bucket["graveyard"].append(card)
+        elif z == "exile":
+            bucket["exile"].append(card)
+        elif z == "hand":
+            bucket["hand_count"] += 1
+            if inst["grpid"]:           # known card (yours); opp hand grpid is None
+                bucket["hand"].append(card)
+        elif z == "library":
+            bucket["library_count"] += 1
+    for b in (you, opp):
+        b["graveyard_count"] = len(b["graveyard"])
+        b["exile_count"] = len(b["exile"])
+    return {"seq": seq, "you": you, "opp": opp}
