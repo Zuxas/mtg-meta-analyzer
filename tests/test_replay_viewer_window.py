@@ -387,3 +387,21 @@ def test_window_mark_button_disabled_when_no_visible_event(tmp_path, monkeypatch
     from gui.widgets.replay_viewer_window import ReplayViewerWindow
     w = ReplayViewerWindow(arena_match_id="arena-mark2", defer_load=True)
     assert not w._mark_btn.isEnabled()      # before any data/selection
+
+
+def test_window_build_review_markdown(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-export", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._notes.setPlainText("kept the counter up")
+    w._select_seq(3)
+    w._toggle_mark()                       # mark the cast
+    md = w._build_review_markdown()
+    assert "# Replay review" in md
+    assert "kept the counter up" in md
+    assert "## Marked events" in md
+    assert "Lightning Strike" in md        # the marked event from _sample_stream

@@ -177,6 +177,13 @@ class ReplayViewerWindow(QMainWindow):
         self._mark_btn.clicked.connect(self._toggle_mark)
         self._topbar.insertWidget(self._topbar.count() - 1, self._mark_btn)
 
+        self._export_btn = QToolButton()
+        self._export_btn.setText("Export review")
+        self._export_btn.setStyleSheet(theme.btn_secondary())
+        self._export_btn.setToolTip("Export a Markdown review (notes + marked events)")
+        self._export_btn.clicked.connect(self._on_export_review)
+        self._topbar.insertWidget(self._topbar.count() - 1, self._export_btn)
+
         # Filter row: kind-group chips + search box
         filt = QHBoxLayout()
         filt.setSpacing(theme.SPACE_XS)
@@ -621,3 +628,25 @@ class ReplayViewerWindow(QMainWindow):
                 act = QAction(label, self)
                 act.triggered.connect(lambda _=False, ss=s: self._select_seq(ss))
                 menu.addAction(act)
+
+    def _build_review_markdown(self) -> str:
+        return vm.replay_markdown(
+            self._stream or {}, sorted(self._marked_seqs),
+            self._notes.toPlainText(),
+        )
+
+    def _on_export_review(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        md = self._build_review_markdown()
+        default = f"replay_review_{self._arena_match_id}.md"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export replay review", default, "Markdown (*.md)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(md)
+            self._meta_lbl.setText(f"Exported review → {path}")
+        except OSError as e:
+            self._meta_lbl.setText(f"Export failed: {e}")
