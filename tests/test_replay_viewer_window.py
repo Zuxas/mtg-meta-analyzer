@@ -323,3 +323,125 @@ def test_window_reload_rerenders_board():
     w._board_panel.render = lambda *a, **k: calls.append(1) or orig(*a, **k)
     w._on_data_ready(_sample_stream())     # reload the same match
     assert calls, "board must re-render on reload (memo must be reset, not stale)"
+
+
+def test_window_notes_load_and_save(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import get_replay_notes
+    w = ReplayViewerWindow(arena_match_id="arena-note", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    assert not w._notes.isReadOnly()                 # editable now
+    w._notes.setPlainText("held up burn on T7")
+    w._persist_replay_notes(flash=True)
+    assert get_replay_notes("arena-note")["text"] == "held up burn on T7"
+    # A fresh window for the same match loads the saved notes.
+    w2 = ReplayViewerWindow(arena_match_id="arena-note", defer_load=True)
+    w2._on_data_ready(_sample_stream())
+    assert w2._notes.toPlainText() == "held up burn on T7"
+
+
+def test_window_closeevent_persists_notes(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QCloseEvent
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import get_replay_notes
+    w = ReplayViewerWindow(arena_match_id="arena-close", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._notes.setPlainText("typed then closed")
+    w.closeEvent(QCloseEvent())                      # read text -> DB -> base
+    assert get_replay_notes("arena-close")["text"] == "typed then closed"
+
+
+def test_window_mark_toggle_persists_and_labels(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import get_replay_notes
+    w = ReplayViewerWindow(arena_match_id="arena-mark", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)
+    w._toggle_mark()
+    assert 3 in w._marked_seqs
+    assert "Marked" in w._mark_btn.text()                 # ★ Marked
+    assert get_replay_notes("arena-mark")["marks"] == [3] # persisted
+    assert len(w._jump_btn.menu().actions()) >= 1
+    w._toggle_mark()
+    assert 3 not in w._marked_seqs
+    assert get_replay_notes("arena-mark")["marks"] == []
+
+
+def test_window_mark_button_disabled_when_no_visible_event(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-mark2", defer_load=True)
+    assert not w._mark_btn.isEnabled()      # before any data/selection
+
+
+def test_window_build_review_markdown(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-export", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._notes.setPlainText("kept the counter up")
+    w._select_seq(3)
+    w._toggle_mark()                       # mark the cast
+    md = w._build_review_markdown()
+    assert "# Replay review" in md
+    assert "kept the counter up" in md
+    assert "## Marked events" in md
+    assert "Lightning Strike" in md        # the marked event from _sample_stream
+
+
+def test_window_export_btn_enabled_only_after_load():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-x", defer_load=True)
+    assert not w._export_btn.isEnabled()       # disabled before data
+    w._on_data_ready(_sample_stream())
+    assert w._export_btn.isEnabled()           # enabled once a replay loads
+
+
+def test_window_mark_button_disabled_when_all_events_filtered():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-y", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)
+    w._active_groups = set()                   # uncheck everything -> 0 visible
+    w._apply_kind_filter()
+    assert w._model.rowCount() == 0
+    assert not w._mark_btn.isEnabled()         # Mark disabled when nothing visible
+
+
+def test_window_match_not_found_does_not_wipe_notes(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QCloseEvent
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import save_replay_notes, get_replay_notes
+    # Notes exist from an earlier view (when the log was fresh).
+    save_replay_notes("arena-rot", "important review note", [3])
+    w = ReplayViewerWindow(arena_match_id="arena-rot", defer_load=True)
+    w._on_data_ready(None)               # match not found / log rotated -> no load
+    w.closeEvent(QCloseEvent())          # must NOT clobber the stored note
+    assert get_replay_notes("arena-rot")["text"] == "important review note"
+    assert get_replay_notes("arena-rot")["marks"] == [3]

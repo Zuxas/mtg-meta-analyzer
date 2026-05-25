@@ -109,6 +109,8 @@ class ReplayViewerWindow(QMainWindow):
                  my_deck_label: str = "", parent=None, *, defer_load: bool = False):
         super().__init__(parent)
         self._arena_match_id = arena_match_id
+        self._marked_seqs: set[int] = set()
+        self._notes_loaded = False  # gate: don't persist before notes load
         self._opp_name = opp_name or "Opp"
         self._my_deck_label = my_deck_label
         self._stream: Optional[dict] = None
@@ -167,6 +169,22 @@ class ReplayViewerWindow(QMainWindow):
         self._jump_btn.setStyleSheet(theme.btn_secondary())
         self._jump_btn.setMenu(QMenu(self._jump_btn))
         self._topbar.insertWidget(self._topbar.count() - 1, self._jump_btn)
+
+        self._mark_btn = QToolButton()
+        self._mark_btn.setText("☆ Mark")
+        self._mark_btn.setStyleSheet(theme.btn_secondary())
+        self._mark_btn.setToolTip("Mark this event as important (saved with the replay)")
+        self._mark_btn.setEnabled(False)
+        self._mark_btn.clicked.connect(self._toggle_mark)
+        self._topbar.insertWidget(self._topbar.count() - 1, self._mark_btn)
+
+        self._export_btn = QToolButton()
+        self._export_btn.setText("Export review")
+        self._export_btn.setStyleSheet(theme.btn_secondary())
+        self._export_btn.setToolTip("Export a Markdown review (notes + marked events)")
+        self._export_btn.setEnabled(False)   # enabled once a replay loads
+        self._export_btn.clicked.connect(self._on_export_review)
+        self._topbar.insertWidget(self._topbar.count() - 1, self._export_btn)
 
         # Filter row: kind-group chips + search box
         filt = QHBoxLayout()
@@ -230,12 +248,29 @@ class ReplayViewerWindow(QMainWindow):
         self._tabs.addTab(self._detail_tbl, "Event Details")
         self._stack_list = QListWidget()
         self._tabs.addTab(self._stack_list, "Stack")
+        notes_tab = QWidget()
+        notes_v = QVBoxLayout(notes_tab)
+        notes_v.setContentsMargins(0, 0, 0, 0)
         self._notes = QTextEdit()
-        # Read-only in M2: placeholder text vanishes once the user types, so
-        # an editable box would silently lose input on close. Persistence is M4.
-        self._notes.setReadOnly(True)
-        self._notes.setPlainText("Per-replay notes ship in M4 (not saved in M2).")
-        self._tabs.addTab(self._notes, "Notes")
+        self._notes.setPlaceholderText(
+            "Notes for this replay (saved to your match log)…"
+        )
+        notes_v.addWidget(self._notes, 1)
+        notes_btn_row = QHBoxLayout()
+        self._notes_save_btn = QPushButton("Save notes")
+        self._notes_save_btn.setStyleSheet(theme.btn_secondary())
+        self._notes_save_btn.clicked.connect(
+            lambda: self._persist_replay_notes(flash=True)
+        )
+        notes_btn_row.addWidget(self._notes_save_btn)
+        self._notes_status = QLabel("")
+        self._notes_status.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px;"
+        )
+        notes_btn_row.addWidget(self._notes_status)
+        notes_btn_row.addStretch()
+        notes_v.addLayout(notes_btn_row)
+        self._tabs.addTab(notes_tab, "Notes")
         right_v.addWidget(self._tabs, 1)
         self._preview = QLabel()
         self._preview.setMinimumHeight(180)
@@ -310,6 +345,7 @@ class ReplayViewerWindow(QMainWindow):
             return
         self._last_board_seq = None  # reset board memo so a reload re-renders
         self._stream = stream
+        self._load_replay_notes()
         self._my_seat = stream.get("my_seat")
         self._opp_seat = stream.get("opp_seat")
         self._opp_name = stream.get("opp_name") or self._opp_name
@@ -338,6 +374,7 @@ class ReplayViewerWindow(QMainWindow):
             f"{meta.get('event_name') or 'Match'}  ·  vs {self._opp_name}  ·  "
             f"{len(events)} events"
         )
+        self._export_btn.setEnabled(True)
         if events:
             self._select_seq(events[0].get("seq"))
 
@@ -369,6 +406,7 @@ class ReplayViewerWindow(QMainWindow):
             self._update_preview(ev)
             self._refresh_always_visible()
         self._render_board()
+        self._refresh_mark_button()
 
     def _on_table_selection(self, *args) -> None:
         idxs = self._table.selectionModel().selectedRows()
@@ -409,6 +447,7 @@ class ReplayViewerWindow(QMainWindow):
         if self._model.rowCount() == 0:
             self._counter_lbl.setText("0 events")
             self._current_seq = None
+            self._refresh_mark_button()   # disable Mark when nothing is visible
             return
         # Keep cursor valid after the row set changes. set_visible_seqs reset
         # the model and cleared the table selection, so re-select in BOTH cases:
@@ -525,6 +564,61 @@ class ReplayViewerWindow(QMainWindow):
             board, ev, show_changes=self._show_board_changes.isChecked()
         )
 
+    def _toggle_mark(self) -> None:
+        seq = self._current_seq
+        if (seq is None or self._model is None
+                or self._model.row_for_seq(seq) is None):
+            return  # only mark a currently-visible event
+        if seq in self._marked_seqs:
+            self._marked_seqs.discard(seq)
+        else:
+            self._marked_seqs.add(seq)
+        self._persist_replay_notes()   # marks persist immediately
+        self._refresh_mark_button()
+        self._build_jump_menu()        # marked events appear in Jump-To
+
+    def _refresh_mark_button(self) -> None:
+        seq = self._current_seq
+        visible = (seq is not None and self._model is not None
+                   and self._model.row_for_seq(seq) is not None)
+        self._mark_btn.setEnabled(visible)
+        marked = bool(visible and seq in self._marked_seqs)
+        self._mark_btn.setText("★ Marked" if marked else "☆ Mark")
+        self._mark_btn.setToolTip(
+            f"Mark this event as important · {len(self._marked_seqs)} marked"
+        )
+
+    def _load_replay_notes(self) -> None:
+        from db.match_log import get_replay_notes
+        data = get_replay_notes(self._arena_match_id)
+        self._notes.setPlainText(data.get("text", ""))
+        self._marked_seqs = set(data.get("marks", []))
+        self._notes_loaded = True
+
+    def _persist_replay_notes(self, *, flash: bool = False) -> None:
+        # Never write before notes have loaded — otherwise the "Match not
+        # found" / worker-error / close-before-load paths would clobber
+        # previously-stored notes with empty defaults (silent data loss).
+        if not self._notes_loaded:
+            return
+        from db.match_log import save_replay_notes
+        ok = save_replay_notes(
+            self._arena_match_id, self._notes.toPlainText(),
+            sorted(self._marked_seqs),
+        )
+        if flash:
+            self._notes_status.setText("Saved" if ok else "Not saved")
+
+    def closeEvent(self, event) -> None:
+        # Persist BEFORE WA_DeleteOnClose tears the widget down: read the text,
+        # write the DB, THEN defer to the base class. Do not touch the widget
+        # after super().closeEvent().
+        try:
+            self._persist_replay_notes()
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _build_jump_menu(self) -> None:
         menu = self._jump_btn.menu()
         menu.clear()
@@ -533,3 +627,36 @@ class ReplayViewerWindow(QMainWindow):
             act = QAction(tgt["label"], self)
             act.triggered.connect(lambda _=False, s=tgt["seq"]: self._select_seq(s))
             menu.addAction(act)
+        if self._marked_seqs and self._model is not None:
+            menu.addSeparator()
+            for s in sorted(self._marked_seqs):
+                row = self._model.row_for_seq(s)
+                ev = self._model.event_for_row(row) if row is not None else None
+                label = (f"★ T{ev.get('turn_num')}: "
+                         f"{vm.event_summary(ev, opp_name=self._opp_name)}"
+                         if ev else f"★ seq {s}")
+                act = QAction(label, self)
+                act.triggered.connect(lambda _=False, ss=s: self._select_seq(ss))
+                menu.addAction(act)
+
+    def _build_review_markdown(self) -> str:
+        return vm.replay_markdown(
+            self._stream or {}, sorted(self._marked_seqs),
+            self._notes.toPlainText(),
+        )
+
+    def _on_export_review(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        md = self._build_review_markdown()
+        default = f"replay_review_{self._arena_match_id}.md"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export replay review", default, "Markdown (*.md)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(md)
+            self._meta_lbl.setText(f"Exported review → {path}")
+        except OSError as e:
+            self._meta_lbl.setText(f"Export failed: {e}")
