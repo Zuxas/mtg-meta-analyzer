@@ -143,7 +143,11 @@ def get_matches(format_name: str = None, my_deck: str = None,
     combined with the legacy my_deck string filter (both applied with AND).
     """
     _ensure_table()
-    q = "SELECT * FROM match_log WHERE 1=1"
+    # Exclude notes-only stub rows (created by save_replay_notes when a replay
+    # has no real match_log row) — they are annotation containers, not matches,
+    # and must never appear as phantom blank rows in any match listing. Once
+    # the Player.log importer enriches a stub (changing its source), it shows.
+    q = "SELECT * FROM match_log WHERE source != 'replay_notes_stub'"
     params = []
     if format_name:
         q += " AND lower(format) = lower(?)"

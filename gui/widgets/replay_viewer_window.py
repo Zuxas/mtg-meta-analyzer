@@ -110,6 +110,7 @@ class ReplayViewerWindow(QMainWindow):
         super().__init__(parent)
         self._arena_match_id = arena_match_id
         self._marked_seqs: set[int] = set()
+        self._notes_loaded = False  # gate: don't persist before notes load
         self._opp_name = opp_name or "Opp"
         self._my_deck_label = my_deck_label
         self._stream: Optional[dict] = None
@@ -592,8 +593,14 @@ class ReplayViewerWindow(QMainWindow):
         data = get_replay_notes(self._arena_match_id)
         self._notes.setPlainText(data.get("text", ""))
         self._marked_seqs = set(data.get("marks", []))
+        self._notes_loaded = True
 
     def _persist_replay_notes(self, *, flash: bool = False) -> None:
+        # Never write before notes have loaded — otherwise the "Match not
+        # found" / worker-error / close-before-load paths would clobber
+        # previously-stored notes with empty defaults (silent data loss).
+        if not self._notes_loaded:
+            return
         from db.match_log import save_replay_notes
         ok = save_replay_notes(
             self._arena_match_id, self._notes.toPlainText(),

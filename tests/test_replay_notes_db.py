@@ -43,3 +43,13 @@ def test_empty_arena_id_is_noop(tmp_db):
     from db.match_log import save_replay_notes, get_replay_notes
     assert save_replay_notes("", "x", [1]) is False
     assert get_replay_notes("") == {"text": "", "marks": []}
+
+
+def test_stub_row_excluded_from_get_matches(tmp_db):
+    # A notes-only stub must NOT appear as a phantom blank match in listings.
+    from db.match_log import save_match, save_replay_notes, get_matches
+    real = save_match("FNM", "2026-05-25", "standard", 1, "Izzet", "Golgari")
+    save_replay_notes("arena-stub", "notes only", [1])   # creates a stub row
+    rows = get_matches()
+    assert "replay_notes_stub" not in {r.get("source") for r in rows}
+    assert any(r["id"] == real for r in rows)            # real match still shown

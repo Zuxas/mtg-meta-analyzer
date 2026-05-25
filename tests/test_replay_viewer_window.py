@@ -428,3 +428,20 @@ def test_window_mark_button_disabled_when_all_events_filtered():
     w._apply_kind_filter()
     assert w._model.rowCount() == 0
     assert not w._mark_btn.isEnabled()         # Mark disabled when nothing visible
+
+
+def test_window_match_not_found_does_not_wipe_notes(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QCloseEvent
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import save_replay_notes, get_replay_notes
+    # Notes exist from an earlier view (when the log was fresh).
+    save_replay_notes("arena-rot", "important review note", [3])
+    w = ReplayViewerWindow(arena_match_id="arena-rot", defer_load=True)
+    w._on_data_ready(None)               # match not found / log rotated -> no load
+    w.closeEvent(QCloseEvent())          # must NOT clobber the stored note
+    assert get_replay_notes("arena-rot")["text"] == "important review note"
+    assert get_replay_notes("arena-rot")["marks"] == [3]
