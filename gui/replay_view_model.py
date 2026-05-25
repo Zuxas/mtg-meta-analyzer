@@ -418,3 +418,50 @@ def always_visible_value(event: dict, field: str) -> str:
     if field == "stack_count":
         return f"{len(event.get('stack_after') or [])} on stack"
     return ""
+
+
+def replay_markdown(stream: dict, marked_seqs, notes_text: str = "") -> str:
+    """Render a Markdown replay-review summary: header (event / opponent /
+    result), the pilot's free-text notes, and a list of marked events.
+    Consumes the build_event_stream() dict (the locked M1 contract)."""
+    stream = stream or {}
+    meta = stream.get("match_meta") or {}
+    events = stream.get("events") or []
+    my_seat = stream.get("my_seat")
+    opp_seat = stream.get("opp_seat")
+    opp_name = stream.get("opp_name") or "Opp"
+    by_seq = {e.get("seq"): e for e in events}
+
+    event_name = meta.get("event_name") or "Match"
+    winner = meta.get("winner_seat")
+    if winner is None:
+        result = "Result: unknown"
+    elif winner == my_seat:
+        result = "Result: **Won**"
+    else:
+        result = "Result: **Lost**"
+    reason = meta.get("winner_reason")
+    if reason:
+        result += f" ({reason})"
+
+    lines = [f"# Replay review — {event_name} vs {opp_name}", "", result, "",
+             "## Notes", (notes_text or "").strip() or "_(no notes)_", "",
+             "## Marked events"]
+
+    marks = sorted({int(s) for s in (marked_seqs or []) if s in by_seq})
+    if not marks:
+        lines.append("_(none marked)_")
+    else:
+        for s in marks:
+            ev = by_seq[s]
+            ph = phase_label(ev.get("phase"))
+            st = step_label(ev.get("step"))
+            phase_str = f"{ph} — {st}" if st else ph
+            who = player_label(ev, my_seat, opp_seat, opp_name)
+            summary = event_summary(ev, opp_name=opp_name)
+            lines.append(
+                f"- **G{ev.get('game_num')} T{ev.get('turn_num')} · {phase_str}** "
+                f"({who}): {summary}"
+            )
+    lines.append("")
+    return "\n".join(lines)
