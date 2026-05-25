@@ -405,3 +405,26 @@ def test_window_build_review_markdown(tmp_path, monkeypatch):
     assert "kept the counter up" in md
     assert "## Marked events" in md
     assert "Lightning Strike" in md        # the marked event from _sample_stream
+
+
+def test_window_export_btn_enabled_only_after_load():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-x", defer_load=True)
+    assert not w._export_btn.isEnabled()       # disabled before data
+    w._on_data_ready(_sample_stream())
+    assert w._export_btn.isEnabled()           # enabled once a replay loads
+
+
+def test_window_mark_button_disabled_when_all_events_filtered():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-y", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)
+    w._active_groups = set()                   # uncheck everything -> 0 visible
+    w._apply_kind_filter()
+    assert w._model.rowCount() == 0
+    assert not w._mark_btn.isEnabled()         # Mark disabled when nothing visible

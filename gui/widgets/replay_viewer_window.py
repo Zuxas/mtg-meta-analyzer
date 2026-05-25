@@ -181,6 +181,7 @@ class ReplayViewerWindow(QMainWindow):
         self._export_btn.setText("Export review")
         self._export_btn.setStyleSheet(theme.btn_secondary())
         self._export_btn.setToolTip("Export a Markdown review (notes + marked events)")
+        self._export_btn.setEnabled(False)   # enabled once a replay loads
         self._export_btn.clicked.connect(self._on_export_review)
         self._topbar.insertWidget(self._topbar.count() - 1, self._export_btn)
 
@@ -372,6 +373,7 @@ class ReplayViewerWindow(QMainWindow):
             f"{meta.get('event_name') or 'Match'}  ·  vs {self._opp_name}  ·  "
             f"{len(events)} events"
         )
+        self._export_btn.setEnabled(True)
         if events:
             self._select_seq(events[0].get("seq"))
 
@@ -444,6 +446,7 @@ class ReplayViewerWindow(QMainWindow):
         if self._model.rowCount() == 0:
             self._counter_lbl.setText("0 events")
             self._current_seq = None
+            self._refresh_mark_button()   # disable Mark when nothing is visible
             return
         # Keep cursor valid after the row set changes. set_visible_seqs reset
         # the model and cleared the table selection, so re-select in BOTH cases:
