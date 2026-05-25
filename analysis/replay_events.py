@@ -643,7 +643,10 @@ def replay_board_at(events: list, seq: int) -> dict:
     applying each event's board_diff in order; never stored. Resets per game
     because the M1 extractor does NOT reset instance tracking on game change,
     so the board_diff stream is a continuous cross-game delta -- we scope to
-    the current game by clearing state whenever game_num increases.
+    the current game by clearing state whenever game_num CHANGES (it can
+    oscillate non-monotonically within one match because the M1 extractor
+    walks Player.log + Player-prev.log in one pass; reset on any change, never
+    `> cur_game`, or game 2->3 transitions would be missed).
 
     Returns a dict::
 

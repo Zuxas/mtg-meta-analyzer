@@ -42,9 +42,12 @@ def test_panel_renders_battlefield_and_counts():
     p.render(_board(), _event())
     assert sorted(p._battlefield_names("you")) == ["Goblin", "Mountain"]
     assert p._battlefield_names("opp") == ["Bear"]
-    assert "12" in p._header_text("you")
-    assert "7" in p._header_text("opp")
-    assert "3" in p._header_text("you")   # hand count
+    assert "12" in p._header_text("you")          # life (from the event)
+    assert "7" in p._header_text("opp")           # opp life
+    # Hand/Lib/GY/Exile counts are deliberately not shown (M1 data too sparse);
+    # the header shows the reliable Battlefield count instead.
+    assert "Battlefield 2" in p._header_text("you")
+    assert "Hand" not in p._header_text("you")
 
 
 def test_panel_highlights_current_card():
