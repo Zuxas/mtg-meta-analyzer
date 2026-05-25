@@ -323,3 +323,37 @@ def test_window_reload_rerenders_board():
     w._board_panel.render = lambda *a, **k: calls.append(1) or orig(*a, **k)
     w._on_data_ready(_sample_stream())     # reload the same match
     assert calls, "board must re-render on reload (memo must be reset, not stale)"
+
+
+def test_window_notes_load_and_save(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import get_replay_notes
+    w = ReplayViewerWindow(arena_match_id="arena-note", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    assert not w._notes.isReadOnly()                 # editable now
+    w._notes.setPlainText("held up burn on T7")
+    w._persist_replay_notes(flash=True)
+    assert get_replay_notes("arena-note")["text"] == "held up burn on T7"
+    # A fresh window for the same match loads the saved notes.
+    w2 = ReplayViewerWindow(arena_match_id="arena-note", defer_load=True)
+    w2._on_data_ready(_sample_stream())
+    assert w2._notes.toPlainText() == "held up burn on T7"
+
+
+def test_window_closeevent_persists_notes(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QCloseEvent
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import get_replay_notes
+    w = ReplayViewerWindow(arena_match_id="arena-close", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._notes.setPlainText("typed then closed")
+    w.closeEvent(QCloseEvent())                      # read text -> DB -> base
+    assert get_replay_notes("arena-close")["text"] == "typed then closed"

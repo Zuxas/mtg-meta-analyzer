@@ -109,6 +109,7 @@ class ReplayViewerWindow(QMainWindow):
                  my_deck_label: str = "", parent=None, *, defer_load: bool = False):
         super().__init__(parent)
         self._arena_match_id = arena_match_id
+        self._marked_seqs: set[int] = set()
         self._opp_name = opp_name or "Opp"
         self._my_deck_label = my_deck_label
         self._stream: Optional[dict] = None
@@ -230,12 +231,29 @@ class ReplayViewerWindow(QMainWindow):
         self._tabs.addTab(self._detail_tbl, "Event Details")
         self._stack_list = QListWidget()
         self._tabs.addTab(self._stack_list, "Stack")
+        notes_tab = QWidget()
+        notes_v = QVBoxLayout(notes_tab)
+        notes_v.setContentsMargins(0, 0, 0, 0)
         self._notes = QTextEdit()
-        # Read-only in M2: placeholder text vanishes once the user types, so
-        # an editable box would silently lose input on close. Persistence is M4.
-        self._notes.setReadOnly(True)
-        self._notes.setPlainText("Per-replay notes ship in M4 (not saved in M2).")
-        self._tabs.addTab(self._notes, "Notes")
+        self._notes.setPlaceholderText(
+            "Notes for this replay (saved to your match log)…"
+        )
+        notes_v.addWidget(self._notes, 1)
+        notes_btn_row = QHBoxLayout()
+        self._notes_save_btn = QPushButton("Save notes")
+        self._notes_save_btn.setStyleSheet(theme.btn_secondary())
+        self._notes_save_btn.clicked.connect(
+            lambda: self._persist_replay_notes(flash=True)
+        )
+        notes_btn_row.addWidget(self._notes_save_btn)
+        self._notes_status = QLabel("")
+        self._notes_status.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px;"
+        )
+        notes_btn_row.addWidget(self._notes_status)
+        notes_btn_row.addStretch()
+        notes_v.addLayout(notes_btn_row)
+        self._tabs.addTab(notes_tab, "Notes")
         right_v.addWidget(self._tabs, 1)
         self._preview = QLabel()
         self._preview.setMinimumHeight(180)
@@ -310,6 +328,7 @@ class ReplayViewerWindow(QMainWindow):
             return
         self._last_board_seq = None  # reset board memo so a reload re-renders
         self._stream = stream
+        self._load_replay_notes()
         self._my_seat = stream.get("my_seat")
         self._opp_seat = stream.get("opp_seat")
         self._opp_name = stream.get("opp_name") or self._opp_name
@@ -524,6 +543,31 @@ class ReplayViewerWindow(QMainWindow):
         self._board_panel.render(
             board, ev, show_changes=self._show_board_changes.isChecked()
         )
+
+    def _load_replay_notes(self) -> None:
+        from db.match_log import get_replay_notes
+        data = get_replay_notes(self._arena_match_id)
+        self._notes.setPlainText(data.get("text", ""))
+        self._marked_seqs = set(data.get("marks", []))
+
+    def _persist_replay_notes(self, *, flash: bool = False) -> None:
+        from db.match_log import save_replay_notes
+        ok = save_replay_notes(
+            self._arena_match_id, self._notes.toPlainText(),
+            sorted(self._marked_seqs),
+        )
+        if flash:
+            self._notes_status.setText("Saved" if ok else "Not saved")
+
+    def closeEvent(self, event) -> None:
+        # Persist BEFORE WA_DeleteOnClose tears the widget down: read the text,
+        # write the DB, THEN defer to the base class. Do not touch the widget
+        # after super().closeEvent().
+        try:
+            self._persist_replay_notes()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
     def _build_jump_menu(self) -> None:
         menu = self._jump_btn.menu()
