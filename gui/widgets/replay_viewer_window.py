@@ -25,6 +25,7 @@ from PyQt6.QtGui import QAction, QPixmap
 
 import gui.theme as theme
 from gui import replay_view_model as vm
+from gui.widgets.replay_board_panel import ReplayBoardPanel
 
 
 class ReplayEventTableModel(QAbstractTableModel):
@@ -250,14 +251,10 @@ class ReplayViewerWindow(QMainWindow):
         body.setStretchFactor(2, 2)  # right pane
         outer.addWidget(body, 1)
 
-        self._board_panel = QLabel("Board view ships in M3")
-        self._board_panel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._board_panel.setMinimumHeight(90)
-        self._board_panel.setStyleSheet(
-            f"background: {theme.PANEL}; color: {theme.TEXT_DIM}; "
-            f"border: 1px dashed {theme.BORDER};"
-        )
+        self._board_panel = ReplayBoardPanel()
+        self._board_panel.setMinimumHeight(180)
         outer.addWidget(self._board_panel)
+        self._last_board_seq = None  # memo so re-signals don't rebuild needlessly
 
         controls = QHBoxLayout()
         controls.setSpacing(theme.SPACE_SM)
@@ -272,6 +269,9 @@ class ReplayViewerWindow(QMainWindow):
         controls.addWidget(animate)
         self._show_board_changes = QCheckBox("Show Board Changes")
         controls.addWidget(self._show_board_changes)
+        self._show_board_changes.stateChanged.connect(
+            lambda *_: self._render_board(force=True)
+        )
         controls.addStretch()
         controls.addWidget(QLabel("Always Visible:"))
         self._always_combo = QComboBox()
@@ -367,6 +367,7 @@ class ReplayViewerWindow(QMainWindow):
             self._update_detail(ev)
             self._update_preview(ev)
             self._refresh_always_visible()
+        self._render_board()
 
     def _on_table_selection(self, *args) -> None:
         idxs = self._table.selectionModel().selectedRows()
@@ -506,6 +507,22 @@ class ReplayViewerWindow(QMainWindow):
             self._always_lbl.setText(
                 vm.always_visible_value(ev, self._always_combo.currentText())
             )
+
+    def _render_board(self, *, force: bool = False) -> None:
+        if self._model is None or self._current_seq is None:
+            return
+        if not force and self._current_seq == self._last_board_seq:
+            return
+        self._last_board_seq = self._current_seq
+        ev = self._model.event_for_row(self._model.row_for_seq(self._current_seq))
+        if ev is None:
+            return
+        from analysis.replay_events import replay_board_at
+        events = (self._stream or {}).get("events") or []
+        board = replay_board_at(events, self._current_seq)
+        self._board_panel.render(
+            board, ev, show_changes=self._show_board_changes.isChecked()
+        )
 
     def _build_jump_menu(self) -> None:
         menu = self._jump_btn.menu()
