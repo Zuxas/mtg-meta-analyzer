@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-24 (Replay-viewer M2 viewer window shipped; M3 board state panel next)
+Last updated: 2026-05-25 (Replay-viewer M3 board state panel shipped; M4 polish next)
 
 ---
 
@@ -20,9 +20,19 @@ Last updated: 2026-05-24 (Replay-viewer M2 viewer window shipped; M3 board state
 
 - **Manual smoke checklist for M2 (do on next GUI launch):** Decks → My Decks → Tokyo Prowess (id 17) → Match History → pick a match with an `arena_match_id` → ▶ button enables. Click main button → Full viewer opens; tree expands to events; clicking a row updates Event Details + Stack + preview; nav buttons move the cursor; kind chips show/hide rows; search narrows; Jump-To lists key events. Dropdown → Watch (Classic) → legacy dialog still opens; reopening the split button defaults to Classic (mode persisted). Close + reopen Full → no crash, no dup window. A rotated-out match → graceful "Match not found" message.
 
-### Next: M3 — board state panel
+### 5/25 session (shipped)
 
-- **Replay-viewer M3: board state panel** — bring the center-bottom placeholder to life. Two-row MTGO-style layout (opp top / you bottom): avatar + life + hand/library/GY/exile counts + mana pool + battlefield strip (lands/creatures), card thumbnails via `card_image_cache`, tap/attack/block/counters/auras rendering, highlight ring on the current event's card. Reconstructor `analysis.replay_events.replay_board_at(events, seq)` (board reconstructed from `board_diff`, never stored). Generalize `gui/widgets/card_tooltip.py::install_card_tooltip` to non-table widgets. Spec: `docs/superpowers/specs/2026-05-22-replay-viewer-design.md` (M3 section). Write the M3 plan via `superpowers:writing-plans` when ready.
+- **Replay-viewer M3: board state panel** — `analysis.replay_events.replay_board_at(events, seq)` reconstructs per-game zones from `board_diff` (resets on `game_num` change since the M1 extractor doesn't reset instance tracking across games; never stored to disk). `gui/widgets/replay_board_panel.py::ReplayBoardPanel` renders a two-row board (opp top / you bottom): life + mana + Hand/Lib/GY/Exile counts + battlefield thumbnails via `card_image_cache`, accent highlight on the current event's card, **Show Board Changes** highlights the current event's `board_diff` instances, hover shows the full Scryfall image via the new widget-agnostic `card_tooltip.install_card_hover`. Driven from `_select_seq` (seq-memo'd; resets on reload). Built subagent-driven over 5 TDD tasks on branch `feat/replay-viewer-m3`; 14 new tests; **285/285 green**. Plan: `docs/superpowers/plans/2026-05-24-replay-viewer-m3.md`.
+- **DEFERRED from M3 (not in the M1 data contract — would need an extractor extension):** tap-state rotation, +1/+1 counters, attached auras, combat highlighting (opp combat absent from `events[]` — only your-side `attack_declared`/`block_declared` exist), lands/creatures split (needs `card_data` type lookup), hand thumbnails. Candidate "M3.5" extractor extension + re-extract, or fold the renderable bits into M4.
+- **Manual GUI smoke still pending the user (M2 AND M3):** the M2 checklist above PLUS, in the Full viewer, confirm the board panel renders below the event table (two rows, life/mana/counts + battlefield thumbnails), updates as you scrub, highlights the current card, hover pops the full image, Show Board Changes works, and a game-2 event shows only game-2 permanents.
+
+### M1 data-quality follow-up (surfaced by M3's final review on real data)
+
+- **`build_event_stream` game_num oscillation + non-battlefield zone sparseness.** On a real 15,929-event cached replay, `game_num` cycles non-monotonically (1→2→3→1→2→3…) within a single match — consistent with the extractor walking `PLAYER_LOG` + `PLAYER_PREV_LOG` in one pass without resetting per-match state at the file boundary (the same match appears in both rotation files). Separately, `board_diff` tracks hand/library/graveyard/exile too sparsely to give accurate per-seat counts (they read ~0 mid-game). Battlefield reconstruction IS correct (verified). Impact: M3's board panel hides the Hand/Lib/GY/Exile counts (shows only Life/Mana/Battlefield) until this is fixed; `replay_board_at` resets on any `game_num` change (not `>`) to stay correct despite the oscillation. Fixing the extractor (dedupe/segment the two logs per match + fuller zone enumeration) would unlock reliable zone counts AND is the same data-layer work that unlocks the deferred tap/counters/auras. Worth doing before M-future Odds Engine, which depends on accurate zone/library state.
+
+### Next: M4 — polish
+
+- **Replay-viewer M4** — event-search refinements, Jump-To dropdown items (mulligan/first-spell/first-combat/low-life/lethal/concede), mark-important + per-replay notes saved to a new `match_log.replay_notes` TEXT column (schema migration in `db/database.py::_apply_schema`), Markdown export of a replay review, and remove the "Watch (Classic)" button + `gui/widgets/replay_transcript_dialog.py` once Full has been the default for ~1 week with no regressions. Also fold in the renderable deferred-board bits if desired. Spec: `docs/superpowers/specs/2026-05-22-replay-viewer-design.md` (M4 section). Write the M4 plan via `superpowers:writing-plans` when ready.
 
 ### 5/17 session wrap (shipped)
 

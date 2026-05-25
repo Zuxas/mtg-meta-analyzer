@@ -13,7 +13,7 @@ import time
 from urllib.parse import quote
 
 from PyQt6.QtWidgets import QLabel, QWidget, QTableWidget
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint, QTimer, QObject, QEvent
 from PyQt6.QtGui import QPixmap, QCursor, QColor, QPainter, QFont
 
 import gui.theme as theme
@@ -214,3 +214,44 @@ def install_card_tooltip(table: QTableWidget, card_name_column: int = 0):
             original_leave(event)
 
     table.leaveEvent = _leave_event
+
+
+class _CardHoverFilter(QObject):
+    """Shared event filter: shows the floating CardTooltip when the mouse
+    enters any widget carrying a `_hover_card_name` attribute. Works on
+    arbitrary widgets (unlike install_card_tooltip, which needs a table)."""
+
+    def eventFilter(self, obj, event):
+        etype = event.type()
+        if etype == QEvent.Type.Enter:
+            name = getattr(obj, "_hover_card_name", "")
+            if name:
+                _get_tooltip().show_for_card(name, QCursor.pos())
+        elif etype == QEvent.Type.Leave:
+            _get_tooltip().schedule_hide()
+        return False  # never consume the event
+
+
+_hover_filter: "_CardHoverFilter | None" = None
+
+
+def _get_hover_filter() -> "_CardHoverFilter":
+    global _hover_filter
+    if _hover_filter is None:
+        _hover_filter = _CardHoverFilter()
+    else:
+        try:
+            # Access a method to check whether the C++ object is still alive.
+            _hover_filter.thread()
+        except RuntimeError:
+            _hover_filter = _CardHoverFilter()
+    return _hover_filter
+
+
+def install_card_hover(widget, card_name: str) -> None:
+    """Show the Scryfall card image when the mouse hovers over `widget`.
+
+    Re-callable: updates the card name in place. The widget must outlive the
+    hover (the shared filter reads `widget._hover_card_name` at enter time)."""
+    widget._hover_card_name = card_name or ""
+    widget.installEventFilter(_get_hover_filter())

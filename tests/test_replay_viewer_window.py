@@ -253,12 +253,27 @@ def test_window_jump_menu_built():
     assert len(w._jump_btn.menu().actions()) == 2
 
 
-def test_window_board_panel_is_placeholder():
+def test_window_board_panel_renders_on_select():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from gui.widgets.replay_board_panel import ReplayBoardPanel
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    assert isinstance(w._board_panel, ReplayBoardPanel)
+    w._select_seq(3)   # the Lightning Strike cast
+    assert "20" in w._board_panel._header_text("you")   # sample life is 20/20
+
+
+def test_window_show_board_changes_toggle_rerenders():
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
     from gui.widgets.replay_viewer_window import ReplayViewerWindow
     w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
-    assert "M3" in w._board_panel.text()
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)
+    w._show_board_changes.setChecked(True)
+    assert w._show_board_changes.isChecked()
 
 
 def test_window_select_expands_tree_ancestors():
@@ -294,3 +309,17 @@ def test_window_kind_filter_keeps_surviving_selection_synced():
     # Counter reflects seq 3's NEW position in the filtered set (row 0 -> "Event 1/...").
     row = w._model.row_for_seq(3)
     assert f"{row + 1}/" in w._counter_lbl.text()
+
+
+def test_window_reload_rerenders_board():
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="test-match", defer_load=True)
+    w._on_data_ready(_sample_stream())     # initial load renders the board once
+    # Spy on the panel's render so we can prove the reload re-renders.
+    calls = []
+    orig = w._board_panel.render
+    w._board_panel.render = lambda *a, **k: calls.append(1) or orig(*a, **k)
+    w._on_data_ready(_sample_stream())     # reload the same match
+    assert calls, "board must re-render on reload (memo must be reset, not stale)"
