@@ -21,7 +21,7 @@ Schema:
 """
 import json
 from db.database import get_connection
-from db.helpers import ensure_table as _do_ensure, utc_now as _now
+from db.helpers import ensure_table as _do_ensure, utc_now as _now, json_loads_dict
 
 
 _CREATE_SQL = """
@@ -67,6 +67,7 @@ def _ensure_table():
             "CREATE INDEX IF NOT EXISTS idx_match_log_backfill ON match_log(backfill_status)",
             "ALTER TABLE match_log ADD COLUMN arena_match_id TEXT",
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_match_log_arena_id ON match_log(arena_match_id) WHERE arena_match_id IS NOT NULL",
+            "ALTER TABLE match_log ADD COLUMN replay_notes TEXT NOT NULL DEFAULT ''",
         ]:
             try:
                 conn.execute(stmt)
@@ -372,3 +373,51 @@ def get_trend_data(my_deck: str = None, format_name: str = None) -> list[dict]:
         result.append(d)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Replay notes
+# ---------------------------------------------------------------------------
+
+def get_replay_notes(arena_match_id: str) -> dict:
+    """Per-replay annotations for a match: {"text": str, "marks": [int, ...]}.
+    Defaults to empty when the row/column is missing or unparseable."""
+    _ensure_table()
+    if not arena_match_id:
+        return {"text": "", "marks": []}
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT replay_notes FROM match_log WHERE arena_match_id=?",
+            (arena_match_id,),
+        ).fetchone()
+    raw = row["replay_notes"] if row and row["replay_notes"] else ""
+    data = json_loads_dict(raw)
+    text = data.get("text", "") if isinstance(data, dict) else ""
+    raw_marks = data.get("marks", []) if isinstance(data, dict) else []
+    marks = sorted({int(m) for m in raw_marks if isinstance(m, (int, float))})
+    return {"text": str(text or ""), "marks": marks}
+
+
+def save_replay_notes(arena_match_id: str, text: str = "", marks=None) -> bool:
+    """Persist per-replay notes + marked event seqs as a JSON blob in
+    match_log.replay_notes. If no match_log row exists for this arena_match_id
+    (a cached replay never imported from Player.log), create a minimal stub row
+    so notes never silently drop — the importer can enrich the stub later.
+    Returns False only when arena_match_id is empty."""
+    if not arena_match_id:
+        return False
+    _ensure_table()
+    marks_clean = sorted({int(m) for m in (marks or [])})
+    payload = json.dumps({"text": text or "", "marks": marks_clean})
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE match_log SET replay_notes=? WHERE arena_match_id=?",
+            (payload, arena_match_id),
+        )
+        if cur.rowcount == 0:
+            conn.execute(
+                "INSERT INTO match_log (arena_match_id, created_at, source, "
+                "replay_notes) VALUES (?, ?, 'replay_notes_stub', ?)",
+                (arena_match_id, _now(), payload),
+            )
+    return True
