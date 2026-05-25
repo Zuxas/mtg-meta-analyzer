@@ -169,6 +169,14 @@ class ReplayViewerWindow(QMainWindow):
         self._jump_btn.setMenu(QMenu(self._jump_btn))
         self._topbar.insertWidget(self._topbar.count() - 1, self._jump_btn)
 
+        self._mark_btn = QToolButton()
+        self._mark_btn.setText("☆ Mark")
+        self._mark_btn.setStyleSheet(theme.btn_secondary())
+        self._mark_btn.setToolTip("Mark this event as important (saved with the replay)")
+        self._mark_btn.setEnabled(False)
+        self._mark_btn.clicked.connect(self._toggle_mark)
+        self._topbar.insertWidget(self._topbar.count() - 1, self._mark_btn)
+
         # Filter row: kind-group chips + search box
         filt = QHBoxLayout()
         filt.setSpacing(theme.SPACE_XS)
@@ -388,6 +396,7 @@ class ReplayViewerWindow(QMainWindow):
             self._update_preview(ev)
             self._refresh_always_visible()
         self._render_board()
+        self._refresh_mark_button()
 
     def _on_table_selection(self, *args) -> None:
         idxs = self._table.selectionModel().selectedRows()
@@ -544,6 +553,30 @@ class ReplayViewerWindow(QMainWindow):
             board, ev, show_changes=self._show_board_changes.isChecked()
         )
 
+    def _toggle_mark(self) -> None:
+        seq = self._current_seq
+        if (seq is None or self._model is None
+                or self._model.row_for_seq(seq) is None):
+            return  # only mark a currently-visible event
+        if seq in self._marked_seqs:
+            self._marked_seqs.discard(seq)
+        else:
+            self._marked_seqs.add(seq)
+        self._persist_replay_notes()   # marks persist immediately
+        self._refresh_mark_button()
+        self._build_jump_menu()        # marked events appear in Jump-To
+
+    def _refresh_mark_button(self) -> None:
+        seq = self._current_seq
+        visible = (seq is not None and self._model is not None
+                   and self._model.row_for_seq(seq) is not None)
+        self._mark_btn.setEnabled(visible)
+        marked = bool(visible and seq in self._marked_seqs)
+        self._mark_btn.setText("★ Marked" if marked else "☆ Mark")
+        self._mark_btn.setToolTip(
+            f"Mark this event as important · {len(self._marked_seqs)} marked"
+        )
+
     def _load_replay_notes(self) -> None:
         from db.match_log import get_replay_notes
         data = get_replay_notes(self._arena_match_id)
@@ -577,3 +610,14 @@ class ReplayViewerWindow(QMainWindow):
             act = QAction(tgt["label"], self)
             act.triggered.connect(lambda _=False, s=tgt["seq"]: self._select_seq(s))
             menu.addAction(act)
+        if self._marked_seqs and self._model is not None:
+            menu.addSeparator()
+            for s in sorted(self._marked_seqs):
+                row = self._model.row_for_seq(s)
+                ev = self._model.event_for_row(row) if row is not None else None
+                label = (f"★ T{ev.get('turn_num')}: "
+                         f"{vm.event_summary(ev, opp_name=self._opp_name)}"
+                         if ev else f"★ seq {s}")
+                act = QAction(label, self)
+                act.triggered.connect(lambda _=False, ss=s: self._select_seq(ss))
+                menu.addAction(act)

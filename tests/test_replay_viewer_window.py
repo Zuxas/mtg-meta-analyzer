@@ -357,3 +357,33 @@ def test_window_closeevent_persists_notes(tmp_path, monkeypatch):
     w._notes.setPlainText("typed then closed")
     w.closeEvent(QCloseEvent())                      # read text -> DB -> base
     assert get_replay_notes("arena-close")["text"] == "typed then closed"
+
+
+def test_window_mark_toggle_persists_and_labels(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    from db.match_log import get_replay_notes
+    w = ReplayViewerWindow(arena_match_id="arena-mark", defer_load=True)
+    w._on_data_ready(_sample_stream())
+    w._select_seq(3)
+    w._toggle_mark()
+    assert 3 in w._marked_seqs
+    assert "Marked" in w._mark_btn.text()                 # ★ Marked
+    assert get_replay_notes("arena-mark")["marks"] == [3] # persisted
+    assert len(w._jump_btn.menu().actions()) >= 1
+    w._toggle_mark()
+    assert 3 not in w._marked_seqs
+    assert get_replay_notes("arena-mark")["marks"] == []
+
+
+def test_window_mark_button_disabled_when_no_visible_event(tmp_path, monkeypatch):
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "m.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "m_arc.db")
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    w = ReplayViewerWindow(arena_match_id="arena-mark2", defer_load=True)
+    assert not w._mark_btn.isEnabled()      # before any data/selection
