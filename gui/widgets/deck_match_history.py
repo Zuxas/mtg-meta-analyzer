@@ -40,6 +40,18 @@ def _wr_color(wr_frac: float) -> QColor:
     return QColor(230, 90, 70)
 
 
+def open_full_replay_viewer(arena_match_id: str, opp_name: str = "",
+                            my_deck_label: str = "", parent=None,
+                            *, defer_load: bool = False):
+    """Construct (don't show) a ReplayViewerWindow. Returned so callers can
+    keep a reference and so tests can assert without an event loop."""
+    from gui.widgets.replay_viewer_window import ReplayViewerWindow
+    return ReplayViewerWindow(
+        arena_match_id=arena_match_id, opp_name=opp_name,
+        my_deck_label=my_deck_label, parent=parent, defer_load=defer_load,
+    )
+
+
 class DeckMatchHistory(QWidget):
     """Match history view for a single saved deck."""
 
@@ -177,15 +189,42 @@ class DeckMatchHistory(QWidget):
             "(click a row ←)</span>"
         )
         sb_head_row.addWidget(self._sb_lbl, 1)
-        self._replay_btn = QPushButton("▶ Watch replay")
-        self._replay_btn.setStyleSheet(theme.btn_secondary())
-        self._replay_btn.setToolTip(
-            "Open a popup with the turn-by-turn match transcript "
-            "(life changes per turn, active player). Re-parses "
-            "Player.log on first open and caches to disk."
+        from PyQt6.QtWidgets import QToolButton, QMenu
+        from PyQt6.QtGui import QAction
+        from gui.state import UIState
+        from gui import state_keys
+
+        self._replay_window = None  # live ReplayViewerWindow (reopen guard)
+
+        self._replay_btn = QToolButton()
+        self._replay_btn.setPopupMode(
+            QToolButton.ToolButtonPopupMode.MenuButtonPopup
         )
-        self._replay_btn.setEnabled(False)  # enabled when a row is selected
-        self._replay_btn.clicked.connect(self._on_watch_replay)
+        self._replay_btn.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextOnly
+        )
+        self._replay_btn.setStyleSheet(theme.btn_secondary())
+
+        self._act_full = QAction("▶ Watch (Full)", self)
+        self._act_full.triggered.connect(lambda: self._watch_replay("full"))
+        self._act_classic = QAction("Watch (Classic)", self)
+        self._act_classic.triggered.connect(lambda: self._watch_replay("classic"))
+
+        menu = QMenu(self._replay_btn)
+        menu.addAction(self._act_full)
+        menu.addAction(self._act_classic)
+        self._replay_btn.setMenu(menu)
+
+        # Primary click reflects the last-used mode (default "full").
+        mode = UIState.instance().get(
+            state_keys.MATCH_HISTORY_REPLAY_VIEWER_MODE, "full"
+        )
+        self._replay_btn.setDefaultAction(
+            self._act_classic if mode == "classic" else self._act_full
+        )
+        # setDefaultAction copies the action's (enabled) state onto the button,
+        # so disable LAST -- stays disabled until a row is selected.
+        self._replay_btn.setEnabled(False)
         sb_head_row.addWidget(self._replay_btn)
         right_v.addLayout(sb_head_row)
         self._sb_detail = QLabel(
@@ -639,21 +678,56 @@ class DeckMatchHistory(QWidget):
         else:
             self._sb_detail.setText("<br/><br/>".join(parts))
 
-    def _on_watch_replay(self) -> None:
+    def _watch_replay(self, mode: str) -> None:
+        from gui.state import UIState
+        from gui import state_keys
+
         match_row = getattr(self, "_selected_match_row", None)
         if not match_row:
             return
         arena_id = match_row.get("arena_match_id")
         if not arena_id:
             return
-        from gui.widgets.replay_transcript_dialog import ReplayTranscriptDialog
-        dlg = ReplayTranscriptDialog(
+
+        # Persist last-used mode + make it the new default click.
+        UIState.instance().set(
+            state_keys.MATCH_HISTORY_REPLAY_VIEWER_MODE, mode
+        )
+        self._replay_btn.setDefaultAction(
+            self._act_classic if mode == "classic" else self._act_full
+        )
+
+        if mode == "classic":
+            from gui.widgets.replay_transcript_dialog import ReplayTranscriptDialog
+            dlg = ReplayTranscriptDialog(
+                arena_match_id=arena_id,
+                opp_name=match_row.get("opp_name") or "",
+                my_deck_label=match_row.get("my_deck") or "",
+                parent=self,
+            )
+            dlg.exec()
+            return
+
+        # Full viewer: reopen guard -- raise the existing window if alive.
+        if self._replay_window is not None:
+            try:
+                if self._replay_window.isVisible():
+                    self._replay_window.raise_()
+                    self._replay_window.activateWindow()
+                    return
+            except RuntimeError:
+                self._replay_window = None  # C++ object already deleted
+
+        w = open_full_replay_viewer(
             arena_match_id=arena_id,
             opp_name=match_row.get("opp_name") or "",
             my_deck_label=match_row.get("my_deck") or "",
             parent=self,
         )
-        dlg.exec()
+        self._replay_window = w
+        # WA_DeleteOnClose frees the C++ object; clear our Python ref too.
+        w.destroyed.connect(lambda *_: setattr(self, "_replay_window", None))
+        w.show()
 
     def _on_recent_match_context_menu(self, position) -> None:
         """Right-click on a recent-matches row -> context menu with the

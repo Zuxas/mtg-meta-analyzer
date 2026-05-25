@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-22 (Replay-viewer M1 shipped; M2 viewer window next)
+Last updated: 2026-05-24 (Replay-viewer M2 viewer window shipped; M3 board state panel next)
 
 ---
 
@@ -14,9 +14,15 @@ Last updated: 2026-05-22 (Replay-viewer M1 shipped; M2 viewer window next)
 
 - **Replay-viewer M1: event-stream data layer** — `analysis/replay_events.py::build_event_stream` walks Player.log/Player-prev.log and emits a flat events[] list (~30 normalized kinds) plus a match_meta header (event_name, winner, per-game decklists with sideboard diffs, key_events_by_turn). Cache header self-describes via schema_version + capabilities; consumers auto-trigger force_refresh when required capabilities aren't present. Watcher (`gui/mtga_log_watcher.py::_build_missing_transcripts`) invokes both builders so new caches land complete. CLI dump tool at `scripts/replay_event_dump.py`. 25+ new tests covering all M1 acceptance gates: round-trip invariant, phase coverage, priority sequencing, board diff validity, revealed_cards capture (scry tops/bottoms + surveil_top + surveil_gy), shuffle_cause capture, per-game decklist tracking, cache merge preserving classic keys, auto-rebuild on missing capability. Zero GUI changes — classic dialog still ships unchanged. Data contract for the future Odds Engine is locked in.
 
-### 5/22 session (next: M2)
+### 5/24 session (shipped)
 
-- **Replay-viewer M2: full-depth viewer window** — new `gui/widgets/replay_viewer_window.py` (QMainWindow), match-history split button "Watch (Full)" / "Watch (Classic)", left timeline tree + center event table + right detail tabs. Mockup at `docs/superpowers/specs/assets/2026-05-22-replay-viewer-mockup.png`. Spec: `docs/superpowers/specs/2026-05-22-replay-viewer-design.md`. M2 plan to be written via writing-plans skill when ready to start.
+- **Replay-viewer M2: full-depth viewer window** — `gui/widgets/replay_viewer_window.py` (QMainWindow) + Qt-free `gui/replay_view_model.py`. Built subagent-driven over 14 TDD tasks on branch `feat/replay-viewer-m2`. Left timeline tree (Game→Turn→Phase→Step→Event, variable depth) + lazy `QAbstractTableModel` event table + kind-filter chips (8 groups; Priority/Raw off by default) + `QSortFilterProxyModel` substring search + right detail tabs (Event Details / Stack / read-only Notes) + card preview (via `card_image_cache`) + Jump-To-key-events menu + nav buttons (◀◀ ◀ ▶ ▶▶). Match History "▶ Watch" is now a split `QToolButton`: **Watch (Full)** opens the new window, **Watch (Classic)** opens the legacy dialog; last-used mode persists in `tabs.match_history.replay_viewer_mode`. Non-modal window with `WA_DeleteOnClose` + reopen guard. Search-vs-filter split locked (chips rebuild source `visible_seqs`; search is proxy-only). Board panel = M3 placeholder; speed/Animate = M5 placeholders; Notes persistence = M4. 35 new tests (16 window offscreen-Qt + 19 view-model headless); **270/270 green**. Plan: `docs/superpowers/plans/2026-05-23-replay-viewer-m2.md`. **Manual GUI smoke still pending the user** (visual click-through — see checklist below).
+
+- **Manual smoke checklist for M2 (do on next GUI launch):** Decks → My Decks → Tokyo Prowess (id 17) → Match History → pick a match with an `arena_match_id` → ▶ button enables. Click main button → Full viewer opens; tree expands to events; clicking a row updates Event Details + Stack + preview; nav buttons move the cursor; kind chips show/hide rows; search narrows; Jump-To lists key events. Dropdown → Watch (Classic) → legacy dialog still opens; reopening the split button defaults to Classic (mode persisted). Close + reopen Full → no crash, no dup window. A rotated-out match → graceful "Match not found" message.
+
+### Next: M3 — board state panel
+
+- **Replay-viewer M3: board state panel** — bring the center-bottom placeholder to life. Two-row MTGO-style layout (opp top / you bottom): avatar + life + hand/library/GY/exile counts + mana pool + battlefield strip (lands/creatures), card thumbnails via `card_image_cache`, tap/attack/block/counters/auras rendering, highlight ring on the current event's card. Reconstructor `analysis.replay_events.replay_board_at(events, seq)` (board reconstructed from `board_diff`, never stored). Generalize `gui/widgets/card_tooltip.py::install_card_tooltip` to non-table widgets. Spec: `docs/superpowers/specs/2026-05-22-replay-viewer-design.md` (M3 section). Write the M3 plan via `superpowers:writing-plans` when ready.
 
 ### 5/17 session wrap (shipped)
 

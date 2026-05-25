@@ -32,6 +32,9 @@ SCOUT_FORMAT = "tabs.scout.format"
 SCOUT_TOP = "tabs.scout.top"
 SCOUT_TARGET_ARCHETYPES = "tabs.scout.target_archetypes"
 
+# Match History replay viewer
+MATCH_HISTORY_REPLAY_VIEWER_MODE = "tabs.match_history.replay_viewer_mode"  # "full" | "classic"
+
 # Palette recents
 PALETTE_RECENTS = "palette_recents"
 
