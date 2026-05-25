@@ -5,6 +5,16 @@ import pytest
 @pytest.fixture(autouse=True)
 def _offscreen_qt(monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    # Stub the tooltip's image fetch so a hover Enter event does NOT spawn a
+    # real Scryfall _FetchWorker QThread. Pytest runs no Qt event loop, so the
+    # worker's deleteLater never fires; an orphaned running QThread lingers and
+    # crashes the full suite downstream (native 0xC0000409). The event filter
+    # still dispatches Enter -> show_for_card; we just make that a no-op here.
+    # (In the real app an event loop processes deleteLater, so this is test-only.)
+    monkeypatch.setattr(
+        "gui.widgets.card_tooltip.CardTooltip.show_for_card",
+        lambda self, *a, **k: None,
+    )
 
 
 def test_install_card_hover_tags_widget():
