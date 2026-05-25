@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-25 (Replay-viewer M3 board state panel shipped; M4 polish next)
+Last updated: 2026-05-25 (Replay-viewer M4 review-annotation shipped; M1 data-quality fix or classic-dialog retirement next)
 
 ---
 
@@ -30,9 +30,15 @@ Last updated: 2026-05-25 (Replay-viewer M3 board state panel shipped; M4 polish 
 
 - **`build_event_stream` game_num oscillation + non-battlefield zone sparseness.** On a real 15,929-event cached replay, `game_num` cycles non-monotonically (1→2→3→1→2→3…) within a single match — consistent with the extractor walking `PLAYER_LOG` + `PLAYER_PREV_LOG` in one pass without resetting per-match state at the file boundary (the same match appears in both rotation files). Separately, `board_diff` tracks hand/library/graveyard/exile too sparsely to give accurate per-seat counts (they read ~0 mid-game). Battlefield reconstruction IS correct (verified). Impact: M3's board panel hides the Hand/Lib/GY/Exile counts (shows only Life/Mana/Battlefield) until this is fixed; `replay_board_at` resets on any `game_num` change (not `>`) to stay correct despite the oscillation. Fixing the extractor (dedupe/segment the two logs per match + fuller zone enumeration) would unlock reliable zone counts AND is the same data-layer work that unlocks the deferred tap/counters/auras. Worth doing before M-future Odds Engine, which depends on accurate zone/library state.
 
-### Next: M4 — polish
+### 5/25 session (shipped) — M4 review annotation
 
-- **Replay-viewer M4** — event-search refinements, Jump-To dropdown items (mulligan/first-spell/first-combat/low-life/lethal/concede), mark-important + per-replay notes saved to a new `match_log.replay_notes` TEXT column (schema migration in `db/database.py::_apply_schema`), Markdown export of a replay review, and remove the "Watch (Classic)" button + `gui/widgets/replay_transcript_dialog.py` once Full has been the default for ~1 week with no regressions. Also fold in the renderable deferred-board bits if desired. Spec: `docs/superpowers/specs/2026-05-22-replay-viewer-design.md` (M4 section). Write the M4 plan via `superpowers:writing-plans` when ready.
+- **Replay-viewer M4** — editable per-replay **notes** persisted to a new `match_log.replay_notes` column (JSON `{text, marks}` keyed by `arena_match_id`; `save_replay_notes` creates a stub `match_log` row when the match isn't in the log so notes never silently drop — deviation from the spec's literal "column only", decided for safety). **★ Mark-important** event toggle (visibility-gated; marks persist immediately; marked events appear as a section in the Jump-To menu). **Markdown export** of a replay review (`gui/replay_view_model.replay_markdown(stream, marked_seqs, notes_text)` → header + notes + marked events; "Export review" button → QFileDialog → .md). The migration lives in `db/match_log.py` (NOT `db/database.py` as the spec said — that's where match_log's schema actually is). Event search / kind chips / Jump-To-key-events were ALREADY shipped in M2 (not redone). Built subagent-driven over 6 TDD tasks on `feat/replay-viewer-m4`; 15 new tests; **300/300 green**. Plan: `docs/superpowers/plans/2026-05-25-replay-viewer-m4.md`.
+- **Manual GUI smoke still pending the user (M2 + M3 + M4):** in the Full viewer — Notes tab edits save + reload; ★ Mark toggles + shows in Jump-To; Export writes a readable .md; plus the M2/M3 board+nav checks. (Three viewer milestones now stacked on main unsmoked.)
+
+### Next pickup (pick one)
+
+- **Retire the classic dialog** — remove the "Watch (Classic)" button + `gui/widgets/replay_transcript_dialog.py`. Gated on Full being default ~1 week with no regressions: Full shipped 2026-05-24, so **revisit ~2026-06-01**. Small.
+- **M1 data-quality fix (recommended, foundational)** — `build_event_stream` game_num oscillation (it walks Player.log + Player-prev.log in one pass; the same match appears in both → non-monotonic game_num) + sparse hand/lib/GY/exile zone tracking. Fixing it restores the board panel's zone counts (M3 hid them) AND unblocks the deferred tap/counters/auras, and is a prerequisite for the M-future Odds Engine's library/zone state. Touches the M1 data layer + needs cache re-extract (bump schema_version or clear `data/match_replays/*.json`).
 
 ### 5/17 session wrap (shipped)
 
