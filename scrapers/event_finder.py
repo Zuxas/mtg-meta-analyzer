@@ -130,6 +130,7 @@ def search_events(lat: float, lng: float, radius_miles: int = 100,
           eventFormat {{ id }}
           entryFee {{ amount currency }}
           isOnline
+          venue {{ city state }}
         }}
         pageInfo {{ totalResults }}
       }}
@@ -159,6 +160,8 @@ def search_events(lat: float, lng: float, radius_miles: int = 100,
 
 def _format_event(e: dict) -> dict:
     """Convert raw event dict to a clean display record."""
+    from datetime import datetime as _dt
+
     tags = e.get("tags", [])
     display_tags = [TAG_LABELS.get(t, t) for t in tags if TAG_LABELS.get(t) is not None]
 
@@ -171,16 +174,49 @@ def _format_event(e: dict) -> dict:
         # API returns amount in cents (e.g. 2000 = $20.00)
         fee_str = f"${fee['amount'] / 100:.0f}"
 
+    start_iso = e.get("scheduledStartTime") or ""
+    date_str = start_iso[:10]
+    weekday = ""
+    time_str = ""
+    if start_iso:
+        try:
+            # Wizards returns "...Z" -- fromisoformat (3.11+) handles "Z" directly,
+            # but to be safe across 3.10/3.11 we normalize to +00:00.
+            iso_norm = start_iso.replace("Z", "+00:00")
+            dt_utc = _dt.fromisoformat(iso_norm)
+            local = dt_utc.astimezone()  # convert to local tz
+            weekday = local.strftime("%a")          # "Sat"
+            # %I is 01-12; lstrip("0") yields "6:00 PM", "12:00 AM" etc.
+            # Cross-platform -- Windows doesn't support %-I.
+            time_str = local.strftime("%I:%M %p").lstrip("0")
+        except (ValueError, TypeError):
+            pass
+
+    ef = e.get("eventFormat") or {}
+    format_id = ef.get("id", "") if isinstance(ef, dict) else ""
+
+    venue = e.get("venue") or {}
+    if not isinstance(venue, dict):
+        venue = {}
+    city = venue.get("city", "") or ""
+    state = venue.get("state", "") or ""
+
     return {
-        "date":  (e.get("scheduledStartTime") or "")[:10],
-        "title": e.get("title", "?"),
-        "store": (e.get("organization") or {}).get("name", "?"),
-        "tags":  display_tags,
-        "dist_mi": round(dist_mi, 1),
-        "fee":   fee_str,
-        "online": e.get("isOnline", False),
-        "id":    e.get("id", ""),
-        "raw_tags": tags,
+        "date":      date_str,
+        "start_iso": start_iso,
+        "weekday":   weekday,
+        "time_str":  time_str,
+        "title":     e.get("title", "?"),
+        "store":     (e.get("organization") or {}).get("name", "?"),
+        "tags":      display_tags,
+        "dist_mi":   round(dist_mi, 1),
+        "fee":       fee_str,
+        "format_id": format_id,
+        "city":      city,
+        "state":     state,
+        "online":    e.get("isOnline", False),
+        "id":        e.get("id", ""),
+        "raw_tags":  tags,
     }
 
 
