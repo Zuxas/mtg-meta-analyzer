@@ -117,3 +117,101 @@ class TestGoogleMapsUrl:
         # Apostrophe and ampersand must be URL-encoded
         assert "&" not in url.split("query=", 1)[1]  # only the query separator
         assert "%27" in url or "%26" in url
+
+
+class TestFormatEventExtended:
+    def _raw_event(self, **overrides):
+        base = {
+            "id": "evt-123",
+            "title": "Modern RCQ",
+            "scheduledStartTime": "2026-06-07T18:00:00Z",
+            "tags": ["regional_championship_qualifier", "modern"],
+            "distance": 16093,
+            "organization": {"name": "Mox Boarding House"},
+            "eventFormat": {"id": "modern"},
+            "entryFee": {"amount": 2500, "currency": "USD"},
+            "isOnline": False,
+            "venue": {"city": "Seattle", "state": "WA"},
+        }
+        base.update(overrides)
+        return base
+
+    def test_all_new_fields_present(self):
+        from scrapers.event_finder import _format_event
+        out = _format_event(self._raw_event())
+        assert out["start_iso"] == "2026-06-07T18:00:00Z"
+        assert out["weekday"]  # non-empty
+        assert out["time_str"]  # non-empty
+        assert out["format_id"] == "modern"
+        assert out["city"] == "Seattle"
+        assert out["state"] == "WA"
+
+    def test_missing_eventFormat_falls_back(self):
+        from scrapers.event_finder import _format_event
+        raw = self._raw_event()
+        del raw["eventFormat"]
+        out = _format_event(raw)
+        assert out["format_id"] == ""
+
+    def test_null_eventFormat(self):
+        from scrapers.event_finder import _format_event
+        out = _format_event(self._raw_event(eventFormat=None))
+        assert out["format_id"] == ""
+
+    def test_missing_venue_returns_empty_strings(self):
+        from scrapers.event_finder import _format_event
+        raw = self._raw_event()
+        del raw["venue"]
+        out = _format_event(raw)
+        assert out["city"] == ""
+        assert out["state"] == ""
+
+    def test_null_venue(self):
+        from scrapers.event_finder import _format_event
+        out = _format_event(self._raw_event(venue=None))
+        assert out["city"] == ""
+        assert out["state"] == ""
+
+    def test_existing_fields_unchanged(self):
+        # Regression: make sure we didn't break the original shape.
+        from scrapers.event_finder import _format_event
+        out = _format_event(self._raw_event())
+        assert out["date"] == "2026-06-07"
+        assert out["title"] == "Modern RCQ"
+        assert out["store"] == "Mox Boarding House"
+        assert out["fee"] == "$25"
+        assert out["online"] is False
+        assert out["id"] == "evt-123"
+        assert "regional_championship_qualifier" in out["raw_tags"]
+
+
+class TestSearchEventsQuery:
+    def test_query_requests_venue_and_format(self, monkeypatch):
+        """The query string sent to the API must include the new fields."""
+        from scrapers import event_finder
+
+        captured = {}
+
+        class _FakeResp:
+            def __init__(self, body):
+                self._body = body
+            def read(self):
+                return self._body
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def fake_urlopen(req, timeout=None):
+            captured["payload"] = req.data
+            import json as _j
+            return _FakeResp(_j.dumps({"data": {"searchEvents": {"events": []}}}).encode())
+
+        monkeypatch.setattr(event_finder.urllib.request, "urlopen", fake_urlopen)
+        event_finder.search_events(47.6, -122.3, radius_miles=100)
+
+        payload = captured["payload"].decode()
+        assert "venue" in payload
+        assert "city" in payload
+        assert "state" in payload
+        assert "eventFormat" in payload  # already there, but verify regression
