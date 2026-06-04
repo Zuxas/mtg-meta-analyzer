@@ -115,7 +115,7 @@ _FORMAT_OPTIONS = [
 
 _RADIUS_OPTIONS = [25, 50, 75, 100, 150, 200, 300]
 
-_COLUMNS = ["Date", "Distance", "Store", "Event", "Entry", "Format"]
+_COLUMNS = ["Date", "Time", "Distance", "Store", "Event", "Entry", "Format"]
 
 
 # ---------------------------------------------------------------------------
@@ -275,11 +275,12 @@ class EventFinderTab(QWidget):
 
         hdr = tbl.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Date
-        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Distance
-        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # Store
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)           # Event
-        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Entry
-        hdr.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Format
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Time
+        hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Distance
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)           # Store
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)           # Event
+        hdr.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Entry
+        hdr.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Format
 
         tbl.setStyleSheet(
             f"QTableWidget {{ background: {theme.BG}; color: {theme.TEXT}; "
@@ -343,32 +344,80 @@ class EventFinderTab(QWidget):
         self._set_status(f"Error: {msg}", error=True)
 
     def _populate_table(self, events: list[dict]):
+        from gui.widgets.table_helpers import DateItem, SortItem, SORT_ROLE
+        from PyQt6.QtGui import QColor
+
         self._table.setSortingEnabled(False)
         self._table.setRowCount(len(events))
 
-        # Collect format tags for each event to show cleanly
-        for row, e in enumerate(events):
-            fmt_tags = [t for t in e.get("raw_tags", [])
-                        if t in ("modern", "standard", "pioneer", "legacy", "pauper",
-                                 "booster_draft", "commander", "historic", "explorer")]
-            fmt_str = ", ".join(t.replace("_", " ").title() for t in fmt_tags) or "—"
+        # Soft navy tint for RCQ rows -- keeps the dark theme readable.
+        rcq_bg = QColor(theme.ACCENT_DK)
+        rcq_bg.setAlpha(60)  # subtle wash
 
-            cells = [
-                e["date"],
-                f"{e['dist_mi']:.0f} mi",
-                e["store"],
-                e["title"],
-                e["fee"] or "—",
-                fmt_str,
-            ]
-            for col, text in enumerate(cells):
-                item = QTableWidgetItem(text)
+        for row, e in enumerate(events):
+            # Date column: display "Sat Jun 7", sort by "20260607".
+            iso = e.get("date", "")
+            display_date = iso
+            if iso and len(iso) == 10:
+                from datetime import date as _d
+                try:
+                    parts = iso.split("-")
+                    d_obj = _d(int(parts[0]), int(parts[1]), int(parts[2]))
+                    # Cross-platform "Mon D" with no leading zero.
+                    display_date = f"{d_obj.strftime('%b')} {d_obj.day}"
+                except (ValueError, IndexError):
+                    display_date = iso
+            weekday = e.get("weekday", "")
+            if weekday:
+                display_date = f"{weekday} {display_date}"
+            date_sort = iso.replace("-", "") if iso else ""
+            date_item = DateItem(display_date, sort_key=date_sort)
+
+            # Time column: sortable via SortItem + 24h key.
+            time_str = e.get("time_str", "")
+            time_item = SortItem(time_str)
+            time_item.setData(SORT_ROLE, time_sort_key(time_str))
+
+            # Distance column: numeric sort, "25 mi" display.
+            dist_mi = e.get("dist_mi", 0.0) or 0.0
+            dist_item = SortItem(f"{dist_mi:.0f} mi")
+            dist_item.setData(SORT_ROLE, float(dist_mi))
+
+            # Store / Event: plain.
+            store_item = QTableWidgetItem(e.get("store", "?"))
+            event_item = QTableWidgetItem(e.get("title", "?"))
+
+            # Entry: numeric sort, dollar display, "-" for missing.
+            fee_str = e.get("fee", "") or ""
+            if fee_str.startswith("$"):
+                try:
+                    fee_num = float(fee_str[1:])
+                except ValueError:
+                    fee_num = 0.0
+                fee_display = fee_str
+            else:
+                fee_num = 0.0
+                fee_display = "—"
+            entry_item = SortItem(fee_display)
+            entry_item.setData(SORT_ROLE, fee_num)
+
+            # Format: prefer eventFormat.id, fallback to tag scan.
+            fmt_id = e.get("format_id", "") or ""
+            if fmt_id:
+                fmt_str = fmt_id.replace("_", " ").title()
+            else:
+                fmt_tags = [t for t in e.get("raw_tags", [])
+                            if t in ("modern", "standard", "pioneer", "legacy", "pauper",
+                                     "booster_draft", "commander", "historic", "explorer")]
+                fmt_str = ", ".join(t.replace("_", " ").title() for t in fmt_tags) or "—"
+            fmt_item = QTableWidgetItem(fmt_str)
+
+            cells = [date_item, time_item, dist_item, store_item,
+                     event_item, entry_item, fmt_item]
+            for col, item in enumerate(cells):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                # Highlight RCQs in accent color
                 if "regional_championship_qualifier" in e.get("raw_tags", []):
-                    item.setForeground(
-                        __import__("PyQt6.QtGui", fromlist=["QColor"]).QColor(theme.ACCENT_LT)
-                    )
+                    item.setBackground(rcq_bg)
                 self._table.setItem(row, col, item)
 
         self._table.setSortingEnabled(True)
