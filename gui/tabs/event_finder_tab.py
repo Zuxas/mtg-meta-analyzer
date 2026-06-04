@@ -17,6 +17,82 @@ import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
 from gui.worker_utils import cancel_worker
 
+from datetime import date as _date, timedelta as _timedelta
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers (tested separately, no Qt needed)
+# ---------------------------------------------------------------------------
+
+# Date-window choices for the "When" filter combo.
+# Order matters -- used to populate the combobox.
+DATE_WINDOW_OPTIONS = [
+    ("Next 2 wk",    "2w"),
+    ("Next 4 wk",    "4w"),
+    ("Next 8 wk",    "8w"),
+    ("Next 6 mo",    "6mo"),
+    ("All upcoming", "all"),
+]
+
+_DATE_WINDOW_DAYS = {"2w": 14, "4w": 28, "8w": 56, "6mo": 183}
+
+
+def filter_by_date_window(events: list[dict], key: str) -> list[dict]:
+    """Drop events whose date falls outside the window.
+
+    `key` is one of "2w", "4w", "8w", "6mo", "all". Unknown keys
+    pass everything through (defensive). Events with empty date
+    strings are kept (defensive -- they sort to the top anyway).
+    """
+    if key not in _DATE_WINDOW_DAYS:
+        return events  # "all" or anything unrecognized
+    cutoff = (_date.today() + _timedelta(days=_DATE_WINDOW_DAYS[key])).isoformat()
+    return [e for e in events if not e.get("date") or e["date"] <= cutoff]
+
+
+def time_sort_key(time_str: str) -> str:
+    """Convert "6:00 PM" -> "18:00" for sortable keys.
+
+    Returns "" for empty input. Returns input unchanged for malformed
+    strings (defensive -- never raises).
+    """
+    if not time_str:
+        return ""
+    s = time_str.strip().upper()
+    try:
+        time_part, ampm = s.rsplit(" ", 1)
+        h_str, m_str = time_part.split(":")
+        h = int(h_str)
+        m = int(m_str)
+        if ampm == "AM":
+            if h == 12:
+                h = 0
+        elif ampm == "PM":
+            if h != 12:
+                h += 12
+        else:
+            return time_str
+        return f"{h:02d}:{m:02d}"
+    except (ValueError, IndexError):
+        return time_str
+
+
+import urllib.parse as _urlparse
+
+
+def google_maps_url(store: str, city: str) -> str:
+    """Build a Google Maps search URL for a store + city.
+
+    City may be empty; falls back to store-name-only. The Google
+    fuzzy search resolves either form to a useful pin.
+    """
+    parts = [store.strip()]
+    if city.strip():
+        parts.append(city.strip())
+    query = " ".join(parts)
+    encoded = _urlparse.quote_plus(query)
+    return f"https://www.google.com/maps/search/?api=1&query={encoded}"
+
 
 # ---------------------------------------------------------------------------
 # Constants
