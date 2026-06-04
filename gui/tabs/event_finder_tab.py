@@ -366,6 +366,8 @@ class EventFinderTab(QWidget):
             "padding: 4px 8px; font-size: 11px; font-weight: 600; }}"
         )
 
+        tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tbl.customContextMenuRequested.connect(self._show_context_menu)
         tbl.cellDoubleClicked.connect(self._open_event_url)
         return tbl
 
@@ -505,6 +507,37 @@ class EventFinderTab(QWidget):
             if event_id:
                 url = f"https://locator.wizards.com/event/{event_id}"
                 QDesktopServices.openUrl(QUrl(url))
+
+    def _show_context_menu(self, pos):
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
+
+        row = self._table.rowAt(pos.y())
+        if row < 0 or row >= len(self._events):
+            return
+
+        menu = QMenu(self._table)
+
+        a_event = QAction("Open event page", menu)
+        a_event.triggered.connect(lambda: self._open_event_url(row, 0))
+        menu.addAction(a_event)
+
+        a_maps = QAction("Open in Google Maps", menu)
+        a_maps.triggered.connect(lambda: self._open_in_maps(row))
+        menu.addAction(a_maps)
+
+        menu.exec(self._table.viewport().mapToGlobal(pos))
+
+    def _open_in_maps(self, row: int):
+        if row < 0 or row >= len(self._events):
+            return
+        e = self._events[row]
+        store = e.get("store", "")
+        city = e.get("city", "")
+        if not store:
+            return
+        url = google_maps_url(store, city)
+        QDesktopServices.openUrl(QUrl(url))
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
