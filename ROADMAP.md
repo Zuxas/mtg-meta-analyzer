@@ -1,8 +1,13 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-05-22
+> Last updated: 2026-06-04
 
 ---
+
+## OPEN — Event Discovery
+- [x] **Event Finder UX overhaul** (2026-06-04, branch `feat/event-finder-ux`) — numeric sort on Distance/Entry; new Time column from `scheduledStartTime`; Date column shows "Sat Jun 7" with ISO sort; new "When" filter (`Next 2 wk / 4 wk default / 8 wk / 6 mo / All upcoming`); 300 mi radius option + API limit 500; RCQ row tint replaces foreground accent; right-click row → Open in Google Maps (uses new `venue { city state }` GraphQL field); all filters persisted to `tabs.event_finder.*` UIState keys. 26 new tests; 328/328 green. Plan: `docs/superpowers/plans/2026-06-04-event-finder-ux-fix.md`.
+- [ ] **Event Finder bookmarks + calendar export** — saved-events column with star toggle; CSV / `.ics` export. (Scope B from the 6/4 brainstorm; deferred.)
+- [ ] **Event Finder dashboard** — saved searches + background polling + Tournament Prep integration. (Scope C from the 6/4 brainstorm; deferred.)
 
 ## OPEN — Deck Intelligence
 - [ ] Meta clustering by playstyle

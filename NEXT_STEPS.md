@@ -1,10 +1,28 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-05-25 (Replay-viewer M4 review-annotation shipped; M1 data-quality fix or classic-dialog retirement next)
+Last updated: 2026-06-04 (Event Finder UX fix shipped on `feat/event-finder-ux`)
 
 ---
 
 ## TOP OF MIND
+
+### 6/4 session (shipped — `feat/event-finder-ux`, awaiting merge)
+
+- **Event Finder UX overhaul** — eight bite-sized commits on `feat/event-finder-ux`:
+  1. Pure helpers (`filter_by_date_window`, `time_sort_key`, `google_maps_url`) — module-level in `gui/tabs/event_finder_tab.py`, fully unit-tested.
+  2. `scrapers/event_finder.py::_format_event` now exposes `start_iso`, `weekday`, `time_str` (local tz, e.g. "6:00 PM"), `format_id`, `city`, `state`. GraphQL query gains `venue { city state }`.
+  3. Radius options grow to include **300 mi**; API `limit` raised from 200 → 500.
+  4. Five new `gui/state_keys.py` constants (`EVENT_FINDER_ZIPCODE/RADIUS/EVENT_TYPE/FORMAT/DATE_WINDOW`).
+  5. `_populate_table` rewritten to use `DateItem`/`SortItem` with `SORT_ROLE` so Distance/Entry sort numerically (no more "100 mi before 25 mi"); Date displays "Sat Jun 7" but sorts by `YYYYMMDD`; Time column added; RCQ rows get a subtle row-background wash instead of a foreground tint.
+  6. New **"When"** combo (`Next 2 wk / 4 wk (default) / 8 wk / 6 mo / All upcoming`); filter applied client-side after the GraphQL fetch; status line includes the When label.
+  7. `showEvent`-based UIState hydration with `blockSignals(True)` and per-widget write-back handlers — filters survive across launches.
+  8. Right-click on a result row → **Open event page** + **Open in Google Maps** (built from store + `venue.city`).
+- **Test count:** 26 new tests in `tests/test_event_finder_ux.py`. Full suite **328/328 green**. Zero regressions on existing tabs.
+- **Plan:** `docs/superpowers/plans/2026-06-04-event-finder-ux-fix.md`. **Spec:** `docs/superpowers/specs/2026-06-04-event-finder-ux-fix-design.md`.
+
+### Manual GUI smoke still pending the user (Event Finder)
+
+Launch app → Tournament → Event Finder. Enter zipcode, try 300 mi RCQ. Confirm: (1) Distance column header click sorts numerically (25 before 100); (2) Time column shows local-tz times; (3) Date column reads "Sat Jun 7" and sorts chronologically; (4) RCQ rows tinted; (5) "When" combo narrows results; (6) right-click row → Google Maps opens to the store; (7) close + relaunch app, filters restored. Plus the *still-outstanding* M2/M3/M4 replay-viewer smoke from the 5/24 + 5/25 sessions.
 
 ### 5/22 session (shipped)
 
