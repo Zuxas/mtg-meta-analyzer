@@ -16,6 +16,8 @@ from PyQt6.QtGui import QDesktopServices
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
 from gui.worker_utils import cancel_worker
+from gui.state import UIState
+from gui import state_keys as k
 
 from datetime import date as _date, timedelta as _timedelta
 
@@ -156,9 +158,56 @@ class EventFinderTab(QWidget):
         super().__init__(parent)
         self._worker = None
         self._events: list[dict] = []
+        self._state_hydrated = False
         self._build_ui()
 
     # ── UI construction ──────────────────────────────────────────────────────
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._state_hydrated:
+            return
+        s = UIState.instance()
+
+        # Zipcode
+        zipcode = s.get(k.EVENT_FINDER_ZIPCODE, "")
+        self._zip.blockSignals(True)
+        self._zip.setText(zipcode)
+        self._zip.blockSignals(False)
+
+        # Radius (find by data value)
+        radius = s.get(k.EVENT_FINDER_RADIUS, 100)
+        idx = self._radius.findData(radius)
+        if idx >= 0:
+            self._radius.blockSignals(True)
+            self._radius.setCurrentIndex(idx)
+            self._radius.blockSignals(False)
+
+        # Event type
+        etype = s.get(k.EVENT_FINDER_EVENT_TYPE, "regional_championship_qualifier")
+        idx = self._etype.findData(etype)
+        if idx >= 0:
+            self._etype.blockSignals(True)
+            self._etype.setCurrentIndex(idx)
+            self._etype.blockSignals(False)
+
+        # Format
+        fmt = s.get(k.EVENT_FINDER_FORMAT, "modern")
+        idx = self._fmt.findData(fmt)
+        if idx >= 0:
+            self._fmt.blockSignals(True)
+            self._fmt.setCurrentIndex(idx)
+            self._fmt.blockSignals(False)
+
+        # When
+        when = s.get(k.EVENT_FINDER_DATE_WINDOW, "4w")
+        idx = self._when.findData(when)
+        if idx >= 0:
+            self._when.blockSignals(True)
+            self._when.setCurrentIndex(idx)
+            self._when.blockSignals(False)
+
+        self._state_hydrated = True
 
     def _build_ui(self):
         root = QVBoxLayout(self)
@@ -272,6 +321,19 @@ class EventFinderTab(QWidget):
         )
         self._btn.clicked.connect(self._search)
         row.addWidget(self._btn)
+
+        # Persist filter changes to UIState
+        s = UIState.instance()
+        self._zip.textEdited.connect(
+            lambda txt: s.set(k.EVENT_FINDER_ZIPCODE, txt))
+        self._radius.currentIndexChanged.connect(
+            lambda _i: s.set(k.EVENT_FINDER_RADIUS, self._radius.currentData()))
+        self._etype.currentIndexChanged.connect(
+            lambda _i: s.set(k.EVENT_FINDER_EVENT_TYPE, self._etype.currentData()))
+        self._fmt.currentIndexChanged.connect(
+            lambda _i: s.set(k.EVENT_FINDER_FORMAT, self._fmt.currentData()))
+        self._when.currentIndexChanged.connect(
+            lambda _i: s.set(k.EVENT_FINDER_DATE_WINDOW, self._when.currentData()))
 
         return frame
 
