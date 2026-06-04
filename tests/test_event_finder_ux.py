@@ -227,3 +227,34 @@ class TestRadiusAndLimit:
         # If we add a value BEFORE 100, this test catches it.
         from gui.tabs.event_finder_tab import _RADIUS_OPTIONS
         assert _RADIUS_OPTIONS[3] == 100
+
+
+class TestEventFinderStateKeys:
+    def test_constants_exist(self):
+        from gui import state_keys as k
+        assert k.EVENT_FINDER_ZIPCODE == "tabs.event_finder.zipcode"
+        assert k.EVENT_FINDER_RADIUS == "tabs.event_finder.radius"
+        assert k.EVENT_FINDER_EVENT_TYPE == "tabs.event_finder.event_type"
+        assert k.EVENT_FINDER_FORMAT == "tabs.event_finder.format"
+        assert k.EVENT_FINDER_DATE_WINDOW == "tabs.event_finder.date_window"
+
+    def test_roundtrip(self, tmp_path, monkeypatch):
+        from gui.state import UIState
+        from gui import state_keys as k
+
+        prefs_path = tmp_path / "preferences.json"
+        monkeypatch.setattr("gui.state.PREFERENCES_PATH", prefs_path)
+        monkeypatch.setattr("gui.state.UIState._instance", None)
+
+        state = UIState.instance()
+        state.set(k.EVENT_FINDER_ZIPCODE, "98101")
+        state.set(k.EVENT_FINDER_RADIUS, 300)
+        state.set(k.EVENT_FINDER_EVENT_TYPE, "regional_championship_qualifier")
+        state.set(k.EVENT_FINDER_FORMAT, "modern")
+        state.set(k.EVENT_FINDER_DATE_WINDOW, "4w")
+
+        assert state.get(k.EVENT_FINDER_ZIPCODE) == "98101"
+        assert state.get(k.EVENT_FINDER_RADIUS) == 300
+        assert state.get(k.EVENT_FINDER_EVENT_TYPE) == "regional_championship_qualifier"
+        assert state.get(k.EVENT_FINDER_FORMAT) == "modern"
+        assert state.get(k.EVENT_FINDER_DATE_WINDOW) == "4w"

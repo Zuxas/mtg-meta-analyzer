@@ -47,3 +47,10 @@ OVERLAY_DECKLIST_OPEN = "overlay.decklist_open"  # bool (default False)
 OVERLAY_OPACITY = "overlay.opacity"  # float [0.30, 1.00], default 0.95
 OVERLAY_OPP_OVERRIDE = "overlay.opp_override"  # str, empty => Auto
 OVERLAY_DECK_OVERRIDE = "overlay.deck_override"  # int deck_id, 0 => Auto
+
+# Event Finder
+EVENT_FINDER_ZIPCODE     = "tabs.event_finder.zipcode"
+EVENT_FINDER_RADIUS      = "tabs.event_finder.radius"
+EVENT_FINDER_EVENT_TYPE  = "tabs.event_finder.event_type"
+EVENT_FINDER_FORMAT      = "tabs.event_finder.format"
+EVENT_FINDER_DATE_WINDOW = "tabs.event_finder.date_window"
