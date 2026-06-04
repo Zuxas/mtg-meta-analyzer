@@ -123,7 +123,7 @@ _COLUMNS = ["Date", "Time", "Distance", "Store", "Event", "Entry", "Format"]
 # ---------------------------------------------------------------------------
 
 def _fetch_events(zipcode: str, radius: int, event_type: str | None,
-                  format_filter: str | None) -> list[dict]:
+                  format_filter: str | None, date_window: str = "4w") -> list[dict]:
     """Called in DataLoadWorker background thread."""
     from scrapers.event_finder import geocode_zipcode, search_events, _format_event
 
@@ -142,6 +142,7 @@ def _fetch_events(zipcode: str, radius: int, event_type: str | None,
                 continue
         results.append(fe)
 
+    results = filter_by_date_window(results, date_window)
     results.sort(key=lambda x: (x["date"], x["dist_mi"]))
     return results
 
@@ -248,6 +249,16 @@ class EventFinderTab(QWidget):
         self._fmt.setStyleSheet(self._combo_style())
         row.addWidget(self._fmt)
 
+        # Date window
+        row.addWidget(self._lbl("When"))
+        self._when = QComboBox()
+        for label, value in DATE_WINDOW_OPTIONS:
+            self._when.addItem(label, value)
+        self._when.setCurrentIndex(1)  # default Next 4 wk
+        self._when.setFixedWidth(120)
+        self._when.setStyleSheet(self._combo_style())
+        row.addWidget(self._when)
+
         row.addStretch()
 
         # Search button
@@ -311,14 +322,16 @@ class EventFinderTab(QWidget):
         self._events = []
         self._set_status(f"Geocoding {zipcode}...")
 
-        radius     = self._radius.currentData()
-        event_type = self._etype.currentData()
-        fmt        = self._fmt.currentData()
+        radius      = self._radius.currentData()
+        event_type  = self._etype.currentData()
+        fmt         = self._fmt.currentData()
+        date_window = self._when.currentData()
 
         self._worker = DataLoadWorker(
             _fetch_events,
             kwargs={"zipcode": zipcode, "radius": radius,
-                    "event_type": event_type, "format_filter": fmt},
+                    "event_type": event_type, "format_filter": fmt,
+                    "date_window": date_window},
         )
         self._worker.result.connect(self._on_results)
         self._worker.error.connect(self._on_error)
@@ -332,10 +345,11 @@ class EventFinderTab(QWidget):
         self._populate_table(events)
         type_label = self._etype.currentText()
         fmt_label  = self._fmt.currentText()
+        when_label = self._when.currentText()
         r          = self._radius.currentData()
+        fmt_part   = f" ({fmt_label})" if fmt_label != "All Formats" else ""
         self._set_status(
-            f"{len(events)} {type_label} event(s) within {r} mi"
-            f"{' (' + fmt_label + ')' if fmt_label != 'All Formats' else ''}"
+            f"{len(events)} {type_label} event(s) within {r} mi, {when_label}{fmt_part}"
         )
 
     def _on_error(self, msg: str):
