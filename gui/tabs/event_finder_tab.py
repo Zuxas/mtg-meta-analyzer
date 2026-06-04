@@ -113,7 +113,7 @@ _FORMAT_OPTIONS = [
     ("Pauper",      "pauper"),
 ]
 
-_RADIUS_OPTIONS = [25, 50, 75, 100, 150, 200]
+_RADIUS_OPTIONS = [25, 50, 75, 100, 150, 200, 300]
 
 _COLUMNS = ["Date", "Distance", "Store", "Event", "Entry", "Format"]
 
@@ -129,7 +129,7 @@ def _fetch_events(zipcode: str, radius: int, event_type: str | None,
 
     lat, lng = geocode_zipcode(zipcode)
     tags = [event_type] if event_type else None
-    raw = search_events(lat, lng, radius_miles=radius, tags=tags, limit=200)
+    raw = search_events(lat, lng, radius_miles=radius, tags=tags, limit=500)
 
     # Apply format filter and exclude online
     results = []

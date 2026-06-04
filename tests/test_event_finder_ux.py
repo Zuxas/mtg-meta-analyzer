@@ -215,3 +215,15 @@ class TestSearchEventsQuery:
         assert "city" in payload
         assert "state" in payload
         assert "eventFormat" in payload  # already there, but verify regression
+
+
+class TestRadiusAndLimit:
+    def test_300_mi_is_an_option(self):
+        from gui.tabs.event_finder_tab import _RADIUS_OPTIONS
+        assert 300 in _RADIUS_OPTIONS
+
+    def test_default_radius_index_still_100mi(self):
+        # The combobox setCurrentIndex(3) assumes 100mi is at index 3.
+        # If we add a value BEFORE 100, this test catches it.
+        from gui.tabs.event_finder_tab import _RADIUS_OPTIONS
+        assert _RADIUS_OPTIONS[3] == 100
