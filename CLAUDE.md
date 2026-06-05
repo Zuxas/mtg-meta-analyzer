@@ -70,10 +70,7 @@ Setup wizard page 0 saves formats immediately. `fill_database.py` and `scripts/r
 | MTG-Meta-Analyzer-Scryfall-Weekly | `run_scryfall_weekly.bat` | Sunday midnight |
 
 **Per-source throttling** (inside `scripts/run_fill_from_prefs.py`):
-- **MTGDecks: Mon/Wed/Fri only** (added 2026-05-10) — Task Scheduler still fires
-  daily at 6 AM, but MTGDecks block is gated by `_dt.date.today().weekday() in (0, 2, 4)`
-  to reduce load on the source. Other scrapers (MTGTop8, MTGMelee, Spicerack, Scryfall)
-  remain daily. Skipped runs print `MTGDecks SKIPPED (throttled to M/W/F)` to the log.
+- **MTGDecks: AUTO-PULL DISABLED** (2026-06-04) — the M/W/F throttle was replaced with a hard skip per user request. Task Scheduler still fires the pipeline daily; the MTGDecks block prints `MTGDecks SKIPPED (auto-pull disabled)` and moves on. Manual escape hatches preserved: `fill_database.bat` (full rebuild), Settings tab refresh button, Matchup Data tab "scrape" action. To re-enable, restore `MTGDECKS_DAYS = (0, 2, 4)` and the surrounding `if today_dow in MTGDECKS_DAYS:` gate.
 
 ---
 

@@ -58,17 +58,12 @@ def main():
         run(f"main.py --format {fmt} --pages 2 --max-events 50",
             f"MTGTop8 — {fmt}")
 
-    # MTGDecks — selected formats only, throttled to Mon/Wed/Fri (~3x/week)
-    # Reason: site requested less aggressive scraping. Other sources stay daily.
-    today_dow = _dt.date.today().weekday()   # Mon=0, Sun=6
-    MTGDECKS_DAYS = (0, 2, 4)                # Mon, Wed, Fri
-    if today_dow in MTGDECKS_DAYS:
-        for fmt in formats:
-            run(f"-m scrapers.mtgdecks --format {fmt} --pages 3",
-                f"MTGDecks — {fmt}")
-    else:
-        day_name = _dt.date.today().strftime("%a")
-        print(f"\n-- MTGDecks SKIPPED (throttled to M/W/F, today is {day_name}) --")
+    # MTGDecks — auto-pull DISABLED 2026-06-04 per user request.
+    # Manual paths still available: fill_database.bat (full rebuild), Settings
+    # tab refresh button, Matchup Data tab "scrape" action.
+    # To re-enable: restore the M/W/F gate (was `MTGDECKS_DAYS = (0, 2, 4)`).
+    today_dow = _dt.date.today().weekday()   # Mon=0, Sun=6 (still used by Untapped block below)
+    print("\n-- MTGDecks SKIPPED (auto-pull disabled) --")
 
     # MTGMelee — selected formats + always-on extras
     melee_formats = list(dict.fromkeys(formats + _MELEE_ALWAYS))
