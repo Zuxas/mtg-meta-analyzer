@@ -1126,7 +1126,7 @@ Expected: every previously-passing test still passes (no regressions).
 
 - [ ] **Update CLAUDE.md**
 
-Per project convention (`E:\vscode ai project\mtg-meta-analyzer\CLAUDE.md` -> "NON-NEGOTIABLE RULES"): update the top-of-file "Last updated" line to mention the Event Finder UX fix. Mention: sort fix, Time column, RCQ row tint, "When" filter, 300 mi radius, Google Maps right-click, persisted filters.
+Per project convention (project root `CLAUDE.md` -> "NON-NEGOTIABLE RULES"): update the top-of-file "Last updated" line to mention the Event Finder UX fix. Mention: sort fix, Time column, RCQ row tint, "When" filter, 300 mi radius, Google Maps right-click, persisted filters.
 
 - [ ] **Update NEXT_STEPS.md and ROADMAP.md**
 
