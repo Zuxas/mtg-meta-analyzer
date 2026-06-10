@@ -54,11 +54,17 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     # Skip deletions
     [ "$local_sha" = "$z40" ] && continue
 
-    # New branch: check everything reachable from local_sha that isn't already remote
-    # Existing branch: check the new commits only
+    # New branch: scan only the commits that aren't already on a remote (the
+    #   actual new work) -- NOT the whole tree. A first-time branch push must
+    #   not re-flag long-standing content already published on the remote.
+    # Existing branch: check the new commits only.
     if [ "$remote_sha" = "$z40" ]; then
-        range="$local_sha"
-        files=$(git ls-tree -r --name-only "$local_sha" 2>/dev/null)
+        new_commits=$(git rev-list "$local_sha" --not --remotes 2>/dev/null)
+        if [ -n "$new_commits" ]; then
+            files=$(git diff-tree --no-commit-id --name-only -r $new_commits 2>/dev/null | sort -u)
+        else
+            files=""
+        fi
     else
         range="$remote_sha..$local_sha"
         files=$(git diff --name-only "$range" 2>/dev/null)
