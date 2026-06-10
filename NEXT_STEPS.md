@@ -1,10 +1,25 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-06-04 (Event Finder UX fix shipped on `feat/event-finder-ux`)
+Last updated: 2026-06-09 (Replay-viewer M1 data-quality fix on `feat/replay-viewer-m1-dq`)
 
 ---
 
 ## TOP OF MIND
+
+### 6/9 session (shipped — `feat/replay-viewer-m1-dq`)
+
+- **Replay-viewer M1 data-quality fix.** Root cause was NOT the dual-log duplication the prior notes assumed — `build_event_stream` **never scoped GSM/client-message processing to the requested match**, so it ingested every match in both log files (measured 4005 GSMs / 14 mulligans vs the real 980 / 4). Three fixes in `analysis/replay_events.py`:
+  1. **Match-scoping (primary):** `active_room_match` tracked from `matchGameRoomStateChangedEvent`; a guard skips any GSM/client blob whose active room != the requested match.
+  2. **Idempotent dedup (secondary):** GSMs by `(current_game, gameStateId)` (gsid resets per game), client messages by `transactionId` — only when the key is non-None. Handles true resends + genuine rotation overlap.
+  3. **Diff-aware zones:** only run the disappeared-instance sweep for zones the message actually reported (`objectInstanceIds` key present); attribute hidden-zone cards (library, opp hand) via the zone's `ownerSeatId` (`setdefault`, so battlefield control from gameObjects still wins).
+  - Also: `SCHEMA_VERSION` 1->2 + schema-version gate on cache load; **serve-stale** on rebuild-miss (don't return None when the match has rotated out); `capabilities.log_offsets` corrected True->False (it was never populated).
+  - **Verified on live logs:** game_num `[1,2,3]` monotonic, 3 keeps/3 game-ends for the Bo3, you/opp library 60 + hand 7 (was ~3). 10 new tests in `tests/test_replay_events_dq.py`; full suite **338/338 green**.
+  - **Spec:** `docs/superpowers/specs/2026-06-09-replay-viewer-m1-data-quality-design.md`.
+
+### Manual GUI smoke still pending (M1-DQ + M2/M3/M4)
+
+- **NEW (M1-DQ):** Launch app -> a recent match's replay (one still in Player.log) -> confirm the M3 board panel renders realistic counts (your library ~60 early, hand ~7) and the timeline doesn't repeat games. Only the 2 matches still in the live log re-extract to schema 2; ~14 older cached replays serve stale (old, polluted) data by design (serve-stale choice).
+- Plus the still-outstanding M2/M3/M4 replay-viewer smoke below.
 
 ### 6/4 session (shipped — `feat/event-finder-ux`, awaiting merge)
 

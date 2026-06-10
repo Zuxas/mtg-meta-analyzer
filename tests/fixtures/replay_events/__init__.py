@@ -29,6 +29,34 @@ def make_blob_iter(blobs):
     return _iter
 
 
+def make_blob_iter_both_files(blobs):
+    """Yield the SAME blobs on BOTH _iter_json_blobs calls.
+
+    Simulates a match present in Player.log AND Player-prev.log (the log
+    rotation overlap that multiplies the event stream). Unlike
+    make_blob_iter (which yields once), this re-yields on every call.
+    """
+    def _iter(log_path):
+        for b in blobs:
+            yield b
+    return _iter
+
+
+def client_mulligan(decision="MulliganOption_AcceptHand", transaction_id=None):
+    """A ClientToGREMessage MulliganResp blob, optionally with a transactionId."""
+    obj = {
+        "clientToMatchServiceMessageType":
+            "ClientToMatchServiceMessageType_ClientToGREMessage",
+        "payload": {
+            "type": "ClientMessageType_MulliganResp",
+            "mulliganResp": {"decision": decision},
+        },
+    }
+    if transaction_id is not None:
+        obj["transactionId"] = transaction_id
+    return obj
+
+
 def match_start(match_id, my_user_id="GCIUQPR6DRC4XL7L2ZTNU2OMNI",
                 opp_name="TestOpp"):
     """Minimal matchGameRoomStateChangedEvent putting our user in seat 1."""

@@ -41,7 +41,7 @@ from analysis.replay_transcript import (
     transcript_cache_path,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Closed enum of normalized event kinds. Any annotation we don't map
 # explicitly falls through to kind="raw" with the full annotation dict
@@ -79,7 +79,8 @@ M1_CAPABILITIES = {
     "per_game_decklists": True,
     "odds_ready": False,
     "stack_history": True,
-    "log_offsets": True,
+    # log_offset is never populated by the extractor, so we do NOT claim it.
+    "log_offsets": False,
 }
 
 
@@ -96,13 +97,13 @@ def build_event_stream(arena_match_id: str,
             with open(cache_path, "r", encoding="utf-8") as f:
                 cached = json.load(f)
             caps = cached.get("capabilities") or {}
-            # Require ALL M1 capabilities present and True
+            # Require the current schema AND all M1 capabilities present+True.
             required = ("events", "board_diff", "public_info",
-                        "per_game_decklists", "stack_history",
-                        "log_offsets")
-            if all(caps.get(c) is True for c in required):
+                        "per_game_decklists", "stack_history")
+            if (cached.get("schema_version") == SCHEMA_VERSION
+                    and all(caps.get(c) is True for c in required)):
                 return cached
-            # capability missing -> fall through to rebuild
+            # stale schema or missing capability -> fall through to rebuild
         except Exception:
             pass  # corrupted cache -> rebuild
 
@@ -122,6 +123,10 @@ def build_event_stream(arena_match_id: str,
     opp_seat: Optional[int] = None
     opp_name = ""
     target_found = False
+    # matchId of the room we're currently inside. A single Player.log holds
+    # many matches back-to-back; we must only process the GSMs / client
+    # messages that belong to the requested match.
+    active_room_match: Optional[str] = None
     my_user_id = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
 
     # ── Event-emission state ──────────────────────────────────
@@ -138,6 +143,13 @@ def build_event_stream(arena_match_id: str,
     pending_zone_diffs: list[dict] = []
     current_stack: list[dict] = []
     seen_annotations: set[int] = set()
+    # (game_num, gameStateId) of GSMs already processed -- Arena resends the
+    # same state, and a match recurs in both Player.log + Player-prev.log.
+    # gameStateId resets per game, so the key must include game_num.
+    seen_game_states: set[tuple[int, int]] = set()
+    # transactionIds of client-to-GRE messages already processed (they carry
+    # no gameStateId, so they need their own idempotency key).
+    seen_transaction_ids: set[str] = set()
     game_over_emitted: set[int] = set()
     prev_life: dict[int, int] = {}
     prev_mana: dict[int, str] = {}
@@ -186,6 +198,7 @@ def build_event_stream(arena_match_id: str,
                 room = mrse.get("gameRoomInfo", {})
                 cfg = room.get("gameRoomConfig", {})
                 mid = cfg.get("matchId")
+                active_room_match = mid
                 if mid == arena_match_id:
                     target_found = True
                     for p in cfg.get("reservedPlayers", []) or []:
@@ -196,6 +209,11 @@ def build_event_stream(arena_match_id: str,
                             opp_name = p.get("playerName") or opp_name
                     if cfg.get("eventId") and not match_meta["event_name"]:
                         match_meta["event_name"] = cfg["eventId"]
+                continue
+
+            # Only process events belonging to the requested match. Other
+            # matches' GSMs/client messages share the same log file.
+            if active_room_match != arena_match_id:
                 continue
 
             # ── GameStateMessage handler ─────────────────────────
@@ -209,6 +227,15 @@ def build_event_stream(arena_match_id: str,
                     gn = gi.get("gameNumber")
                     if gn and gn != current_game:
                         current_game = gn
+                    # Idempotency: skip a GameStateMessage we've already
+                    # processed (Arena resend, or the match's second copy in
+                    # the other rotation file). gameStateId resets per game.
+                    gsid_dedup = gsm.get("gameStateId")
+                    if gsid_dedup is not None:
+                        gs_key = (current_game, gsid_dedup)
+                        if gs_key in seen_game_states:
+                            continue
+                        seen_game_states.add(gs_key)
                     stage = gi.get("stage")
                     if stage == "GameStage_GameOver" and current_game not in game_over_emitted:
                         game_over_emitted.add(current_game)
@@ -295,14 +322,29 @@ def build_event_stream(arena_match_id: str,
                                 "opp": prev_mana.get(opp_seat, ""),
                             }
 
-                    # Build current zone snapshot from zones[]
+                    # Build current zone snapshot from zones[]. A GSM is almost
+                    # always a Diff that reports the FULL membership of only the
+                    # zones it mentions (a zone entry must carry an
+                    # objectInstanceIds key to count as reported -- an absent
+                    # key means "not reported", NOT "empty").
                     current_zones: dict[int, str] = {}
+                    present_zone_names: set[str] = set()
                     for zone in gsm.get("zones", []) or []:
                         zname = _ZONE_TYPE_TO_NAME.get(zone.get("type"))
                         if not zname:
                             continue
-                        for iid in zone.get("objectInstanceIds", []) or []:
+                        if "objectInstanceIds" not in zone:
+                            continue  # zone not reported in this message
+                        present_zone_names.add(zname)
+                        # Hidden-zone cards (library, opponent hand) never
+                        # appear in gameObjects, so attribute them to the
+                        # zone's owner. gameObjects (processed first) win, so
+                        # battlefield control-vs-ownership stays correct.
+                        z_owner = zone.get("ownerSeatId")
+                        for iid in zone.get("objectInstanceIds") or []:
                             current_zones[iid] = zname
+                            if z_owner is not None:
+                                instance_to_owner.setdefault(iid, z_owner)
 
                     # Compute diffs against the running instance_to_zone map
                     zone_diffs: list[dict] = []
@@ -320,9 +362,13 @@ def build_event_stream(arena_match_id: str,
                                 "controller": "you" if owner == my_seat else "opp" if owner == opp_seat else None,
                             })
                             instance_to_zone[iid] = new_zone
-                    # Detect instances that disappeared (no longer in any zone)
+                    # Detect instances that left a zone THIS message reported.
+                    # An instance tracked in a zone the message didn't report is
+                    # left untouched (a Diff omitting battlefield must not wipe
+                    # the battlefield).
                     for iid in list(instance_to_zone.keys()):
-                        if iid not in current_zones:
+                        if iid not in current_zones and \
+                                instance_to_zone[iid] in present_zone_names:
                             old_zone = instance_to_zone.pop(iid)
                             grp = instance_to_grpid.get(iid)
                             owner = instance_to_owner.get(iid)
@@ -460,6 +506,13 @@ def build_event_stream(arena_match_id: str,
             # ── Client-to-server messages (mulligan, attackers, blockers) ─
             cmsm = obj.get("clientToMatchServiceMessageType")
             if cmsm == "ClientToMatchServiceMessageType_ClientToGREMessage":
+                # Idempotency: client messages carry a unique transactionId and
+                # are re-emitted across the two rotation files. Skip duplicates.
+                txid = obj.get("transactionId")
+                if txid is not None:
+                    if txid in seen_transaction_ids:
+                        continue
+                    seen_transaction_ids.add(txid)
                 payload = obj.get("payload", {}) or {}
                 ptype = payload.get("type", "")
                 if ptype == "ClientMessageType_MulliganResp":
@@ -531,6 +584,15 @@ def build_event_stream(arena_match_id: str,
                         match_meta["decklist_my_grpids"] = list(cards)
 
     if not target_found:
+        # The match isn't in the current logs (they rotated). If we have an
+        # older cache, serve it stale rather than returning nothing -- the
+        # viewer should still open on historical matches.
+        if cache_path.exists():
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return None
         return None
 
     # Post-pass: extract key events
