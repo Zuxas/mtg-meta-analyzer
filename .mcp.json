@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mtg-meta": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_server.server"
+      ],
+      "env": {}
+    }
+  }
+}
