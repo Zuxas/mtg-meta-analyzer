@@ -133,6 +133,27 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 
 ---
 
+## MCP Server (ask Claude about your metagame)
+
+An [MCP](https://modelcontextprotocol.io) server (`mcp_server/`) exposes the meta
+database as read-only, agent-callable tools, so you can ask an AI assistant
+natural-language questions — *"What's Boros Energy's worst matchup in Modern,
+and what does the win-rate data say?"* — and it queries your data directly.
+
+Four tools: `list_decks`, `get_matchup`, `get_field_position`,
+`search_matchups`. Every win rate is labelled by source (real melee.gg matches
+vs a placement-based proxy), and unknown deck names return fuzzy suggestions.
+
+```bash
+pip install -r requirements.txt          # installs mcp
+claude mcp add mtg-meta -- python -m mcp_server.server   # register with Claude Code
+```
+
+See [`mcp_server/README.md`](mcp_server/README.md) for the full tool reference
+and design notes.
+
+---
+
 ## Tabs
 
 | Tab | What's in it |
@@ -217,6 +238,10 @@ gui/                    PyQt6 desktop application
   tabs/                 One file per tab
   widgets/              Reusable widgets (chart canvas, meta table, deck export)
   tray_icon.py          System tray with status dot and right-click menu
+
+mcp_server/             MCP server — exposes the meta DB as agent-callable tools
+  tools.py              Pure tool logic (wraps analysis/win_rates.py)
+  server.py             FastMCP/stdio entry point + @mcp.tool registrations
 
 data/                   Local databases and exports (not in git)
 logs/                   Daily scrape logs (not in git)

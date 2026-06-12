@@ -235,6 +235,8 @@ Schema-tolerant (`get(path, default)` always returns the default for missing pat
 run_gui.py                      GUI entry point (--register-tasks mode)
 main.py                         CLI entry point
 fill_database.py                Standalone DB builder (reads preferences.json)
+mcp_server/server.py            MCP server entry (FastMCP/stdio; agent-callable analytics)
+mcp_server/tools.py             MCP tool logic (pure, wraps analysis/win_rates.py)
 mtg.bat                         Consolidated menu launcher (7 options)
 launch_app.bat                  Double-click GUI launcher
 
@@ -415,7 +417,7 @@ Project-scoped (in `.agents/skills/`, managed via `npx skills`):
 | `xlsx` | anthropics/skills | Excel/tabular work (Skill Issue Magic guide exports, .csv data) |
 | `query` | duckdb/duckdb-skills | DuckDB SQL queries — can `ATTACH 'data/mtg_meta.db'` for fast OLAP on the project DB without writing Python |
 | `playwright` | openai/skills | Real-browser scraping via playwright-cli. For sites the cloudscraper path can't handle (JS-rendered, complex session capture) |
-| `mcp-builder` | anthropics/skills | Patterns for building MCP servers — if/when `mtg_meta.db` gets exposed as an MCP so Claude can query the data layer directly |
+| `mcp-builder` | anthropics/skills | Patterns for building MCP servers. Used to build `mcp_server/` (2026-06-11), which exposes the meta DB as agent-callable tools — see `mcp_server/README.md` |
 
 To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 
