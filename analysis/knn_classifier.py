@@ -127,6 +127,55 @@ def load_knn(format_name: str) -> "sklearn.neighbors.KNeighborsClassifier | None
         return pickle.load(f)
 
 
+def evaluate_knn(
+    format_name: str,
+    test_size: float = 0.25,
+    n_neighbors: int = 5,
+    random_state: int = 42,
+) -> dict | None:
+    """Held-out accuracy for the archetype KNN on a format.
+
+    Splits the labeled decklists into train/test, fits a fresh KNN on the
+    train split, and reports accuracy on the unseen test split — an honest
+    estimate (the production model is trained on all data, which would
+    over-report if measured on itself).
+
+    Returns {format, accuracy, n_train, n_test, n_classes, n_neighbors} or
+    None if there isn't enough data / embeddings aren't available.
+    """
+    from collections import Counter
+    from sklearn.model_selection import train_test_split
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.metrics import accuracy_score
+
+    result = build_training_set(format_name)
+    if result is None:
+        return None
+
+    X, y, _ = result
+    y = np.asarray(y)
+    counts = Counter(y.tolist())
+    # Stratify only when every class can appear in both splits.
+    stratify = y if min(counts.values()) >= 2 else None
+
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=stratify
+    )
+
+    clf = KNeighborsClassifier(n_neighbors=n_neighbors, metric="cosine")
+    clf.fit(X_tr, y_tr)
+    acc = accuracy_score(y_te, clf.predict(X_te))
+
+    return {
+        "format": format_name,
+        "accuracy": round(float(acc), 3),
+        "n_train": int(len(X_tr)),
+        "n_test": int(len(X_te)),
+        "n_classes": int(len(counts)),
+        "n_neighbors": n_neighbors,
+    }
+
+
 def classify_deck(
     card_list: dict[str, int],
     format_name: str,
@@ -191,3 +240,32 @@ def hybrid_classify(
             return archetype
 
     return None
+
+
+if __name__ == "__main__":
+    # Reproducible held-out accuracy report:
+    #   python -m analysis.knn_classifier --eval [format ...]
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="KNN archetype classifier — held-out accuracy report")
+    parser.add_argument("--eval", action="store_true",
+                        help="Run held-out train/test accuracy evaluation")
+    parser.add_argument("formats", nargs="*",
+                        default=["standard", "modern", "pioneer", "legacy", "pauper"],
+                        help="Formats to evaluate (default: all five)")
+    parser.add_argument("--test-size", type=float, default=0.25)
+    args = parser.parse_args()
+
+    if args.eval:
+        print(f"{'format':10} {'accuracy':>9}  {'archetypes':>10}  {'train/test':>14}")
+        print("-" * 50)
+        for fmt in args.formats:
+            r = evaluate_knn(fmt, test_size=args.test_size)
+            if r:
+                print(f"{r['format']:10} {r['accuracy']*100:8.1f}%  "
+                      f"{r['n_classes']:>10}  {r['n_train']:>6}/{r['n_test']:<6}")
+            else:
+                print(f"{fmt:10} {'no data / embeddings unavailable':>40}")
+    else:
+        parser.print_help()

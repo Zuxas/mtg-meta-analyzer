@@ -137,7 +137,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/equilibrium.py` | Nash LP solver, replicator dynamics, RPS cycle detection, Monte Carlo sim |
 | `analysis/card_embeddings.py` | 768-dim ModernBERT vectors for 32k cards (HuggingFace parquet) |
 | `analysis/cooccurrence_embeddings.py` | Card2Vec — Word2Vec trained on local decklists |
-| `analysis/knn_classifier.py` | KNN archetype classifier using deck embeddings |
+| `analysis/knn_classifier.py` | KNN archetype classifier using deck embeddings. `evaluate_knn()` reports held-out train/test accuracy (Standard 91%, Pioneer 88%, Modern 74%, Pauper 70%, Legacy 64%); CLI: `python -m analysis.knn_classifier --eval` |
 | `analysis/nbac_classifier.py` | NBAC API wrapper (Videre Project Naive Bayes archetype classifier) |
 | `analysis/deck_ev.py` | Single-deck field-weighted EV: paper WR + Untapped Bo3 + SB difficulty bumps |
 | `analysis/mulligan_study.py` | Monte Carlo mulligan simulator (1000+ hands) reusing primer-rule evaluator |

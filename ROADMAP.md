@@ -17,6 +17,7 @@
 - [x] **Global "All Formats" option everywhere** (2026-05-14) — `analysis.win_rates.is_all_formats()` helper rolled across 7 analysis sites + 2 GUI inline-SQL sites
 
 ## OPEN — Testing & Iteration
+- [x] **KNN classifier held-out accuracy harness** (2026-06-11, branch `feat/classifier-eval`) — `analysis.knn_classifier.evaluate_knn()` does a real train/test split + reports accuracy (Standard 91% / Pioneer 88% / Modern 74% / Pauper 70% / Legacy 64%, 84–147 archetypes each). CLI: `python -m analysis.knn_classifier --eval`. 2 tests (synthetic, fast).
 - [ ] Card swap rationale tracker (why you changed cards)
 - [ ] Matchup hypothesis tracker (record + validate theories)
 - [ ] Gauntlet builder (auto top decks to test against)
