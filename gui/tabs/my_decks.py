@@ -1572,15 +1572,59 @@ def _consolidate(cards: list) -> str:
     )
 
 
-# General mulligan rules from the Worldly Council Izzet Prowess primer's
-# "Keep or Mulligan?" section. Universal -- not per-matchup.
-_GENERAL_MULL_RULES = """
+# Per-archetype mulligan rules. Keyed by deck archetype string (case-
+# insensitive substring match). Falls back to _GENERIC_MULL_RULES if no
+# entry matches. Originally hardcoded with Izzet Prowess content from
+# the Worldly Council primer, which leaked onto every deck's export.
+_IZZET_PROWESS_MULL_RULES = """
 <b>One-landers:</b> on the draw, double-cantrip hand is 95% to hit land 2; single-cantrip 86%. On the play, you spend turn 1 cantripping so the math is worse — be choosier.<br>
 <b>Mirror & Spellementals:</b> cantrip-heavy hands are best; bottom-most-of-range, a hand with no cantrips needs to be very good. Stormchaser's Talent is the best card to have in your opening on the play.<br>
 <b>vs Landfall:</b> don't keep one-landers liberally — you need to impact the board, not dig for lands. Must kill turn-one Llanowar Elves on the draw.<br>
 <b>Threat-less hands:</b> keepable IF you have a way to pull ahead (Flow State to find threats, Steaming Sauna fallback). Burst Lightning vs Sapling Nursery is dead.<br>
 <b>Resource discipline:</b> cantrips are a resource. Ask "what do I want to find?" If it's a common card (land 3), wait to dig naturally and preserve selection late.
 """.strip()
+
+_ESPER_BLINK_MULL_RULES = """
+<b>Auto-keeps:</b> Phelia + Solitude/Ephemerate + 2-3 lands. Thoughtseize + interaction + 2 lands on the play vs unknown. Riddler + Overlord + 3 lands with any 1MV play.<br>
+<b>Interaction density:</b> need at least one piece of MD interaction (Battle / Solitude / Thoughtseize / Prismatic) in every 7. Hands with zero interaction mulligan against unknown opponents — this deck plays reactive, not proactive.<br>
+<b>vs combo (Belcher / Storm / Titan / Living End / Goryo's):</b> mull aggressively for Thoughtseize + cheap interaction. 1MV plays beat 4MV value. Don't keep 7s with 3+ five-drops.<br>
+<b>vs aggro (Energy / Zoo / Affinity / Prowess):</b> mull for Battle + early defensive plays. Bowmasters on T2 is a snap-keep enabler. Phelia + removal stabilizes.<br>
+<b>vs control / mirror:</b> Thoughtseize is gold — keep info hands. Riddler + Overlord wins long games. Don't mulligan into 5 — control loves your draw step.<br>
+<b>One-landers:</b> only with Solitude pitch + Witch Enchanter cycle, or 2 cantrip lands (Meticulous Archive / Shadowy Backstreet / Undercity Sewers / Bleachbone Verge) — those count as half-spells.<br>
+<b>Solitude math:</b> need 1 other white card to pitch. If your only white is Solitude itself, treat it as a 6-mana spell, not free interaction.
+""".strip()
+
+_GENERIC_MULL_RULES = """
+<b>Lands:</b> keep 2-5 lands in 7-card hands; 2-4 in 6; 2-3 in 5. One-landers only with cheap card selection or a way to find a second land.<br>
+<b>Interaction:</b> at least one piece of removal or disruption in every 7 vs unknown opponents. Threat-only hands are mulligans against combo and control.<br>
+<b>Curve:</b> mulligan hands with no plays before turn 4, or hands with 3+ five-drops. Reactive decks need cheap reactive cards.<br>
+<b>vs aggro:</b> mull for early interaction; threat-light is fine if you can stabilize.<br>
+<b>vs combo:</b> mull for hand disruption + counters/answers; pure value hands lose.<br>
+<b>vs control:</b> mull for threats + protection or proactive disruption; pure reactive hands get out-carded.
+""".strip()
+
+# Order matters: longer / more specific keys first.
+_ARCHETYPE_MULL_RULES: dict[str, str] = {
+    "esper blink":   _ESPER_BLINK_MULL_RULES,
+    "esper flicker": _ESPER_BLINK_MULL_RULES,
+    "izzet prowess": _IZZET_PROWESS_MULL_RULES,
+}
+
+
+def _mull_rules_for(archetype: str | None) -> str:
+    """Return mulligan rules HTML for the given archetype, falling back
+    to generic rules if no archetype-specific block is registered."""
+    if not archetype:
+        return _GENERIC_MULL_RULES
+    key = archetype.strip().lower()
+    for k, v in _ARCHETYPE_MULL_RULES.items():
+        if k in key:
+            return v
+    return _GENERIC_MULL_RULES
+
+
+# Backward-compat alias for any external callers that imported the old name.
+_GENERAL_MULL_RULES = _GENERIC_MULL_RULES
 
 
 _PLAN_MARKER_RE = None  # lazy compiled below
@@ -1684,7 +1728,7 @@ def _generate_sb_print_html(deck: dict, plans: list[dict]) -> str:
 <div class="meta">{fmt} &bull; {arch} &bull; {len(plans)} matchups</div>
 
 <h2>General mulligan rules</h2>
-<div class="mull">{_GENERAL_MULL_RULES}</div>
+<div class="mull">{_mull_rules_for(arch)}</div>
 
 <h2>Per-matchup play patterns + SB swaps</h2>
 <div class="grid">
