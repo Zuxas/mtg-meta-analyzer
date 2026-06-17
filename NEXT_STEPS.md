@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-06-04 (Event Finder UX fix shipped on `feat/event-finder-ux`)
+Last updated: 2026-06-16 (M1 replay match-scoping fix shipped on `feat/replay-match-scoping`)
 
 ---
 
@@ -46,7 +46,7 @@ Launch app → Tournament → Event Finder. Enter zipcode, try 300 mi RCQ. Confi
 
 ### M1 data-quality follow-up (surfaced by M3's final review on real data)
 
-- **`build_event_stream` game_num oscillation + non-battlefield zone sparseness.** On a real 15,929-event cached replay, `game_num` cycles non-monotonically (1→2→3→1→2→3…) within a single match — consistent with the extractor walking `PLAYER_LOG` + `PLAYER_PREV_LOG` in one pass without resetting per-match state at the file boundary (the same match appears in both rotation files). Separately, `board_diff` tracks hand/library/graveyard/exile too sparsely to give accurate per-seat counts (they read ~0 mid-game). Battlefield reconstruction IS correct (verified). Impact: M3's board panel hides the Hand/Lib/GY/Exile counts (shows only Life/Mana/Battlefield) until this is fixed; `replay_board_at` resets on any `game_num` change (not `>`) to stay correct despite the oscillation. Fixing the extractor (dedupe/segment the two logs per match + fuller zone enumeration) would unlock reliable zone counts AND is the same data-layer work that unlocks the deferred tap/counters/auras. Worth doing before M-future Odds Engine, which depends on accurate zone/library state.
+- **[2026-06-16 UPDATE: the game_num/no-scoping half is FIXED — `feat/replay-match-scoping`, commit d8963c4. Corrected root cause below was incomplete: `build_event_stream` never scoped to `arena_match_id` at all (every replay held all matches from BOTH logs; two matchIds gave byte-identical 6138-event output), so the oscillation was a symptom. Only the zone-sparseness half remains open.]** **`build_event_stream` game_num oscillation + non-battlefield zone sparseness.** On a real 15,929-event cached replay, `game_num` cycles non-monotonically (1→2→3→1→2→3…) within a single match — consistent with the extractor walking `PLAYER_LOG` + `PLAYER_PREV_LOG` in one pass without resetting per-match state at the file boundary (the same match appears in both rotation files). Separately, `board_diff` tracks hand/library/graveyard/exile too sparsely to give accurate per-seat counts (they read ~0 mid-game). Battlefield reconstruction IS correct (verified). Impact: M3's board panel hides the Hand/Lib/GY/Exile counts (shows only Life/Mana/Battlefield) until this is fixed; `replay_board_at` resets on any `game_num` change (not `>`) to stay correct despite the oscillation. Fixing the extractor (dedupe/segment the two logs per match + fuller zone enumeration) would unlock reliable zone counts AND is the same data-layer work that unlocks the deferred tap/counters/auras. Worth doing before M-future Odds Engine, which depends on accurate zone/library state.
 
 ### 5/25 session (shipped) — M4 review annotation
 
@@ -56,7 +56,7 @@ Launch app → Tournament → Event Finder. Enter zipcode, try 300 mi RCQ. Confi
 ### Next pickup (pick one)
 
 - **Retire the classic dialog** — remove the "Watch (Classic)" button + `gui/widgets/replay_transcript_dialog.py`. Gated on Full being default ~1 week with no regressions: Full shipped 2026-05-24, so **revisit ~2026-06-01**. Small.
-- **M1 data-quality fix (recommended, foundational)** — `build_event_stream` game_num oscillation (it walks Player.log + Player-prev.log in one pass; the same match appears in both → non-monotonic game_num) + sparse hand/lib/GY/exile zone tracking. Fixing it restores the board panel's zone counts (M3 hid them) AND unblocks the deferred tap/counters/auras, and is a prerequisite for the M-future Odds Engine's library/zone state. Touches the M1 data layer + needs cache re-extract (bump schema_version or clear `data/match_replays/*.json`).
+- **M1 data-quality fix** — game_num oscillation **SHIPPED 2026-06-16** (`feat/replay-match-scoping`, commit d8963c4). Real root cause was bigger than documented: `build_event_stream` never scoped to `arena_match_id` (only seat extraction used it), so every replay contained all matches from BOTH rotation logs mashed together — two different matchIds yielded byte-identical 6138-event output. Fix gates event processing to the target match's start/end region (+ `target_done` skips a duplicate copy in the other log); `SCHEMA_VERSION` 1→2 + a stale-schema load check auto-rebuilds the 18 pre-scoping whole-log caches. `build_transcript` (classic) already scoped correctly — no parallel fix. **Remaining (still open):** sparse hand/lib/GY/exile zone tracking in `board_diff` (battlefield is correct; other zones read ~0) — still gates the board panel's zone counts + the deferred tap/counters/auras for the M-future Odds Engine.
 
 ### 5/17 session wrap (shipped)
 
