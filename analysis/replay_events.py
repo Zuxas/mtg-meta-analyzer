@@ -12,7 +12,7 @@ Public API:
     build_event_stream(arena_match_id, force_refresh=False) -> dict | None
         Returns {
             "arena_match_id": str,
-            "schema_version": 1,
+            "schema_version": 2,
             "capabilities": {...},
             "match_meta": {...},
             "events": [...],
@@ -41,7 +41,7 @@ from analysis.replay_transcript import (
     transcript_cache_path,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: match-scoped extraction (1 = pre-scoping, whole-log)
 
 # Closed enum of normalized event kinds. Any annotation we don't map
 # explicitly falls through to kind="raw" with the full annotation dict
@@ -100,9 +100,12 @@ def build_event_stream(arena_match_id: str,
             required = ("events", "board_diff", "public_info",
                         "per_game_decklists", "stack_history",
                         "log_offsets")
-            if all(caps.get(c) is True for c in required):
+            if (cached.get("schema_version") == SCHEMA_VERSION
+                    and all(caps.get(c) is True for c in required)):
                 return cached
-            # capability missing -> fall through to rebuild
+            # capability missing or stale schema_version -> fall through to
+            # rebuild (pre-scoping caches were schema_version 1 and held
+            # whole-log garbage; they must be regenerated).
         except Exception:
             pass  # corrupted cache -> rebuild
 
@@ -122,6 +125,11 @@ def build_event_stream(arena_match_id: str,
     opp_seat: Optional[int] = None
     opp_name = ""
     target_found = False
+    # Match-scoping: only events inside the target match's start/end region are
+    # processed. target_done guards against re-processing the same match if it
+    # also appears in the other rotation log.
+    in_target_match = False
+    target_done = False
     my_user_id = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
 
     # ── Event-emission state ──────────────────────────────────
@@ -186,7 +194,9 @@ def build_event_stream(arena_match_id: str,
                 room = mrse.get("gameRoomInfo", {})
                 cfg = room.get("gameRoomConfig", {})
                 mid = cfg.get("matchId")
-                if mid == arena_match_id:
+                state_type = room.get("stateType")
+                if mid == arena_match_id and not target_done:
+                    in_target_match = True
                     target_found = True
                     for p in cfg.get("reservedPlayers", []) or []:
                         if p.get("userId") == my_user_id:
@@ -196,6 +206,20 @@ def build_event_stream(arena_match_id: str,
                             opp_name = p.get("playerName") or opp_name
                     if cfg.get("eventId") and not match_meta["event_name"]:
                         match_meta["event_name"] = cfg["eventId"]
+                    if state_type == "MatchGameRoomStateType_MatchCompleted":
+                        # Target match finished -- close its region and ignore
+                        # any later re-occurrence (same match in the other log).
+                        in_target_match = False
+                        target_done = True
+                elif mid and mid != arena_match_id and in_target_match:
+                    # A different match begins -> the target's region ended.
+                    in_target_match = False
+                    target_done = True
+                continue
+
+            # Match-scoping gate: skip every blob outside the target match's
+            # region (otherwise events from all matches in both logs leak in).
+            if not in_target_match:
                 continue
 
             # ── GameStateMessage handler ─────────────────────────
