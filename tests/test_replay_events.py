@@ -52,7 +52,7 @@ def test_match_boundary_populates_seats(monkeypatch):
     assert result["my_seat"] == 1
     assert result["opp_seat"] == 2
     assert result["opp_name"] == "TestOpp"
-    assert result["schema_version"] == 1
+    assert result["schema_version"] == replay_events.SCHEMA_VERSION
     assert result["capabilities"]["events"] is True
     assert result["capabilities"]["odds_ready"] is False
 
@@ -702,7 +702,7 @@ def test_cache_write_preserves_classic_keys(tmp_path, monkeypatch):
     assert merged["games"][0]["turns"][0]["actions"] == ["You play Mountain (land)"]
     assert "events" in merged
     assert "match_meta" in merged
-    assert merged["schema_version"] == 1
+    assert merged["schema_version"] == replay_events.SCHEMA_VERSION
 
 
 def test_cache_auto_rebuilds_when_capability_missing(tmp_path, monkeypatch):
@@ -744,7 +744,7 @@ def test_cache_read_returns_when_capabilities_ok(tmp_path, monkeypatch):
     MID = "cache-hit-001"
     full = {
         "arena_match_id": MID,
-        "schema_version": 1,
+        "schema_version": replay_events.SCHEMA_VERSION,
         "capabilities": dict(replay_events.M1_CAPABILITIES),
         "match_meta": {"games": [], "key_events_by_turn": []},
         "events": [{"seq": 0, "kind": "phase_change", "turn_num": 1}],
