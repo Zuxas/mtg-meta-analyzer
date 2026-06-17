@@ -14,3 +14,6 @@ pytest>=8.0
 
 # Fast C-backed fuzzy match backend for thefuzz (used by command palette)
 rapidfuzz>=3.0
+
+# MCP server (agent-callable metagame analytics — mcp_server/)
+mcp>=1.27

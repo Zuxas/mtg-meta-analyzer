@@ -1,8 +1,8 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-06-04 (Event Finder UX fix shipped on `feat/event-finder-ux`: numeric sort on Distance/Entry via `NumItem`/`SortItem` + `SORT_ROLE`; new **Time** column parsed from full `scheduledStartTime` and rendered local; **Date** column now `DateItem` showing `Sat Jun 7` with ISO sort key; new **"When"** combo (`Next 2 wk / 4 wk / 8 wk / 6 mo / All upcoming`, default 4 wk) filters client-side via new `filter_by_date_window`; **300 mi** radius option + API `limit` raised to 500; **RCQ row tint** replaces foreground accent (subtle `theme.ACCENT_DK` wash via `setBackground`); right-click row → **Open in Google Maps** (new `google_maps_url` helper, uses `venue { city state }` newly queried from the Wizards GraphQL endpoint) alongside the existing "Open event page"; all five filters (zipcode/radius/type/format/when) persisted to UIState (`tabs.event_finder.*` keys). Built inline over 8 TDD tasks; **26 new tests, 328/328 green**. Plan: docs/superpowers/plans/2026-06-04-event-finder-ux-fix.md. Spec: docs/superpowers/specs/2026-06-04-event-finder-ux-fix-design.md. NEXT: (a) Replay viewer M1 data-quality fix; or (b) retire classic replay dialog ~2026-06-01; or (c) further Event Finder polish — bookmarks/calendar export.)
+Last updated: 2026-06-11 (**MCP server** shipped on `feat/mcp-server`: `mcp_server/` exposes the meta DB as four read-only, agent-callable tools over FastMCP/stdio — `list_decks`, `get_matchup`, `get_field_position`, `search_matchups`. Pure, tested logic in `mcp_server/tools.py` wraps the existing `analysis/win_rates.py`; thin `@mcp.tool` registrations + entry point in `mcp_server/server.py`. Key design decision = **explicit provenance**: the data has two different win-rate signals (real melee.gg matches vs a placement-based proxy), so every result carries a `source` field, prefers real data, and preserves the analysis layer's data-quality notes. Unknown deck names return structured `deck_not_found` with fuzzy suggestions via the app's own `analysis.archetypes.normalize`. Registered at project scope (`.mcp.json`, `python -m mcp_server.server`; one-time approval in `claude`). `mcp>=1.27` added to requirements. 9 tests in `tests/test_mcp_server.py`; full suite **347 green**. README at `mcp_server/README.md`. NEXT (deferred): `search_strategy_docs` semantic search over the mtg-sim doc corpus backed by Pinecone.)
 
-Previous: 2026-05-25 — Replay-viewer M4 review annotation (notes/mark/export) on `feat/replay-viewer-m4`; merged to main. M3 (2026-05-25): board panel. M2 (2026-05-24): viewer window. M1 (2026-05-22): data layer.
+Previous: 2026-06-04 — Event Finder UX overhaul on `feat/event-finder-ux` (numeric sort, Time column, "When" filter, 300 mi radius, RCQ row tint, Google Maps right-click, persisted filters; 26 tests). 2026-05-25 — Replay-viewer M4 review annotation. M3: board panel. M2: viewer window. M1: data layer.
 
 > **Cross-project context:** This project is part of a local multi-repo
 > ecosystem alongside mtg-sim and My-Website. Sibling clones at
@@ -133,7 +133,7 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/sideboard_guides.py` | Guide parsing (regex IN/OUT), post-board WR model, flip detection |
 | `analysis/tournament.py` | Event equity, standings, ID recommendation, EVENT_PRESETS, x-loss cutoff |
 | `analysis/meta_scoring.py` | Prep priority (0-100), status labels (Pillar/Trap/Underplayed/Fringe) |
-| `analysis/ratings.py` | Glicko-2 power ratings, weekly periods, 262k+ matches, 120s TTL cache |
+| `analysis/ratings.py` | Glicko-2 power ratings, weekly periods, 260k+ matches, 120s TTL cache |
 | `analysis/equilibrium.py` | Nash LP solver, replicator dynamics, RPS cycle detection, Monte Carlo sim |
 | `analysis/card_embeddings.py` | 768-dim ModernBERT vectors for 32k cards (HuggingFace parquet) |
 | `analysis/cooccurrence_embeddings.py` | Card2Vec — Word2Vec trained on local decklists |
@@ -235,6 +235,8 @@ Schema-tolerant (`get(path, default)` always returns the default for missing pat
 run_gui.py                      GUI entry point (--register-tasks mode)
 main.py                         CLI entry point
 fill_database.py                Standalone DB builder (reads preferences.json)
+mcp_server/server.py            MCP server entry (FastMCP/stdio; agent-callable analytics)
+mcp_server/tools.py             MCP tool logic (pure, wraps analysis/win_rates.py)
 mtg.bat                         Consolidated menu launcher (7 options)
 launch_app.bat                  Double-click GUI launcher
 
@@ -415,7 +417,7 @@ Project-scoped (in `.agents/skills/`, managed via `npx skills`):
 | `xlsx` | anthropics/skills | Excel/tabular work (Skill Issue Magic guide exports, .csv data) |
 | `query` | duckdb/duckdb-skills | DuckDB SQL queries — can `ATTACH 'data/mtg_meta.db'` for fast OLAP on the project DB without writing Python |
 | `playwright` | openai/skills | Real-browser scraping via playwright-cli. For sites the cloudscraper path can't handle (JS-rendered, complex session capture) |
-| `mcp-builder` | anthropics/skills | Patterns for building MCP servers — if/when `mtg_meta.db` gets exposed as an MCP so Claude can query the data layer directly |
+| `mcp-builder` | anthropics/skills | Patterns for building MCP servers. Used to build `mcp_server/` (2026-06-11), which exposes the meta DB as agent-callable tools — see `mcp_server/README.md` |
 
 To restore on a fresh clone: `npx skills experimental_install` (reads `skills-lock.json`).
 

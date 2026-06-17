@@ -1,10 +1,24 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-06-16 (M1 replay match-scoping fix shipped on `feat/replay-match-scoping`)
+Last updated: 2026-06-16 (M1 replay match-scoping fix + MCP server config/docs merged to main)
 
 ---
 
 ## TOP OF MIND
+
+### 6/11 session (shipped — `feat/mcp-server`)
+
+- **MCP server over the meta DB** (`mcp_server/`). FastMCP/stdio, four read-only agent-callable tools wrapping `analysis/win_rates.py`:
+  - `list_decks(format, limit)` — discovery: ranked decks + meta share + win rate.
+  - `get_matchup(deck, opponent, format)` — one pairing's win rate.
+  - `get_field_position(deck, format)` — meta rank + best/worst matchups + overall WR.
+  - `search_matchups(min_win_rate, max_win_rate, format)` — pairings in a win-rate band.
+- **Provenance is the core design decision:** real melee.gg match WR vs a placement-based proxy are different signals; every result carries a `source` field, prefers real data, preserves the data-quality notes. `get_field_position` best/worst use real matchups when available (Boros Energy → Breach decks ~27-32% over real samples).
+- **Self-correcting deck names:** unknown name → structured `deck_not_found` with fuzzy suggestions via `analysis.archetypes.normalize` (e.g. `Borós Enrgy → Boros Energy`).
+- Pure logic in `mcp_server/tools.py` (tested), thin `@mcp.tool` wrappers in `mcp_server/server.py`. `mcp>=1.27` in requirements. 9 tests; full suite **347 green**. README = `mcp_server/README.md`.
+- **Registered** at project scope (`.mcp.json`). **TODO (user):** open `claude` in this project, approve the `mtg-meta` server once, run `claude mcp list` to confirm `✔ Connected`, then ask a real question (live stdio spawn is the one link not yet exercised end-to-end).
+- **NEXT (deferred, high-value):** `search_strategy_docs(query)` — semantic search over the mtg-sim 280+ doc corpus backed by Pinecone's free tier. Separate piece of work.
+
 
 ### 6/4 session (shipped — `feat/event-finder-ux`, awaiting merge)
 

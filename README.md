@@ -13,25 +13,25 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 5. Run `python run_gui.py` to launch the app
 6. Register the daily tasks once (`schedule_background_fill.bat` as Admin) — after that the DB stays current automatically
 
-**262,641 real match records** across 5 formats. **37,186 decklists** with full card data. All on your local machine.
+**260k+ real match records** across 5 formats. **69k+ decklists** with full card data. All on your local machine.
 
 ---
 
 ## What It Does
 
-**Data collection — 262k+ real matches across 5 formats**
+**Data collection — 260k+ real matches across 5 formats**
 - Scrapes MTGTop8, MTGDecks.net, and melee.gg across Standard, Pioneer, Modern, Legacy, and Pauper
-- **262,641 real match results** from melee.gg (round-by-round W/L, not placement estimates)
-- 37,186+ decklists with full card data in local SQLite database
+- **260k+ real match results** from melee.gg (round-by-round W/L, not placement estimates)
+- 69k+ decklists with full card data in local SQLite database
 - Daily automated updates via Windows Task Scheduler — no manual scraping needed
 
 | Format | Real Matches | Tournaments | Decklists |
 |--------|-------------|-------------|-----------|
-| Standard | 108,648 | 250 | 37,186 |
-| Modern | 92,420 | 347 | 6,770 |
-| Legacy | 25,304 | 86 | 115 |
-| Pioneer | 20,095 | 58 | 5,657 |
-| Pauper | 16,174 | ~130 | — |
+| Standard | 110,786 | 4,021 | 37,400 |
+| Modern | 93,953 | 829 | 13,794 |
+| Legacy | 25,911 | 470 | 6,340 |
+| Pioneer | 20,556 | 361 | 8,054 |
+| Pauper | 16,769 | 176 | 3,927 |
 
 **Meta analysis**
 - Meta share and archetype trend charts (weekly or daily granularity)
@@ -133,6 +133,27 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 
 ---
 
+## MCP Server (ask Claude about your metagame)
+
+An [MCP](https://modelcontextprotocol.io) server (`mcp_server/`) exposes the meta
+database as read-only, agent-callable tools, so you can ask an AI assistant
+natural-language questions — *"What's Boros Energy's worst matchup in Modern,
+and what does the win-rate data say?"* — and it queries your data directly.
+
+Four tools: `list_decks`, `get_matchup`, `get_field_position`,
+`search_matchups`. Every win rate is labelled by source (real melee.gg matches
+vs a placement-based proxy), and unknown deck names return fuzzy suggestions.
+
+```bash
+pip install -r requirements.txt          # installs mcp
+claude mcp add mtg-meta -- python -m mcp_server.server   # register with Claude Code
+```
+
+See [`mcp_server/README.md`](mcp_server/README.md) for the full tool reference
+and design notes.
+
+---
+
 ## Tabs
 
 | Tab | What's in it |
@@ -145,7 +166,7 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 | **Predictions** | Generate and validate weekly meta predictions; accuracy report by prediction type |
 | **Knowledge Base** | Bookmark articles and guides; sync Skill Issue Magic sideboard guides |
 | **Tournament Prep** | Event Optimizer (RCQ/RC/PTQ presets, top-cut equity, matchup breakdown, flip detection) + Breaker Math (live W/L/D + ID calc) |
-| **Matchup Data** | NxN heatmap: Real Match Data (262k matches) + MTGDecks Live scrapes + Untapped Bo3 ladder + paste CSV/JSON. Overall WR column, source indicators (★ = real) |
+| **Matchup Data** | NxN heatmap: Real Match Data (260k+ matches) + MTGDecks Live scrapes + Untapped Bo3 ladder + paste CSV/JSON. Overall WR column, source indicators (★ = real) |
 | **Ladder (Meta group)** | MTGA-ladder meta from Untapped Mythic leaderboard: rollup by archetype, Bo3 skill curve Bronze->Mythic, top-30 leaderboard with deck linkout + save-to-My-Decks. Cache local replays or pull current top-30 |
 | **Ask Claude** | AI assistant with meta context — hidden until API key is set in Settings |
 | **Settings** | Format selection, data window, auto-update frequency, AI key |
@@ -156,11 +177,11 @@ On first launch the app walks you through setup (Scryfall download + initial bac
 
 | Format | MTGTop8 | MTGDecks.net | melee.gg (real W/L) | Matches |
 |--------|---------|--------------|---------------------|---------|
-| Standard | Yes | Yes | 108,648 | Full |
-| Modern | Yes | Yes | 92,420 | Full |
-| Legacy | Yes | Yes | 25,304 | Active |
-| Pioneer | Yes | Yes | 20,095 | Full |
-| Pauper | — | — | 16,174 | Active |
+| Standard | Yes | Yes | 110,786 | Full |
+| Modern | Yes | Yes | 93,953 | Full |
+| Legacy | Yes | Yes | 25,911 | Active |
+| Pioneer | Yes | Yes | 20,556 | Full |
+| Pauper | — | — | 16,769 | Active |
 
 ---
 
@@ -217,6 +238,10 @@ gui/                    PyQt6 desktop application
   tabs/                 One file per tab
   widgets/              Reusable widgets (chart canvas, meta table, deck export)
   tray_icon.py          System tray with status dot and right-click menu
+
+mcp_server/             MCP server — exposes the meta DB as agent-callable tools
+  tools.py              Pure tool logic (wraps analysis/win_rates.py)
+  server.py             FastMCP/stdio entry point + @mcp.tool registrations
 
 data/                   Local databases and exports (not in git)
 logs/                   Daily scrape logs (not in git)
