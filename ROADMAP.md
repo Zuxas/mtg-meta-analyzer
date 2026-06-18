@@ -1,8 +1,11 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-06-04
+> Last updated: 2026-06-18
 
 ---
+
+## Infra / CI
+- [x] **CI: retire unprovisioned self-hosted jobs** (2026-06-18) — `gui-imports` moved to hosted `ubuntu-latest`, runs on push, headless PyQt6 import check (Python 3.12, `QT_QPA_PLATFORM=offscreen`); `predictions-gate` removed (needs local DB). Self-hosted runner dependency dropped.
 
 ## OPEN — Event Discovery
 - [x] **Event Finder UX overhaul** (2026-06-04, branch `feat/event-finder-ux`) — numeric sort on Distance/Entry; new Time column from `scheduledStartTime`; Date column shows "Sat Jun 7" with ISO sort; new "When" filter (`Next 2 wk / 4 wk default / 8 wk / 6 mo / All upcoming`); 300 mi radius option + API limit 500; RCQ row tint replaces foreground accent; right-click row → Open in Google Maps (uses new `venue { city state }` GraphQL field); all filters persisted to `tabs.event_finder.*` UIState keys. 26 new tests; 328/328 green. Plan: `docs/superpowers/plans/2026-06-04-event-finder-ux-fix.md`.

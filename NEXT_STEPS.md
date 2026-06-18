@@ -1,10 +1,16 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-06-16 (M1 replay match-scoping fix + MCP server config/docs merged to main)
+Last updated: 2026-06-18 (CI: self-hosted jobs retired; GUI import check now hosted on push)
 
 ---
 
 ## TOP OF MIND
+
+### 6/18 session (shipped — CI hardening, on `main`)
+
+- The `self-hosted` CI jobs were never functional: they only fired on `pull_request` (this repo merges locally), and the runner's Python was bare (no pip/PyQt6, `MTG_META_DB` unset). `gui-imports` is now a hosted `ubuntu-latest` job that runs on **push**, installs deps + PyQt6 + Qt libs, and imports the GUI modules headless (`QT_QPA_PLATFORM=offscreen`, Python 3.12). `predictions-gate` was removed (needs the local DB).
+- **Note for later:** pip is currently missing from every local Python on this box (`C:\Program Files\Python313` and the user 3.13) — running the GUI / test suite locally will fail until a Python with deps is restored. Separate from CI; flagged but not fixed.
+- **Optional cleanup:** the self-hosted GitHub Actions runner service for this repo is now unused and can be unregistered if desired.
 
 ### 6/11 session (shipped — `feat/mcp-server`)
 
