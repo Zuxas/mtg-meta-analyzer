@@ -11,7 +11,8 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Identity and PATH
-        shell: pwsh
+        continue-on-error: true
+        shell: powershell
         run: |
           Write-Output "whoami: $(whoami)"
           Write-Output "cwd: $(Get-Location)"
@@ -22,17 +23,20 @@ jobs:
           Write-Output "--- python -m pip --version ---"
           python -m pip --version
       - name: Installed packages (key deps)
-        shell: pwsh
+        continue-on-error: true
+        shell: powershell
         run: |
           $pkgs = python -m pip list 2>$null
           Write-Output "total packages: $(($pkgs | Measure-Object -Line).Lines)"
           $pkgs | Select-String -Pattern 'PyQt6|requests|cloudscraper|thefuzz|beautifulsoup4|rapidfuzz|matplotlib|numpy|mcp|anthropic'
       - name: Can it import the gui modules the job needs?
-        shell: pwsh
+        continue-on-error: true
+        shell: powershell
         run: |
           python -c "import PyQt6; print('PyQt6 OK')"
       - name: MTG_META_DB var visibility
-        shell: pwsh
+        continue-on-error: true
+        shell: powershell
         env:
           MTG_META_DB: ${{ vars.MTG_META_DB }}
         run: |
