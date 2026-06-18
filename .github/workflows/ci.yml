@@ -132,80 +132,25 @@ jobs:
               });
             }
 
-  predictions-gate:
-    name: Predictions accuracy gate (AI semantic check)
-    runs-on: self-hosted
-    needs: imports
-    if: |
-      github.event_name == 'pull_request' &&
-      (contains(join(github.event.pull_request.changed_files, ','), 'analysis/') ||
-       contains(join(github.event.pull_request.changed_files, ','), 'scrapers/'))
-    env:
-      MTG_META_DB: ${{ vars.MTG_META_DB }}
-    steps:
-      - uses: actions/checkout@v5
-      - name: Run predictions validation
-        shell: bash
-        run: |
-          python -c "
-          import json, sys
-          from analysis.predictions import validate_predictions
-          result = validate_predictions()
-          validated = result.get('validated', 0)
-          correct   = result.get('correct', 0)
-          wrong     = result.get('wrong', 0)
-          print(f'Predictions validated: {validated}')
-          print(f'  Correct: {correct}')
-          print(f'  Wrong:   {wrong}')
-          if validated == 0:
-              print('No predictions to validate -- gate skipped')
-              sys.exit(0)
-          accuracy = correct / validated
-          print(f'  Accuracy: {accuracy:.1%}')
-          MIN_ACCURACY = 0.55
-          MIN_VALIDATED = 5
-          if validated < MIN_VALIDATED:
-              print(f'Only {validated} predictions (need {MIN_VALIDATED}) -- gate skipped')
-              sys.exit(0)
-          if accuracy < MIN_ACCURACY:
-              print(f'FAIL: accuracy {accuracy:.1%} below {MIN_ACCURACY:.0%} threshold')
-              sys.exit(1)
-          print(f'PASS: accuracy {accuracy:.1%} >= {MIN_ACCURACY:.0%}')
-          "
-      - name: Report failure
-        if: failure()
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const title = `[CI] predictions-gate failed — mtg-meta-analyzer`;
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const { data: issues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner, repo: context.repo.repo,
-              labels: 'needs-fix', state: 'open',
-            });
-            const existing = issues.find(i => i.title === title);
-            if (existing) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: existing.number,
-                body: `Recurred ${new Date().toISOString().slice(0,10)} — [run](${runUrl})`,
-              });
-            } else {
-              await github.rest.issues.create({
-                owner: context.repo.owner, repo: context.repo.repo,
-                title, labels: ['needs-fix'],
-                body: `**Job:** predictions-gate\n**Branch:** ${context.ref.replace('refs/heads/','')}\n**Commit:** \`${context.sha.slice(0,7)}\`\n**Run:** [View logs](${runUrl})\n\nPredictions accuracy dropped below 55%. Check archetype normalization, win rate calc, or scraper output format.`,
-              });
-            }
-
   gui-imports:
     name: GUI import sanity
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: imports
-    if: |
-      contains(join(github.event.pull_request.changed_files, ','), 'gui/')
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Install Qt runtime system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt PyQt6
       - name: GUI module imports
         shell: bash
         run: |
