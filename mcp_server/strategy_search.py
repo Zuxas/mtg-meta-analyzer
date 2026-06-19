@@ -71,3 +71,37 @@ def chunk_document(source_file: str, text: str) -> list[dict]:
                 "chunk_index": i,
             })
     return chunks
+
+
+_RESULT_FIELDS = ("archetype", "doc_type", "source_file", "heading")
+
+
+def _build_filter(archetype, doc_type) -> dict | None:
+    flt: dict = {}
+    if archetype:
+        flt["archetype"] = {"$eq": archetype.strip().lower().replace(" ", "_")}
+    if doc_type:
+        flt["doc_type"] = {"$eq": doc_type.strip().lower()}
+    return flt or None
+
+
+def search_strategy_docs(query, top_k=5, archetype=None, doc_type=None, *, index) -> dict:
+    """Semantic search over the strategy corpus.
+
+    `index` is an injected adapter exposing
+    ``search_records(query, top_k, flt) -> [{id, score, fields}]``.
+    Every result carries ``source: "strategy_docs"`` for provenance.
+    """
+    flt = _build_filter(archetype, doc_type)
+    hits = index.search_records(query, top_k, flt)
+    results = []
+    for h in hits:
+        f = h.get("fields", {})
+        result = {"text": f.get("text"), "score": h.get("score")}
+        result.update({k: f.get(k) for k in _RESULT_FIELDS})
+        results.append(result)
+    out = {"query": query, "source": "strategy_docs",
+           "result_count": len(results), "results": results}
+    if not results:
+        out["note"] = "no matching strategy content"
+    return out
