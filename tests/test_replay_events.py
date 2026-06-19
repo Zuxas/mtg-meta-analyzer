@@ -479,9 +479,9 @@ def test_board_diff_validity(monkeypatch):
                         "controllerSeatId": 1, "zoneId": 1},
                    ],
                    zones=[
-                       {"type": "ZoneType_Hand", "ownerSeatId": 1,
+                       {"type": "ZoneType_Hand", "zoneId": 1, "ownerSeatId": 1,
                         "objectInstanceIds": [50]},
-                       {"type": "ZoneType_Battlefield",
+                       {"type": "ZoneType_Battlefield", "zoneId": 2,
                         "objectInstanceIds": []},
                    ]),
         # T1: Mountain played
@@ -491,9 +491,9 @@ def test_board_diff_validity(monkeypatch):
                         "controllerSeatId": 1, "zoneId": 2},
                    ],
                    zones=[
-                       {"type": "ZoneType_Hand", "ownerSeatId": 1,
+                       {"type": "ZoneType_Hand", "zoneId": 1, "ownerSeatId": 1,
                         "objectInstanceIds": []},
-                       {"type": "ZoneType_Battlefield",
+                       {"type": "ZoneType_Battlefield", "zoneId": 2,
                         "objectInstanceIds": [50]},
                    ]),
         match_end(MID),

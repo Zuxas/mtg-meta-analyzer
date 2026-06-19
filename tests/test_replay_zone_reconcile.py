@@ -125,6 +125,34 @@ def test_game2_full_resyncs_membership():
     assert entered == [50, 51]
 
 
+def test_controller_falls_back_to_zone_owner_for_hidden_cards():
+    # Library/opp-hand cards aren't in gameObjects (instance_to_owner empty), so
+    # controller must come from the zone's ownerSeatId. zoneId 36 = opp library.
+    i2z, z2n = _fresh_state()
+    z2o = {}
+    diffs = reconcile_zones(
+        _gsm(_zone("ZoneType_Library", 36, [200, 201, 202], owner=2)),
+        instance_to_zoneid=i2z, zoneid_to_name=z2n,
+        instance_to_grpid={}, instance_to_owner={},  # unknown owners
+        grpid_names={}, my_seat=1, opp_seat=2, zoneid_to_owner=z2o,
+    )
+    assert all(d["controller"] == "opp" for d in diffs)
+    assert z2o[36] == 2
+
+
+def test_instance_owner_wins_over_zone_owner():
+    # When instance_to_owner knows the controller (e.g. a stolen permanent),
+    # it takes precedence over the zone owner.
+    i2z, z2n = _fresh_state()
+    diffs = reconcile_zones(
+        _gsm(_zone("ZoneType_Battlefield", 28, [5])),
+        instance_to_zoneid=i2z, zoneid_to_name=z2n,
+        instance_to_grpid={}, instance_to_owner={5: 1},  # you control it
+        grpid_names={}, my_seat=1, opp_seat=2, zoneid_to_owner={28: 2},
+    )
+    assert diffs[0]["controller"] == "you"
+
+
 def test_unmapped_zones_ignored():
     # Limbo/Stack/etc. are not battlefield/hand/library/graveyard/exile.
     i2z, z2n = _fresh_state()
