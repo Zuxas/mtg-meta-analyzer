@@ -1,6 +1,6 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-06-18 (**CI hardening**: the two `self-hosted` CI jobs in `.github/workflows/ci.yml` (`gui-imports`, `predictions-gate`) had **never run** — they only triggered on `pull_request` (this repo merges locally, never via PRs) and the runner (`NETWORK SERVICE`, `C:\Program Files\Python313`) was never provisioned: no pip, no PyQt6, `MTG_META_DB` unset. Confirmed via a throwaway `workflow_dispatch` env-dump job on the runner. Fix: **`gui-imports` moved to hosted `ubuntu-latest`**, runs on push/PR, installs `requirements.txt`+`PyQt6`+Qt libs (`libegl1 libgl1 libxkbcommon0 libdbus-1-3`), headless via `QT_QPA_PLATFORM=offscreen`, **pinned to Python 3.12** (lxml 5.3.0 has no cp313 wheel → source build fails on 3.13). **`predictions-gate` removed** (needs the local DB; can't run on a hosted runner). Self-hosted runner dependency dropped; the runner service can be left registered but is now unused. Both CI + tests workflows green on `c9b8dc7`.)
+Last updated: 2026-06-18 (**CI hardening**: the two `self-hosted` CI jobs in `.github/workflows/ci.yml` (`gui-imports`, `predictions-gate`) had **never run** — they only triggered on `pull_request` (this repo merges locally, never via PRs) and the runner (`NETWORK SERVICE`, `C:\Program Files\Python313`) was never provisioned: no pip, no PyQt6, `MTG_META_DB` unset. Confirmed via a throwaway `workflow_dispatch` env-dump job on the runner. Fix: **`gui-imports` moved to hosted `ubuntu-latest`**, runs on push/PR, installs `requirements.txt`+`PyQt6`+Qt libs (`libegl1 libgl1 libxkbcommon0 libdbus-1-3`), headless via `QT_QPA_PLATFORM=offscreen`, **pinned to Python 3.12** (lxml 5.3.0 has no cp313 wheel → source build fails on 3.13). **`predictions-gate` removed** (needs the local DB; can't run on a hosted runner). Self-hosted runner dependency dropped; the runner service can be left registered but is now unused. Both CI + tests workflows green on `c9b8dc7`. Also restored the **local dev env** the same day — a 6/16 event had wiped pip + all deps from both Python 3.13 installs; reinstalled into the shared user-site without admin (see §2 *Python interpreter layout*); 355 tests green.)
 
 Earlier: 2026-06-11 (**MCP server** shipped on `feat/mcp-server`: `mcp_server/` exposes the meta DB as four read-only, agent-callable tools over FastMCP/stdio — `list_decks`, `get_matchup`, `get_field_position`, `search_matchups`. Pure, tested logic in `mcp_server/tools.py` wraps the existing `analysis/win_rates.py`; thin `@mcp.tool` registrations + entry point in `mcp_server/server.py`. Key design decision = **explicit provenance**: the data has two different win-rate signals (real melee.gg matches vs a placement-based proxy), so every result carries a `source` field, prefers real data, and preserves the analysis layer's data-quality notes. Unknown deck names return structured `deck_not_found` with fuzzy suggestions via the app's own `analysis.archetypes.normalize`. Registered at project scope (`.mcp.json`, `python -m mcp_server.server`; one-time approval in `claude`). `mcp>=1.27` added to requirements. 9 tests in `tests/test_mcp_server.py`; full suite **347 green**. README at `mcp_server/README.md`. NEXT (deferred): `search_strategy_docs` semantic search over the mtg-sim doc corpus backed by Pinecone.)
 
@@ -54,6 +54,16 @@ Goal: Pro Tour qualification via RC conversion.
 - **Shell:** cmd (Command Prompt) — set in .vscode/settings.json (avoids path space issues)
 - **Project root:** the directory containing this CLAUDE.md
 - **User context:** Limited coding experience; AI assistants are primary dev support
+
+### Python interpreter layout (Windows)
+Two Python **3.13** installs coexist: all-users `C:\Program Files\Python313` (what bare `python`/`pythonw` and the `.bat` launchers resolve to via machine PATH) and a per-user one under `%LOCALAPPDATA%\Programs\Python\Python313` (the `py` launcher default). Because both are 3.13 they **share** the user-site dir `%APPDATA%\Python\Python313\site-packages`, which is on the import path of both and is user-writable.
+
+**Reinstall deps without admin** (the Program Files `site-packages` needs elevation; the shared user-site does not):
+```bat
+python -m ensurepip --user --upgrade
+python -m pip install --user --no-warn-script-location -r requirements.txt PyQt6
+```
+`PyQt6` is **not** pinned in `requirements.txt` (only `qtawesome`/`matplotlib`) — install it explicitly. Bare `pip` won't be on PATH (scripts land in the user-site `Scripts` dir); use `python -m pip`. Verify with `python -m pytest -q` (baseline 355 green as of 2026-06-18). On 2026-06-18 the deps had been wiped (cause unidentified, correlated with a restart) and were restored exactly this way.
 
 ### First-Run Setup
 1. `fill_database.bat` — builds local DB from scratch
