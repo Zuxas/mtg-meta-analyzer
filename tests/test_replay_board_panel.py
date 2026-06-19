@@ -44,10 +44,16 @@ def test_panel_renders_battlefield_and_counts():
     assert p._battlefield_names("opp") == ["Bear"]
     assert "12" in p._header_text("you")          # life (from the event)
     assert "7" in p._header_text("opp")           # opp life
-    # Hand/Lib/GY/Exile counts are deliberately not shown (M1 data too sparse);
-    # the header shows the reliable Battlefield count instead.
-    assert "Battlefield 2" in p._header_text("you")
-    assert "Hand" not in p._header_text("you")
+    # Zone counts now shown (schema 3 Diff-aware reconciliation made them reliable).
+    you_hdr = p._header_text("you")
+    assert "Battlefield 2" in you_hdr
+    assert "Hand 3" in you_hdr
+    assert "Lib 30" in you_hdr
+    assert "GY 0" in you_hdr
+    assert "Exile 0" in you_hdr
+    # Opp counts come straight from the board dict too.
+    assert "Hand 5" in p._header_text("opp")
+    assert "Lib 28" in p._header_text("opp")
 
 
 def test_panel_highlights_current_card():
