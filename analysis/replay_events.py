@@ -313,6 +313,13 @@ def build_event_stream(arena_match_id: str,
                     gn = gi.get("gameNumber")
                     if gn and gn != current_game:
                         current_game = gn
+                        # New game: clear per-instance zone tracking so the new
+                        # game's opening Full re-emits complete membership. MTGA
+                        # reuses instanceIds across games at the same zoneId, so
+                        # without this reset reconcile_zones would emit no diff
+                        # for reused cards and replay_board_at (which resets per
+                        # game) would under-count the new game's zones.
+                        instance_to_zoneid.clear()
                     stage = gi.get("stage")
                     if stage == "GameStage_GameOver" and current_game not in game_over_emitted:
                         game_over_emitted.add(current_game)
