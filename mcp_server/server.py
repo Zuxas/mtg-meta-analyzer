@@ -18,6 +18,8 @@ from mcp.server.fastmcp import FastMCP
 
 from mcp_server import tools
 from mcp_server.tools import DeckNotFoundError
+from mcp_server.strategy_search import search_strategy_docs as _search
+from mcp_server.pinecone_index import get_index, IndexUnavailable
 
 mcp = FastMCP("mtg-meta-analyzer")
 
@@ -113,6 +115,37 @@ def search_matchups(min_win_rate: float = 0.0, max_win_rate: float = 1.0,
     """
     return tools.search_matchups(min_win_rate, max_win_rate,
                                  format_name=format, limit=limit)
+
+
+@mcp.tool(annotations=_READ_ONLY)
+def search_strategy_docs(query: str, top_k: int = 5,
+                         archetype: str | None = None,
+                         doc_type: str | None = None) -> dict:
+    """Semantic search over Team Resolve's MTG strategy documents.
+
+    Searches archetype primers, card-by-card audits, and oracle/rules references
+    (e.g. 'how does Izzet Prowess use delirium for lethal?'). Results carry
+    `source: "strategy_docs"` and cite their source_file + heading. Backed by
+    Pinecone; if the index isn't configured/built, returns a structured
+    'index_unavailable' error rather than failing.
+
+    Args:
+        query: Natural-language question or topic.
+        top_k: Max results (default 5).
+        archetype: Optional filter, e.g. 'izzet_prowess' (spaces ok).
+        doc_type: Optional filter: 'audit', 'oracle', 'rules', or 'misc'.
+    """
+    try:
+        index = get_index()
+    except IndexUnavailable as e:
+        return {"error": "index_unavailable", "message": str(e),
+                "hint": "set [pinecone] api_key in config.ini and run "
+                        "scripts/ingest_strategy_docs.py"}
+    try:
+        return _search(query, top_k=top_k, archetype=archetype,
+                       doc_type=doc_type, index=index)
+    except Exception as e:  # never raise over stdio
+        return {"error": "search_failed", "message": str(e)}
 
 
 if __name__ == "__main__":

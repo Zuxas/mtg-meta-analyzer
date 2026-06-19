@@ -17,6 +17,7 @@ analysis layer (`analysis/win_rates.py`) rather than re-querying raw SQL.
 | `get_matchup(deck, opponent, format)` | One pairing's win rate. |
 | `get_field_position(deck, format)` | A deck's meta rank + best/worst matchups + overall win rate. |
 | `search_matchups(min_win_rate, max_win_rate, format)` | Pairings whose win rate falls in a band (e.g. lopsided matchups). |
+| `search_strategy_docs(query, top_k, archetype, doc_type)` | Semantic search over the strategy-doc corpus (primers, card audits, oracle/rules refs). Backed by Pinecone. |
 
 ## Design decisions (the part that matters)
 
@@ -46,6 +47,30 @@ use correctly* — the things an MCP is actually judged on:
 4. **Discovery-first.** `list_decks` exists so an agent can orient before
    asking targeted questions — a server without a discovery tool is a tell that
    the agent's point of view wasn't considered.
+
+## Strategy-doc semantic search (Pinecone)
+
+`search_strategy_docs` is the one tool that doesn't query the meta DB — it does
+semantic search over the curated strategy corpus in `../mtg-sim/docs/`
+(archetype audits, oracle text, rules references) using **Pinecone integrated
+inference** (Pinecone hosts the embedding model; we upsert raw text and query
+with raw text — no separate embedding key).
+
+Setup (one-time):
+
+```bash
+pip install pinecone                      # >=5, integrated inference
+# add your free Pinecone key to config.ini (gitignored):
+#   [pinecone]
+#   api_key = pc-...
+python scripts/ingest_strategy_docs.py    # chunk + upsert the corpus (re-run anytime; idempotent)
+```
+
+It **degrades gracefully**: with no key or before the first ingest, the tool
+returns a structured `{"error": "index_unavailable", "hint": ...}` and the
+other four tools keep working. Every result carries `source: "strategy_docs"`
+plus its `source_file` + `heading`, consistent with the provenance philosophy
+below. `archetype` / `doc_type` are Pinecone metadata filters.
 
 ## Run it
 
@@ -81,6 +106,11 @@ pytest tests/test_mcp_server.py           # tool-layer tests (run against the li
 
 ```
 mcp_server/
-  tools.py    Pure, testable tool logic (no MCP imports) — wraps analysis/win_rates.py
-  server.py   FastMCP instance + thin @mcp.tool registrations + stdio entry point
+  tools.py            Pure, testable tool logic (no MCP imports) — wraps analysis/win_rates.py
+  server.py           FastMCP instance + thin @mcp.tool registrations + stdio entry point
+  strategy_search.py  Pure chunking + result shaping for search_strategy_docs (no network)
+  pinecone_index.py   Thin Pinecone integrated-inference adapter (lazy import; behind get_index)
+  config.py           Reads [pinecone] from config.ini (PINECONE_API_KEY override)
+scripts/
+  ingest_strategy_docs.py   Chunk ../mtg-sim/docs/ and upsert to Pinecone
 ```

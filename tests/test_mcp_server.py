@@ -117,3 +117,23 @@ def test_search_matchups_empty_band_is_clean():
     out = tools.search_matchups(min_win_rate=0.99, max_win_rate=1.0,
                                 format_name="standard", limit=50)
     assert isinstance(out["matchups"], list)
+
+
+def test_search_strategy_docs_registered():
+    import asyncio
+    from mcp_server import server
+    registered = asyncio.run(server.mcp.list_tools())
+    assert any(t.name == "search_strategy_docs" for t in registered)
+
+
+def test_search_strategy_docs_index_unavailable(monkeypatch):
+    from mcp_server import server
+    from mcp_server.pinecone_index import IndexUnavailable
+
+    def boom():
+        raise IndexUnavailable("no key")
+
+    monkeypatch.setattr(server, "get_index", boom)
+    out = server.search_strategy_docs("anything")
+    assert out["error"] == "index_unavailable"
+    assert "hint" in out
