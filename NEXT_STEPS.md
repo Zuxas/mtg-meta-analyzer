@@ -9,7 +9,7 @@ Last updated: 2026-06-18 (CI: self-hosted jobs retired; GUI import check now hos
 ### 6/18 session (shipped — CI hardening, on `main`)
 
 - The `self-hosted` CI jobs were never functional: they only fired on `pull_request` (this repo merges locally), and the runner's Python was bare (no pip/PyQt6, `MTG_META_DB` unset). `gui-imports` is now a hosted `ubuntu-latest` job that runs on **push**, installs deps + PyQt6 + Qt libs, and imports the GUI modules headless (`QT_QPA_PLATFORM=offscreen`, Python 3.12). `predictions-gate` was removed (needs the local DB).
-- **Note for later:** pip is currently missing from every local Python on this box (`C:\Program Files\Python313` and the user 3.13) — running the GUI / test suite locally will fail until a Python with deps is restored. Separate from CI; flagged but not fixed.
+- **Local dev env: FIXED 2026-06-18.** A 6/16 event (same day as the restart) wiped pip + all project deps from both Python 3.13.14 installs (`C:\Program Files\Python313` all-users + the per-user one), leaving only an unrelated PDF tool's 5 packages. Restored without admin via `python -m ensurepip --user` then `pip install --user -r requirements.txt PyQt6` into the shared 3.13 user-site (`%APPDATA%\Roaming\Python\Python313\site-packages`), which is on the import path of both installs. Verified: GUI modules import + **355 tests green**. Root cause of the wipe itself not identified; no evidence it's a recurring process.
 - **Optional cleanup:** the self-hosted GitHub Actions runner service for this repo is now unused and can be unregistered if desired.
 
 ### 6/11 session (shipped — `feat/mcp-server`)
