@@ -69,6 +69,72 @@ _ZONE_TYPE_TO_NAME = {
     "ZoneType_Pending": "pending",
 }
 
+
+def reconcile_zones(gsm: dict, *,
+                    instance_to_zoneid: dict[int, int],
+                    zoneid_to_name: dict[int, str],
+                    instance_to_grpid: dict[int, int],
+                    instance_to_owner: dict[int, int],
+                    grpid_names: dict[int, str],
+                    my_seat, opp_seat) -> list[dict]:
+    """Compute board_diff entries for one GameStateMessage.
+
+    MTGA sends mostly GameStateType_Diff messages whose ``zones[]`` lists only
+    the zones that changed -- each with that zone's COMPLETE membership and a
+    stable ``zoneId``. So we reconcile per zoneId: zones present in this message
+    are recomputed; zones absent are left untouched. An instance is evicted
+    (``to`` = None) only when the zone it was recorded in IS present in this
+    message yet the instance is absent from ALL present zones (it left to an
+    un-listed zone). Membership across all present zones is computed first, so a
+    library->hand draw reads as a MOVE, not evict-then-readd.
+
+    Mutates ``instance_to_zoneid`` and ``zoneid_to_name`` in place. Returns diff
+    dicts with the existing board_diff shape:
+    {instance_id, card, grpid, from, to, controller}.
+    """
+    # 1. Membership across all mapped zones present in THIS message.
+    present_zoneids: dict[int, str] = {}
+    current_membership: dict[int, int] = {}   # iid -> zoneId
+    for zone in gsm.get("zones", []) or []:
+        name = _ZONE_TYPE_TO_NAME.get(zone.get("type"))
+        if not name:
+            continue
+        zid = zone.get("zoneId")
+        if zid is None:
+            continue
+        present_zoneids[zid] = name
+        zoneid_to_name[zid] = name
+        for iid in zone.get("objectInstanceIds", []) or []:
+            current_membership[iid] = zid
+
+    def _mk(iid, from_zid, to_zid):
+        grp = instance_to_grpid.get(iid)
+        owner = instance_to_owner.get(iid)
+        return {
+            "instance_id": iid,
+            "card": grpid_names.get(grp) if grp else None,
+            "grpid": grp,
+            "from": zoneid_to_name.get(from_zid) if from_zid is not None else None,
+            "to": present_zoneids.get(to_zid) if to_zid is not None else None,
+            "controller": ("you" if owner == my_seat
+                           else "opp" if owner == opp_seat else None),
+        }
+
+    diffs: list[dict] = []
+    # 2. Enters / moves: instance's current zoneId differs from recorded.
+    for iid, zid in current_membership.items():
+        old_zid = instance_to_zoneid.get(iid)
+        if old_zid != zid:
+            diffs.append(_mk(iid, old_zid, zid))
+            instance_to_zoneid[iid] = zid
+    # 3. Evictions: recorded in a PRESENT zone but absent from all present zones.
+    for iid, old_zid in list(instance_to_zoneid.items()):
+        if old_zid in present_zoneids and iid not in current_membership:
+            diffs.append(_mk(iid, old_zid, None))
+            del instance_to_zoneid[iid]
+    return diffs
+
+
 # Capabilities reported in the cache header. Update both this constant
 # and the spec's capabilities block when adding a new capability.
 M1_CAPABILITIES = {
