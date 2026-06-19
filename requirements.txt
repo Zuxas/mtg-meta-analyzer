@@ -17,3 +17,7 @@ rapidfuzz>=3.0
 
 # MCP server (agent-callable metagame analytics — mcp_server/)
 mcp>=1.27
+
+# Strategy-doc semantic search (mcp_server search_strategy_docs tool).
+# Pinecone integrated inference; key in config.ini [pinecone] (gitignored).
+pinecone>=5
