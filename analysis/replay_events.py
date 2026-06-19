@@ -41,7 +41,7 @@ from analysis.replay_transcript import (
     transcript_cache_path,
 )
 
-SCHEMA_VERSION = 2  # 2: match-scoped extraction (1 = pre-scoping, whole-log)
+SCHEMA_VERSION = 3  # 3: Diff-aware per-zoneId zone reconciliation (accurate zone counts); 2: match-scoped; 1: pre-scoping whole-log
 
 # Closed enum of normalized event kinds. Any annotation we don't map
 # explicitly falls through to kind="raw" with the full annotation dict
@@ -69,6 +69,83 @@ _ZONE_TYPE_TO_NAME = {
     "ZoneType_Pending": "pending",
 }
 
+
+def reconcile_zones(gsm: dict, *,
+                    instance_to_zoneid: dict[int, int],
+                    zoneid_to_name: dict[int, str],
+                    instance_to_grpid: dict[int, int],
+                    instance_to_owner: dict[int, int],
+                    grpid_names: dict[int, str],
+                    my_seat, opp_seat,
+                    zoneid_to_owner: dict[int, int] | None = None) -> list[dict]:
+    """Compute board_diff entries for one GameStateMessage.
+
+    MTGA sends mostly GameStateType_Diff messages whose ``zones[]`` lists only
+    the zones that changed -- each with that zone's COMPLETE membership and a
+    stable ``zoneId``. So we reconcile per zoneId: zones present in this message
+    are recomputed; zones absent are left untouched. An instance is evicted
+    (``to`` = None) only when the zone it was recorded in IS present in this
+    message yet the instance is absent from ALL present zones (it left to an
+    un-listed zone). Membership across all present zones is computed first, so a
+    library->hand draw reads as a MOVE, not evict-then-readd.
+
+    Mutates ``instance_to_zoneid`` and ``zoneid_to_name`` in place. Returns diff
+    dicts with the existing board_diff shape:
+    {instance_id, card, grpid, from, to, controller}.
+    """
+    if zoneid_to_owner is None:
+        zoneid_to_owner = {}
+    # 1. Membership across all mapped zones present in THIS message.
+    present_zoneids: dict[int, str] = {}
+    current_membership: dict[int, int] = {}   # iid -> zoneId
+    for zone in gsm.get("zones", []) or []:
+        name = _ZONE_TYPE_TO_NAME.get(zone.get("type"))
+        if not name:
+            continue
+        zid = zone.get("zoneId")
+        if zid is None:
+            continue
+        present_zoneids[zid] = name
+        zoneid_to_name[zid] = name
+        z_owner = zone.get("ownerSeatId")
+        if z_owner is not None:
+            zoneid_to_owner[zid] = z_owner
+        for iid in zone.get("objectInstanceIds", []) or []:
+            current_membership[iid] = zid
+
+    def _mk(iid, from_zid, to_zid):
+        grp = instance_to_grpid.get(iid)
+        owner = instance_to_owner.get(iid)
+        if owner is None:
+            # Hidden-zone cards (your library, opp hand/library) often aren't in
+            # gameObjects, so instance_to_owner can't see them. Attribute them to
+            # the owner of the zone they're in so per-seat counts are accurate.
+            owner = zoneid_to_owner.get(to_zid if to_zid is not None else from_zid)
+        return {
+            "instance_id": iid,
+            "card": grpid_names.get(grp) if grp else None,
+            "grpid": grp,
+            "from": zoneid_to_name.get(from_zid) if from_zid is not None else None,
+            "to": present_zoneids.get(to_zid) if to_zid is not None else None,
+            "controller": ("you" if owner == my_seat
+                           else "opp" if owner == opp_seat else None),
+        }
+
+    diffs: list[dict] = []
+    # 2. Enters / moves: instance's current zoneId differs from recorded.
+    for iid, zid in current_membership.items():
+        old_zid = instance_to_zoneid.get(iid)
+        if old_zid != zid:
+            diffs.append(_mk(iid, old_zid, zid))
+            instance_to_zoneid[iid] = zid
+    # 3. Evictions: recorded in a PRESENT zone but absent from all present zones.
+    for iid, old_zid in list(instance_to_zoneid.items()):
+        if old_zid in present_zoneids and iid not in current_membership:
+            diffs.append(_mk(iid, old_zid, None))
+            del instance_to_zoneid[iid]
+    return diffs
+
+
 # Capabilities reported in the cache header. Update both this constant
 # and the spec's capabilities block when adding a new capability.
 M1_CAPABILITIES = {
@@ -80,6 +157,7 @@ M1_CAPABILITIES = {
     "odds_ready": False,
     "stack_history": True,
     "log_offsets": True,
+    "zone_counts": True,
 }
 
 
@@ -99,7 +177,7 @@ def build_event_stream(arena_match_id: str,
             # Require ALL M1 capabilities present and True
             required = ("events", "board_diff", "public_info",
                         "per_game_decklists", "stack_history",
-                        "log_offsets")
+                        "log_offsets", "zone_counts")
             if (cached.get("schema_version") == SCHEMA_VERSION
                     and all(caps.get(c) is True for c in required)):
                 return cached
@@ -142,7 +220,9 @@ def build_event_stream(arena_match_id: str,
     current_priority_seat: Optional[int] = None
     instance_to_grpid: dict[int, int] = {}
     instance_to_owner: dict[int, int] = {}
-    instance_to_zone: dict[int, str] = {}
+    instance_to_zoneid: dict[int, int] = {}
+    zoneid_to_name: dict[int, str] = {}
+    zoneid_to_owner: dict[int, int] = {}
     pending_zone_diffs: list[dict] = []
     current_stack: list[dict] = []
     seen_annotations: set[int] = set()
@@ -233,6 +313,13 @@ def build_event_stream(arena_match_id: str,
                     gn = gi.get("gameNumber")
                     if gn and gn != current_game:
                         current_game = gn
+                        # New game: clear per-instance zone tracking so the new
+                        # game's opening Full re-emits complete membership. MTGA
+                        # reuses instanceIds across games at the same zoneId, so
+                        # without this reset reconcile_zones would emit no diff
+                        # for reused cards and replay_board_at (which resets per
+                        # game) would under-count the new game's zones.
+                        instance_to_zoneid.clear()
                     stage = gi.get("stage")
                     if stage == "GameStage_GameOver" and current_game not in game_over_emitted:
                         game_over_emitted.add(current_game)
@@ -319,47 +406,19 @@ def build_event_stream(arena_match_id: str,
                                 "opp": prev_mana.get(opp_seat, ""),
                             }
 
-                    # Build current zone snapshot from zones[]
-                    current_zones: dict[int, str] = {}
-                    for zone in gsm.get("zones", []) or []:
-                        zname = _ZONE_TYPE_TO_NAME.get(zone.get("type"))
-                        if not zname:
-                            continue
-                        for iid in zone.get("objectInstanceIds", []) or []:
-                            current_zones[iid] = zname
-
-                    # Compute diffs against the running instance_to_zone map
-                    zone_diffs: list[dict] = []
-                    for iid, new_zone in current_zones.items():
-                        old_zone = instance_to_zone.get(iid)
-                        if old_zone != new_zone:
-                            grp = instance_to_grpid.get(iid)
-                            owner = instance_to_owner.get(iid)
-                            zone_diffs.append({
-                                "instance_id": iid,
-                                "card": grpid_names.get(grp) if grp else None,
-                                "grpid": grp,
-                                "from": old_zone,
-                                "to": new_zone,
-                                "controller": "you" if owner == my_seat else "opp" if owner == opp_seat else None,
-                            })
-                            instance_to_zone[iid] = new_zone
-                    # Detect instances that disappeared (no longer in any zone)
-                    for iid in list(instance_to_zone.keys()):
-                        if iid not in current_zones:
-                            old_zone = instance_to_zone.pop(iid)
-                            grp = instance_to_grpid.get(iid)
-                            owner = instance_to_owner.get(iid)
-                            zone_diffs.append({
-                                "instance_id": iid,
-                                "card": grpid_names.get(grp) if grp else None,
-                                "grpid": grp,
-                                "from": old_zone,
-                                "to": None,
-                                "controller": "you" if owner == my_seat else "opp" if owner == opp_seat else None,
-                            })
-
-                    pending_zone_diffs = zone_diffs
+                    # Diff-aware zone reconciliation (per zoneId). MTGA sends
+                    # mostly partial GameStateType_Diff messages; only zones
+                    # present here are recomputed -- see reconcile_zones.
+                    pending_zone_diffs = reconcile_zones(
+                        gsm,
+                        instance_to_zoneid=instance_to_zoneid,
+                        zoneid_to_name=zoneid_to_name,
+                        instance_to_grpid=instance_to_grpid,
+                        instance_to_owner=instance_to_owner,
+                        grpid_names=grpid_names,
+                        my_seat=my_seat, opp_seat=opp_seat,
+                        zoneid_to_owner=zoneid_to_owner,
+                    )
 
                     for ann in gsm.get("annotations", []) or []:
                         ann_id = ann.get("id")

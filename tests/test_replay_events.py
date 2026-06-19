@@ -479,9 +479,9 @@ def test_board_diff_validity(monkeypatch):
                         "controllerSeatId": 1, "zoneId": 1},
                    ],
                    zones=[
-                       {"type": "ZoneType_Hand", "ownerSeatId": 1,
+                       {"type": "ZoneType_Hand", "zoneId": 1, "ownerSeatId": 1,
                         "objectInstanceIds": [50]},
-                       {"type": "ZoneType_Battlefield",
+                       {"type": "ZoneType_Battlefield", "zoneId": 2,
                         "objectInstanceIds": []},
                    ]),
         # T1: Mountain played
@@ -491,9 +491,9 @@ def test_board_diff_validity(monkeypatch):
                         "controllerSeatId": 1, "zoneId": 2},
                    ],
                    zones=[
-                       {"type": "ZoneType_Hand", "ownerSeatId": 1,
+                       {"type": "ZoneType_Hand", "zoneId": 1, "ownerSeatId": 1,
                         "objectInstanceIds": []},
-                       {"type": "ZoneType_Battlefield",
+                       {"type": "ZoneType_Battlefield", "zoneId": 2,
                         "objectInstanceIds": [50]},
                    ]),
         match_end(MID),
@@ -517,6 +517,50 @@ def test_board_diff_validity(monkeypatch):
     # Final state should match the last MTGA zones[] snapshot
     assert 50 in zones_now["battlefield"]
     assert 50 not in zones_now["hand"]
+
+
+def test_game2_reused_instance_ids_reconstruct_zones(monkeypatch):
+    """Regression: MTGA reuses instanceIds across games at the same zoneId.
+
+    The producer must clear per-instance zone tracking at the game boundary so
+    game 2's opening snapshot re-emits full membership; otherwise reconcile_zones
+    sees old_zid == new_zid for reused cards and emits no diff, and
+    replay_board_at (which resets per game) under-counts the new game's zones.
+    """
+    from tests.fixtures.replay_events import match_start, match_end, game_state
+    from analysis.replay_events import replay_board_at
+
+    MID = "reuse-test-001"
+    grpid_names = {700: "Forest"}
+
+    def LIB(ids):
+        return {"type": "ZoneType_Library", "zoneId": 32,
+                "ownerSeatId": 1, "objectInstanceIds": ids}
+
+    def HAND(ids):
+        return {"type": "ZoneType_Hand", "zoneId": 31,
+                "ownerSeatId": 1, "objectInstanceIds": ids}
+
+    blobs = [
+        match_start(MID),
+        # Game 1: instances 200, 201 in your library.
+        game_state(game_num=1, game_state_id=10, zones=[LIB([200, 201]), HAND([])]),
+        # Game 1: 200 drawn to hand (leaves library).
+        game_state(game_num=1, game_state_id=11, zones=[LIB([201]), HAND([200])]),
+        # Game 2 opening: SAME instanceIds reused at the SAME zoneIds.
+        game_state(game_num=2, game_state_id=20, zones=[LIB([200, 201]), HAND([])]),
+        match_end(MID),
+    ]
+    monkeypatch.setattr(replay_events, "_iter_json_blobs", make_blob_iter(blobs))
+    monkeypatch.setattr(replay_events, "_load_grpid_names", lambda _p: grpid_names)
+    result = replay_events.build_event_stream(MID, force_refresh=True)
+    evs = result["events"]
+    g2 = [e["seq"] for e in evs if e.get("game_num") == 2]
+    assert g2, "no game-2 events emitted"
+    b = replay_board_at(evs, g2[-1])
+    # Both reused instances must be back in the game-2 library.
+    assert b["you"]["library_count"] == 2
+    assert b["you"]["hand_count"] == 0
 
 
 def test_match_meta_populated(monkeypatch):

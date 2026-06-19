@@ -89,18 +89,21 @@ class ReplayBoardPanel(QWidget):
             seat_board = board.get(seat) or {}
             life_v = life.get(seat)
             mana_v = mana.get(seat)
-            # Hand/Lib/GY/Exile counts are intentionally NOT shown: the M1
-            # board_diff stream tracks those zones too sparsely to be accurate
-            # (verified on real replays — they read ~0 beside a full
-            # battlefield). Battlefield (thumbnails below), Life, and Mana are
-            # reliable. Zone counts await an M1 extractor fix (game_num
-            # oscillation + zone-enumeration gaps). See the M3 plan.
+            # Zone counts are now reliable (schema 3 Diff-aware reconciliation
+            # in analysis.replay_events.reconcile_zones — see the zone-tracking
+            # plan). Hidden-zone cards are attributed to the zone owner, so both
+            # seats' Hand/Lib/GY/Exile counts are accurate.
             bf_n = len(seat_board.get("battlefield") or [])
+            hand_n = seat_board.get("hand_count", 0)
+            lib_n = seat_board.get("library_count", 0)
+            gy_n = seat_board.get("graveyard_count", 0)
+            ex_n = seat_board.get("exile_count", 0)
             header = (
                 f"{'You' if seat == 'you' else 'Opp'}  "
                 f"Life {life_v if life_v is not None else '?'}  "
                 f"Mana {mana_v or '-'}  "
-                f"Battlefield {bf_n}"
+                f"Hand {hand_n}  Lib {lib_n}  "
+                f"GY {gy_n}  Exile {ex_n}  Battlefield {bf_n}"
             )
             self._header_txt[seat] = header
             self._rows[seat]["header"].setText(header)
