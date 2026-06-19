@@ -5,6 +5,7 @@
 ---
 
 ## Infra / CI
+- [~] **MCP tool: `search_strategy_docs` (Pinecone semantic search)** (2026-06-19, `feat/strategy-doc-search`) — 5th MCP tool over `../mtg-sim/docs/` via Pinecone integrated inference; chunking + adapter + ingest CLI + graceful degradation; 382 tests green offline. **Live ingest/query gate NOT yet run — blocked on a Pinecone API key** (add to `config.ini [pinecone]`, run `scripts/ingest_strategy_docs.py`, then `tests/test_strategy_search_live.py`). See NEXT_STEPS.md.
 - [x] **CI: retire unprovisioned self-hosted jobs** (2026-06-18) — `gui-imports` moved to hosted `ubuntu-latest`, runs on push, headless PyQt6 import check (Python 3.12, `QT_QPA_PLATFORM=offscreen`); `predictions-gate` removed (needs local DB). Self-hosted runner dependency dropped.
 
 ## OPEN — Event Discovery
