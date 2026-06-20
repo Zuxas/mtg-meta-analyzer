@@ -29,7 +29,9 @@ class _PineconeAdapter:
         self._ns = namespace
 
     def upsert_records(self, records: list[dict]) -> None:
-        self._index.upsert_records(self._ns, records)
+        # Keyword args: the pinecone SDK signature is upsert_records(records,
+        # namespace) -- pass by name so arg order can't silently swap them.
+        self._index.upsert_records(records=records, namespace=self._ns)
 
     def search_records(self, query: str, top_k: int, flt: dict | None) -> list[dict]:
         q = {"inputs": {"text": query}, "top_k": top_k}
