@@ -1,5 +1,12 @@
 # MTG Meta Analyzer
 
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)
+![PyQt6](https://img.shields.io/badge/GUI-PyQt6-41CD52?logo=qt&logoColor=white)
+![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-agent--callable-7C3AED)
+![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 A personal desktop tool for competitive Magic: The Gathering players. Scrapes tournament results from multiple sources, stores years of data locally, and surfaces the meta insights you need to prepare for RCQs, Regional Championships, and Pro Tours.
 
 ---
