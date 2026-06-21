@@ -89,6 +89,17 @@ exports/
 flexslotpage.html
 To Claude from ChatGPT.txt
 
+# Other AI agent tooling (Codex CLI artifacts)
+.codex/
+AGENTS.md
+
+# Runtime lock + local backups
+data/.run_gui.lock
+data/backups/
+
+# Stray pasted images at repo root
+ChatGPT Image*.png
+
 # OS
 .DS_Store
 Thumbs.db
