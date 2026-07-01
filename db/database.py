@@ -2,7 +2,15 @@ import sqlite3
 import os
 import configparser
 
-def _resolve_path(key, fallback):
+def _resolve_path(key, fallback, env_var=None):
+    # Resolution ladder (2026-07-01): env var > config.ini > repo-relative default.
+    # The env var is the machine-wide "one knob" so the DB can live outside the
+    # repo tree (e.g. D:\mtg-data\); GUI, scrapers, MCP server, generate_site_data
+    # and mtg-sim's db_bridge all follow it.
+    if env_var:
+        env = os.environ.get(env_var)
+        if env:
+            return env
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cfg = configparser.ConfigParser()
     cfg.read(os.path.join(project_root, 'config.ini'))
@@ -11,8 +19,8 @@ def _resolve_path(key, fallback):
         return os.path.join(project_root, raw)
     return raw
 
-DB_PATH      = _resolve_path('path',         'data/mtg_meta.db')
-ARCHIVE_PATH = _resolve_path('archive_path', 'data/mtg_archive.db')
+DB_PATH      = _resolve_path('path',         'data/mtg_meta.db',    env_var='MTG_META_DB')
+ARCHIVE_PATH = _resolve_path('archive_path', 'data/mtg_archive.db', env_var='MTG_META_ARCHIVE_DB')
 
 
 _SCHEMA_SQL = """
