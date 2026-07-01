@@ -30,9 +30,12 @@ SPICERACK_API   = "https://api.spicerack.gg/api/export-decklists/"
 MOXFIELD_API    = "https://api2.moxfield.com/v2/decks/all/{deck_id}"
 REQUEST_DELAY   = 0.5   # seconds between Moxfield calls
 
-HEADERS_SPICE = {"User-Agent": "mtg-meta-analyzer/1.0"}
+HEADERS_SPICE = {"User-Agent": "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"}
 HEADERS_MOX   = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    # Honest UA per project policy. NOTE: api2.moxfield.com is known to gate on
+    # browser-like User-Agents and may return 403 with this honest UA -- see the
+    # S5 migration note; full polite_client routing / re-eval is a follow-up.
+    "User-Agent": "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)",
     "Accept": "application/json, text/plain, */*",
     "Referer": "https://www.moxfield.com/",
 }

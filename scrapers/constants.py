@@ -5,14 +5,11 @@ Import from here instead of defining per-scraper.
 """
 
 # ── HTTP Headers ──────────────────────────────────────────────────────────
-# Chrome-like User-Agent shared by all request-based scrapers.
+# Honest, descriptive User-Agent shared by all request-based scrapers.
+# Repo URL only (no personal contact) per the project's privacy preference.
 # cloudscraper-based scrapers (mtgmelee, mtgdecks) handle their own headers.
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/124.0.0.0 Safari/537.36"
-)
+USER_AGENT = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"
 
 HEADERS_MINIMAL = {
     "User-Agent": USER_AGENT,

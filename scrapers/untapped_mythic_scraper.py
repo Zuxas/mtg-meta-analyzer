@@ -52,8 +52,7 @@ from collections import defaultdict
 
 
 API_BASE = "https://api.mtga.untapped.gg"
-UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+UA = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DB = str(ROOT / "data" / "mtg_meta.db")

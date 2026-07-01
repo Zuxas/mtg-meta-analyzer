@@ -104,3 +104,4 @@ ChatGPT Image*.png
 .DS_Store
 Thumbs.db
 Desktop.ini
+data/http_cache/

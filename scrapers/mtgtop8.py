@@ -11,21 +11,24 @@ from bs4 import BeautifulSoup
 from scrapers.constants import (
     URL_MTGTOP8 as BASE_URL,
     FORMATS_MTGTOP8 as FORMATS,
-    HEADERS_MINIMAL as HEADERS,
     DELAY_DEFAULT as DELAY,
 )
+from scrapers import polite_client
 
 
 def _get(url, retries=3):
-    for attempt in range(retries):
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            resp.raise_for_status()
-            return resp
-        except requests.RequestException as e:
-            print(f"  [warn] attempt {attempt+1}/{retries} failed for {url}: {e}")
-            time.sleep(DELAY * (attempt + 1))
-    return None
+    """Fetch via the shared polite client (honest UA + per-host rate limit +
+    circuit breaker + robots). Preserves the legacy contract: returns a
+    response-like object on success, or None on any failure. The `retries`
+    arg is kept for call-site compatibility; backoff is owned by polite_client.
+    """
+    try:
+        # PoliteResponse exposes .text/.ok/.status_code like requests.Response.
+        return polite_client.get(url)
+    except (polite_client.PoliteClientError, requests.RequestException) as e:
+        # PoliteClientError is the base of RobotsDisallowed/HostCircuitOpen.
+        print(f"  [warn] fetch failed for {url}: {e}")
+        return None
 
 
 def _parse_event_id(url):

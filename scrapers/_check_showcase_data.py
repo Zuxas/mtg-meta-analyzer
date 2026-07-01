@@ -10,7 +10,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 # Pull fresh
 req = urllib.request.Request(
     "https://api.mtga.untapped.gg/api/v1/analytics/query/archetype_matchups_showcase",
-    headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json",
+    headers={"User-Agent": "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)",
+             "Accept": "application/json",
              "Origin": "https://mtga.untapped.gg", "Referer": "https://mtga.untapped.gg/"})
 data = json.loads(urllib.request.urlopen(req).read())
 print(f"Total rows: {len(data)}")

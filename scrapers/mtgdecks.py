@@ -19,6 +19,7 @@ import random
 import argparse
 import io
 import sys
+import logging
 from datetime import datetime, date
 
 import cloudscraper
@@ -32,6 +33,19 @@ from scrapers.constants import (
     FORMATS_DISPLAY as FORMATS,
     HEADERS_FULL as HEADERS,
 )
+
+# ---------------------------------------------------------------------------
+# SOURCE DISABLED — soft-banned 2026-06; replaced by first-party MTGO source.
+# ---------------------------------------------------------------------------
+# mtgdecks.net hard-blocks this IP at the Cloudflare/IP layer (HTTP 403; even
+# robots.txt 403s). We RESPECT the block and do NOT route around it: no proxy,
+# no UA rotation, no CAPTCHA/Cloudflare bypass, no ban evasion. Modern coverage
+# is replaced by the first-party MTGO decklists source plus the MTGTop8
+# aggregate. With ENABLED=False the entry point (run_scraper) is a no-op that
+# returns [] and makes ZERO network requests to mtgdecks.net. History (all
+# existing mtgdecks rows in mtg_meta.db) is preserved, not deleted. To re-enable
+# would require the ban being lifted legitimately, not circumvented.
+ENABLED = False
 
 DELAY_MIN = 2.5
 DELAY_MAX = 5.0
@@ -538,7 +552,18 @@ def run_scraper(format_name="standard", pages=1, min_players=50, dry_run=False):
     """
     Scrape the latest N pages of tournaments for a format.
     Skips events already in the DB and events below the signal threshold.
+
+    DISABLED: returns [] without any network I/O when ENABLED is False
+    (see the SOURCE DISABLED note near the top of this module).
     """
+    if not ENABLED:
+        logging.getLogger(__name__).warning(
+            "mtgdecks disabled: soft-banned 2026-06; replaced by first-party MTGO source"
+        )
+        print("  [mtgdecks] SKIPPED - source disabled "
+              "(soft-banned 2026-06; replaced by first-party MTGO source)")
+        return []
+
     existing_ids = _existing_source_ids()
 
     from datetime import datetime

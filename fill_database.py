@@ -7,7 +7,7 @@ Steps performed:
   1. Initialize database schema
   2. Download Scryfall card database (~75 MB, skipped if fresh)
   3. Backfill MTGTop8: Standard, Pioneer, Modern (3 years of history)
-  4. Scrape MTGDecks: Standard, Pioneer, Modern (recent pages)
+  4. (DISABLED) MTGDecks scrape — soft-banned 2026-06; replaced by MTGO source
   5. Enrich card data via Scryfall lookups
   6. Normalize archetype names
 
@@ -264,7 +264,9 @@ def main():
         step_init()
         step_scryfall_download()
         step_mtgtop8_backfill()
-        step_mtgdecks()
+        # step_mtgdecks()  # DISABLED 2026-06: mtgdecks.net soft-banned (403);
+        # replaced by first-party MTGO source. Function kept for history; the
+        # scraper itself is hard-gated by ENABLED=False in scrapers/mtgdecks.py.
         step_enrich()
         step_normalize()
         print_summary(t_start)

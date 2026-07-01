@@ -20,7 +20,8 @@ if not _cookie_header:
 import urllib.request
 req = urllib.request.Request(
     "https://api.mtga.untapped.gg/api/v1/analytics/query/archetype_matchups_by_event_scope_and_rank?MetaPeriodId=702&RankingClassScopeFilter=BRONZE_TO_MYTHIC",
-    headers={"User-Agent":"Mozilla/5.0","Accept":"application/json",
+    headers={"User-Agent":"mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)",
+             "Accept":"application/json",
              "Origin":"https://mtga.untapped.gg","Referer":"https://mtga.untapped.gg/",
              "Cookie": _cookie_header})
 data = json.loads(urllib.request.urlopen(req).read())
