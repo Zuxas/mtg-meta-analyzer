@@ -180,29 +180,48 @@ def generate_guides(conn):
 
 
 def main():
+    # Generalized 2026-07-01 (roadmap P1 prereq for the phone-app/PWA path):
+    # --format drives queries AND output filenames; defaults preserve the
+    # historical modern-only behavior byte-for-byte.
+    import argparse
+    global FORMAT, OUR_DECKS
+    ap = argparse.ArgumentParser(description="Export site JSON from the meta DB.")
+    ap.add_argument("--format", default="modern",
+                    choices=["modern", "standard", "pioneer", "legacy"],
+                    help="Format to export (default: modern)")
+    ap.add_argument("--our-decks", default=None,
+                    help="Comma-separated deck names to feature (default: built-in "
+                         "playbook list; colors cycle for non-default decks)")
+    args = ap.parse_args()
+    FORMAT = args.format
+    if args.our_decks:
+        _palette = ["#c0392b", "#e05a3a", "#d45a2a", "#3a3ab0", "#5b7fd4", "#2a9d8f"]
+        OUR_DECKS = {name.strip(): _palette[i % len(_palette)]
+                     for i, name in enumerate(args.our_decks.split(",")) if name.strip()}
+
     os.makedirs(SITE_DATA, exist_ok=True)
     print(f"Connecting to {DB_PATH}...")
     conn = sqlite3.connect(DB_PATH)
 
-    print("Generating modern-meta.json...")
+    print(f"Generating {FORMAT}-meta.json...")
     meta = generate_meta(conn)
-    path = os.path.join(SITE_DATA, "modern-meta.json")
+    path = os.path.join(SITE_DATA, f"{FORMAT}-meta.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
     print(f"  -> {len(meta['archetypes'])} archetypes, {meta['total_decks']:,} decks "
           f"({meta['total_events']} events)")
 
-    print("Generating modern-matchups.json...")
+    print(f"Generating {FORMAT}-matchups.json...")
     matchups = generate_matchups(conn)
-    path = os.path.join(SITE_DATA, "modern-matchups.json")
+    path = os.path.join(SITE_DATA, f"{FORMAT}-matchups.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(matchups, f, indent=2, ensure_ascii=False)
     for deck, rows in matchups["decks"].items():
         print(f"  {deck}: {len(rows)} matchups (min {MIN_MATCHES} matches each)")
 
-    print("Generating modern-guides.json...")
+    print(f"Generating {FORMAT}-guides.json...")
     guides = generate_guides(conn)
-    path = os.path.join(SITE_DATA, "modern-guides.json")
+    path = os.path.join(SITE_DATA, f"{FORMAT}-guides.json")
     with open(path, "w", encoding="utf-8") as f:
         json.dump(guides, f, indent=2, ensure_ascii=False)
     total_guides = sum(len(v) for v in guides["guides"].values())
