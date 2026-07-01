@@ -157,6 +157,80 @@ def test_returns_none_when_no_my_deck_id(env):
     assert compare_match_to_canonical(mid) is None
 
 
+def test_guild_name_matches_color_code_plan(env):
+    """Opp 'Azorius Control' should match a plan saved as 'UW Control'."""
+    from db.match_log import save_match
+    from db.match_sb_plans import save_plans_for_match
+    from analysis.sb_plan_diff import compare_match_to_canonical
+    from db.database import get_connection
+    import db.saved_decks
+    deck_id = db.saved_decks.save_deck(
+        name="T", format_name="standard", archetype="X",
+        mainboard={}, sideboard={},
+    )
+    _save_canonical_plan(deck_id, "UW Control",
+                          play_in=["Negate"], play_out=["Show-Off"])
+    mid = save_match(event_name="T", event_date="2026-05-14",
+                     format_name="standard", round_num=1, my_deck="",
+                     opp_deck="Azorius Control", result="win")
+    with get_connection() as c:
+        c.execute("UPDATE match_log SET my_deck_id=? WHERE id=?", (deck_id, mid))
+        c.commit()
+    save_plans_for_match(mid, [{"main": [], "sb": []},
+                                {"main": [], "sb": []}])
+    diff = compare_match_to_canonical(mid)
+    assert diff is not None
+    assert diff["canonical_archetype"] == "UW Control"
+
+
+def test_color_code_matches_guild_name_plan(env):
+    """Reverse direction: opp 'WR Aggro' should match plan 'Boros Aggro'
+    (also exercises WUBRG-order normalization: wr == rw)."""
+    from db.match_log import save_match
+    from db.match_sb_plans import save_plans_for_match
+    from analysis.sb_plan_diff import compare_match_to_canonical
+    from db.database import get_connection
+    import db.saved_decks
+    deck_id = db.saved_decks.save_deck(
+        name="T", format_name="standard", archetype="X",
+        mainboard={}, sideboard={},
+    )
+    _save_canonical_plan(deck_id, "Boros Aggro",
+                          play_in=["Annul"], play_out=["Hex"])
+    mid = save_match(event_name="T", event_date="2026-05-14",
+                     format_name="standard", round_num=1, my_deck="",
+                     opp_deck="WR Aggro", result="loss")
+    with get_connection() as c:
+        c.execute("UPDATE match_log SET my_deck_id=? WHERE id=?", (deck_id, mid))
+        c.commit()
+    save_plans_for_match(mid, [{"main": [], "sb": []},
+                                {"main": [], "sb": []}])
+    diff = compare_match_to_canonical(mid)
+    assert diff is not None
+    assert diff["canonical_archetype"] == "Boros Aggro"
+
+
+def test_guild_key_does_not_false_match_other_guild(env):
+    """'Dimir Midrange' must NOT match a plan saved as 'Izzet Midrange'."""
+    from db.match_log import save_match
+    from analysis.sb_plan_diff import compare_match_to_canonical
+    from db.database import get_connection
+    import db.saved_decks
+    deck_id = db.saved_decks.save_deck(
+        name="T", format_name="standard", archetype="X",
+        mainboard={}, sideboard={},
+    )
+    _save_canonical_plan(deck_id, "Izzet Midrange",
+                          play_in=["Negate"], play_out=["Hex"])
+    mid = save_match(event_name="T", event_date="2026-05-14",
+                     format_name="standard", round_num=1, my_deck="",
+                     opp_deck="Dimir Midrange", result="win")
+    with get_connection() as c:
+        c.execute("UPDATE match_log SET my_deck_id=? WHERE id=?", (deck_id, mid))
+        c.commit()
+    assert compare_match_to_canonical(mid) is None
+
+
 def test_fuzzy_archetype_match_drops_parenthetical(env):
     """Plan with '(Stormchaser)' suffix should match opp 'Izzet Lessons'."""
     from db.match_log import save_match

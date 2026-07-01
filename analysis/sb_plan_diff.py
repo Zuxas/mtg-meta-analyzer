@@ -47,6 +47,47 @@ def _normalize_archetype(s: str) -> str:
     return s
 
 
+# Guild name <-> color-code equivalence (2026-05-16 chain S2, landed 2026-07-01).
+# "Azorius Control" should match a plan saved as "UW Control" and vice versa.
+_GUILD_COLORS = {
+    "azorius": "uw", "dimir": "ub", "rakdos": "br", "gruul": "rg",
+    "selesnya": "wg", "orzhov": "wb", "izzet": "ur", "golgari": "bg",
+    "boros": "wr", "simic": "ug",
+}
+_WUBRG_ORDER = {c: i for i, c in enumerate("wubrg")}
+
+
+def _first_token_key(token: str) -> str:
+    """Canonical key for an archetype's first token so that guild names and
+    color codes compare equal in either direction:
+      azorius -> 'uw', uw -> 'uw', wu -> 'uw', boros -> 'rw', wr -> 'rw'.
+    Color pairs/triples are sorted in WUBRG order; anything else passes through."""
+    token = token.lower()
+    if token in _GUILD_COLORS:
+        token = _GUILD_COLORS[token]
+    if 2 <= len(token) <= 3 and all(ch in _WUBRG_ORDER for ch in token):
+        return "".join(sorted(token, key=_WUBRG_ORDER.get))
+    return token
+
+
+def _guild_variants(norm: str) -> set:
+    """All normalized spellings of an archetype name obtained by swapping its
+    first token between guild-name and color-code form. Includes the original."""
+    variants = {norm}
+    parts = norm.split()
+    if not parts:
+        return variants
+    first, rest = parts[0], parts[1:]
+    key = _first_token_key(first)
+    if key != first:
+        variants.add(" ".join([key] + rest))
+    # color-code -> guild name (reverse direction)
+    for guild, colors in _GUILD_COLORS.items():
+        if key == _first_token_key(colors):
+            variants.add(" ".join([guild] + rest))
+    return variants
+
+
 def _find_canonical_plan(conn, deck_id: int, opp_archetype: str) -> Optional[dict]:
     """Look up the canonical SB plan in saved_sb_plans.
 
@@ -74,14 +115,25 @@ def _find_canonical_plan(conn, deck_id: int, opp_archetype: str) -> Optional[dic
         if _normalize_archetype(r["opponent_archetype"]) == target_norm:
             return dict(r)
 
+    # Guild <-> color-code match, both directions (before first-word fallback):
+    # "Azorius Control" == "UW Control", "WR Aggro" == "Boros Aggro", etc.
+    target_variants = _guild_variants(target_norm)
+    for r in rows:
+        plan_variants = _guild_variants(_normalize_archetype(r["opponent_archetype"]))
+        if target_variants & plan_variants:
+            return dict(r)
+
     # Token-prefix match: opp "Selesnya Aggro" matches plan
-    # "Selesnya Landfall" if "selesnya" is the first word
+    # "Selesnya Landfall" if "selesnya" is the first word.
+    # Compare through _first_token_key so guild/color spellings agree.
     target_first = target_norm.split()[0] if target_norm else ""
     if target_first:
+        target_key = _first_token_key(target_first)
         for r in rows:
             plan_norm = _normalize_archetype(r["opponent_archetype"])
             plan_first = plan_norm.split()[0] if plan_norm else ""
-            if target_first == plan_first and target_first not in ("u", "w", "b", "r", "g"):
+            if (target_key == _first_token_key(plan_first)
+                    and target_first not in ("u", "w", "b", "r", "g")):
                 return dict(r)
 
     return None
