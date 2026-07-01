@@ -3,14 +3,11 @@ generate_site_data.py
 Queries the MTG Meta Analyzer DB and writes 3 JSON files to the website's
 data/ directory. Run this before any RC event or after major meta shifts.
 
-Usage:
-    cd "E:\\vscode ai project\\mtg-meta-analyzer"
-    python scripts/generate_site_data.py
+Usage (from the mtg-meta-analyzer repo root):
+    python scripts/generate_site_data.py [--format modern|standard|pioneer|legacy]
 
-Output:
-    E:/vscode ai project/My-Website/data/modern-meta.json
-    E:/vscode ai project/My-Website/data/modern-matchups.json
-    E:/vscode ai project/My-Website/data/modern-guides.json
+Output (to $WEBSITE_DATA, default ../My-Website/data):
+    <format>-meta.json, <format>-matchups.json, <format>-guides.json
 """
 
 import sqlite3, json, os, sys

@@ -145,7 +145,7 @@ A single dict maps host -> defaults so callers usually pass nothing but a URL.
 `host_rate`/`cache_ttl` kwargs override per-call when a host has tiered endpoints.
 
 ```python
-DEFAULT_UA = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer; contact: jermeywallace1@gmail.com)"
+DEFAULT_UA = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"  # contact via the repo issue tracker
 
 HOST_CONFIG = {
   "api.scryfall.com": dict(
