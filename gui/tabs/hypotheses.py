@@ -213,6 +213,18 @@ class HypothesesTab(QWidget):
         self._table.setAlternatingRowColors(True)
         lay.addWidget(self._table, 1)
 
+        # Empty-state coaching — shown only while the table has no rows
+        self._empty_hint = QLabel(
+            "No hypotheses yet — click New to log a matchup prediction; "
+            "it gets scored against real match data as results come in."
+        )
+        self._empty_hint.setWordWrap(True)
+        self._empty_hint.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 12px; padding: 8px;"
+        )
+        self._empty_hint.setVisible(False)
+        lay.addWidget(self._empty_hint)
+
     def cleanup(self):
         from gui.worker_utils import stop_worker
         for w in self._workers:
@@ -247,6 +259,7 @@ class HypothesesTab(QWidget):
 
     def _on_loaded(self, rows: list):
         self._rows = rows
+        self._empty_hint.setVisible(not rows)
         self._table.setRowCount(len(rows))
         for ri, r in enumerate(rows):
             date_str = (r.get("created_at") or "")[:10]

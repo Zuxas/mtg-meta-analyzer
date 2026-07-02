@@ -212,6 +212,11 @@ class PredictionsTab(QWidget):
     def _populate(self, predictions):
         self._table.setRowCount(0)
         if not predictions:
+            # Empty-state coaching: what this is / how to get data
+            self._status.setText(
+                "No predictions logged yet — click Generate Predictions "
+                "to forecast the meta, then Validate after the target week."
+            )
             return
         self._table.setRowCount(len(predictions))
         for row, p in enumerate(predictions):

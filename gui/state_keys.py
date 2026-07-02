@@ -7,6 +7,8 @@ so the path namespace is discoverable, renamable, and typo-safe.
 # Global state
 LAST_ACTIVE_TAB_PATH = "global.last_active_tab_path"
 GLOBAL_FORMAT = "global.format"  # written by palette format actions; read by open_archetype_detail
+UI_LEVEL = "global.ui_level"  # "basic" | "pro" — Basic hides the advanced sub-tabs
+DASH_BANNER_DISMISSED = "global.dash_banner_dismissed"  # bool — Dashboard "first 3 things" banner
 
 # Dashboard
 DASHBOARD_TIMEFRAME = "tabs.dashboard.timeframe"

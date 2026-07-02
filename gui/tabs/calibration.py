@@ -274,6 +274,16 @@ class CalibrationTab(QWidget):
         self._progress = self._status_row.progress()   # back-compat alias
         layout.addWidget(self._status_row)
 
+        # Empty-state coaching: surface the mtg-sim requirement up front
+        # instead of only erroring when a run is attempted.
+        ok, _msg = _check_mtg_sim_available()
+        if not ok:
+            self._status.setText(
+                "mtg-sim engine not found — Calibration compares the "
+                "Monte-Carlo sim against real results. Set MTG_SIM_PATH "
+                "to your mtg-sim clone to enable runs."
+            )
+
         self._table = QTableWidget()
         self._init_table()
         self._table.cellDoubleClicked.connect(self._on_cell_double_click)

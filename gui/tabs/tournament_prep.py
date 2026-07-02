@@ -143,6 +143,34 @@ class TournamentPrepTab(QWidget):
         inner.addTab(self._breaker,        "BREAKER MATH")
         inner.addTab(self._hypotheses,     "HYPOTHESES")
         layout.addWidget(inner)
+        self._inner = inner
+        # HYPOTHESES is Pro-only; MainWindow toggles it via the same
+        # add/removeTab pattern the Ask-Claude tab uses (widget stays alive).
+        self._hypotheses_added = True
+
+        # One-line subtitle disambiguating EVENT HUB (spec item 2).
+        hub_lay = self._event_hub.layout()
+        if hub_lay is not None:
+            hub_sub = QLabel("Find & bookmark real events")
+            hub_sub.setWordWrap(True)
+            hub_sub.setStyleSheet(
+                f"color: {theme.TEXT_DIM}; font-size: 11px; "
+                "padding: 4px 8px 0 8px; background: transparent; border: none;"
+            )
+            hub_lay.insertWidget(0, hub_sub)
+
+    def set_hypotheses_visible(self, visible: bool):
+        """Add/remove the HYPOTHESES sub-tab (Basic/Pro progressive
+        disclosure). HYPOTHESES is the last inner tab, so a plain addTab
+        restores its original position. The widget is never destroyed."""
+        if visible and not self._hypotheses_added:
+            self._inner.addTab(self._hypotheses, "HYPOTHESES")
+            self._hypotheses_added = True
+        elif not visible and self._hypotheses_added:
+            idx = self._inner.indexOf(self._hypotheses)
+            if idx >= 0:
+                self._inner.removeTab(idx)
+            self._hypotheses_added = False
 
     def cleanup(self):
         for sub in (self._prep_checklist, self._rcq, self._event_hub,

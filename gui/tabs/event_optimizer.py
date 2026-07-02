@@ -40,9 +40,23 @@ class EventWidget(QWidget):
         self._workers.clear()
 
     def _build_ui(self):
-        outer = QHBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # One-line subtitle disambiguating this surface (spec item 2)
+        subtitle = QLabel("Build an expected field, get your equity")
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px; "
+            "padding: 4px 8px 0 8px; background: transparent; border: none;"
+        )
+        root.addWidget(subtitle)
+
+        outer = QHBoxLayout()
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
+        root.addLayout(outer, 1)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         outer.addWidget(splitter)

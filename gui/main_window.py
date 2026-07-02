@@ -14,6 +14,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QTabWidget, QStatusBar, QLabel, QApplication,
     QVBoxLayout, QHBoxLayout, QFrame, QWidget, QPushButton,
+    QButtonGroup,
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap, QKeySequence, QShortcut
@@ -37,7 +38,10 @@ from gui.tabs.simulate          import SimulateTab
 from gui.tabs.calibration       import CalibrationTab
 from gui.worker_threads    import QuickScrapeWorker, _count_events
 from gui.state import UIState
-from gui.state_keys import LAST_ACTIVE_TAB_PATH, GLOBAL_FORMAT, PALETTE_RECENTS
+from gui.state_keys import (
+    LAST_ACTIVE_TAB_PATH, GLOBAL_FORMAT, PALETTE_RECENTS,
+    UI_LEVEL, DASH_BANNER_DISMISSED,
+)
 from gui.widgets.palette_registry import PaletteRegistry
 from gui.widgets.command_palette import CommandPalette
 from gui.widgets._palette_actions import (
@@ -47,6 +51,39 @@ from gui.widgets._palette_actions import (
 import gui.theme as theme
 
 MIN_EVENTS = 50
+
+# Sub-tab labels hidden in Basic mode (Pro-only surfaces). META carries
+# LADDER / SIMULATE / PREDICTIONS / CALIBRATION; HYPOTHESES lives inside
+# the Tournament Prep inner tab widget.
+_PRO_TAB_LABELS = frozenset(
+    {"LADDER", "SIMULATE", "PREDICTIONS", "CALIBRATION", "HYPOTHESES"}
+)
+
+
+def _is_existing_user() -> bool:
+    """True if this install already has saved decks or logged matches.
+
+    Used only to pick the FIRST default for global.ui_level: existing
+    users default to Pro (no visible change for them), fresh installs
+    default to Basic. Once persisted, this is never consulted again.
+    """
+    try:
+        from db.database import DB_PATH, get_connection
+        if not os.path.exists(DB_PATH):
+            return False  # fresh install — don't create an empty DB file
+        with get_connection() as conn:
+            for table in ("saved_decks", "match_log"):
+                try:
+                    row = conn.execute(
+                        f"SELECT COUNT(*) FROM {table}"
+                    ).fetchone()
+                    if row and int(row[0]) > 0:
+                        return True
+                except Exception:
+                    continue  # table doesn't exist yet — fresh install
+    except Exception:
+        pass
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +104,15 @@ class MainWindow(QMainWindow):
         # Persisted UI state singleton — used by tabs for filter persistence
         self.ui_state = UIState.instance()
 
+        # Basic/Pro progressive disclosure — resolve BEFORE _build_ui so the
+        # segmented control and initial tab set match. First launch: existing
+        # users (saved decks / match history) get Pro, fresh installs Basic.
+        level = self.ui_state.get(UI_LEVEL)
+        if level not in ("basic", "pro"):
+            level = "pro" if _is_existing_user() else "basic"
+            self.ui_state.set(UI_LEVEL, level)
+        self._ui_level = level
+
         # Command palette — populated after _build_ui()
         self._palette_registry = PaletteRegistry()
 
@@ -81,6 +127,12 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(
             0, lambda: _palette_register_card_entries(self._palette_registry)
         )
+
+        # Apply the persisted UI level now that the palette has indexed the
+        # FULL (Pro) tab tree. Safe: the current tab is index 0 everywhere,
+        # so removing later tabs fires no currentChanged writes.
+        if self._ui_level == "basic":
+            self._remove_pro_tabs()
 
         # Auto-sync MTGA Player.log on launch (deferred via QTimer so it
         # doesn't block the first paint). Imports any games played since
@@ -221,10 +273,15 @@ class MainWindow(QMainWindow):
                 self._on_foreground_changed
             )
 
-        # Restore last active tab path, if any
+        # Restore last active tab path, if any. Guardrail (spec G3): if the
+        # persisted path points at a Pro tab hidden in Basic, stay on
+        # Dashboard rather than restoring into (or auto-revealing) it.
         last_path = self.ui_state.get(LAST_ACTIVE_TAB_PATH)
         if last_path:
-            self.activate_tab_by_path(last_path)
+            if self._ui_level == "basic" and self._path_has_pro_part(last_path):
+                pass  # fall back to Dashboard (index 0, the default)
+            else:
+                self.activate_tab_by_path(last_path)
 
         # Slight delay so the window paints before we check/run setup
         QTimer.singleShot(150, self._startup_check)
@@ -280,6 +337,58 @@ class MainWindow(QMainWindow):
         hl.addWidget(team_label)
         hl.addStretch()
 
+        # Ctrl+K discoverability hint — clicking it also opens the palette
+        self._palette_hint_btn = QPushButton("Ctrl+K — jump anywhere")
+        self._palette_hint_btn.setToolTip(
+            "Open the command palette: jump to any tab, card, or action."
+        )
+        self._palette_hint_btn.setStyleSheet(
+            f"QPushButton {{ color: {theme.TEXT_DIM}; background: transparent; "
+            f"border: 1px dashed {theme.BORDER}; border-radius: 4px; "
+            "padding: 3px 10px; font-size: 10px; }"
+            f"QPushButton:hover {{ color: {theme.TEXT}; "
+            f"border-color: {theme.ACCENT}; }}"
+        )
+        self._palette_hint_btn.clicked.connect(self._open_palette)
+        hl.addWidget(self._palette_hint_btn)
+
+        # Basic|Pro segmented control (progressive disclosure). Basic keeps
+        # the everyday surfaces; Pro reveals LADDER / SIMULATE / PREDICTIONS /
+        # CALIBRATION / HYPOTHESES. Persisted in ui_state (global.ui_level).
+        seg = QFrame()
+        seg.setStyleSheet(
+            f"QFrame {{ background: transparent; border: 1px solid "
+            f"{theme.BORDER}; border-radius: 6px; }}"
+        )
+        seg_lay = QHBoxLayout(seg)
+        seg_lay.setContentsMargins(2, 2, 2, 2)
+        seg_lay.setSpacing(2)
+        _seg_btn_style = (
+            f"QPushButton {{ color: {theme.TEXT_DIM}; background: transparent; "
+            "border: none; border-radius: 4px; padding: 3px 12px; "
+            "font-size: 11px; font-weight: 600; }"
+            f"QPushButton:checked {{ background: {theme.ACCENT}; "
+            f"color: {theme.BTN_FG}; }}"
+        )
+        self._basic_btn = QPushButton("Basic")
+        self._basic_btn.setToolTip("Everyday tabs only — the simplified view")
+        self._pro_btn = QPushButton("Pro")
+        self._pro_btn.setToolTip(
+            "All tabs, including Ladder, Simulate, Predictions, "
+            "Calibration, and Hypotheses"
+        )
+        self._level_group = QButtonGroup(self)
+        for btn in (self._basic_btn, self._pro_btn):
+            btn.setCheckable(True)
+            btn.setStyleSheet(_seg_btn_style)
+            self._level_group.addButton(btn)
+            seg_lay.addWidget(btn)
+        self._basic_btn.setChecked(self._ui_level == "basic")
+        self._pro_btn.setChecked(self._ui_level == "pro")
+        self._basic_btn.clicked.connect(lambda: self._set_ui_level("basic"))
+        self._pro_btn.clicked.connect(lambda: self._set_ui_level("pro"))
+        hl.addWidget(seg)
+
         # Refresh button (F5 shortcut) — re-queries DB for the active tab
         self._refresh_btn = QPushButton("↻ Refresh")
         self._refresh_btn.setToolTip(
@@ -308,6 +417,8 @@ class MainWindow(QMainWindow):
         # up on the instance at call time, so they can be constructed below.
         def _send_to_simulate(deck_text: str, source_label: str,
                               format_hint: str = None):
+            if not self._pro_tabs_added:
+                self._set_ui_level("pro")  # SIMULATE is Pro-only — reveal it
             self._simulate.set_deck_paste(deck_text, source_label,
                                            format_hint=format_hint)
             self._tabs.setCurrentWidget(self._meta_tab)
@@ -317,6 +428,8 @@ class MainWindow(QMainWindow):
         # and Match Log context menu.
         def _jump_to_simulate_matchup(a_label: str, b_label: str,
                                        format_hint: str = None):
+            if not self._pro_tabs_added:
+                self._set_ui_level("pro")  # SIMULATE is Pro-only — reveal it
             self._simulate.set_matchup(a_label, b_label,
                                         format_hint=format_hint)
             self._tabs.setCurrentWidget(self._meta_tab)
@@ -342,14 +455,17 @@ class MainWindow(QMainWindow):
         self._settings  = SettingsTab()
 
         # ── Compose merged tabs ───────────────────────────────────
-        # META = Charts + Matchup Data + Predictions + Sim + Cal + Ladder
+        # META = Charts + Matchup Data (everyday) then Ladder + Simulate +
+        # Predictions + Calibration (Pro-only, beginner-legible first,
+        # advanced last). Basic mode removes everything after MATCHUP DATA,
+        # so the Basic set is a strict prefix of this order.
         self._meta_tab = QTabWidget()
         self._meta_tab.addTab(self._charts,  "CHARTS")
         self._meta_tab.addTab(self._heatmap, "MATCHUP DATA")
-        self._meta_tab.addTab(self._preds,   "PREDICTIONS")
-        self._meta_tab.addTab(self._simulate, "SIMULATE")
-        self._meta_tab.addTab(self._calibration, "CALIBRATION")
         self._meta_tab.addTab(self._ladder,  "LADDER")
+        self._meta_tab.addTab(self._simulate, "SIMULATE")
+        self._meta_tab.addTab(self._preds,   "PREDICTIONS")
+        self._meta_tab.addTab(self._calibration, "CALIBRATION")
 
         # DECKS = Deck Analyzer + My Decks
         self._decks_tab = QTabWidget()
@@ -392,6 +508,33 @@ class MainWindow(QMainWindow):
             self._add_claude_tab()
             self._add_set_analysis_tab()
 
+        # ── Basic/Pro progressive disclosure ──────────────────────
+        # Pro-only META sub-tabs in Pro display order. Same add/removeTab
+        # mechanism as the Ask-Claude tab above: widgets stay alive while
+        # detached and are re-attached on toggle (never re-instantiated).
+        # Because the Basic set (CHARTS, MATCHUP DATA) is a prefix of the
+        # Pro order, plain addTab restores the exact original positions.
+        self._meta_pro_tabs = [
+            (self._ladder,      "LADDER"),
+            (self._simulate,    "SIMULATE"),
+            (self._preds,       "PREDICTIONS"),
+            (self._calibration, "CALIBRATION"),
+        ]
+        self._pro_tabs_added = True   # _build_ui composed the full Pro set
+        # NOTE: the initial Basic removal happens in __init__ AFTER
+        # _palette_register_all so Ctrl+K still indexes the Pro tabs
+        # (jumping to one from Basic auto-reveals Pro).
+
+        # One-line subtitles disambiguating the winrate matrices (spec item 2)
+        self._prepend_subtitle(self._heatmap, "Real tournament results")
+        self._prepend_subtitle(
+            self._calibration, "How close the sim is to reality (advanced)"
+        )
+        self._prepend_subtitle(self._ladder, "MTGA online-ladder meta")
+
+        # Dashboard "first 3 things to try" banner (dismissible, persisted)
+        self._maybe_add_dash_banner()
+
         # Persist tab navigation at every depth — top-level clicks AND
         # sub-tab clicks (META/CHARTS, DECKS/MY DECKS, etc.) — to UIState.
         # The palette's activate_tab_by_path() also writes this; all paths
@@ -414,6 +557,18 @@ class MainWindow(QMainWindow):
             f"color: {theme.ACCENT}; font-size: 11px; padding-right: 12px;"
         )
         sb.addPermanentWidget(self._event_count_lbl)
+
+        # Help menu — second discoverability surface for the palette
+        # (spec item 4). The "\t" renders "Ctrl+K" right-aligned WITHOUT
+        # registering a second shortcut (the QShortcut above owns Ctrl+K).
+        menubar = self.menuBar()
+        menubar.setStyleSheet(
+            f"QMenuBar {{ background: {theme.PANEL}; color: {theme.TEXT}; }}"
+            f"QMenuBar::item:selected {{ background: {theme.BORDER}; }}"
+        )
+        help_menu = menubar.addMenu("&Help")
+        jump_action = help_menu.addAction("Jump anywhere…\tCtrl+K")
+        jump_action.triggered.connect(self._open_palette)
 
     # ------------------------------------------------------------------
     # Refresh / Reload
@@ -618,7 +773,16 @@ class MainWindow(QMainWindow):
         Splits on '/' and descends through nested QTabWidgets, matching
         each part against tabText(). Persists the path to UIState so the
         active tab can be restored on next launch.
+
+        If the target is a Pro-only tab while Basic mode is active
+        (palette jump, banner link), reveal Pro first so the navigation
+        lands instead of silently no-opping.
         """
+        if (
+            getattr(self, "_ui_level", "pro") == "basic"
+            and self._path_has_pro_part(path)
+        ):
+            self._set_ui_level("pro")
         parts = path.split("/")
         from PyQt6.QtWidgets import QTabWidget
         node = self._tabs
@@ -726,6 +890,128 @@ class MainWindow(QMainWindow):
         else:
             self._remove_claude_tab()
             self._remove_set_analysis_tab()
+
+    # ------------------------------------------------------------------
+    # Basic/Pro progressive disclosure
+    # ------------------------------------------------------------------
+
+    def _set_ui_level(self, level: str, persist: bool = True) -> None:
+        """Switch between Basic and Pro tab sets. Persists to ui_state."""
+        if level not in ("basic", "pro"):
+            return
+        self._ui_level = level
+        # Sync the segmented control (setChecked does not re-emit clicked)
+        self._basic_btn.setChecked(level == "basic")
+        self._pro_btn.setChecked(level == "pro")
+        if level == "pro":
+            self._add_pro_tabs()
+        else:
+            # Guardrail: never leave the user on a tab that's about to
+            # vanish — fall back to Dashboard first (spec step 4).
+            if self._path_has_pro_part(self._compute_active_tab_path()):
+                self._tabs.setCurrentIndex(0)
+            self._remove_pro_tabs()
+        if persist:
+            self.ui_state.set(UI_LEVEL, level)
+
+    def _add_pro_tabs(self) -> None:
+        """Re-attach Pro-only sub-tabs (same pattern as _add_claude_tab)."""
+        if self._pro_tabs_added:
+            return
+        for widget, label in self._meta_pro_tabs:
+            if self._meta_tab.indexOf(widget) < 0:
+                self._meta_tab.addTab(widget, label)
+        self._tourney.set_hypotheses_visible(True)
+        self._pro_tabs_added = True
+
+    def _remove_pro_tabs(self) -> None:
+        """Detach Pro-only sub-tabs; widgets stay alive for re-add."""
+        if not self._pro_tabs_added:
+            return
+        for widget, _label in self._meta_pro_tabs:
+            idx = self._meta_tab.indexOf(widget)
+            if idx >= 0:
+                self._meta_tab.removeTab(idx)
+        self._tourney.set_hypotheses_visible(False)
+        self._pro_tabs_added = False
+
+    @staticmethod
+    def _path_has_pro_part(path: str) -> bool:
+        """True if any segment of a tab path names a Pro-only tab."""
+        return bool(set((path or "").split("/")) & _PRO_TAB_LABELS)
+
+    def _prepend_subtitle(self, widget, text: str) -> None:
+        """Insert a one-line dim subtitle at the top of a tab whose root
+        layout is a QVBoxLayout (all current targets are). No-op otherwise."""
+        lay = widget.layout()
+        if not isinstance(lay, QVBoxLayout):
+            return
+        lbl = QLabel(text)
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px; "
+            "padding: 4px 8px 0 8px; background: transparent; border: none;"
+        )
+        lay.insertWidget(0, lbl)
+
+    # ------------------------------------------------------------------
+    # Dashboard "first 3 things to try" banner
+    # ------------------------------------------------------------------
+
+    def _maybe_add_dash_banner(self) -> None:
+        self._dash_banner = None
+        if self.ui_state.get(DASH_BANNER_DISMISSED):
+            return
+        lay = self._dash.layout()
+        if not isinstance(lay, QVBoxLayout):
+            return
+        banner = QFrame()
+        banner.setObjectName("dashBanner")
+        banner.setStyleSheet(
+            f"QFrame#dashBanner {{ background: {theme.PANEL}; "
+            f"border: 1px solid {theme.ACCENT}; border-radius: 6px; }}"
+        )
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(10, 6, 6, 6)
+        row.setSpacing(8)
+        lbl = QLabel(
+            "<b>First 3 things to try:</b>&nbsp;&nbsp;"
+            "<a href='decks'>1. Analyze a decklist</a>&nbsp;&nbsp;·&nbsp;&nbsp;"
+            "<a href='search'>2. Search cards &amp; decks</a>&nbsp;&nbsp;·&nbsp;&nbsp;"
+            "<a href='meta'>3. Explore the meta</a>"
+        )
+        lbl.setWordWrap(True)
+        lbl.setOpenExternalLinks(False)
+        lbl.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 12px; "
+            "background: transparent; border: none;"
+        )
+        lbl.linkActivated.connect(self._on_dash_banner_link)
+        row.addWidget(lbl, 1)
+        dismiss = QPushButton("Dismiss")
+        dismiss.setToolTip("Hide this banner permanently")
+        dismiss.setStyleSheet(theme.btn_secondary())
+        dismiss.clicked.connect(self._dismiss_dash_banner)
+        row.addWidget(dismiss)
+        self._dash_banner = banner
+        lay.insertWidget(0, banner)
+
+    def _on_dash_banner_link(self, href: str) -> None:
+        target = {
+            "decks": "DECKS/ANALYZE",
+            "search": "SEARCH",
+            "meta": "META/CHARTS",
+        }.get(href)
+        if target:
+            self.activate_tab_by_path(target)
+
+    def _dismiss_dash_banner(self) -> None:
+        self.ui_state.set(DASH_BANNER_DISMISSED, True)
+        if self._dash_banner is not None:
+            self._dash_banner.hide()
+            self._dash_banner.setParent(None)
+            self._dash_banner.deleteLater()
+            self._dash_banner = None
 
     def _on_open_in_rcq(self, deck: dict):
         """Switch to Tournament tab → Event Optimizer sub-tab."""
