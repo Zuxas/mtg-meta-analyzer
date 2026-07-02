@@ -113,24 +113,46 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
     session = _session()
     results = []
 
-    for page in range(pages):
-        start = page * 100
-        body = {
+    def _body(start: int, length: int) -> dict:
+        return {
             "ordering":           "StartDate",
             "mode":               "Table",
             "filters[]":          [fmt_display, "MagicTheGathering", "Ended"],
             "variables[draw]":    "1",
             "variables[start]":   str(start),
-            "variables[length]":  "100",
+            "variables[length]":  str(length),
             "variables[search][value]": "",
             "variables[search][regex]": "false",
         }
+
+    # NOTE (2026-07-02): TournamentSearch ignores the "ordering" field (both
+    # "StartDate" and "-StartDate" return the same order) and always returns
+    # rows ascending by id — i.e. OLDEST tournaments first.  Paging from
+    # start=0 therefore never got past 2023-era events, which is why the
+    # matches table went dry after 2026-03-21.  Fix: probe recordsTotal, then
+    # read the LAST `pages` pages so the newest tournaments are always covered.
+    try:
+        resp = session.post(_SEARCH_URL, data=_body(0, 1), timeout=30)
+        resp.raise_for_status()
+        total = int(resp.json().get("recordsTotal") or 0)
+    except Exception as exc:
+        log.error("Tournament search probe failed: %s", exc)
+        return results
+    if total <= 0:
+        log.warning("Tournament search returned recordsTotal=0 (%s)", fmt_display)
+        return results
+    time.sleep(_SLEEP)
+
+    seen_ids = set()
+    for page in range(pages):
+        start = max(0, total - (page + 1) * 100)
         try:
-            resp = session.post(_SEARCH_URL, data=body, timeout=30)
+            resp = session.post(_SEARCH_URL, data=_body(start, 100), timeout=30)
             resp.raise_for_status()
             payload = resp.json()
         except Exception as exc:
-            log.error("Tournament search page %d failed: %s", page, exc)
+            log.error("Tournament search page %d (start=%d) failed: %s",
+                      page, start, exc)
             break
 
         rows = payload.get("data", [])
@@ -139,13 +161,18 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
 
         for row in rows:
             t = _parse_tournament_row(row, fmt_display)
-            if t and t["player_count"] >= min_players:
+            if t and t["id"] not in seen_ids and t["player_count"] >= min_players:
+                seen_ids.add(t["id"])
                 results.append(t)
 
-        log.info("Page %d: %d cumulative qualifying tournaments (%s)",
-                 page + 1, len(results), fmt_display)
+        log.info("Page %d (start=%d): %d cumulative qualifying tournaments (%s)",
+                 page + 1, start, len(results), fmt_display)
+        if start == 0:
+            break   # reached the front of the result set
         time.sleep(_SLEEP)
 
+    # API returns newest last — hand the caller newest first.
+    results.sort(key=lambda t: t.get("date") or "", reverse=True)
     log.info("Total: %d %s tournaments found", len(results), format_name)
     return results
 
@@ -401,7 +428,10 @@ def scrape_and_store(format_name: str, pages: int = 5,
     total_saved = 0
     for t in tournaments:
         tid = t["id"]
-        if tid in already_stored:
+        # Stored event_ids carry the "mtgmelee_" prefix (see match_rows below).
+        # Comparing the bare tid never matched, so every run re-scraped the
+        # same tournaments.  Fixed 2026-07-02.
+        if f"mtgmelee_{tid}" in already_stored:
             log.info("Skipping %s (already stored)", t["name"])
             continue
 
