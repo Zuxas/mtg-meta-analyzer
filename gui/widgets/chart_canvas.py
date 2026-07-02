@@ -20,6 +20,7 @@ from PyQt6.QtGui import QFont
 
 import gui.theme as theme
 from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
+from db.database import DB_PATH as CENTRAL_DB_PATH
 
 # ---------------------------------------------------------------------------
 # Format event markers (set releases, B&R, rotations)
@@ -695,7 +696,7 @@ class ChartCanvas(QWidget):
 
         import sqlite3
         from pathlib import Path
-        db_path = Path(__file__).resolve().parent.parent.parent / "data" / "mtg_meta.db"
+        db_path = Path(CENTRAL_DB_PATH)
 
         # Plat/Diamond/Mythic from premium matchup data, aggregated across
         # opponents per (archetype, snapshot, tier).

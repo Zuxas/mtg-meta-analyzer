@@ -35,8 +35,12 @@ from pathlib import Path
 CARDS_URL = "https://mtgajson.untapped.gg/v1/latest/cards.json"
 LOC_URL = "https://mtgajson.untapped.gg/v1/latest/loc_en.json"
 
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = str(ROOT / "data" / "mtg_meta.db")
+DEFAULT_DB = str(CENTRAL_DB_PATH)
 UA = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"
 
 SCHEMA = [

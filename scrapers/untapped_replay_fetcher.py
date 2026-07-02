@@ -61,8 +61,12 @@ from pathlib import Path
 API_BASE = "https://api.mtga.untapped.gg"
 UA = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"
 
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = str(ROOT / "data" / "mtg_meta.db")
+DEFAULT_DB = str(CENTRAL_DB_PATH)
 DEFAULT_REPLAY_DIR = str(ROOT / "data" / "untapped" / "replays")
 
 # Be polite to a public endpoint

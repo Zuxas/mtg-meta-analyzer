@@ -34,8 +34,12 @@ from pathlib import Path
 from collections import Counter, defaultdict
 
 
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = str(ROOT / "data" / "mtg_meta.db")
+DEFAULT_DB = str(CENTRAL_DB_PATH)
 
 
 SCHEMA = [

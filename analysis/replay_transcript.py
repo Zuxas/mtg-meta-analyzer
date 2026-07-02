@@ -27,6 +27,8 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "data" / "match_replays"
 
@@ -113,7 +115,7 @@ def build_transcript(arena_match_id: str,
         except Exception:
             pass  # rebuild
 
-    grpid_names = _load_grpid_names(ROOT / "data" / "mtg_meta.db")
+    grpid_names = _load_grpid_names(Path(CENTRAL_DB_PATH))
 
     # State machine across all matches; we extract only the target match.
     current_match_id = None

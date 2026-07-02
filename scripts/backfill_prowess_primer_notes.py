@@ -20,7 +20,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "data" / "mtg_meta.db"
+sys.path.insert(0, str(ROOT))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+DB_PATH = Path(CENTRAL_DB_PATH)
 DEFAULT_DECK_ID = 17  # Izzet Prowess (Worldly Council / Tokyo) -- RC Cincinnati 2026-05-29
 
 # Primer text path comes from --primer arg or PROWESS_PRIMER_PATH env var.

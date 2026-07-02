@@ -1152,6 +1152,11 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
 # ---------------------------------------------------------------------------
 # Field Optimizer (extracted to analysis/field_optimizer.py, re-exported here)
 # ---------------------------------------------------------------------------
-from analysis.field_optimizer import parse_field_string, optimize_field_composition  # noqa: F401, E402
+# lazy: avoids circular import with field_optimizer (fixed 2026-07-01)
+def __getattr__(name):
+    if name in ("parse_field_string", "optimize_field_composition"):
+        from analysis import field_optimizer
+        return getattr(field_optimizer, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

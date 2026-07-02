@@ -26,6 +26,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 
 def _handle_db():
     p = Path(__file__).resolve().parent.parent / "data" / "player_handles.json"
@@ -67,8 +69,7 @@ def get_priority_finishers(
     Returns rows: player, archetype, placement, event_name, date, source,
     url, handle, event_type.
     """
-    db_path = db_path or (Path(__file__).resolve().parent.parent
-                          / "data" / "mtg_meta.db")
+    db_path = db_path or Path(CENTRAL_DB_PATH)
     if not target_archetypes:
         return []
     since = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
@@ -122,8 +123,7 @@ def get_pilot_history(
     db_path: Optional[Path] = None,
 ) -> list:
     """Every event finish for a specific pilot."""
-    db_path = db_path or (Path(__file__).resolve().parent.parent
-                          / "data" / "mtg_meta.db")
+    db_path = db_path or Path(CENTRAL_DB_PATH)
     since = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
     sql = f"""
     SELECT d.player, d.archetype, d.placement, e.name, e.date,

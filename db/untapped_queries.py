@@ -16,8 +16,10 @@ import json
 import sqlite3
 from typing import Dict, List
 
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "data" / "mtg_meta.db"
+DB_PATH = Path(CENTRAL_DB_PATH)
 
 # Archetype-name prefix -> color identity (longest match wins).
 # Ordered roughly by specificity so longer names match before shorter ones.

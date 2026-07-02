@@ -29,6 +29,7 @@ from typing import Optional
 
 # Re-use the primer-rule evaluator
 from gui.widgets.mulligan_evaluator import evaluate_hand
+from db.database import DB_PATH as CENTRAL_DB_PATH
 
 
 DEFAULT_MATCHUPS = [
@@ -87,8 +88,7 @@ def run_study(
     Simulate `n_hands` openings per (matchup, play/draw) combination and
     return aggregated keep-rate stats.
     """
-    db_path = db_path or (Path(__file__).resolve().parent.parent
-                          / "data" / "mtg_meta.db")
+    db_path = db_path or Path(CENTRAL_DB_PATH)
     with sqlite3.connect(str(db_path)) as con:
         row = con.execute(
             "SELECT name, archetype, mainboard FROM saved_decks WHERE id=?",

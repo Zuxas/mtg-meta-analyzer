@@ -26,6 +26,35 @@ if _root not in sys.path:
     sys.path.insert(0, _root)
 
 
+def _db_sanity_error() -> "str | None":
+    """Return an error message if the main DB looks missing/empty, else None."""
+    from db.database import DB_PATH
+    try:
+        if not os.path.exists(DB_PATH) or os.path.getsize(DB_PATH) < 1_000_000:
+            return (
+                f"Database not found or empty at {DB_PATH}.\n\n"
+                "Expected the main meta database. Check config.ini [database] "
+                "path, or run fill_database.bat to build a new one."
+            )
+        import sqlite3
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='decks'"
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None:
+            return (
+                f"Database at {DB_PATH} has no 'decks' table.\n\n"
+                "Expected the main meta database. Check config.ini [database] "
+                "path, or run fill_database.bat to build a new one."
+            )
+    except Exception as exc:
+        return f"Database sanity check failed for {DB_PATH}:\n{exc}"
+    return None
+
+
 def _handle_register_tasks():
     """Run as Administrator: register all tasks and exit."""
     import register_tasks
@@ -53,6 +82,13 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("MTG Meta Analyzer")
     app.setOrganizationName("MTGMeta")
+
+    # DB sanity guard — fail with a clear message instead of letting tabs crash
+    _db_err = _db_sanity_error()
+    if _db_err:
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.critical(None, "MTG Meta Analyzer — database problem", _db_err)
+        sys.exit(1)
 
     # Single-instance enforcement: refuse second-launch attempts
     _instance_lock = SingleInstanceLock()

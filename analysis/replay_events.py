@@ -40,6 +40,7 @@ from analysis.replay_transcript import (
     PLAYER_PREV_LOG,
     transcript_cache_path,
 )
+from db.database import DB_PATH as CENTRAL_DB_PATH
 
 SCHEMA_VERSION = 3  # 3: Diff-aware per-zoneId zone reconciliation (accurate zone counts); 2: match-scoped; 1: pre-scoping whole-log
 
@@ -187,9 +188,7 @@ def build_event_stream(arena_match_id: str,
         except Exception:
             pass  # corrupted cache -> rebuild
 
-    grpid_names = _load_grpid_names(
-        Path(__file__).resolve().parent.parent / "data" / "mtg_meta.db"
-    )
+    grpid_names = _load_grpid_names(Path(CENTRAL_DB_PATH))
 
     events: list[dict] = []
     match_meta: dict = {

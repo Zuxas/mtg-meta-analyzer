@@ -28,6 +28,8 @@ import argparse
 from datetime import datetime
 from collections import Counter
 
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -518,7 +520,7 @@ def format_decklist(card_ids: list[int], card_map: dict[int, str]) -> str:
 # Opponent deck classification
 # ---------------------------------------------------------------------------
 
-_META_DB_PATH = os.path.join(_PROJECT_ROOT, "data", "mtg_meta.db")
+_META_DB_PATH = str(CENTRAL_DB_PATH)
 
 
 def classify_opponent_deck(opp_card_ids: list[int], format_name: str = "standard") -> str:

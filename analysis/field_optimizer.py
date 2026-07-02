@@ -5,7 +5,7 @@ Split from win_rates.py for maintainability.
 """
 
 import re
-from db.database import get_combined_connection
+from db.database import get_combined_connection, DB_PATH as CENTRAL_DB_PATH
 from analysis.win_rates import _fetch_appearances, _best_per_event, _matchup_stats, _confidence_label
 
 
@@ -113,8 +113,7 @@ def _legacy_unused_compute_deck_ev_moved_to_deck_ev_module(
     # Build field_shares from 14d meta if not provided
     if field_shares is None:
         field_shares = {}
-        ROOT = Path(__file__).resolve().parent.parent
-        with sqlite3.connect(str(ROOT / "data" / "mtg_meta.db")) as con:
+        with sqlite3.connect(str(CENTRAL_DB_PATH)) as con:
             since = (datetime.now() - timedelta(days=14)).strftime("%Y%m%d")
             total = con.execute(f"""
                 SELECT COUNT(*) FROM decks d JOIN events e ON e.id=d.event_id

@@ -20,9 +20,13 @@ import sqlite3
 from pathlib import Path
 from urllib.parse import quote_plus
 
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT     = Path(__file__).resolve().parent.parent
 DB_PATH  = ROOT / 'data' / 'player_handles.json'
-META_DB  = ROOT / 'data' / 'mtg_meta.db'
+META_DB  = Path(CENTRAL_DB_PATH)
 
 
 class HandleDB:

@@ -18,6 +18,13 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Repo root on sys.path: the inline imports below (scrapers.*, analysis.*, db.*)
+# fail without this when invoked as `python scripts\run_fill_from_prefs.py`,
+# because Python puts scripts/ (not the cwd) at sys.path[0]. Fixed 2026-07-01;
+# was the cause of the silent "[MTGA log] importer error: No module named
+# 'scrapers'" failures in logs/background_fill.log.
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 _PREFS = os.path.join(_ROOT, "data", "preferences.json")
 
 # Formats that get MTGMelee scrapes regardless of user preference

@@ -25,6 +25,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 
 def compute_deck_ev(
     deck_id: int,
@@ -146,8 +148,7 @@ def compute_deck_ev(
 
 def _default_field_shares(format_name: str = "standard") -> dict:
     """Derive expected field shares from the last 14 days of paper data."""
-    ROOT = Path(__file__).resolve().parent.parent
-    db_path = ROOT / "data" / "mtg_meta.db"
+    db_path = Path(CENTRAL_DB_PATH)
     since = (datetime.now() - timedelta(days=14)).strftime("%Y%m%d")
 
     with sqlite3.connect(str(db_path)) as con:

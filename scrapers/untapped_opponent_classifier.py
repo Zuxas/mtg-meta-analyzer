@@ -23,8 +23,10 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
-DB_PATH = ROOT / "data" / "mtg_meta.db"
+DB_PATH = Path(CENTRAL_DB_PATH)
 REPLAY_DIR = ROOT / "data" / "untapped" / "replays"
 
 

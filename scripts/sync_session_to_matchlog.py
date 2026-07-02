@@ -52,10 +52,10 @@ from typing import Optional
 
 # Defaults — override via CLI
 import os as _os
-DEFAULT_DB = Path(_os.environ.get(
-    "MTG_META_DB",
-    Path(__file__).resolve().parent.parent / "data" / "mtg_meta.db"
-))
+sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+# CENTRAL_DB_PATH already resolves env var MTG_META_DB > config.ini > fallback
+DEFAULT_DB = Path(CENTRAL_DB_PATH)
 DEFAULT_SESSIONS = Path(_os.environ.get(
     "HARNESS_SESSIONS",
     Path(__file__).resolve().parent.parent.parent / "harness" / "knowledge" / "mtg"

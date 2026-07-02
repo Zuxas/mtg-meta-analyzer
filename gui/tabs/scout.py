@@ -189,6 +189,13 @@ class ScoutTab(QWidget):
                 placement_cap=self._top.value(),
                 limit=300,
             )
+        except Exception as exc:
+            # Show the failure in the tab instead of crashing the whole GUI
+            self._summary_lbl.setText(
+                f"<span style='color:{theme.WARN};'>"
+                f"Scout query failed: {exc}</span>"
+            )
+            return
         finally:
             QApplication.restoreOverrideCursor()
         self._finishers = rows

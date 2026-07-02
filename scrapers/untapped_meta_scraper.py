@@ -55,8 +55,12 @@ from collections import defaultdict
 API_BASE = "https://api.mtga.untapped.gg"
 UA = "mtg-meta-analyzer/1.0 (+https://github.com/Zuxas/mtg-meta-analyzer)"
 
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.database import DB_PATH as CENTRAL_DB_PATH
+
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = str(ROOT / "data" / "mtg_meta.db")
+DEFAULT_DB = str(CENTRAL_DB_PATH)
 DEFAULT_ARCHIVE = str(ROOT / "data" / "untapped")
 
 RATE_LIMIT_SLEEP_SEC = 0.5
