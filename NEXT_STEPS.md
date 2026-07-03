@@ -27,10 +27,23 @@ Last updated: 2026-07-03 (Puzzle Trainer v0 Track T1 — outs-math drills shippe
   scipy (100 cases, 0 mismatch); T1-G2 30 drills well-formed/grounded/
   deterministic. 29/29 puzzle-suite tests pass. Spec:
   `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.
-- **NOT built (deferred, per spec):** T2 sim-mined "what do I do from here"
-  positional puzzles (the bigger, user-facing track — needs the mtg-sim
-  mining harness + Scene exporter) and T3 Glicko-2 puzzle ratings. Those are
-  the next builds.
+- **T2 miner shipped (goldfish slice).** Sim-mined "you have lethal this turn —
+  find the line" puzzles. `mtg-sim/scripts/mine_lethal_puzzles.py` hooks a deck
+  APL in goldfish, searches for a PLAY-DEPENDENT lethal (independent oracle =
+  engine `run_combat()`+`has_won` on a fork; skips trivial on-board lethal),
+  self-verifies each line replays, exports a `GameState->Scene` dict.
+  `scripts/import_lethal_puzzles.py` ingests the JSONL into `puzzle_inbox`.
+  Gates: T2-G2 **42 candidates/500 games**, T2-G3 byte-identical 2 runs, T2-G1
+  replay-gated. **42 `find_lethal` rows now in puzzle_inbox.**
+  - **PLAYABILITY GAP (next):** the Promote->Author path rebuilds a scene from a
+    cached MTGA replay, which synthetic goldfish candidates don't have. Each
+    candidate carries its full scene in `evidence` JSON; wire a
+    promote-from-embedded-scene path so these open in the Solve tab. Until then
+    they're mined but not solvable in-app.
+  - Caveats (in every candidate): puzzle truth = engine truth; goldfish = open
+    board. Gauntlet (real-opponent) slice reuses the same pipeline + a
+    no-untapped-blocker filter.
+- **Still deferred:** T3 Glicko-2 puzzle ratings.
 - **⚠ OPS — MTG_META_DB machine env var points at the dead `D:\mtg-data`.**
   `D:` was a temporary movie drive, now gone; the live DBs are on
   `E:\mtg-data` (config.ini already agrees). Added a **User-scope** override
