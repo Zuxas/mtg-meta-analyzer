@@ -66,3 +66,32 @@ def test_puzzles_tab_inbox_mode_lists_candidates(tmp_path, monkeypatch):
     tab = PuzzlesTab()
     # Inbox table should have 2 rows after refresh
     assert tab._inbox_table.rowCount() == 2
+
+
+def test_solve_tab_records_rating_and_displays_it(tmp_path, monkeypatch):
+    """End-to-end (T3): solving a puzzle in the Solve tab persists a Glicko-2
+    user rating + puzzle rating and surfaces the rating in the session line."""
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr("db.database.DB_PATH", tmp_path / "p.db")
+    monkeypatch.setattr("db.database.ARCHIVE_PATH", tmp_path / "p_arc.db")
+    from db import puzzles
+    pid = puzzles.save_puzzle(
+        deck_id=None, arena_match_id=None, game_num=None, turn_num=7,
+        category="find_lethal", difficulty=4, question="Find the line",
+        solution_text="Cast X then swing.", solution_keywords=[],
+        grading_mode="self", author="seeder", notes="",
+        scene={"arena_match_id": "x", "game_num": 1, "turn_num": 7,
+               "play_or_draw": "draw",
+               "you": {"name": "You", "life": 4},
+               "opp": {"name": "Opp", "life": 2}},
+    )
+    from gui.tabs.puzzles import PuzzlesTab
+    tab = PuzzlesTab()
+    assert tab._current_puzzle["id"] == pid
+    tab._record_and_next("correct")
+
+    assert puzzles.get_rating("user", "default")["matches"] == 1
+    assert puzzles.get_rating("puzzle", str(pid))["matches"] == 1
+    assert tab._last_rating_delta is not None and tab._last_rating_delta > 0
+    assert "Rating" in tab._stats_lbl.text()

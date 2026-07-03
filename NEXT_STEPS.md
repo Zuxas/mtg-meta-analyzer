@@ -1,6 +1,32 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-03 (Puzzle Trainer v0 Track T1 — outs-math drills shipped)
+Last updated: 2026-07-03 (Puzzle Trainer v0 COMPLETE — Track T3 Glicko-2 ratings shipped)
+
+---
+
+## 7/03 session (shipped — Puzzle Trainer v0 Track T3: Glicko-2 puzzle ratings — v0 COMPLETE)
+
+- **Puzzle ratings loop.** Every Solve-tab attempt is now a one-game Glicko-2
+  match between the user and the puzzle (correct=win / incorrect=loss /
+  partial=draw). New `puzzle_ratings` table + `get_rating`/`upsert_rating`
+  (`db/puzzles.py`); `analysis/puzzles/rating_loop.py` **reuses**
+  `analysis.ratings._update_rating` (no reimplementation), cold-starts each
+  puzzle's mu from difficulty stars (`1500+(d-3)*150`), updates user + puzzle
+  simultaneously. Solve tab session line shows `Rating <mu>±<phi> (+/-delta)`.
+- **Gates green:** T3-G1 (user AND puzzle updates match a hand-built
+  single-game `_update_rating` reference built from LITERAL inputs — proves
+  wiring/scale/direction, not just determinism); T3-G2 (bit-exact write-through
+  round-trip; next attempt continues from persisted rating). 11 unit tests +
+  GUI smoke; full suite **412 passed, 2 skipped**.
+- **Known limit (tracked):** rating farmable on re-attempt — IMPERFECTIONS
+  `puzzle-rating-farmable-on-reattempt` (LOW; fix = first-attempt-only user
+  update, Lichess-style, 1-2h).
+- **Follow-on tracks (NOT v0 gates), pick next:** (A) T2 gauntlet real-opponent
+  slice + no-untapped-blocker filter — the fuller "win from THIS position vs a
+  real opp" ask (must first prove fork+drive of a two-player `TwoPlayerGameState`
+  through `engine/match_runner.py::_resolve_combat`); (C) grind/stabilize
+  puzzles (needs an evaluator-delta oracle, design first). Spec (now SHIPPED):
+  `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.
 
 ---
 

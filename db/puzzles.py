@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS puzzle_inbox (
     promoted_puzzle_id INTEGER REFERENCES puzzles(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS puzzle_ratings (
+    entity_type TEXT NOT NULL CHECK(entity_type IN ('user','puzzle')),
+    entity_id   TEXT NOT NULL,
+    mu          REAL NOT NULL,
+    phi         REAL NOT NULL,
+    sigma       REAL NOT NULL,
+    matches     INTEGER NOT NULL,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (entity_type, entity_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_puzzles_deck ON puzzles(deck_id);
 CREATE INDEX IF NOT EXISTS idx_puzzles_category ON puzzles(category);
 CREATE INDEX IF NOT EXISTS idx_attempts_puzzle ON puzzle_attempts(puzzle_id);
@@ -308,5 +319,49 @@ def promote_inbox(inbox_id: int, puzzle_id: int) -> None:
         conn.execute(
             "UPDATE puzzle_inbox SET promoted_puzzle_id = ? WHERE id = ?",
             (puzzle_id, inbox_id),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Glicko-2 rating store (T3 -- puzzle trainer v0)
+# ---------------------------------------------------------------------------
+# One row per rating-holder. entity_type is 'user' (entity_id 'default' --
+# single-user app) or 'puzzle' (entity_id = str(puzzle_id)). mu/phi/sigma are
+# the Glicko-2 display-scale fields from analysis.ratings.GlickoRating; stored
+# as REAL (IEEE-754 double) so read-back is bit-exact for the persistence gate.
+
+def get_rating(entity_type: str, entity_id: str) -> Optional[dict[str, Any]]:
+    """Return the stored rating row, or None if this entity was never rated."""
+    _ensure_tables()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT entity_type, entity_id, mu, phi, sigma, matches, updated_at "
+            "FROM puzzle_ratings WHERE entity_type = ? AND entity_id = ?",
+            (entity_type, entity_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_rating(
+    entity_type: str,
+    entity_id: str,
+    *,
+    mu: float,
+    phi: float,
+    sigma: float,
+    matches: int,
+) -> None:
+    """Write-through the current rating for one entity (insert or replace)."""
+    _ensure_tables()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO puzzle_ratings "
+            "(entity_type, entity_id, mu, phi, sigma, matches, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(entity_type, entity_id) DO UPDATE SET "
+            "mu=excluded.mu, phi=excluded.phi, sigma=excluded.sigma, "
+            "matches=excluded.matches, updated_at=excluded.updated_at",
+            (entity_type, entity_id, float(mu), float(phi), float(sigma),
+             int(matches), _utc_now()),
         )
 

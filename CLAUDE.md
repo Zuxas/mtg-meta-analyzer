@@ -237,7 +237,18 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
   (`_prefill_from_evidence` in `gui/tabs/puzzles.py`; optional pre-fill kwargs
   on `PuzzleAuthorDialog`) so synthetic candidates promote into solvable
   Solve-tab puzzles without a cached replay. 42 candidates from a 500-game run.
-  Deferred: gauntlet (real-opponent) slice, T3 Glicko-2 ratings.
+  **Track T3 (2026-07-03) — Glicko-2 puzzle ratings.** Each attempt is a
+  one-game Glicko-2 match (correct=win / incorrect=loss / partial=draw). New
+  `puzzle_ratings` table + `get_rating`/`upsert_rating` in `db/puzzles.py`;
+  `analysis/puzzles/rating_loop.py` reuses `analysis.ratings._update_rating`
+  (no reimplementation), cold-starts each puzzle's mu from its difficulty stars
+  (`1500+(d-3)*150`), updates user + puzzle simultaneously. Solve tab shows the
+  solver's rating + last-attempt delta in the session line
+  (`_record_and_next`, best-effort try/except). Gates T3-G1 (matches
+  `_update_rating` on literal-input reference) + T3-G2 (survives restart) green;
+  `tests/test_puzzle_ratings.py` (11) + GUI smoke in `test_puzzles_tab.py`.
+  Known limit (tracked): rating farmable on re-attempt — IMPERFECTIONS
+  `puzzle-rating-farmable-on-reattempt`. **Puzzle Trainer v0 COMPLETE.**
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 

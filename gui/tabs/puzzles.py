@@ -36,6 +36,7 @@ class PuzzlesTab(QWidget):
         super().__init__(parent)
         self._current_puzzle: Optional[dict] = None
         self._reveal_t0_ms: Optional[int] = None
+        self._last_rating_delta: Optional[float] = None
         self._build_ui()
         self._load_next_puzzle()
         self._refresh_inbox()
@@ -282,6 +283,20 @@ class PuzzlesTab(QWidget):
             grader_used="self",
             time_spent_ms=ms,
         )
+        # Rating update is best-effort on top of the recorded attempt -- a bug
+        # here must never block advancing to the next puzzle.
+        self._last_rating_delta = None
+        try:
+            from analysis.puzzles.rating_loop import apply_attempt
+            res = apply_attempt(
+                puzzle_id=self._current_puzzle["id"],
+                difficulty=self._current_puzzle["difficulty"],
+                verdict=verdict,
+            )
+            if res is not None:
+                self._last_rating_delta = res.user_delta
+        except BaseException:
+            pass
         self._load_next_puzzle()
 
     def _refresh_stats(self) -> None:
@@ -292,6 +307,30 @@ class PuzzlesTab(QWidget):
             f"<b style='color:#80c890;'>{stats['n_solved']} ✓</b> · "
             f"<b style='color:#d88060;'>{stats['n_missed']} ✗</b> · "
             f"{wr_pct:.0f}%"
+            + self._rating_html()
+        )
+
+    def _rating_html(self) -> str:
+        """Solver's Glicko rating + last-attempt delta, appended to the session
+        line. Best-effort: never let a rating read break the stats display."""
+        try:
+            from analysis.puzzles.rating_loop import get_user_rating
+            r = get_user_rating()
+        except BaseException:
+            return ""
+        delta_html = ""
+        if self._last_rating_delta is not None:
+            d = self._last_rating_delta
+            color = "#80c890" if d >= 0 else "#d88060"
+            delta_html = (
+                f" <span style='color:{color};'>"
+                f"{'+' if d >= 0 else ''}{d:.0f}</span>"
+            )
+        return (
+            f" <span style='color:{theme.TEXT_DIM};'>· Rating</span> "
+            f"<b style='color:{theme.ACCENT};'>{r.mu:.0f}</b>"
+            f"<span style='color:{theme.TEXT_DIM};'>&plusmn;{r.phi:.0f}</span>"
+            + delta_html
         )
 
     # ── Inbox mode ─────────────────────────────────────────────
