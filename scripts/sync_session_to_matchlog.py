@@ -24,7 +24,7 @@ silent merge would corrupt the data.
 Future queries wanting aggregate WR across both names must explicitly
 union: `WHERE my_deck IN ('Dimir Midrange', 'Dimir Tempo')`.
 
-If Jermey remembers Dimir Tempo == Dimir Midrange (same archetype,
+If the user recalls Dimir Tempo == Dimir Midrange (same archetype,
 different era label), a one-off UPDATE can normalize retroactively:
 `UPDATE match_log SET my_deck='Dimir Midrange' WHERE my_deck='Dimir Tempo';`
 
@@ -71,7 +71,7 @@ EXPECTED_COLUMNS = {
 }
 
 # Regex for match-line format from mtga_log_parser output.
-# Example line: "- [W] vs urbae (W/W) OTD ù Direct Game (Bo3)"
+# Example line: "- [W] vs oppname (W/W) OTD ù Direct Game (Bo3)"
 # Groups: result, opp_name, opp_colors, play_draw, rest (event + format)
 MATCH_LINE = re.compile(
     r"^-\s*\[([WL])\]\s+vs\s+(\S+)\s+"
