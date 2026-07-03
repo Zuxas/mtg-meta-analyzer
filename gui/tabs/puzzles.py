@@ -24,6 +24,7 @@ _CATEGORY_OPTIONS = [
     ("🎯 Find lethal", "find_lethal"),
     ("🛡 Stabilize", "stabilize"),
     ("⚡ Tempo / Race", "tempo"),
+    ("🎲 Outs math", "drill_outs"),
 ]
 
 
@@ -204,6 +205,7 @@ class PuzzlesTab(QWidget):
             "find_lethal": "🎯 Find lethal",
             "stabilize": "🛡 Stabilize",
             "tempo": "⚡ Tempo / Race",
+            "drill_outs": "🎲 Outs math",
         }.get(puzzle["category"], puzzle["category"])
         stars = "★" * puzzle["difficulty"] + "☆" * (5 - puzzle["difficulty"])
         self._question_lbl.setText(

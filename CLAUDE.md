@@ -218,6 +218,18 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
   and a `grade()` dispatcher with fallback chain
   (llm → keyword → self). Verdict appears as a colored chip below the
   author's solution on Reveal; self-grade ✓/✗ buttons remain as user override.
+  **Puzzle Trainer v0 — Track T1 (2026-07-03):** new `drill_outs` category —
+  hypergeometric "odds to hit an out" drills grounded in real decklists
+  sampled from `mtg_meta.db` (attribution in `notes`; house rule 8).
+  `analysis/puzzles/drill_generator.py` (raw / scry-keep-or-bottom / compound
+  templates, all 5 difficulty tiers) + `scripts/seed_drills.py`
+  (`python -m scripts.seed_drills --count 40 --replace`). New exact-number
+  grader `graders.py::grade_number` (`grading_mode="number"`) — accepts the
+  [exact, looks×outs-shorthand] band ±3pp; fixes fuzzy keyword false-positives
+  on short numbers. Solve tab has a "🎲 Outs math" filter. Gates T1-G1
+  (solver vs independent oracle + scipy) + T1-G2 green. Deferred: T2
+  sim-mined positional puzzles, T3 Glicko-2 ratings. Spec:
+  `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 

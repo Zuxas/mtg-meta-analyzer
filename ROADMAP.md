@@ -1,8 +1,14 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-06-18
+> Last updated: 2026-07-03
 
 ---
+
+## OPEN — Puzzles / Training
+- [x] **Puzzle Trainer v0 — Track T1: outs-math drills** (2026-07-03) — `drill_outs` category; hypergeometric odds drills grounded in real decklists (`analysis/puzzles/drill_generator.py`, `scripts/seed_drills.py`); new exact-number grader (`grade_number`, `grading_mode="number"`) fixing fuzzy-numeric false positives; "🎲 Outs math" Solve filter. Gates T1-G1 (solver vs independent oracle + scipy) + T1-G2 green; 29/29 puzzle tests. Spec `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.
+- [ ] **T2 — sim-mined positional puzzles ("what do I do from here")** — mine mtg-sim gauntlet for main-phase positions where a lethal/best line exists but the APL misses it; Scene exporter GameState→JSON; land in `puzzle_inbox`. The headline user-facing track. (BLOCKED on mtg-sim mining harness; no WP-B dep for single-turn.)
+- [ ] **T3 — Glicko-2 puzzle ratings** — `puzzle_ratings` table; each attempt updates user + puzzle rating via existing `analysis/ratings.py::_update_rating`; surface rating in Solve tab.
+- [ ] **T1.1 — spaced repetition** — re-queue missed drills; daily feed.
 
 ## Infra / CI
 - [~] **MCP tool: `search_strategy_docs` (Pinecone semantic search)** (2026-06-19, `feat/strategy-doc-search`) — 5th MCP tool over `../mtg-sim/docs/` via Pinecone integrated inference; chunking + adapter + ingest CLI + graceful degradation; 382 tests green offline. **Live ingest/query gate NOT yet run — blocked on a Pinecone API key** (add to `config.ini [pinecone]`, run `scripts/ingest_strategy_docs.py`, then `tests/test_strategy_search_live.py`). See NEXT_STEPS.md.

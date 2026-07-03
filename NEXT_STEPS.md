@@ -1,10 +1,44 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-06-18 (CI: self-hosted jobs retired; GUI import check now hosted on push)
+Last updated: 2026-07-03 (Puzzle Trainer v0 Track T1 — outs-math drills shipped)
 
 ---
 
 ## TOP OF MIND
+
+### 7/03 session (shipped — Puzzle Trainer v0, Track T1: outs-math drills)
+
+- **Outs-math drill trainer.** New `drill_outs` puzzle category: hypergeometric
+  "odds to hit an out" drills grounded in REAL decklists sampled from
+  `mtg_meta.db` (house rule 8 — every drill stores its source-decklist
+  attribution in `notes`). Three templates across all 5 difficulty tiers: raw
+  single/multi-look, scry-1 keep-or-bottom, and compound two-out-class.
+  `analysis/puzzles/drill_generator.py` + `scripts/seed_drills.py`
+  (`python -m scripts.seed_drills --count 40 --replace`). 40 seeded.
+- **New exact-number grader** (`analysis/puzzles/graders.py::grade_number`,
+  `grading_mode="number"`). Fixes a real latent bug: fuzzy keyword matching
+  false-positives on short numbers (`partial_ratio("38.7","...8.7%")→100`).
+  The grader accepts the whole [exact, looks×outs-shorthand] band ±3pp, so a
+  student who applies the taught shorthand isn't marked wrong. Verified it
+  rejects the substring false-positive (1.63 vs 16.3 → incorrect).
+- Solve tab gains a **"🎲 Outs math"** category filter. Boardless drill scenes
+  render fine in the existing MTGA widget (verified headless).
+- **Gates green:** T1-G1 solver vs independent sequential-product oracle AND
+  scipy (100 cases, 0 mismatch); T1-G2 30 drills well-formed/grounded/
+  deterministic. 29/29 puzzle-suite tests pass. Spec:
+  `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.
+- **NOT built (deferred, per spec):** T2 sim-mined "what do I do from here"
+  positional puzzles (the bigger, user-facing track — needs the mtg-sim
+  mining harness + Scene exporter) and T3 Glicko-2 puzzle ratings. Those are
+  the next builds.
+- **⚠ OPS — MTG_META_DB machine env var points at the dead `D:\mtg-data`.**
+  `D:` was a temporary movie drive, now gone; the live DBs are on
+  `E:\mtg-data` (config.ini already agrees). Added a **User-scope** override
+  (`MTG_META_DB` / `MTG_META_ARCHIVE_DB` → `E:\mtg-data\...`) that wins for
+  future launches without admin. **The stale Machine-level vars still exist**
+  and need an elevated shell to clear:
+  `setx /M MTG_META_DB "E:\mtg-data\mtg_meta.db"` (and `..._ARCHIVE_DB`), or
+  delete them so config.ini is the single source of truth.
 
 ### 6/18 session (shipped — CI hardening, on `main`)
 

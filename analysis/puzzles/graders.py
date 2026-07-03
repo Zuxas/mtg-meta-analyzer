@@ -73,6 +73,69 @@ def grade_keyword(puzzle: dict[str, Any], user_answer: str) -> dict[str, Any]:
     return {"verdict": verdict, "explanation": explanation, "grader_used": "keyword"}
 
 
+_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+_NUMBER_TOL_PP = 3.0  # accept band half-width, percentage points
+
+
+def grade_number(
+    puzzle: dict[str, Any], user_answer: str, *, tol: float = _NUMBER_TOL_PP
+) -> dict[str, Any]:
+    """Exact-number grader for math drills (outs %, EV, etc.).
+
+    Fuzzy keyword matching false-positives on short numbers
+    (``partial_ratio("38.7", "...8.7%")`` -> 100), so numeric puzzles route
+    here instead. ``solution_keywords`` holds the canonical numeric answer(s)
+    as strings; when a puzzle stores TWO (e.g. the exact hypergeometric value
+    AND the looks*outs shorthand it teaches), we accept the whole *span*
+    between them widened by ``tol`` on each side. This is deliberate: a
+    student who correctly applies the shorthand the drill just taught (which
+    overshoots the exact answer) must not be marked wrong. Because we treat
+    the numbers as an interval [min, max], not discrete points, there is no
+    dead zone in the middle.
+
+    Verdicts: in-band -> correct; within one more ``tol`` of the band ->
+    partial; else incorrect. A fraction (0-1) answer is also tried *100 so
+    "0.39" grades the same as "39"."""
+    kws = puzzle.get("solution_keywords") or []
+    canon = [float(m) for k in kws for m in _NUM_RE.findall(str(k))]
+    if not canon:
+        return {
+            "verdict": "incorrect",
+            "explanation": "No numeric answer configured on this puzzle.",
+            "grader_used": "number",
+        }
+    lo, hi = min(canon) - tol, max(canon) + tol
+    raw = [float(m) for m in _NUM_RE.findall(user_answer or "")]
+    if not raw:
+        return {
+            "verdict": "incorrect",
+            "explanation": (
+                f"No number found in your answer "
+                f"(expected ~{min(canon):.1f}-{max(canon):.1f}%)."
+            ),
+            "grader_used": "number",
+        }
+    # Try each user number as-is and, if it looks like a fraction, *100.
+    cands: list[float] = []
+    for u in raw:
+        cands.append(u)
+        if 0.0 <= u <= 1.0:
+            cands.append(u * 100.0)
+    dist = min(0.0 if lo <= c <= hi else min(abs(c - lo), abs(c - hi)) for c in cands)
+    target = (
+        f"{min(canon):.1f}%"
+        if len(canon) == 1
+        else f"{min(canon):.1f}-{max(canon):.1f}%"
+    )
+    if dist <= 0.0:
+        verdict, why = "correct", f"In range ({target})."
+    elif dist <= tol:
+        verdict, why = "partial", f"Close — off by ~{dist:.1f}pp from {target}."
+    else:
+        verdict, why = "incorrect", f"Off by ~{dist:.1f}pp from {target}."
+    return {"verdict": verdict, "explanation": why, "grader_used": "number"}
+
+
 def _build_llm_prompt(puzzle: dict, user_answer: str) -> str:
     """Build the single-message prompt for the LLM grader."""
     scene = puzzle.get("scene") or {}
@@ -161,6 +224,10 @@ def grade(puzzle: dict[str, Any], user_answer: str) -> dict[str, Any]:
     ran, NOT the requested one, so the UI can show '(fallback from X)'."""
     mode = puzzle.get("grading_mode") or "self"
     keywords = puzzle.get("solution_keywords") or []
+
+    if mode == "number":
+        # Deterministic, no external dep, no fallback needed.
+        return grade_number(puzzle, user_answer)
 
     if mode == "llm":
         try:
