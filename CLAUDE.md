@@ -227,9 +227,17 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
   grader `graders.py::grade_number` (`grading_mode="number"`) — accepts the
   [exact, looks×outs-shorthand] band ±3pp; fixes fuzzy keyword false-positives
   on short numbers. Solve tab has a "🎲 Outs math" filter. Gates T1-G1
-  (solver vs independent oracle + scipy) + T1-G2 green. Deferred: T2
-  sim-mined positional puzzles, T3 Glicko-2 ratings. Spec:
+  (solver vs independent oracle + scipy) + T1-G2 green. Spec:
   `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.
+  **Track T2 (2026-07-03, goldfish slice):** sim-mined `find_lethal` puzzles.
+  `mtg-sim/scripts/mine_lethal_puzzles.py` mines "you have lethal this turn —
+  find the line" positions (play-dependent lethal, engine-`run_combat` oracle,
+  replay-gated); `scripts/import_lethal_puzzles.py` -> `puzzle_inbox` (scene +
+  line in `evidence`). The Inbox Promote path now prefers an embedded scene
+  (`_prefill_from_evidence` in `gui/tabs/puzzles.py`; optional pre-fill kwargs
+  on `PuzzleAuthorDialog`) so synthetic candidates promote into solvable
+  Solve-tab puzzles without a cached replay. 42 candidates from a 500-game run.
+  Deferred: gauntlet (real-opponent) slice, T3 Glicko-2 ratings.
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Refresh button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh).
 

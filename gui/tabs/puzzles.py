@@ -1,6 +1,7 @@
 """PUZZLES tab — Solve | Inbox | Author sub-modes (Phase 2)."""
 from __future__ import annotations
 
+import json
 import time
 from typing import Optional
 
@@ -327,21 +328,29 @@ class PuzzlesTab(QWidget):
         if row is None:
             QMessageBox.information(self, "No selection", "Pick a candidate row first.")
             return
-        scene = build_scene(
-            arena_match_id=row["arena_match_id"],
-            game_num=int(row["game_num"] or 1),
-            turn_num=int(row["turn_num"]),
-        )
-        if scene is None:
-            QMessageBox.warning(
-                self, "Scene unavailable",
-                f"No cached replay for {row['arena_match_id']}. "
-                "Run replay_fetcher or play the match again.",
+        # Synthetic candidates (e.g. sim-mined lethal puzzles) carry the full
+        # scene + solution in evidence and have no cached replay. Prefer that;
+        # fall back to rebuilding from a cached MTGA replay for real matches.
+        prefill = _prefill_from_evidence(row)
+        if prefill is not None:
+            scene, kwargs = prefill
+        else:
+            scene = build_scene(
+                arena_match_id=row["arena_match_id"],
+                game_num=int(row["game_num"] or 1),
+                turn_num=int(row["turn_num"]),
             )
-            return
+            if scene is None:
+                QMessageBox.warning(
+                    self, "Scene unavailable",
+                    f"No cached replay for {row['arena_match_id']} and no "
+                    "embedded scene. Run replay_fetcher or play the match again.",
+                )
+                return
+            kwargs = {}
         dlg = PuzzleAuthorDialog(
             scene=scene, inbox_id=row["id"],
-            suggested_category=row["category"], parent=self,
+            suggested_category=row["category"], parent=self, **kwargs,
         )
         if dlg.exec():
             self._refresh_inbox()
@@ -374,3 +383,51 @@ def _empty_scene() -> Scene:
         you=PlayerState(name="You"), opp=PlayerState(name="Opp"),
         notes="",
     )
+
+
+def _format_line(line: list) -> tuple[str, list]:
+    """Turn a mined action line (['PLAY_LAND:Marsh Flats', 'Bolt', ...]) into
+    a numbered human solution + the card-name keyword list."""
+    steps, cards = [], []
+    for i, step in enumerate(line, 1):
+        kind, _, name = str(step).partition(":")
+        if name:  # 'PLAY_LAND:Name'
+            steps.append(f"{i}. Play {name}")
+            cards.append(name)
+        else:      # bare card name = a cast
+            steps.append(f"{i}. Cast {kind}")
+            cards.append(kind)
+    steps.append("Then attack for lethal.")
+    return "\n".join(steps), cards
+
+
+def _prefill_from_evidence(row: dict):
+    """If an inbox row carries an embedded scene (synthetic/sim-mined
+    candidate), return (Scene, author_prefill_kwargs). Else None so the caller
+    falls back to rebuilding a scene from a cached replay."""
+    raw = row.get("evidence")
+    if not raw:
+        return None
+    try:
+        ev = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    scene_d = ev.get("scene") if isinstance(ev, dict) else None
+    if not scene_d:
+        return None
+    try:
+        scene = Scene.from_dict(scene_d)
+    except (KeyError, TypeError):
+        return None
+    line = ev.get("solution_line") or []
+    solution, cards = _format_line(line) if line else ("", [])
+    remaining = scene.opp.life
+    kwargs = {
+        "suggested_question": f"You have lethal this turn — opponent at "
+                              f"{remaining}. What's the line?",
+        "suggested_solution": solution,
+        "suggested_keywords": cards,
+        "suggested_difficulty": 4 if ev.get("greedy_misses") else 2,
+        "suggested_grading": "self",
+    }
+    return scene, kwargs

@@ -46,6 +46,11 @@ class PuzzleAuthorDialog(QDialog):
         *,
         inbox_id: Optional[int] = None,
         suggested_category: Optional[str] = None,
+        suggested_question: Optional[str] = None,
+        suggested_solution: Optional[str] = None,
+        suggested_keywords: Optional[list] = None,
+        suggested_difficulty: Optional[int] = None,
+        suggested_grading: Optional[str] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -57,6 +62,22 @@ class PuzzleAuthorDialog(QDialog):
         self._build_ui()
         if suggested_category:
             self._set_category(suggested_category)
+        # Pre-fill from a mined candidate (synthetic promote path). The human
+        # still reviews + edits before Save, per the inbox->author design.
+        if suggested_question:
+            self._question_edit.setText(suggested_question)
+        if suggested_solution:
+            self._solution_edit.setPlainText(suggested_solution)
+        if suggested_keywords:
+            self._keywords_edit.setText(", ".join(suggested_keywords))
+        if suggested_difficulty:
+            self._difficulty_spin.setValue(
+                max(1, min(5, int(suggested_difficulty))))
+        if suggested_grading:
+            for i in range(self._grading_combo.count()):
+                if self._grading_combo.itemData(i) == suggested_grading:
+                    self._grading_combo.setCurrentIndex(i)
+                    break
 
     def _build_ui(self) -> None:
         outer = QVBoxLayout(self)

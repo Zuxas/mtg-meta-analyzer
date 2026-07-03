@@ -35,11 +35,15 @@ Last updated: 2026-07-03 (Puzzle Trainer v0 Track T1 — outs-math drills shippe
   `scripts/import_lethal_puzzles.py` ingests the JSONL into `puzzle_inbox`.
   Gates: T2-G2 **42 candidates/500 games**, T2-G3 byte-identical 2 runs, T2-G1
   replay-gated. **42 `find_lethal` rows now in puzzle_inbox.**
-  - **PLAYABILITY GAP (next):** the Promote->Author path rebuilds a scene from a
-    cached MTGA replay, which synthetic goldfish candidates don't have. Each
-    candidate carries its full scene in `evidence` JSON; wire a
-    promote-from-embedded-scene path so these open in the Solve tab. Until then
-    they're mined but not solvable in-app.
+  - **PLAYABILITY: CLOSED.** Promote->Author now prefers an embedded scene from
+    the inbox row's `evidence` (synthetic candidates), falling back to a cached
+    replay for real matches (`_prefill_from_evidence` in `gui/tabs/puzzles.py`;
+    new optional pre-fill kwargs on `PuzzleAuthorDialog`). Promote a `find_lethal`
+    candidate from the Inbox sub-tab: the Author form opens pre-filled with the
+    scene, a "you have lethal — find the line" question, the numbered mined line
+    as the solution (self-grade), difficulty (4 if greedy misses it, else 2),
+    and the line's cards as keywords. Human reviews/edits, Saves -> solvable in
+    the Solve tab. Verified headless end-to-end (saved puzzle renders).
   - Caveats (in every candidate): puzzle truth = engine truth; goldfish = open
     board. Gauntlet (real-opponent) slice reuses the same pipeline + a
     no-untapped-blocker filter.
