@@ -4,7 +4,7 @@
 ![PyQt6](https://img.shields.io/badge/GUI-PyQt6-41CD52?logo=qt&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![MCP](https://img.shields.io/badge/MCP-agent--callable-7C3AED)
-![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-412%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A personal desktop tool for competitive Magic: The Gathering players. Scrapes tournament results from multiple sources, stores years of data locally, and surfaces the meta insights you need to prepare for RCQs, Regional Championships, and Pro Tours.
@@ -79,6 +79,13 @@ A personal desktop tool for competitive Magic: The Gathering players. Scrapes to
 - Extracts per-match SB plan from `SubmitDeckReq` events for G1->G2 and G2->G3 diffs
 - Captures per-game stats: life endpoints, mulligan-to, turn count, close/blowout classification
 - Rank progression: scrapes constructed + limited rank from Player.log, dedup'd on insert, time series visualised on the Dashboard via a clickable rank chart (matplotlib, tier-name Y-axis ticks)
+
+**Puzzle Trainer (RC/PT practice)**
+- A **Puzzles** tab with **Solve** and **Inbox** sub-modes and an MTGA-style board renderer (life totals, mirrored zones, fanned hand, Scryfall card art)
+- **Outs-math drills** — hypergeometric "odds to hit an out" problems (single/multi-look, scry keep-or-bottom, compound), grounded in *real* decklists sampled from your own database (every drill cites its source list). Graded by an exact-number grader with a tolerance band around the taught looks×outs shorthand, so applying the approximation you're being taught isn't marked wrong
+- **Sim-mined lethal puzzles** — "you have lethal this turn — find the line" positions mined by the companion [mtg-sim](https://github.com/Zuxas/mtg-sim) engine. Each candidate is *replay-verified* to be engine-lethal before it lands in your Inbox to review and promote into a solvable puzzle (v0 mines open-board / goldfish positions; real-opponent boards are the next slice)
+- **Glicko-2 ratings** — every attempt is a one-game rating match between you and the puzzle; your rating (and each puzzle's) updates on solve and shows live in the Solve session line, cold-started from puzzle difficulty. Reuses the same Glicko-2 engine as the archetype power ratings
+- Grader chain: typo-tolerant keyword match (rapidfuzz), exact-number, optional Haiku LLM, and a manual self-grade override
 
 **Other features**
 - Weekly meta predictions with accuracy tracking (which signals are most reliable)
@@ -175,6 +182,7 @@ and design notes.
 | **Tournament Prep** | Event Optimizer (RCQ/RC/PTQ presets, top-cut equity, matchup breakdown, flip detection) + Breaker Math (live W/L/D + ID calc) |
 | **Matchup Data** | NxN heatmap: Real Match Data (260k+ matches) + MTGDecks Live scrapes + Untapped Bo3 ladder + paste CSV/JSON. Overall WR column, source indicators (★ = real) |
 | **Ladder (Meta group)** | MTGA-ladder meta from Untapped Mythic leaderboard: rollup by archetype, Bo3 skill curve Bronze->Mythic, top-30 leaderboard with deck linkout + save-to-My-Decks. Cache local replays or pull current top-30 |
+| **Puzzles** | RC/PT practice — Solve + Inbox sub-tabs with an MTGA-style board renderer. Outs-math hypergeometric drills (grounded in real decklists), sim-mined "find the lethal line" puzzles (from the [mtg-sim](https://github.com/Zuxas/mtg-sim) engine, replay-verified), and Glicko-2 puzzle ratings surfaced live in the session line |
 | **Ask Claude** | AI assistant with meta context — hidden until API key is set in Settings |
 | **Settings** | Format selection, data window, auto-update frequency, AI key |
 
@@ -231,6 +239,8 @@ analysis/               Analysis modules
   sideboard_guides.py   Guide parsing + post-board WR model
   tournament.py         RCQ equity, breaker math
   predictions.py        Weekly prediction generation + validation
+  ratings.py            Glicko-2 power ratings (archetypes + puzzles)
+  puzzles/              Puzzle trainer: drill generator, graders, scene builder, rating loop
 
 db/                     Database layer
   database.py           Schema, connections, active + archive DB
