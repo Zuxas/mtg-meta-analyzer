@@ -33,9 +33,11 @@ logs/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/*.db.*
 db/*.db
 db/*.db-shm
 db/*.db-wal
+db/*.db.*
 
 # Runtime data dumps
 data/*.json
