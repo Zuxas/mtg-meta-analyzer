@@ -36,6 +36,7 @@ from PyQt6.QtGui import QColor, QFont
 import gui.theme as theme
 from gui.state import UIState
 from gui.state_keys import MATCHUP_DATA_FORMAT, MATCHUP_DATA_TIMEFRAME
+from gui.widgets.flow_layout import FlowLayout
 
 
 # ---------------------------------------------------------------------------
@@ -326,13 +327,53 @@ class HeatmapTab(QWidget):
         outer.setSpacing(6)
 
         # ── Toolbar ───────────────────────────────────────────────────
+        # Grouped into three labeled clusters (Sources | Analysis | Export)
+        # so data-source buttons, derived-analysis buttons, and I/O buttons
+        # read as distinct zones instead of one flat row of look-alike
+        # buttons (GR-5). Format/Timeframe stay bare — they're filters that
+        # apply across every cluster, not a cluster themselves.
         toolbar = QFrame()
         toolbar.setStyleSheet(
             f"background: {theme.PANEL}; border-radius: 4px; padding: 2px;"
         )
-        tl = QHBoxLayout(toolbar)
+        # FlowLayout (not QHBoxLayout) so this row wraps onto additional
+        # lines at narrow widths (e.g. the 1200x700 default) instead of
+        # clipping clusters off the right edge of the window -- same fix
+        # as the Dashboard filter row (GR-1). Each cluster below is built
+        # as a single QWidget, so FlowLayout wraps BETWEEN clusters, never
+        # splitting one open mid-row.
+        tl = FlowLayout(toolbar, h_spacing=theme.SPACE_SM, v_spacing=theme.SPACE_XS)
         tl.setContentsMargins(8, 4, 8, 4)
-        tl.setSpacing(theme.SPACE_SM)
+
+        def _separator() -> QFrame:
+            """Theme-consistent vertical divider between toolbar clusters —
+            same recipe as the Dashboard tab's own filter-row separators."""
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.VLine)
+            sep.setFixedWidth(1)
+            sep.setStyleSheet(f"background: {theme.BORDER};")
+            return sep
+
+        def _cluster(title: str, buttons: list, object_name: str) -> QWidget:
+            """Wrap related buttons in a small labeled group: an uppercase
+            header row above a row of buttons. `object_name` lets tests find
+            each named group in the widget tree."""
+            box = QWidget()
+            box.setObjectName(object_name)
+            vb = QVBoxLayout(box)
+            vb.setContentsMargins(0, 0, 0, 0)
+            vb.setSpacing(2)
+            header = QLabel(title)
+            header.setObjectName(f"{object_name}_label")
+            header.setStyleSheet(theme.h3_style())
+            vb.addWidget(header)
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(theme.SPACE_XS)
+            for b in buttons:
+                row.addWidget(b)
+            vb.addLayout(row)
+            return box
 
         tl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
@@ -361,6 +402,9 @@ class HeatmapTab(QWidget):
         )
         tl.addWidget(self._tf)
 
+        tl.addWidget(_separator())
+
+        # ── Sources cluster: where the matchup data comes from ─────────
         self._combined_btn = QPushButton("Real Match Data (DB)")
         self._combined_btn.setStyleSheet(theme.btn_primary())
         self._combined_btn.setToolTip(
@@ -370,20 +414,26 @@ class HeatmapTab(QWidget):
             "(Standard / Pioneer only)."
         )
         self._combined_btn.clicked.connect(self._load_combined)
-        tl.addWidget(self._combined_btn)
 
         self._fetch_btn = QPushButton("MTGDecks Live")
         self._fetch_btn.setStyleSheet(theme.btn_secondary())
         self._fetch_btn.setToolTip("Scrape current win-rates from MTGDecks.net and save to DB")
         self._fetch_btn.clicked.connect(self._fetch_live)
-        tl.addWidget(self._fetch_btn)
 
         self._cache_btn = QPushButton("Use Cached")
         self._cache_btn.setStyleSheet(theme.btn_secondary())
         self._cache_btn.setToolTip("Load the last saved MTGDecks snapshot from the local DB")
         self._cache_btn.clicked.connect(self._load_cached)
-        tl.addWidget(self._cache_btn)
 
+        tl.addWidget(_cluster(
+            "Sources",
+            [self._combined_btn, self._fetch_btn, self._cache_btn],
+            "heatmap_group_sources",
+        ))
+
+        tl.addWidget(_separator())
+
+        # ── Analysis cluster: derived views over the loaded matrix ─────
         self._gauntlet_btn = QPushButton("Gauntlet")
         self._gauntlet_btn.setStyleSheet(theme.btn_secondary())
         self._gauntlet_btn.setToolTip(
@@ -391,24 +441,6 @@ class HeatmapTab(QWidget):
             "Uses real match data to populate the matchup grid"
         )
         self._gauntlet_btn.clicked.connect(self._load_gauntlet)
-        tl.addWidget(self._gauntlet_btn)
-
-        self._build_gauntlet_btn = QPushButton("Export Decks")
-        self._build_gauntlet_btn.setStyleSheet(theme.btn_secondary())
-        self._build_gauntlet_btn.setToolTip(
-            "Export top meta decklists as .txt files for mtg-sim gauntlet testing"
-        )
-        self._build_gauntlet_btn.clicked.connect(self._export_gauntlet_decks)
-        tl.addWidget(self._build_gauntlet_btn)
-
-        self._paste_btn = QPushButton("Paste Data")
-        self._paste_btn.setStyleSheet(theme.btn_secondary())
-        self._paste_btn.setToolTip(
-            "Manually paste CSV or JSON matchup data "
-            "(e.g. from Frank Karsten or I Love Azorius tweets)"
-        )
-        self._paste_btn.clicked.connect(self._open_paste_dialog)
-        tl.addWidget(self._paste_btn)
 
         self._eq_btn = QPushButton("Equilibrium")
         self._eq_btn.setStyleSheet(theme.btn_secondary())
@@ -418,13 +450,41 @@ class HeatmapTab(QWidget):
             "Rock-Paper-Scissors cycles in the matchup data."
         )
         self._eq_btn.clicked.connect(self._show_equilibrium)
-        tl.addWidget(self._eq_btn)
+
+        tl.addWidget(_cluster(
+            "Analysis",
+            [self._gauntlet_btn, self._eq_btn],
+            "heatmap_group_analysis",
+        ))
+
+        tl.addWidget(_separator())
+
+        # ── Export cluster: getting data in/out of the app ─────────────
+        self._build_gauntlet_btn = QPushButton("Export Decks")
+        self._build_gauntlet_btn.setStyleSheet(theme.btn_secondary())
+        self._build_gauntlet_btn.setToolTip(
+            "Export top meta decklists as .txt files for mtg-sim gauntlet testing"
+        )
+        self._build_gauntlet_btn.clicked.connect(self._export_gauntlet_decks)
+
+        self._paste_btn = QPushButton("Paste Data")
+        self._paste_btn.setStyleSheet(theme.btn_secondary())
+        self._paste_btn.setToolTip(
+            "Manually paste CSV or JSON matchup data "
+            "(e.g. from Frank Karsten or I Love Azorius tweets)"
+        )
+        self._paste_btn.clicked.connect(self._open_paste_dialog)
 
         self._export_btn = QPushButton("Export")
         self._export_btn.setStyleSheet(theme.btn_secondary())
         self._export_btn.setToolTip("Export current matchup data as JSON for team sharing")
         self._export_btn.clicked.connect(self._export_gauntlet)
-        tl.addWidget(self._export_btn)
+
+        tl.addWidget(_cluster(
+            "Export",
+            [self._build_gauntlet_btn, self._paste_btn, self._export_btn],
+            "heatmap_group_export",
+        ))
 
         tl.addStretch()
 

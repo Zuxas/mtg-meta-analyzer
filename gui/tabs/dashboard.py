@@ -24,6 +24,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
 from gui.widgets.chart_canvas import ChartCanvas, fetch_chart_data
+from gui.widgets.flow_layout import FlowLayout
 from gui.worker_threads import DataLoadWorker
 from gui.worker_utils import cancel_worker as _cancel_worker
 from gui.state import UIState
@@ -285,8 +286,10 @@ class DashboardTab(QWidget):
         root.addWidget(self._summary_bar)
 
         # ── Controls bar ──────────────────────────────────────────────
-        ctrl = QHBoxLayout()
-        ctrl.setSpacing(theme.SPACE_SM)
+        # FlowLayout (not QHBoxLayout) so this row wraps onto additional
+        # lines at narrow widths (e.g. the 1200x700 default) instead of
+        # shrinking/clipping/overlapping its labels and buttons.
+        ctrl = FlowLayout(h_spacing=theme.SPACE_SM, v_spacing=theme.SPACE_XS)
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
@@ -422,8 +425,13 @@ class DashboardTab(QWidget):
         top_layout.setSpacing(6)
 
         self._recent_tbl  = self._build_recent_panel(top_layout)
+        # Win Rate has the most columns (9 vs 6/5) so it gets a larger
+        # share of the row -- otherwise its Stretch-mode Archetype column
+        # gets squeezed to a sliver by the other panels' equal thirds and
+        # long archetype names elide even at a wide/maximized window.
         self._winrate_tbl, self._winrate_hdr = self._build_ranked_panel(
-            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Change", "Rating", "Prep", "Status", "Tier", "Role"])
+            top_layout, "WIN RATE THIS WEEK", ["", "Archetype", "Win%", "Change", "Rating", "Prep", "Status", "Tier", "Role"],
+            stretch=2)
         self._winrate_tbl.horizontalHeaderItem(4).setToolTip(
             "Glicko-2 Power Rating\n"
             "Skill estimate from real match results.\n"
@@ -601,10 +609,15 @@ class DashboardTab(QWidget):
         hh.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         tbl.itemDoubleClicked.connect(self._on_recent_dblclick)
         tbl.itemClicked.connect(self._on_recent_dblclick)
-        parent_layout.addWidget(frame)
+        # Explicit stretch=1 (matches Popular's default) so the three top
+        # panels split 1:2:1 -- without it, Recent's implicit stretch=0
+        # collapses it toward its sizeHint once Win Rate's stretch=2
+        # claims the slack, forcing a horizontal scrollbar on its own two
+        # Stretch-mode columns (Archetype, Event).
+        parent_layout.addWidget(frame, 1)
         return tbl
 
-    def _build_ranked_panel(self, parent_layout, title: str, cols: list):
+    def _build_ranked_panel(self, parent_layout, title: str, cols: list, stretch: int = 1):
         frame, tbl, hdr_lbl, hdr_row = self._panel_frame(title, cols)
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -625,7 +638,7 @@ class DashboardTab(QWidget):
         csv_btn.clicked.connect(lambda: self._export_panel_csv(tbl, title))
         hdr_row.addWidget(csv_btn)
 
-        parent_layout.addWidget(frame)
+        parent_layout.addWidget(frame, stretch)
         return tbl, hdr_lbl
 
     def _panel_frame(self, title: str, cols: list):
@@ -831,18 +844,8 @@ class DashboardTab(QWidget):
 
         # Summary bar
         fmt = self._fmt.currentText().upper()
-        stats = []
-        total_apps = sum(s.get("appearances", 0) for s in self._standings)
-        if total_apps:
-            stats.append(f"{total_apps:,} appearances")
-        if self._standings:
-            top = self._standings[0]
-            top_name = top.get("archetype", "?")
-            top_share = top.get("appearances", 0) / max(total_apps, 1) * 100
-            stats.append(f"Top: {top_name} {top_share:.1f}%")
-        real_wrs = data.get("real_wrs", {})
-        if real_wrs:
-            stats.append(f"{len(real_wrs)} archetypes with real W/L data")
+        stats = self._build_summary_stats(self._standings, data.get("real_wrs", {}),
+                                          tf_label)
         self._summary_bar.update(fmt, stats)
 
         # Meta Impact bar
@@ -861,6 +864,40 @@ class DashboardTab(QWidget):
             self._impact_bar.setVisible(True)
         else:
             self._impact_bar.setVisible(False)
+
+    @staticmethod
+    def _build_summary_stats(standings: list, real_wrs: dict, tf_label: str) -> list[str]:
+        """Build the summary-bar stat strings for the current standings snapshot.
+
+        The leading-archetype stat names both its metric ("meta share" --
+        the same appearances-based share the Popular panel's "Meta%"
+        column shows) and the active timeframe window, so it reads
+        unambiguously next to the Popular panel's own percentage instead of
+        an unlabeled bare "Top: <name> <pct>%".
+
+        Important: `standings` (from `get_meta_standings`) is sorted by
+        avg_points descending, NOT by appearances -- `standings[0]` is the
+        best-*placing* archetype, which is frequently a low-appearance one.
+        Using it here would print a low percentage right next to the
+        Popular panel's genuine meta-share leader (a bigger, different
+        number for a bigger, different name) -- the exact GR-9 contradiction,
+        just wearing a label. So this picks the actual highest-appearances
+        archetype, matching the Popular panel's own #1 row exactly (same
+        `s["appearances"] / total_apps` computation the Popular panel uses
+        for its top-ranked entry).
+        """
+        stats = []
+        total_apps = sum(s.get("appearances", 0) for s in standings)
+        if total_apps:
+            stats.append(f"{total_apps:,} appearances")
+        if standings:
+            top = max(standings, key=lambda s: s.get("appearances", 0))
+            top_name = top.get("archetype", "?")
+            top_share = top.get("appearances", 0) / max(total_apps, 1) * 100
+            stats.append(f"Top meta share ({tf_label}): {top_name} {top_share:.1f}%")
+        if real_wrs:
+            stats.append(f"{len(real_wrs)} archetypes with real W/L data")
+        return stats
 
     def _on_chart_data(self, data):
         self._chart_data = data

@@ -1,8 +1,13 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-07-03
+> Last updated: 2026-07-11
 
 ---
+
+## OPEN — GUI polish (9-gripe handoff, `../harness/handoffs/mta-gui-polish-2026-07-10.md`)
+- [x] **Wave A: GR-1 window sizing + GR-9 labeled Top metric + GR-5 grouped heatmap toolbar** (2026-07-11, branch `bob/bob-20260710-231652-ed02`) — maximize-on-first-launch + persisted/clamped geometry + FlowLayout filter row (1200x700 safe); "Top meta share (<window>)" strip now shows the true meta-share leader; heatmap toolbar grouped Sources|Analysis|Export with wrap, header Refresh → "Reload Tab". 29 new tests; suite 441 passed/2 skipped; refute-council-verified with live screenshots.
+- [ ] **Wave B: GR-4 auto-load on open (Charts/Matchup) + GR-2 heatmap header truncation (+ legend ~1660px min-width) + GR-8 low-N cell tinting**
+- [ ] **Wave C: GR-3 matplotlib chrome + GR-6 My Decks decklist pane (grouping/curve/pips/hover) + GR-7 drill question-card layout**
 
 ## OPEN — Puzzles / Training
 - [x] **Puzzle Trainer v0 — Track T1: outs-math drills** (2026-07-03) — `drill_outs` category; hypergeometric odds drills grounded in real decklists (`analysis/puzzles/drill_generator.py`, `scripts/seed_drills.py`); new exact-number grader (`grade_number`, `grading_mode="number"`) fixing fuzzy-numeric false positives; "🎲 Outs math" Solve filter. Gates T1-G1 (solver vs independent oracle + scipy) + T1-G2 green; 29/29 puzzle tests. Spec `../harness/specs/2026-07-03-puzzle-trainer-v0.md`.

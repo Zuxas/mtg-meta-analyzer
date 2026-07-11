@@ -5,7 +5,7 @@ Creates a slim one-line bar showing key stats at a glance.
 Usage:
     bar = SummaryBar()
     layout.addWidget(bar)
-    bar.update("STANDARD", ["3,843 events", "Top: Boros Energy 12.3%"])
+    bar.update("STANDARD", ["3,843 events", "Top meta share (2 weeks): Boros Energy 12.3%"])
 """
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel
 from PyQt6.QtGui import QFont

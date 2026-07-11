@@ -40,7 +40,7 @@ from gui.worker_threads    import QuickScrapeWorker, _count_events
 from gui.state import UIState
 from gui.state_keys import (
     LAST_ACTIVE_TAB_PATH, GLOBAL_FORMAT, PALETTE_RECENTS,
-    UI_LEVEL, DASH_BANNER_DISMISSED,
+    UI_LEVEL, DASH_BANNER_DISMISSED, WINDOW_GEOMETRY, WINDOW_MAXIMIZED,
 )
 from gui.widgets.palette_registry import PaletteRegistry
 from gui.widgets.command_palette import CommandPalette
@@ -52,12 +52,118 @@ import gui.theme as theme
 
 MIN_EVENTS = 50
 
+# Header "reload this tab from the DB" button label. Named "Reload Tab" (not
+# "Refresh") so this always-visible global control never collides with a
+# tab's own "Refresh" button (e.g. Dashboard's filter-row Refresh, which
+# re-runs the query using the tab's selected filters) -- GR-5 disambiguation.
+# Kept as a module-level constant so it's testable without constructing the
+# full MainWindow (heavy: DB, workers, Win32 hotkeys, MTGA log watcher).
+HEADER_RELOAD_LABEL = "↻ Reload Tab"
+
 # Sub-tab labels hidden in Basic mode (Pro-only surfaces). META carries
 # LADDER / SIMULATE / PREDICTIONS / CALIBRATION; HYPOTHESES lives inside
 # the Tournament Prep inner tab widget.
 _PRO_TAB_LABELS = frozenset(
     {"LADDER", "SIMULATE", "PREDICTIONS", "CALIBRATION", "HYPOTHESES"}
 )
+
+
+def _clamp_rect_to_screens(x: int, y: int, w: int, h: int, screens=None):
+    """Clamp a restored window rect to the union of every connected
+    screen's available (taskbar-safe) geometry.
+
+    Returns a clamped ``(x, y, w, h)`` tuple, or ``None`` if the rect has
+    zero overlap with every connected screen -- the caller should
+    maximize instead in that case, since the monitor this rect was saved
+    on may have been disconnected (unplugged, laptop undocked, resolution
+    changed) since it was persisted.
+
+    `screens` is an injectable list of objects exposing
+    ``availableGeometry() -> QRect`` (real ``QScreen`` instances via
+    ``QGuiApplication.screens()`` by default). Tests pass lightweight
+    fakes instead of monkeypatching Qt's own static method.
+    """
+    from PyQt6.QtCore import QRect
+
+    if screens is None:
+        from PyQt6.QtGui import QGuiApplication
+        screens = QGuiApplication.screens()
+    if not screens:
+        return (x, y, w, h)  # nothing to validate against -- leave as-is
+
+    rect = QRect(x, y, w, h)
+    virtual = screens[0].availableGeometry()
+    for screen in screens[1:]:
+        virtual = virtual.united(screen.availableGeometry())
+
+    if not virtual.intersects(rect):
+        return None  # fully off-screen -- caller falls back to maximize
+
+    # Nudge the rect fully inside the virtual desktop bounds (handles a
+    # rect that's partially, not fully, off-screen -- e.g. a monitor that
+    # shrank resolution rather than one that disappeared entirely).
+    clamped = QRect(rect)
+    if clamped.right() > virtual.right():
+        clamped.moveRight(virtual.right())
+    if clamped.bottom() > virtual.bottom():
+        clamped.moveBottom(virtual.bottom())
+    if clamped.left() < virtual.left():
+        clamped.moveLeft(virtual.left())
+    if clamped.top() < virtual.top():
+        clamped.moveTop(virtual.top())
+    return (clamped.x(), clamped.y(), clamped.width(), clamped.height())
+
+
+def _restore_window_geometry(window, ui_state, screens=None) -> None:
+    """Restore the window to its last-saved geometry/maximized state.
+
+    First-ever launch (neither key has ever been persisted) opens
+    maximized -- this is what keeps the dashboard filter row and Win Rate
+    archetype column from truncating at the 1200x700 default size.
+    Subsequent launches restore whatever geometry and maximized flag the
+    window had when the user last closed it -- unless the persisted rect
+    no longer overlaps any connected screen (see _clamp_rect_to_screens),
+    in which case the window maximizes on the current primary screen
+    instead of opening off-screen and unreachable.
+
+    Pure function of (window, ui_state) so it's testable against a bare
+    QMainWindow without constructing the full app-specific MainWindow.
+    `screens` is test-only dependency injection -- see
+    _clamp_rect_to_screens.
+    """
+    geom = ui_state.get(WINDOW_GEOMETRY)
+    was_maximized = ui_state.get(WINDOW_MAXIMIZED)
+    if geom is None and was_maximized is None:
+        # Never persisted before -- first-ever launch.
+        window.setWindowState(window.windowState() | Qt.WindowState.WindowMaximized)
+        return
+    if isinstance(geom, (list, tuple)) and len(geom) == 4:
+        try:
+            x, y, w, h = (int(v) for v in geom)
+            clamped = _clamp_rect_to_screens(x, y, w, h, screens=screens)
+            if clamped is None:
+                window.setWindowState(
+                    window.windowState() | Qt.WindowState.WindowMaximized
+                )
+            else:
+                window.setGeometry(*clamped)
+        except (TypeError, ValueError):
+            pass
+    if was_maximized:
+        window.setWindowState(window.windowState() | Qt.WindowState.WindowMaximized)
+
+
+def _persist_window_geometry(window, ui_state) -> None:
+    """Save current geometry + maximized flag for the next launch.
+
+    Saves normalGeometry() (the un-maximized rect) when maximized so
+    un-maximizing later restores something sane, else the current rect.
+    """
+    maximized = window.isMaximized()
+    ui_state.set(WINDOW_MAXIMIZED, maximized)
+    geo = window.normalGeometry() if maximized else window.geometry()
+    if geo.width() > 0 and geo.height() > 0:
+        ui_state.set(WINDOW_GEOMETRY, [geo.x(), geo.y(), geo.width(), geo.height()])
 
 
 def _is_existing_user() -> bool:
@@ -103,6 +209,10 @@ class MainWindow(QMainWindow):
 
         # Persisted UI state singleton — used by tabs for filter persistence
         self.ui_state = UIState.instance()
+
+        # Restore last-saved window geometry, or maximize on first-ever
+        # launch (see _restore_window_geometry docstring).
+        _restore_window_geometry(self, self.ui_state)
 
         # Basic/Pro progressive disclosure — resolve BEFORE _build_ui so the
         # segmented control and initial tab set match. First launch: existing
@@ -389,10 +499,12 @@ class MainWindow(QMainWindow):
         self._pro_btn.clicked.connect(lambda: self._set_ui_level("pro"))
         hl.addWidget(seg)
 
-        # Refresh button (F5 shortcut) — re-queries DB for the active tab
-        self._refresh_btn = QPushButton("↻ Refresh")
+        # Reload button (F5 shortcut) — re-queries DB for the active tab.
+        # See HEADER_RELOAD_LABEL module constant for why it's "Reload Tab"
+        # and not "Refresh".
+        self._refresh_btn = QPushButton(HEADER_RELOAD_LABEL)
         self._refresh_btn.setToolTip(
-            "Reload the current tab from the database (F5).\n"
+            "Reload the current tab's data from the database (F5).\n"
             "Use after editing data outside the GUI (CLI, manual DB writes, etc.)"
         )
         self._refresh_btn.setStyleSheet(theme.btn_secondary())
@@ -1167,6 +1279,17 @@ class MainWindow(QMainWindow):
     def cleanup(self):
         """Stop all running workers. Called by app.aboutToQuit before process exits."""
         self._mem_timer.stop()
+        # Persist window geometry if still visible -- covers the force-quit
+        # hotkey path (_force_quit calls cleanup() directly, bypassing
+        # closeEvent, while the window is still fully visible). If already
+        # hidden (closed-to-tray earlier), skip: closeEvent already
+        # captured the last-visible geometry and a hidden window's
+        # reported state can be stale.
+        try:
+            if self.isVisible():
+                _persist_window_geometry(self, self.ui_state)
+        except Exception:
+            pass
         # Stop Win32 global hotkey listener first so the message pump
         # exits before the overlay it controls disappears.
         try:
@@ -1234,6 +1357,18 @@ class MainWindow(QMainWindow):
                     tab.cleanup()
                 except Exception:
                     pass
+        # Everything above (geometry, overlay geometry/lock, and anything
+        # else set() during this method) only *scheduled* a 250ms debounced
+        # disk save. cleanup() is called from the force-quit path
+        # (_force_quit -> QApplication.exit(0), then a belt-and-braces
+        # os._exit(0) ~1.5s later) and from aboutToQuit right before the
+        # process tears down -- either can end before that timer ever
+        # fires, silently dropping everything persisted above. Flush once,
+        # unconditionally, at the very end so the writes actually land.
+        try:
+            self.ui_state.flush()
+        except Exception:
+            pass
 
     def set_tray(self, tray):
         """Called by run_gui.py after the tray icon is created."""
@@ -1249,7 +1384,14 @@ class MainWindow(QMainWindow):
         Only hide-to-tray on spontaneous events to prevent the window from
         disappearing during background operations like heatmap loads.
         """
-        # Flush persisted UI state on every close (spontaneous or not).
+        # Persist window geometry/maximized state before anything else --
+        # the window is still fully visible/valid here (hide-to-tray, if
+        # it happens, is below). Then flush persisted UI state on every
+        # close (spontaneous or not).
+        try:
+            _persist_window_geometry(self, self.ui_state)
+        except Exception:
+            pass
         try:
             self.ui_state.flush()
         except Exception:

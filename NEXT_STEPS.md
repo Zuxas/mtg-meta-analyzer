@@ -1,6 +1,33 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-03 (Puzzle Trainer v0 COMPLETE — Track T3 Glicko-2 ratings shipped)
+Last updated: 2026-07-11 (GUI polish Wave A shipped — GR-1/GR-9/GR-5 from the 9-gripe handoff)
+
+---
+
+## 7/10-11 session (shipped — GUI polish Wave A: window sizing / labeled Top metric / grouped heatmap toolbar)
+
+- Source: `../harness/handoffs/mta-gui-polish-2026-07-10.md` (9 screenshot-verified GUI
+  gripes, 3 waves), driven by a /bob run on branch `bob/bob-20260710-231652-ed02`.
+- **GR-1 (window sizing/truncation):** app opens maximized on first launch; window
+  geometry persists via new `ui_state` keys (`WINDOW_GEOMETRY`/`WINDOW_MAXIMIZED`) and is
+  clamped to connected screens on restore (off-screen rect -> maximize). Dashboard filter
+  row wraps via new `gui/widgets/flow_layout.py::FlowLayout` — all five controls render
+  fully at 1200x700. Win Rate panel archetype column no longer elided (stretch fix,
+  1:2:1 panel split). `cleanup()` now flushes ui_state synchronously (force-quit path).
+- **GR-9 (unlabeled Top metric):** summary strip now reads "Top meta share (<window>):
+  <archetype> <pct>%" AND selects the true meta-share leader (max appearances) — the old
+  code showed the best-placing archetype (points-sorted `standings[0]`), which was the
+  actual source of the strip-vs-Popular contradiction.
+- **GR-5 (heatmap toolbar):** 8 flat buttons grouped into labeled Sources | Analysis |
+  Export clusters with separators; toolbar wraps between clusters at narrow widths (all
+  buttons reachable at 1200px — caught by the refute-council, remediated same wave).
+  Header "↻ Refresh" renamed "Reload Tab" so refresh semantics are unambiguous.
+- Verification: independent verifier + 3-seat refute-council + live screenshots at
+  1200x700 and maximized. Suite **441 passed, 2 skipped** (baseline 412 + 29 new tests).
+- Known pre-existing (NOT fixed, folded into Wave B): heatmap legend row forces ~1660px
+  min width; app min-height ~1460px exceeds short monitors.
+- NEXT: Wave B (GR-4 auto-load-on-open, GR-2 heatmap headers, GR-8 low-N tinting),
+  Wave C (GR-3 matplotlib chrome, GR-6 My Decks decklist pane, GR-7 drill layout).
 
 ---
 
