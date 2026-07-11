@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
 
 from analysis.puzzles.scene_builder import Scene, PlayerState, build_scene
 from db import puzzles as db_puzzles
-from gui.widgets.puzzle_scene import PuzzleSceneWidget
+from gui.widgets.puzzle_scene import PuzzleSceneWidget, is_boardless
 from gui.widgets.puzzle_author_dialog import PuzzleAuthorDialog
 
 import gui.theme as theme
@@ -122,6 +122,8 @@ class PuzzlesTab(QWidget):
         splitter.addWidget(right)
         splitter.setSizes([720, 320])
         v.addWidget(splitter, 1)
+        self._solve_splitter = splitter
+        self._question_panel = right
         return panel
 
     def _build_inbox_panel(self) -> QWidget:
@@ -191,6 +193,7 @@ class PuzzlesTab(QWidget):
             self._verdict_chip.hide()
             self._got_it_btn.hide(); self._missed_btn.hide()
             self._scene_widget.set_scene(_empty_scene())
+            self._apply_board_layout(boardless=True)
             return
         puzzle = candidates[0]  # newest first (get_puzzles returns DESC by id)
         self._current_puzzle = puzzle
@@ -219,6 +222,22 @@ class PuzzlesTab(QWidget):
         )
         scene = Scene.from_dict(puzzle["scene"])
         self._scene_widget.set_scene(scene)
+        self._apply_board_layout(boardless=is_boardless(scene))
+
+    def _apply_board_layout(self, *, boardless: bool) -> None:
+        """GR-7: boardless puzzles (drill_outs, or any scene with no cards
+        anywhere) render a compact question-card layout -- PuzzleSceneWidget
+        hidden entirely, question panel takes the vast majority of the tab
+        width. Board-having puzzles keep the original board+question split
+        unaffected."""
+        self._scene_widget.setVisible(not boardless)
+        if boardless:
+            # A hidden splitter child is auto-collapsed by QSplitter, but
+            # setSizes() too so the question panel dominates deterministically
+            # regardless of any prior manual drag of the splitter handle.
+            self._solve_splitter.setSizes([0, 1])
+        else:
+            self._solve_splitter.setSizes([720, 320])
 
     def _render_verdict_chip(self, result: dict) -> None:
         """Show the auto-grader verdict as a colored chip below the

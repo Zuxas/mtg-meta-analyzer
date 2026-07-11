@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QPlainTextEdit, QSplitter, QTableWidget, QTableWidgetItem,
     QHeaderView, QProgressBar, QComboBox, QFrame, QLineEdit,
-    QGroupBox, QSizePolicy,
+    QGroupBox, QSizePolicy, QScrollArea,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
@@ -347,7 +347,16 @@ class DeckAnalyzerTab(QWidget):
         self._workers.clear()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        # Content is built in a plain QWidget, then wrapped in a QScrollArea
+        # so the tab scrolls instead of forcing the whole window taller --
+        # this tab's standalone minimumSizeHint() was ~631px unscrolled
+        # (the results column on the right stacks Blunder/Chapin/similarity/
+        # baseline/legality/hypergeometric sections with no internal
+        # scrolling), one of the two tabs (with settings.py::SettingsTab)
+        # binding MainWindow's minimum height above 900px. Same pattern as
+        # gui/tabs/event_optimizer.py::EventWidget / dashboard.py / event_hub_tab.py.
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM)
         layout.setSpacing(6)
 
@@ -656,6 +665,16 @@ class DeckAnalyzerTab(QWidget):
         splitter.addWidget(right)
         splitter.setSizes([360, 460])
         layout.addWidget(splitter, 1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(scroll)
 
     # ------------------------------------------------------------------
     # Load average deck from DB

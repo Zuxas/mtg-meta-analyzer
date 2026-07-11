@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSplitter, QTextEdit, QComboBox, QSpinBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QCheckBox, QGroupBox,
+    QCheckBox, QGroupBox, QScrollArea,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
@@ -61,10 +61,18 @@ class EventWidget(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         outer.addWidget(splitter)
 
-        # ── Left: inputs ──────────────────────────────────────────────
+        # ── Left: inputs (scrollable -- content stack is taller than the
+        # panel's fixed width and must not force the whole app's minimum
+        # window height, see harness/handoffs/mta-gui-polish-2026-07-10.md
+        # min-height diagnosis) ─────────────────────────────────────────
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        left_scroll.setMinimumWidth(270)
+        left_scroll.setMaximumWidth(340)
+
         left = QWidget()
-        left.setMinimumWidth(270)
-        left.setMaximumWidth(340)
         lv = QVBoxLayout(left)
         lv.setContentsMargins(theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD, theme.SPACE_MD)
         lv.setSpacing(theme.SPACE_SM)
@@ -186,7 +194,8 @@ class EventWidget(QWidget):
 
         lv.addStretch()
 
-        splitter.addWidget(left)
+        left_scroll.setWidget(left)
+        splitter.addWidget(left_scroll)
 
         # ── Right: results ─────────────────────────────────────────────
         right = QWidget()

@@ -11,6 +11,7 @@ Actions:
   - Open in Event Optimizer (switches to Tournament Prep tab)
 """
 import json
+import re
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
@@ -27,6 +28,28 @@ from gui.state import UIState
 from gui.state_keys import MY_DECKS_SELECTED_DECK_ID
 
 _FORMATS = ["standard", "pioneer", "modern", "legacy"]
+
+# Matches the "<Archetype> (auto-imported YYYY-MM-DD)" suffix that
+# analysis/auto_save_deck.py appends to a deck's DB `name` when it
+# auto-creates a saved deck from an unrecognized MTGA match. GR-6 (e):
+# this is display-only -- the raw name (with suffix) stays exactly as
+# stored; only the rendered table/header text drops the suffix in favor
+# of a small secondary badge.
+_AUTO_IMPORT_RE = re.compile(
+    r"^(.*?)\s*\(auto-imported\s+(\d{4}-\d{2}-\d{2})\)\s*$", re.IGNORECASE
+)
+
+
+def _split_auto_imported(name: str) -> tuple[str, str | None]:
+    """Split '<name> (auto-imported YYYY-MM-DD)' into (display_name, date).
+    Returns (name, None) unchanged if the suffix isn't present. Callers
+    MUST keep using the original raw `name` for anything that reaches the
+    DB (save_deck/delete_deck/_DeckDialog prefill/...) -- this is a
+    render-time-only split."""
+    m = _AUTO_IMPORT_RE.match(name or "")
+    if not m:
+        return (name or "", None)
+    return (m.group(1).strip(), m.group(2))
 
 
 # ---------------------------------------------------------------------------
@@ -408,16 +431,12 @@ class MyDecksTab(QWidget):
         self._detail_tabs = QTabWidget()
 
         # -- Decklist sub-tab --
+        from gui.widgets.decklist_pane import DecklistPane
         dl_widget = QWidget()
         dl_layout = QVBoxLayout(dl_widget)
         dl_layout.setContentsMargins(4, 4, 4, 4)
-        self._decklist_text = QTextEdit()
-        self._decklist_text.setReadOnly(True)
-        self._decklist_text.setStyleSheet(
-            f"background: {theme.INPUT}; color: {theme.TEXT}; "
-            f"border: 1px solid {theme.BORDER}; font-family: Consolas, monospace; font-size: 11px;"
-        )
-        dl_layout.addWidget(self._decklist_text, 1)
+        self._decklist_pane = DecklistPane()
+        dl_layout.addWidget(self._decklist_pane, 1)
 
         # Export row
         exp_row = QHBoxLayout()
@@ -664,8 +683,15 @@ class MyDecksTab(QWidget):
             side = d.get("sideboard", {})
             total = sum(main.values()) + sum(side.values())
 
-            name_item = QTableWidgetItem(d.get("name", ""))
+            raw_name = d.get("name", "")
+            display_name, auto_date = _split_auto_imported(raw_name)
+            name_item = QTableWidgetItem(display_name)
             name_item.setData(Qt.ItemDataRole.UserRole, d.get("id"))
+            if auto_date:
+                # GR-6e: suffix moved out of the displayed name (render-only
+                # -- the DB row's `name` column is untouched) into a
+                # tooltip badge so the info isn't lost, just de-emphasized.
+                name_item.setToolTip(f"Auto-imported {auto_date}")
             self._table.setItem(row, 0, name_item)
             self._table.setItem(row, 1, QTableWidgetItem(d.get("format", "")))
 
@@ -784,13 +810,14 @@ class MyDecksTab(QWidget):
             UIState.instance().set(MY_DECKS_SELECTED_DECK_ID, deck_id)
 
     def _show_deck(self, deck):
-        name = deck.get("name", "Unnamed")
+        raw_name = deck.get("name", "Unnamed")
+        display_name, auto_date = _split_auto_imported(raw_name)
         arch = deck.get("archetype", "")
         fmt  = deck.get("format", "")
         main = deck.get("mainboard", {})
         side = deck.get("sideboard", {})
 
-        self._header.setText(name)
+        self._header.setText(display_name)
         parts = []
         if fmt:
             parts.append(fmt.capitalize())
@@ -802,9 +829,14 @@ class MyDecksTab(QWidget):
         notes = deck.get("notes", "")
         if notes:
             parts.append(notes)
+        if auto_date:
+            # Secondary badge segment -- the "(auto-imported <date>)" info
+            # moved out of the deck name itself (GR-6e), still surfaced
+            # here so provenance isn't lost, just de-emphasized.
+            parts.append(f"Auto-imported {auto_date}")
         self._meta_lbl.setText("  \u2022  ".join(parts))
 
-        self._decklist_text.setPlainText(_deck_to_text(main, side))
+        self._decklist_pane.set_deck(deck)
 
         # Load SB plans
         self._load_sb_plans(deck.get("id"))
@@ -1083,7 +1115,7 @@ class MyDecksTab(QWidget):
         self._current_deck = None
         self._header.setText("Select a deck to view details")
         self._meta_lbl.setText("")
-        self._decklist_text.clear()
+        self._decklist_pane.clear()
         self._sb_table.setRowCount(0)
         self._edit_btn.setEnabled(False)
         self._del_btn.setEnabled(False)

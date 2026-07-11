@@ -75,7 +75,14 @@ class SettingsTab(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        outer = QVBoxLayout(self)
+        # Content is built in a plain QWidget, then wrapped in a QScrollArea
+        # so the tab scrolls instead of forcing the whole window taller --
+        # this tab's standalone minimumSizeHint() was ~878px unscrolled,
+        # one of the two tabs (with deck_analyzer.py::DeckAnalyzerTab)
+        # binding MainWindow's minimum height above 900px. Same pattern as
+        # gui/tabs/event_optimizer.py::EventWidget / dashboard.py / event_hub_tab.py.
+        content = QWidget()
+        outer = QVBoxLayout(content)
         outer.setContentsMargins(24, 20, 24, 20)
         outer.setSpacing(18)
 
@@ -290,6 +297,16 @@ class SettingsTab(QWidget):
         outer.addLayout(bar)
 
         outer.addStretch()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(content)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(scroll)
 
         # Load storage info
         self._refresh_storage()

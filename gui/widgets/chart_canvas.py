@@ -8,14 +8,14 @@ IMPORTANT: This module must be imported AFTER matplotlib.use("QtAgg") is
 set in run_gui.py. Do NOT import analysis.charts here — it sets Agg backend
 at module level and would conflict.
 """
-import os, json
+import os, json, math
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 import matplotlib.ticker as mticker
 import matplotlib.colors as mcolors
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont
 
 import gui.theme as theme
@@ -168,6 +168,38 @@ def _subtitle(ax, text: str):
     ax.text(0.5, 1.01, text, transform=ax.transAxes,
             ha="center", va="bottom", fontsize=8,
             color="#888888", style="italic")
+
+
+def _place_legend(fig, ax, handles=None, labels=None, **kwargs):
+    """Place a legend OUTSIDE the axes (figure-level, upper-right corner)
+    so its bbox can never intersect a plotted line's bbox (GR-3 gate) --
+    the previous ax.legend(loc="upper left") landed INSIDE the axes and
+    routinely overlapped the plotted lines themselves. Requires the shared
+    Figure's constrained_layout engine (see ChartCanvas.__init__) to
+    actually reserve the extra margin; matplotlib only supports the
+    "outside ..." loc keyword on figure-level legends, not axes ones.
+    Returns the Legend artist, or None if there are no labeled series to
+    show (nothing to legend for a single/zero-series plot).
+
+    ncol defaults to a rows-per-column cap (~10) rather than a flat 1: the
+    "Top N" chart controls go up to N=20 (gui/tabs/charts.py's spinbox
+    range), and a single-column legend with that many entries forces
+    constrained_layout to squeeze the AXES DOWN TO A SLIVER to make
+    vertical room for it (empirically ~38% of figure height at N=20, vs
+    ~60%+ once it wraps to 2 columns) -- itself a "chrome clash" the GR-3
+    gate's own bbox-intersection check doesn't catch, since a shrunk-but-
+    non-overlapping axes still passes that check. Callers needing a
+    specific column count (e.g. a small fixed multi-series dual-axis
+    chart) can still pass ncol= explicitly to override this default."""
+    if handles is None or labels is None:
+        handles, labels = ax.get_legend_handles_labels()
+    if not handles:
+        return None
+    opts = dict(loc="outside upper right", fontsize=7, framealpha=0.92,
+                labelcolor="white", facecolor=_BG, edgecolor=_GRID,
+                ncol=max(1, math.ceil(len(labels) / 10)))
+    opts.update(kwargs)
+    return fig.legend(handles, labels, **opts)
 
 
 def _timeframe_label(sorted_keys: list) -> str:
@@ -334,11 +366,34 @@ class ChartCanvas(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._fig    = Figure(figsize=(10, 5), facecolor=_BG, tight_layout=True)
+        # constrained_layout (not tight_layout) -- it correctly reserves
+        # margin for artists placed OUTSIDE the axes (the figure-level
+        # legend below) as well as titles/tick labels, recomputed on every
+        # draw(). GR-3: never call self._fig.tight_layout() anywhere in this
+        # class -- doing so flips this SHARED Figure's layout engine to
+        # "tight" (matplotlib emits "The figure layout has changed to
+        # tight") and that switch is sticky across fig.clear(), silently
+        # undoing constrained_layout for every later chart type drawn on
+        # this same canvas.
+        self._fig    = Figure(figsize=(10, 5), facecolor=_BG, constrained_layout=True)
         self._canvas = FigureCanvasQTAgg(self._fig)
         self._toolbar = NavigationToolbar2QT(self._canvas, self)
         # Toolbar inherits the global QToolBar stylesheet from main_window.py
         self._toolbar.setStyleSheet("")
+        # GR-3: compact, icon-only toolbar (<=32px tall) -- see
+        # theme.CHART_TOOLBAR_ICON_PX / theme.CHART_TOOLBAR_MAX_H and the
+        # additive QToolBar#mplNavToolbar QSS rule in gui/theme.py.
+        self._toolbar.setObjectName("mplNavToolbar")
+        self._toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self._toolbar.setIconSize(QSize(theme.CHART_TOOLBAR_ICON_PX,
+                                        theme.CHART_TOOLBAR_ICON_PX))
+        # setFixedHeight (not setMaximumHeight): the Fusion style's own
+        # toolbar-button pixel metrics impose a ~35px floor that QSS padding
+        # alone can't shrink below, and a plain maximumHeight cap is only
+        # honored once a parent layout is actually managing this widget --
+        # unreliable to assert against directly in a unit test. Fixed height
+        # is a hard, deterministic floor+ceiling that holds standalone too.
+        self._toolbar.setFixedHeight(theme.CHART_TOOLBAR_MAX_H)
 
         # Overlay label shown while loading or when no data available
         self._overlay = QLabel("Select a chart type and click Generate", self._canvas)
@@ -517,8 +572,7 @@ class ChartCanvas(QWidget):
         ax.yaxis.set_major_formatter(
             mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
         )
-        ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
-                  labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        _place_legend(self._fig, ax)
         if show_events:
             # Event markers helper still consumes (x_labels, sorted_weeks) for
             # legacy compatibility -- regenerate x_labels matching the new
@@ -526,7 +580,6 @@ class ChartCanvas(QWidget):
             x_labels = [d.strftime(date_fmt) for d in sorted_dates]
             _draw_event_markers(ax, x_labels, sorted_weeks,
                                 data.get("format_name", "standard"))
-        self._fig.tight_layout()
         self._canvas.draw()
 
     def plot_meta_share(self, format_name="standard", top=10, weeks=12,
@@ -570,11 +623,9 @@ class ChartCanvas(QWidget):
         ax.yaxis.set_major_formatter(
             mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
         )
-        ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
-                  labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        _place_legend(self._fig, ax)
         _draw_event_markers(ax, x_labels, sorted_weeks,
                             data.get("format_name", "standard"))
-        self._fig.tight_layout()
         self._canvas.draw()
 
     # ------------------------------------------------------------------
@@ -660,14 +711,9 @@ class ChartCanvas(QWidget):
         )
         _subtitle(ax1, f"{total_apps:,} appearances  \u00b7  {_timeframe_label(_trend_keys)}")
         bar_proxy = ax1.bar([], [], color=bar_color, alpha=0.4, label="Appearances")
-        ax1.legend(
-            [bar_proxy] + line_handles,
-            ["Appearances"] + line_labels,
-            loc="upper left", fontsize=7, framealpha=0.3,
-            labelcolor="white", facecolor=_BG, edgecolor=_GRID,
-        )
+        _place_legend(self._fig, ax1,
+                      [bar_proxy] + line_handles, ["Appearances"] + line_labels)
         _draw_event_markers(ax1, x_labels, _trend_keys, format_name)
-        self._fig.tight_layout()
         self._canvas.draw()
 
     # ------------------------------------------------------------------
@@ -812,13 +858,8 @@ class ChartCanvas(QWidget):
         )
 
         bar_proxy = ax1.bar([], [], color=bar_color, alpha=0.45, label="Matches")
-        ax1.legend(
-            [bar_proxy] + line_handles,
-            ["Matches"] + line_labels,
-            loc="upper left", fontsize=7, framealpha=0.3,
-            labelcolor="white", facecolor=_BG, edgecolor=_GRID,
-        )
-        self._fig.tight_layout()
+        _place_legend(self._fig, ax1,
+                      [bar_proxy] + line_handles, ["Matches"] + line_labels)
         self._canvas.draw()
 
     # ------------------------------------------------------------------
@@ -870,11 +911,9 @@ class ChartCanvas(QWidget):
         ax.yaxis.set_major_formatter(
             mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
         )
-        ax.legend(loc="upper left", fontsize=7, framealpha=0.3,
-                  labelcolor="white", facecolor=_BG, edgecolor=_GRID, ncol=2)
+        _place_legend(self._fig, ax)
         _draw_event_markers(ax, x_labels, sorted_weeks,
                             data.get("format_name", "standard"))
-        self._fig.tight_layout()
         self._canvas.draw()
 
     # ------------------------------------------------------------------
@@ -1032,7 +1071,6 @@ class ChartCanvas(QWidget):
         ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.1f}%"))
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:.0f}%"))
 
-        self._fig.tight_layout()
         self._canvas.draw()
 
     def plot_heatmap(self, format_name="standard", top=10, min_appearances=3,
@@ -1114,5 +1152,4 @@ class ChartCanvas(QWidget):
             color="white", fontsize=12, pad=14,
         )
         _subtitle(ax, f"{n} archetypes  \u00b7  {total_matchups} matchup cells")
-        self._fig.tight_layout()
         self._canvas.draw()

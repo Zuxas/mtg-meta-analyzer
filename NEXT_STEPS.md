@@ -1,6 +1,37 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-11 (GUI polish Waves A+B shipped — GR-1/GR-9/GR-5 + GR-4/GR-2/GR-8)
+Last updated: 2026-07-11 (GUI polish COMPLETE — all 9 gripes closed across Waves A/B/C)
+
+---
+
+## 7/11 session (shipped — GUI polish Wave C: chart chrome / decklist pane / drill layout / min-height)
+
+- **GR-3:** chart nav toolbar compact icon-only <=32px (objectName-scoped QSS, additive
+  theme constants); every multi-series legend placed OUTSIDE the axes via shared
+  `_place_legend()` (overlap with plot lines impossible by construction; multi-column at
+  Top-N=20 so the axes don't collapse); Figure on `constrained_layout` (all 7 sticky
+  `tight_layout()` calls removed — they silently disabled it).
+- **GR-6:** Decklist sub-tab is now `gui/widgets/decklist_pane.py::DecklistPane` —
+  Creatures/Spells/Lands/Sideboard groups with counts (read-only card_data lookups),
+  mana-curve mini-bar, color pips, card-hover images; "(auto-imported <date>)" stripped
+  from display (badge/tooltip instead), saved_decks rows byte-identical.
+- **GR-7:** boardless scenes (drill_outs, empty queue) render a question-card layout —
+  scene hidden, question panel ~97% width; board-having puzzles regression-tested
+  (scene + card labels still render).
+- **Min-height (added at Wave B gate):** EventWidget 763→321px, then the moved
+  constraint chased into SettingsTab (~878→68) + DeckAnalyzerTab (~631→68) with the
+  same QScrollArea wrap — **MainWindow minimumSizeHint 1460 → 746px** (fits 1366x768).
+  The <=900 gate was a strict xfail while unmet, now a plain green assertion.
+- Verification: independent verifier caught the min-height shortfall (pass=false), the
+  extension closed it, independent re-verify green. Refute-council: GR-3/6/7 confirmed
+  in letter AND spirit (seat re-rendered themed at 1200x700). Suite **515 passed,
+  2 skipped, 0 xfailed** (+40 net this wave).
+- **Pre-existing bug FOUND, not fixed (track it):** `gui/tabs/settings.py` builds a
+  "Storage" QGroupBox (storage label + Collect More Data / Refresh / Scan Duplicates
+  buttons) that is never added to any layout — it has NEVER rendered. Small fix; decide
+  whether those buttons are still wanted.
+- GUI polish arc COMPLETE: all 9 gripes from the 2026-07-10 live review closed with
+  falsifiable gates. Handoff: `../harness/handoffs/mta-gui-polish-2026-07-10.md` (EXECUTED).
 
 ---
 

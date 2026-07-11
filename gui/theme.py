@@ -68,6 +68,15 @@ CHART_BG    = "#111219"
 CHART_PANEL = "#1a1b27"
 CHART_GRID  = "#2d2e3f"
 
+# ── Matplotlib nav-toolbar compaction (GR-3, additive) ──────────────────────
+# The stock NavigationToolbar2QT renders at ~49px tall (24px icons + the base
+# QToolBar QSS padding below, sized for a generic toolbar) which reads as
+# oversized/generic against the rest of the app chrome. gui/widgets/
+# chart_canvas.py uses these to shrink it to a compact icon-only bar, paired
+# with the additive `QToolBar#mplNavToolbar` QSS rule further down.
+CHART_TOOLBAR_ICON_PX = 16   # NavigationToolbar2QT.setIconSize()
+CHART_TOOLBAR_MAX_H   = 32   # hard ceiling asserted by the GR-3 gate
+
 # ── Shared timeframe selector options ──────────────────────────────────────
 # (label, weeks_or_None)   None = All Time (no date filter)
 TIMEFRAME_OPTIONS: list[tuple[str, int | None]] = [
@@ -475,6 +484,21 @@ def _build_stylesheet(heading: str) -> str:
         height: 1px;
         background: {BORDER};
         margin: 4px 8px;
+    }}
+
+    /* ── Matplotlib nav toolbar -- compact variant (GR-3, additive) ──────
+       Scoped by objectName ("mplNavToolbar", set in chart_canvas.py) so it
+       only tightens the chart canvas's own NavigationToolbar2QT (the sole
+       QToolBar instance in the app) without touching the generic QToolBar
+       rule above. Paired with setIconSize()/setMaximumHeight() in code --
+       CSS padding alone can't shrink the icon bitmap itself. */
+    QToolBar#mplNavToolbar {{
+        padding: 1px 4px;
+        spacing: 3px;
+    }}
+    QToolBar#mplNavToolbar QToolButton {{
+        padding: 1px 4px;
+        border-radius: 3px;
     }}
     """
 

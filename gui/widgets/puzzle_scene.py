@@ -200,6 +200,21 @@ class PuzzleSceneWidget(QWidget):
         return " · ".join(parts)
 
 
+def is_boardless(scene: Scene) -> bool:
+    """True if neither player has any cards in hand or on the battlefield.
+
+    Some puzzle categories (e.g. drill_outs) are pure library-math
+    questions with no battlefield content -- only life/library totals
+    differ. GR-7: the Solve tab uses this to switch from the full
+    MTGA-style board render to a compact question-card layout instead of
+    rendering an empty battlefield around floating zone labels."""
+    for player in (scene.you, scene.opp):
+        if (player.hand or player.battlefield_lands
+                or player.battlefield_creatures or player.battlefield_other):
+            return False
+    return True
+
+
 def _format_mana(mana: dict[str, int]) -> str:
     """Render a mana dict as a compact string: {'U': 2, 'R': 1} -> 'UUR'."""
     if not mana:
