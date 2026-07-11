@@ -31,12 +31,13 @@ from PyQt6.QtWidgets import (
     QFrame, QSizePolicy, QMenu,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QFontMetrics
 
 import gui.theme as theme
 from gui.state import UIState
 from gui.state_keys import MATCHUP_DATA_FORMAT, MATCHUP_DATA_TIMEFRAME
 from gui.widgets.flow_layout import FlowLayout
+from gui.widgets.header_elide import elide_headers_unique
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +307,83 @@ def _parse_pasted(text: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Matchup grid table (GR-2: fill the viewport, elide headers safely)
+# ---------------------------------------------------------------------------
+
+class _MatchupTableWidget(QTableWidget):
+    """QTableWidget for the matchup grid.
+
+    Its N archetype ("opponent") columns are re-distributed to fill the
+    full viewport width on every resize -- instead of a fixed 72px/column
+    that leaves the tail of a wide window as dead gutter -- and each
+    column's header text is re-elided to fit whatever width it ends up
+    with, via a middle-out, collision-free scheme
+    (gui/widgets/header_elide.py) so 27 archetype names never clip
+    mid-glyph or collapse into duplicate-looking headers. Every header
+    also gets a full-name tooltip regardless of whether it was truncated.
+    """
+
+    def __init__(self, rows: int, cols: int, archetype_names: list,
+                 overall_width: int = 64, min_col_width: int = 48):
+        super().__init__(rows, cols)
+        self._archetype_names = archetype_names   # columns 1..n, in order
+        self._overall_width = overall_width
+        self._min_col_width = min_col_width
+        self.apply_layout()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.apply_layout()
+
+    def apply_layout(self) -> None:
+        """Recompute archetype-column widths for the current viewport
+        size and re-elide/re-tooltip header text to match. Safe to call
+        before the widget has real geometry (falls back to minimum
+        widths, corrected on the next real resizeEvent once it's actually
+        shown inside a laid-out window)."""
+        n = len(self._archetype_names)
+        if n == 0 or self.columnCount() < n + 1:
+            return
+
+        hh = self.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        hh.resizeSection(0, self._overall_width)
+
+        viewport_w = self.viewport().width()
+        available = max(0, viewport_w - self._overall_width)
+        if available < self._min_col_width * n:
+            # Not enough room even at minimum width -- fall back to the
+            # minimum (a horizontal scrollbar appears); there is no free
+            # space to fill in this case, so no "dead gutter" concept
+            # applies.
+            widths = [self._min_col_width] * n
+        else:
+            base, extra = divmod(available, n)
+            # Distribute the remainder across the first `extra` columns
+            # so the columns' widths sum to exactly `available` -- zero
+            # dead gutter whenever there's room to fill.
+            widths = [base + (1 if i < extra else 0) for i in range(n)]
+
+        metrics = QFontMetrics(hh.font())
+        pad = 10  # breathing room either side of the elided text
+        elided = elide_headers_unique(
+            self._archetype_names, metrics,
+            [max(4, w - pad) for w in widths],
+        )
+
+        for i, name in enumerate(self._archetype_names):
+            col = i + 1
+            hh.setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
+            hh.resizeSection(col, widths[i])
+            item = self.horizontalHeaderItem(col)
+            if item is None:
+                item = QTableWidgetItem()
+                self.setHorizontalHeaderItem(col, item)
+            item.setText(elided[name])
+            item.setToolTip(name)
+
+
+# ---------------------------------------------------------------------------
 # Main tab
 # ---------------------------------------------------------------------------
 
@@ -538,11 +616,26 @@ class HeatmapTab(QWidget):
     # ------------------------------------------------------------------
 
     def _build_legend(self) -> QWidget:
+        """Legend row (color-scale key + source markers).
+
+        Uses FlowLayout (not QHBoxLayout) so it wraps onto additional
+        lines at narrow widths instead of forcing the whole tab's
+        minimumSizeHint wide enough to fit every swatch+label+the
+        source-legend string on one row -- this was the folded-in
+        pre-existing defect keeping HeatmapTab from ever genuinely
+        fitting a ~1200px-wide window (documented in
+        tests/test_heatmap_toolbar_groups.py's docstring: "HeatmapTab's
+        legend row has its own wide minimum width... keeps Qt from ever
+        honoring a literal 1200px window for this tab"). Each swatch+
+        label pair is one atomic QWidget, so FlowLayout only ever wraps
+        BETWEEN entries, never splitting a swatch from its own label.
+        """
         row = QWidget()
-        hl = QHBoxLayout(row)
-        hl.setContentsMargins(4, 2, 4, 2)
-        hl.setSpacing(theme.SPACE_MD)
-        hl.addWidget(QLabel("Legend:"))
+        fl = FlowLayout(row, h_spacing=theme.SPACE_MD, v_spacing=theme.SPACE_XS)
+        fl.setContentsMargins(4, 2, 4, 2)
+
+        fl.addWidget(QLabel("Legend:"))
+
         for label, color in [
             ("\u226560% (Strong Fav)", QColor(50, 220, 90)),
             ("55\u201359% (Favored)",  QColor(70, 190, 90)),
@@ -550,6 +643,10 @@ class HeatmapTab(QWidget):
             ("40\u201344% (Unfav)",    QColor(230, 90, 70)),
             ("\u226439% (Bad)",        QColor(240, 60, 50)),
         ]:
+            entry = QWidget()
+            eh = QHBoxLayout(entry)
+            eh.setContentsMargins(0, 0, 0, 0)
+            eh.setSpacing(4)
             swatch = QLabel()
             swatch.setFixedSize(14, 14)
             swatch.setStyleSheet(
@@ -558,8 +655,34 @@ class HeatmapTab(QWidget):
             )
             lbl = QLabel(label)
             lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
-            hl.addWidget(swatch)
-            hl.addWidget(lbl)
+            eh.addWidget(swatch)
+            eh.addWidget(lbl)
+            fl.addWidget(entry)
+
+        # Low-N key (GR-8): a two-stop alpha-ramp swatch showing that the
+        # SAME favorable win rate renders more faded at a tiny sample size
+        # than at a well-supported one -- see theme.winrate_bg_n().
+        low_n_entry = QWidget()
+        low_n_entry.setObjectName("heatmap_legend_low_n_key")
+        lnh = QHBoxLayout(low_n_entry)
+        lnh.setContentsMargins(0, 0, 0, 0)
+        lnh.setSpacing(4)
+        faded_c  = theme.winrate_bg_n(0.55, 1)    # single-match sample
+        opaque_c = theme.winrate_bg_n(0.55, 50)   # robust sample
+        low_n_swatch = QLabel()
+        low_n_swatch.setFixedSize(28, 14)
+        low_n_swatch.setStyleSheet(
+            "border-radius: 2px; "
+            f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+            f"stop:0 rgba({faded_c.red()},{faded_c.green()},{faded_c.blue()},{faded_c.alpha()}), "
+            f"stop:1 rgba({opaque_c.red()},{opaque_c.green()},{opaque_c.blue()},{opaque_c.alpha()}));"
+        )
+        low_n_lbl = QLabel("Faded = low N (few matches, less confident)")
+        low_n_lbl.setObjectName("heatmap_legend_low_n_label")
+        low_n_lbl.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 10px;")
+        lnh.addWidget(low_n_swatch)
+        lnh.addWidget(low_n_lbl)
+        fl.addWidget(low_n_entry)
 
         # Source legend
         src_lbl = QLabel(
@@ -568,9 +691,8 @@ class HeatmapTab(QWidget):
             "\u2022 = MTGA Bo3 ladder"
         )
         src_lbl.setStyleSheet(f"color: {theme.ACCENT}; font-size: 10px;")
-        hl.addWidget(src_lbl)
+        fl.addWidget(src_lbl)
 
-        hl.addStretch()
         return row
 
     # ------------------------------------------------------------------
@@ -583,6 +705,29 @@ class HeatmapTab(QWidget):
             return
         self._hydrate_from_state()
         self._hydrated_state = True
+        # GR-4: don't leave the tab an empty void until a source button is
+        # clicked -- auto-fire the same async load a click would. Guarded by
+        # the same one-shot flag as hydration above, so switching back to
+        # this tab later never re-triggers a second (redundant) load.
+        self._auto_load_on_first_show()
+
+    def _auto_load_on_first_show(self) -> None:
+        """GR-4: auto-load 'Use Cached' if a cached MTGDecks snapshot already
+        exists for the (now-hydrated) current format, else 'Real Match Data
+        (DB)' -- both existing worker-backed actions, so this never blocks
+        the UI thread. The cache-existence check itself is a single fast
+        MAX(fetched_at) query (same call already made synchronously in
+        _on_data() below), not a full data load."""
+        fmt = self._fmt.currentText()
+        try:
+            from db.matchup_queries import get_last_updated
+            has_cache = get_last_updated(fmt) is not None
+        except Exception:
+            has_cache = False
+        if has_cache:
+            self._load_cached()
+        else:
+            self._load_combined()
 
     def _hydrate_from_state(self) -> None:
         state = UIState.instance()
@@ -992,7 +1137,11 @@ class HeatmapTab(QWidget):
         self._grid_format = fmt
         self._grid_notes = notes
 
-        tbl = QTableWidget(n, ncols)
+        # _MatchupTableWidget (GR-2): archetype columns fill the viewport
+        # width (instead of a fixed 72px/column that leaves the tail of a
+        # wide window empty) and their header text is elided with a
+        # collision-free middle-out scheme -- see class docstring.
+        tbl = _MatchupTableWidget(n, ncols, archetypes)
         # CRITICAL: The global stylesheet sets QTableWidget::item { padding }
         # which prevents setBackground() from working. Override with a
         # stylesheet that does NOT touch background at all — only padding/border.
@@ -1006,14 +1155,16 @@ class HeatmapTab(QWidget):
         pal.setColor(QPalette.ColorRole.Base, QColor(theme.BG))
         pal.setColor(QPalette.ColorRole.AlternateBase, QColor(theme.BG))
         tbl.setPalette(pal)
-        tbl.setHorizontalHeaderLabels(["Overall"] + archetypes)
+        # Column 0 ("Overall") keeps its literal label -- only the N
+        # archetype columns (1..n) get the elide treatment, handled
+        # entirely inside _MatchupTableWidget.apply_layout().
+        tbl.setHorizontalHeaderItem(0, QTableWidgetItem("Overall"))
         tbl.setVerticalHeaderLabels(archetypes)
         tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         tbl.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
 
         hh = tbl.horizontalHeader()
         vh = tbl.verticalHeader()
-        hh.setDefaultSectionSize(72)
         vh.setDefaultSectionSize(26)
         vh.setDefaultAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -1021,6 +1172,9 @@ class HeatmapTab(QWidget):
         header_font.setPointSize(8)
         tbl.horizontalHeader().setFont(header_font)
         tbl.verticalHeader().setFont(header_font)
+        # Re-run column sizing/eliding now that the header font is final
+        # (the constructor's first pass used the default font's metrics).
+        tbl.apply_layout()
 
         # Populate Overall column (index 0) — weighted avg WR across all matchups
         for ri, arch_a in enumerate(archetypes):
@@ -1066,12 +1220,17 @@ class HeatmapTab(QWidget):
                         item.setBackground(QColor(35, 35, 45))
                     else:
                         wr = matchup["winrate"]
-                        matches = matchup.get("matches", 0)
+                        matches = matchup.get("matches", 0) or 0
                         pct = round(wr * 100)
                         src = source_map.get((arch_a, arch_b))
                         marker = {"real": "\u2605", "untapped": "\u2022"}.get(src, "")
                         item = QTableWidgetItem(f"{pct}%{marker}")
-                        item.setBackground(_wr_bg(wr))
+                        # GR-8: tint by sample size, not just win rate -- a
+                        # 100%-off-1-match cell must read as visibly less
+                        # certain than a robust same-WR cell (theme.winrate_bg_n
+                        # is a linear alpha ramp by N, opaque at N>=20;
+                        # additive helper, winrate_bg/winrate_fg untouched).
+                        item.setBackground(theme.winrate_bg_n(wr, matches))
                         item.setForeground(_wr_fg(wr))
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         verdict = _wr_label(wr)
@@ -1085,8 +1244,11 @@ class HeatmapTab(QWidget):
                             f"Win rate: {pct}%  ({verdict})\n"
                             f"Source: {src_tag}"
                         )
-                        if matches:
-                            tooltip += f"\nMatches logged: {matches:,}"
+                        # N always shown (GR-8) -- a 0-match cell is exactly
+                        # the "no confidence" case the low-N tint is flagging.
+                        tooltip += f"\nMatches logged: {matches:,}"
+                        if matches < theme.LOW_N_THRESHOLD:
+                            tooltip += "  (low sample size \u2014 cell shown faded)"
                         cell_note = notes.get((arch_a, arch_b), "")
                         if cell_note:
                             tooltip += f"\n\nTeam Note:\n{cell_note}"
@@ -1099,10 +1261,10 @@ class HeatmapTab(QWidget):
 
                 tbl.setItem(ri, col, item)
 
-        hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        hh.resizeSection(0, 64)
-        for ci in range(1, ncols):
-            hh.setSectionResizeMode(ci, QHeaderView.ResizeMode.Fixed)
+        # Column widths (including the dead-gutter fill + header eliding)
+        # are fully owned by _MatchupTableWidget.apply_layout(), called
+        # above and again on every resizeEvent -- no separate fixed-width
+        # pass needed here.
         tbl.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
 
         # Clear existing grid content

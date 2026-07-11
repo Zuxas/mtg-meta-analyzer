@@ -1,6 +1,35 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-11 (GUI polish Wave A shipped — GR-1/GR-9/GR-5 from the 9-gripe handoff)
+Last updated: 2026-07-11 (GUI polish Waves A+B shipped — GR-1/GR-9/GR-5 + GR-4/GR-2/GR-8)
+
+---
+
+## 7/11 session (shipped — GUI polish Wave B: auto-load on open / heatmap headers / low-N tinting)
+
+- **GR-4:** META>CHARTS auto-generates the last-used chart (fallback Meta Share) and
+  MATCHUP DATA auto-loads cache (fallback Real Match Data) on first show — async, one-shot
+  guarded, no double-fire on re-show. Source buttons unaffected.
+- **GR-2:** matchup columns divide the full viewport width (0px dead gutter, 48px floor +
+  scrollbar when cramped); headers middle-out-elided with guaranteed uniqueness
+  (`gui/widgets/header_elide.py::elide_headers_unique`) + full-name tooltips. Legend row
+  rebuilt on FlowLayout — HeatmapTab min-width ~1660px → ~520px. Known geometric ceiling:
+  23 archetype names can't render in full at any window width; unique stubs + tooltips
+  are the designed escape hatch.
+- **GR-8:** `theme.winrate_bg_n(wr, n)` (additive; `winrate_bg`/`fg` untouched + pinned by
+  test) alpha-ramps cell tint from floor 70 at N=0 to opaque at N≥20; "Matches logged: N"
+  in every cell tooltip; low-N key added to the legend. Wilson-width approach tried and
+  abandoned (~4 luminance units — too subtle).
+- Verification: independent Opus verifier (9/9 gates) + 3-seat refute-council (0/3 refuted,
+  seat re-drove the real MainWindow at 1200x700). Suite **472 passed, 2 skipped** (+31).
+  Live captures via offscreen QWidget.grab (session was on the lock screen).
+- Test-infra lesson (from GR-4's worker): Qt 6.10 makes QThread-destroyed-while-running
+  fatal to the whole pytest process — tests constructing worker-spawning tabs must drain
+  workers to completion before cleanup() (see `_quiesce` in test_gr4_empty_on_open.py).
+- **Min-height root cause found (NOT fixed):** `gui/tabs/event_optimizer.py::EventWidget`
+  (763px, un-scrolled) forces the app-wide ~1460px min-height through 3 levels of nested
+  QTabWidgets. Suggested fix: QScrollArea wrap (pattern used in 8 other files). See
+  bob run evidence `wave-b/min-height-diagnosis.md`; decide in Wave C.
+- NEXT: Wave C (GR-3 matplotlib chrome, GR-6 My Decks decklist pane, GR-7 drill layout).
 
 ---
 

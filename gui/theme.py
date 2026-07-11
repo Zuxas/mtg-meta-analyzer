@@ -630,6 +630,49 @@ def winrate_fg(winrate: float):
     return QColor(240, 60, 50)        # bright red
 
 
+# ── Low-N tint modulation (GR-8, additive) ──────────────────────────────────
+# A matchup cell with a tiny sample size (e.g. "100% off 1 match") previously
+# rendered exactly as fully-saturated as a well-supported cell at the same
+# win rate (e.g. "60% off 50 matches"), which reads as equally trustworthy
+# when it isn't. winrate_bg_n() reuses the SAME 5-step color bands as
+# winrate_bg() (never modifies it -- purely additive) but scales the
+# returned color's alpha by a simple ramp on sample size `n`: fully faded
+# toward the panel background at n=0 (no data yet), ramping linearly up to
+# fully opaque -- identical to winrate_bg()'s own un-modulated output --
+# once n reaches LOW_N_THRESHOLD (20, the same N the rest of this codebase
+# already treats as "robust enough to call real data": the default
+# `min_matches` used for real-match eligibility in
+# gui/tabs/heatmap_tab.py's `_CombinedWorker`). A well-supported cell
+# therefore renders EXACTLY as it always has; only cells below that
+# threshold visibly wash out. (An earlier version of this helper scaled
+# alpha by analysis/wilson.py::wilson_bounds' confidence-interval width
+# instead -- empirically verified via a rendered-pixel grab that its N=1
+# vs N=20 delta was too subtle, only ~4 luminance units, because the
+# Wilson interval is still fairly wide at n=20. The plain N-ramp below
+# measures ~2x that delta and is simpler to reason about; analysis/wilson.py
+# stays untouched either way.)
+LOW_N_ALPHA_FLOOR = 70     # never fully invisible, even at n=0 (no data yet)
+LOW_N_THRESHOLD    = 20    # n at/above this renders fully opaque; also the
+                            # tooltip's low-sample-size cutoff
+
+
+def winrate_bg_n(winrate: float, n: int):
+    """Return a QColor background tint for a win-rate, modulated by sample
+    size `n` (GR-8): a simple linear alpha ramp from LOW_N_ALPHA_FLOOR at
+    n=0 up to fully opaque (255) at n>=LOW_N_THRESHOLD. Same 5-step color
+    bands as winrate_bg() -- only alpha changes -- so a 100%-off-1-match
+    cell renders visibly more washed-out/less certain than a robust
+    same-win-rate cell at n>=20. Does not read or modify
+    winrate_bg()/winrate_fg()."""
+    from PyQt6.QtGui import QColor
+
+    base = winrate_bg(winrate)
+    n = max(0, int(n))
+    ramp = min(1.0, n / LOW_N_THRESHOLD)
+    alpha = int(round(LOW_N_ALPHA_FLOOR + (255 - LOW_N_ALPHA_FLOOR) * ramp))
+    return QColor(base.red(), base.green(), base.blue(), alpha)
+
+
 def empty_state_label(title: str, hint: str = ""):
     """Return a QLabel styled as a centered 'nothing here yet' placeholder.
     title is the headline, hint is a secondary call-to-action. Used by any

@@ -12,6 +12,8 @@ the established offscreen-Qt pattern (QT_QPA_PLATFORM=offscreen env fixture
 + QApplication.instance() or QApplication([])) from tests/test_puzzles_tab.py
 and tests/test_dashboard_filter_row.py.
 """
+import time
+
 import pytest
 
 from PyQt6.QtCore import QPoint
@@ -253,4 +255,18 @@ def test_toolbar_buttons_reachable_at_1200x700(app):
             f"{sorted(rows)} -- cluster split internally mid-wrap"
         )
 
+    # win.show() above triggers HeatmapTab.showEvent, which (GR-4, see
+    # tests/test_gr4_empty_on_open.py) now auto-fires a real background
+    # QThread load. Drain it before teardown: Qt 6.10 aborts the process
+    # if a QThread wrapper is destroyed while its thread is still running
+    # (gui/worker_utils.py's stop_worker() docstring), and calling
+    # cleanup() while the worker is still mid-flight forces stop_worker()
+    # down its terminate() force-kill fallback, which can corrupt shared
+    # Qt/interpreter state badly enough to crash a LATER, unrelated test
+    # instead of this one.
+    deadline = time.monotonic() + 20.0
+    while time.monotonic() < deadline and tab._worker is not None:
+        app.processEvents()
+        time.sleep(0.02)
+    tab.cleanup()
     win.close()

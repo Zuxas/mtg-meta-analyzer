@@ -58,6 +58,38 @@ class ChartsTab(QWidget):
             return
         self._hydrate_from_state()
         self._hydrated_state = True
+        # GR-4: don't leave the tab an empty void until Generate is clicked --
+        # auto-fire the (now-hydrated) last-used chart type on first show.
+        # Guarded by the same one-shot flag as hydration above, so switching
+        # back to this tab later never re-triggers a second auto-generate.
+        self._auto_generate_on_first_show()
+
+    def _current_type_is_ready(self) -> bool:
+        """True if generate() will actually plot something for the current
+        chart type given the current control values. Trend/Compare/Untapped
+        modes need an archetype (or a >=2-item compare list) that may not be
+        populated yet on a fresh launch -- in that case we fall back to the
+        always-safe Meta Share default rather than auto-firing into
+        "Enter an archetype name." with nothing plotted."""
+        chart_type = self._type.currentText()
+        if chart_type in ("Archetype Trend", "Untapped Ladder Trend"):
+            return bool(self._arch.currentText().strip())
+        if chart_type == "Compare Trends":
+            return self._compare_list.count() >= 2
+        return True  # Meta Share / Meta Positioning / Matchup Heatmap need no extra input
+
+    def _auto_generate_on_first_show(self) -> None:
+        """GR-4: auto-generate the last-used chart type (sticky state) --
+        or the default Meta Share if that type isn't safely generatable yet
+        -- through the same async Generate path (generate() -> ChartCanvas.
+        plot_*() -> background QThread loader), so the UI thread is never
+        blocked."""
+        if not self._current_type_is_ready():
+            self._type.blockSignals(True)
+            self._type.setCurrentText("Meta Share")
+            self._type.blockSignals(False)
+            self._on_type_changed("Meta Share")
+        self.generate()
 
     def _hydrate_from_state(self) -> None:
         state = UIState.instance()
