@@ -1,8 +1,13 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-07-11
+> Last updated: 2026-07-12
 
 ---
+
+## OPEN — GUI follow-ups
+- [x] **Settings "Storage" groupbox wired in** (2026-07-12) — never-rendered panel now visible; slots click-only-audited; 5 tests; suite 520 passed/2 skipped. Live-pass 7/7 confirmed the whole polish arc in real pixels.
+- [ ] Card-image tooltip "Image not available" — re-check with a warm Scryfall image cache (mechanism works, fails soft).
+- [ ] Decklist-pane color pips — presentation polish (groups/curve shipped fine).
 
 ## OPEN — GUI polish (9-gripe handoff, `../harness/handoffs/mta-gui-polish-2026-07-10.md`)
 - [x] **Wave A: GR-1 window sizing + GR-9 labeled Top metric + GR-5 grouped heatmap toolbar** (2026-07-11, branch `bob/bob-20260710-231652-ed02`) — maximize-on-first-launch + persisted/clamped geometry + FlowLayout filter row (1200x700 safe); "Top meta share (<window>)" strip now shows the true meta-share leader; heatmap toolbar grouped Sources|Analysis|Export with wrap, header Refresh → "Reload Tab". 29 new tests; suite 441 passed/2 skipped; refute-council-verified with live screenshots.

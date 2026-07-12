@@ -168,6 +168,12 @@ class SettingsTab(QWidget):
         store_btns.addWidget(self._backfill_status)
         sv.addLayout(store_btns)
 
+        # Wire the Storage groupbox into the scroll content, between
+        # Auto-Update and ML Models (data-management neighbourhood). It was
+        # built above but historically never added to any layout, so it had
+        # never rendered.
+        outer.addWidget(store_box)
+
         # ── ML Models ─────────────────────────────────────────────
         ml_box = QGroupBox("ML Models (Advanced Analytics)")
         ml_layout = QVBoxLayout(ml_box)

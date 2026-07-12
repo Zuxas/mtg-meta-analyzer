@@ -1,6 +1,24 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-11 (GUI polish COMPLETE — all 9 gripes closed across Waves A/B/C)
+Last updated: 2026-07-12 (Storage groupbox wired + live-pass confirmation of the polish arc)
+
+---
+
+## 7/12 session (shipped — Storage groupbox fix + first real-launch verification of the GUI arc)
+
+- **Storage groupbox wired in** (`gui/tabs/settings.py`, one line): the "Storage" panel
+  (DB stats + Collect More Data / Refresh / Scan Duplicates) had NEVER rendered since
+  creation — now sits between Auto-Update and ML Models inside the scroll area. Slots
+  audited: all click-only, nothing fires at construction. 5 new tests; suite **520
+  passed, 2 skipped**.
+- **Live GUI pass (real desktop pixels, first since the arc shipped): 7/7 PASS** —
+  maximized launch, labeled Top stat matching Popular #1, auto-rendered Charts/Matchup,
+  header tooltips, faded low-N cells, clean deck names + grouped decklist pane w/ curve,
+  question-card drills, Storage visible. Two watch items: card-image tooltip shows
+  "Image not available" (no image cache in run env — verify once cache is warm);
+  decklist-pane color pips not visually distinct (minor GR-6 presentation nit).
+- Low-N pasted-cell fading confirmed KEEP (user decision 2026-07-12): pasted data has no
+  match count → renders faded by design.
 
 ---
 

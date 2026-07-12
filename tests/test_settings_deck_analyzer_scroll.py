@@ -96,15 +96,13 @@ _SETTINGS_GROUPBOX_TITLES = {
     "Formats to Track",
     "Data Window",
     "Auto-Update Frequency",
-    # NOTE: a "Storage" QGroupBox is instantiated in _build_ui (store_box)
-    # but never added to any layout -- a pre-existing orphaned-widget bug
-    # (confirmed present before this QScrollArea wrap, via `git diff` on
-    # this file: the wrap touches none of the store_box lines). It and its
-    # children (storage label + backfill/refresh/dedup buttons) are
-    # garbage-collected once _build_ui returns and never appear in the
-    # widget tree at all. Unrelated to and out of scope for this item
-    # (files: settings.py/deck_analyzer.py QScrollArea wrap only) -- not
-    # fixed here, just accurately reflected in this test's expectations.
+    # The "Storage" QGroupBox (store_box: storage label + Collect More
+    # Data / Refresh / Scan Duplicates buttons) is now wired into the
+    # scroll content between Auto-Update and ML Models. It was historically
+    # built in _build_ui but never added to any layout, so it had never
+    # rendered -- fixed when this item wired it in. Its own coverage lives
+    # in tests/test_settings_storage_groupbox.py.
+    "Storage",
     "ML Models (Advanced Analytics)",
     "Archetype Manager",
     "AI Assistant (optional)",
