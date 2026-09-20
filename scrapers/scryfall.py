@@ -19,6 +19,7 @@ Usage:
     python -m scrapers.scryfall --stats            # enrichment coverage
 """
 
+import gzip
 import json
 import os
 import re
@@ -111,6 +112,93 @@ def _bulk_is_fresh() -> bool:
         return False
 
 
+def _pick_bulk_download(entry: dict) -> tuple[str, int, str]:
+    """
+    Resolve the download URL for a Scryfall bulk-data index entry.
+
+    Scryfall changed the index shape in 2026-09: `download_uri` (plain JSON
+    array) + `size` became `jsonl_download_uri` (gzipped JSONL) +
+    `compressed_size`. Prefer the new key, fall back to the legacy one, and
+    fail loudly -- naming the keys that ARE present -- if neither exists so
+    the next shape change is diagnosable from the log alone.
+
+    Returns (url, byte_size, fmt) with fmt in {"jsonl.gz", "json"}.
+    """
+    if entry.get("jsonl_download_uri"):
+        return entry["jsonl_download_uri"], int(entry.get("compressed_size") or 0), "jsonl.gz"
+    if entry.get("download_uri"):
+        return entry["download_uri"], int(entry.get("size") or 0), "json"
+    raise RuntimeError(
+        "Scryfall bulk index entry has neither 'jsonl_download_uri' nor "
+        f"'download_uri'. Keys present: {sorted(entry)}"
+    )
+
+
+class _ProgressReader:
+    """Wrap a binary stream and print download progress as bytes are read."""
+
+    def __init__(self, raw, total: int):
+        self._raw = raw
+        self._total = total
+        self._read = 0
+        self._last_pct = -1
+
+    def read(self, n: int = -1) -> bytes:
+        chunk = self._raw.read(n)
+        self._read += len(chunk)
+        if self._total:
+            pct = min(100, self._read * 100 // self._total)
+            if pct != self._last_pct:
+                self._last_pct = pct
+                print(f"\r    {pct:3d}%  ({self._read // 1024 // 1024} / "
+                      f"{self._total // 1024 // 1024} MB)", end="", flush=True)
+        return chunk
+
+
+def _stream_to_json_array(stream, dest: str, fmt: str) -> int:
+    """
+    Write `stream` to `dest` as a JSON array of card objects.
+
+    fmt="jsonl.gz": gunzip, validate one JSON object per line, emit an array
+                    (original line bytes are written, not re-serialized).
+    fmt="json":     legacy plain JSON array, copied through unchanged.
+
+    Writes to `dest + ".tmp"` and `os.replace()`s on success so a failed or
+    interrupted download can never leave a truncated file where a valid
+    ~200 MB one was. Returns the number of objects written for jsonl.gz,
+    -1 for the uncounted legacy path.
+    """
+    tmp = dest + ".tmp"
+    count = 0
+    try:
+        with open(tmp, "wb") as out:
+            if fmt == "jsonl.gz":
+                out.write(b"[")
+                with gzip.GzipFile(fileobj=stream, mode="rb") as gz:
+                    for line in gz:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        json.loads(line)  # validate before it lands on disk
+                        if count:
+                            out.write(b",\n")
+                        out.write(line)
+                        count += 1
+                out.write(b"]")
+            else:
+                for chunk in iter(lambda: stream.read(1024 * 256), b""):
+                    out.write(chunk)
+                count = -1
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+    os.replace(tmp, dest)
+    return count
+
+
 def download_bulk_data(force=False) -> str:
     """
     Download the Scryfall oracle_cards bulk file to BULK_PATH.
@@ -137,29 +225,26 @@ def download_bulk_data(force=False) -> str:
     if not oracle_entry:
         raise RuntimeError("oracle_cards entry not found in Scryfall bulk index.")
 
-    download_url = oracle_entry["download_uri"]
-    size_mb = oracle_entry.get("size", 0) / 1024 / 1024
-    print(f"  Downloading oracle cards ({size_mb:.0f} MB)...")
+    download_url, size_bytes, fmt = _pick_bulk_download(oracle_entry)
+    size_mb = size_bytes / 1024 / 1024
+    print(f"  Downloading oracle cards ({size_mb:.0f} MB"
+          f"{' compressed' if fmt == 'jsonl.gz' else ''})...")
 
     with requests.get(download_url, headers=HEADERS, stream=True, timeout=300) as r:
         r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
-        downloaded = 0
-        with open(BULK_PATH, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 256):
-                f.write(chunk)
-                downloaded += len(chunk)
-                if total:
-                    print(f"\r    {downloaded/total*100:5.1f}%  "
-                          f"({downloaded//1024//1024} / {total//1024//1024} MB)",
-                          end="", flush=True)
+        # Served as application/gzip with no Content-Encoding (verified
+        # 2026-09-20), so r.raw yields the .gz bytes exactly as on the wire.
+        r.raw.decode_content = (fmt != "jsonl.gz")
+        total = int(r.headers.get("content-length", 0)) or size_bytes
+        card_count = _stream_to_json_array(_ProgressReader(r.raw, total), BULK_PATH, fmt)
     print()
 
     json.dump(
-        {"downloaded_at": datetime.now().isoformat(), "source_url": download_url},
+        {"downloaded_at": datetime.now().isoformat(), "source_url": download_url,
+         "format": fmt, "card_count": card_count},
         open(BULK_META_PATH, "w")
     )
-    print(f"  Saved: {BULK_PATH}")
+    print(f"  Saved: {BULK_PATH}" + (f" ({card_count:,} cards)" if card_count >= 0 else ""))
 
     # Invalidate in-memory cache so next access reloads fresh data
     _BULK_CACHE = None

@@ -22,9 +22,28 @@ import json
 import time
 from datetime import datetime
 
-# Force UTF-8 output on Windows so event names with special characters don't crash
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+def _force_utf8_stdio():
+    """Force UTF-8 output on Windows so event names with special characters don't crash.
+
+    Reconfigures the existing stream objects IN PLACE. The previous approach
+    (``sys.stdout = io.TextIOWrapper(sys.stdout.buffer, ...)``) orphaned the old
+    wrapper; when it was garbage-collected its ``__del__`` closed the shared
+    underlying buffer, so any caller that had already wrapped stdout (a runner
+    script, pytest's capture) died with ``ValueError: I/O operation on closed
+    file`` -- the 2026-09-20 backfill crash.
+    """
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass  # closed or non-reconfigurable stream; leave it alone
+
+
+_force_utf8_stdio()
 
 # Ensure the project root is on sys.path regardless of where the script is called from
 _ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -248,6 +267,23 @@ def print_summary(t_start):
 # Main
 # ---------------------------------------------------------------------------
 
+def _run_optional(step, label: str):
+    """Run an enrichment step; on failure warn and continue.
+
+    Scryfall card data is enrichment, not a prerequisite for tournament data.
+    Before 2026-09-20 a Scryfall API change (KeyError: 'download_uri') in step 2
+    aborted the whole build, so the MTGTop8 backfill (step 3) never ran.
+    KeyboardInterrupt still propagates.
+    """
+    try:
+        step()
+    except KeyboardInterrupt:
+        raise
+    except Exception as e:  # noqa: BLE001 -- degrade, don't die
+        print(f"\n  [warn] {label} failed -- continuing without it: {type(e).__name__}: {e}")
+        print("  [warn] Tournament data steps are unaffected; re-run later to refresh card data.")
+
+
 def main():
     t_start = time.time()
 
@@ -262,12 +298,12 @@ def main():
 
     try:
         step_init()
-        step_scryfall_download()
+        _run_optional(step_scryfall_download, "Scryfall download")
         step_mtgtop8_backfill()
         # step_mtgdecks()  # DISABLED 2026-06: mtgdecks.net soft-banned (403);
         # replaced by first-party MTGO source. Function kept for history; the
         # scraper itself is hard-gated by ENABLED=False in scrapers/mtgdecks.py.
-        step_enrich()
+        _run_optional(step_enrich, "Scryfall enrichment")
         step_normalize()
         print_summary(t_start)
     except KeyboardInterrupt:

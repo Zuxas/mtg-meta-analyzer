@@ -48,6 +48,8 @@ data/match_replays/
 
 # Preferences contains local API key; explicit by filename
 data/preferences.json
+# ...and the timestamped backups written by config repairs (2026-09-20)
+data/preferences.json.bak-*
 
 # Generated visuals
 data/charts/
@@ -76,6 +78,7 @@ graphify-out/
 
 # Dev scratch
 scripts/scratch/
+_claude_probe*.py
 _*.txt
 scrapers/*.bak_v*
 

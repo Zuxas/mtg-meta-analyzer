@@ -1,6 +1,52 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-12 (Storage groupbox wired + live-pass confirmation of the polish arc)
+Last updated: 2026-09-20 (data-pipeline Bug 2: Scryfall JSONL shape change + stdio double-wrap crash)
+
+---
+
+## 9/20 session (shipped -- Bug 2 of `docs/prompts/DATA_PIPELINE_FIXES.md` + the undocumented backfill crash)
+
+- **Scryfall bulk download fixed** (`scrapers/scryfall.py`): index now serves `jsonl_download_uri`
+  (gzipped JSONL) + `compressed_size`; `download_uri`/`size` are gone. New `_pick_bulk_download`
+  (new key -> legacy key -> loud error naming present keys) + `_stream_to_json_array` (gunzip,
+  validate per line, emit ONE JSON array so nothing downstream changes; tmp + `os.replace()`).
+  Real run: 24 MB -> 204 MB, 38,906 cards, meta stamped 2026-09-20.
+- **`fill_database.py` no longer dies on Scryfall** -- steps 2 and 5 run via `_run_optional()`
+  (warn + continue). Step 3 (3-year MTGTop8 backfill) is reachable again for the first time since
+  ~2026-07-26.
+- **Backfill crash root-caused + fixed** (`logs/backfill_mtgtop8_2026-09-20.log`: `ValueError: I/O
+  operation on closed file`): module-level `sys.stdout = io.TextIOWrapper(sys.stdout.buffer)` in
+  `fill_database.py` orphaned the previous wrapper -> GC closed the shared buffer. Now
+  `_force_utf8_stdio()` uses `reconfigure()` in place. Same bug broke pytest collection of any
+  test that imports `fill_database`.
+- 8 new tests (`tests/test_scryfall_bulk_download.py`); suite **527 passed, 1 failed** -- the 1 is
+  pre-existing (see below).
+- `.gitignore`: `data/preferences.json.bak-*` (config-repair backups; `data/*.json` did not match
+  the `.bak-` suffix and the repo is public) + `_claude_probe*.py`.
+
+### Pick up here (in order, per `docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
+
+1. **Re-run `python fill_database.py`** (or `scripts/scratch/_rebuild.bat`) -- needs a go-ahead: it is
+   a multi-hour 3-year MTGTop8 scrape into the live DB. Step 2 will short-circuit on
+   `_bulk_is_fresh()`, so this run exercises step 3, not the download. Verify with
+   `python -m scrapers.mtgmelee_scraper --counts` + `python scripts/data_health_report.py --freshness-only`,
+   not the exit code.
+2. **Bug 1 code work** (config already repaired): loud `DEFAULTING to standard only` warning when the
+   `formats` key is missing; dedupe `run_fill_from_prefs.load_formats` / `fill_database._load_formats`
+   into `db/helpers.py`; make the Settings format picker WRITE `formats` on save; tests for
+   missing / empty / malformed / valid.
+3. **Bug 3 = CHAPIN_METRICS Task 1** -- per-format freshness guard (`normalize_event_date` +
+   `SQL_NORM_DATE` in `db/helpers.py`, `analysis/data_health.py::format_freshness`, dashboard chip +
+   dead-format banner, per-format `scrape_state.json`). **Lead:** the pre-existing failure
+   `tests/test_is_all_formats.py::test_regression_archetype_trend_all_returns_data` (`fmt='all'` -> 0
+   rows while `standard` has rows, last 4 weeks) surfaced after today's rebuild and looks like the
+   mixed `dd/mm/yy`/ISO string comparison. Log it under Task 1; do not chase it separately.
+4. Then CHAPIN_METRICS Tasks 2+ (conversion ratio / cascade flag, etc.).
+
+**Data state (freshness report, 2026-09-20 12:04):** Modern 11,218 match rows in 2026-09 (config fix
+worked); Standard thin (397 Sep / 292 Aug / 0 Jun); **Pioneer zero `matches` since 2026-05** even
+after a 20-page melee pass -- melee has nothing for it; MTGTop8 (step 3) untested for Pioneer.
+`scrape_state.json` still says `last_status: ok` from 2026-08-29 -- exactly the Bug 3 problem.
 
 ---
 
