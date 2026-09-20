@@ -7,7 +7,8 @@
 ## OPEN — Data pipeline (`docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 - [x] **Bug 2 — Scryfall bulk API shape change** (2026-09-20) — `jsonl_download_uri` gz-JSONL -> single JSON array on disk (tmp + `os.replace`); `fill_database.py` steps 2/5 degrade to warnings; stdio double-wrap crash fixed. 38,906 cards; 8 tests; 527 green.
 - [ ] **Re-run `fill_database.py`** — first full pass of step 3 (3-year MTGTop8 backfill) since ~2026-07-26; needs go-ahead (hours, live DB). Verify with `--counts` + `data_health_report.py --freshness-only`.
-- [ ] **Bug 1 — silent format default** (config repaired 2026-09-20; code pending) — loud defaulted-vs-configured warning, dedupe `load_formats` into `db/helpers.py`, GUI writes `formats`, tests.
+- [x] **Bug 1 — silent format default** (2026-09-20) — `db/helpers.py::load_active_formats` is the one implementation (both drivers delegate); loud `DEFAULTING to standard only` warning on every fallback; real leak was `UIState._save_now` merging its launch snapshot over disk (fixed: UIState owns only `ui_state`); `run_fill_from_prefs.py` stdio double-wrap fixed. 11 tests; 538 green.
+- [ ] **Stdio sweep** — 4 module-level `sys.stdout = TextIOWrapper(sys.stdout.buffer)` sites (`analysis/query.py`, `main.py`, `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py`) -> in-place `reconfigure()`.
 - [ ] **Bug 3 / Task 1 — per-format freshness guard** — `normalize_event_date` + `SQL_NORM_DATE`, `analysis/data_health.py`, dashboard chip + dead-format banner, per-format `scrape_state.json`. Lead: pre-existing `test_regression_archetype_trend_all_returns_data` failure (`fmt='all'` -> 0 rows).
 - [ ] **Pioneer** — zero `matches` rows since 2026-05 even after a 20-page melee pass; MTGTop8 step 3 is the untested source.
 - [ ] CHAPIN_METRICS Tasks 2+ — conversion ratio / cascade flag and the rest.
@@ -115,6 +116,12 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-20 — Data pipeline Bug 1 (silent format default) + UIState clobber
+- [x] `db/helpers.py::load_active_formats` + `DEFAULT_FORMATS`; `fill_database._load_formats` and `scripts/run_fill_from_prefs.load_formats` delegate; loud warning names the reason on every fallback.
+- [x] `gui/state.py::UIState._save_now` — disk is the source of truth for non-`ui_state` keys; launch snapshot only as unreadable-disk fallback (was reverting Settings' saved formats / writing `ui_state`-only files).
+- [x] `scripts/run_fill_from_prefs.py` — in-place UTF-8 `reconfigure()` (import no longer closes a caller's stdout).
+- [x] `tests/test_active_formats.py` (9) + 2 UIState clobber tests.
 
 ### 2026-09-20 — Data pipeline Bug 2 (Scryfall JSONL) + backfill stdio crash
 - [x] `scrapers/scryfall.py`: `_pick_bulk_download` / `_stream_to_json_array` / `_ProgressReader`; on-disk JSON array unchanged for `_build_bulk_cache` + `enrich_cards`.

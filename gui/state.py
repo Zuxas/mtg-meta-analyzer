@@ -104,25 +104,32 @@ class UIState:
 
     def _save_now(self) -> None:
         with self._save_lock:
-            self._prefs["ui_state"] = self._data
             try:
                 PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)
-                # Re-read whatever's on disk first so concurrent writes
-                # from setup_wizard / settings / ask_claude don't lose
-                # their non-ui_state keys (formats, api_key, etc.).
-                # This is best-effort -- if the file is unreadable we
-                # just overwrite with our own state.
-                disk = {}
+                # UIState owns ONLY the `ui_state` key. Everything else
+                # (formats, api_key, date_window, ...) belongs to the other
+                # writers (setup_wizard / settings / ask_claude), so the file
+                # on disk is the source of truth for those keys. Until
+                # 2026-09-20 this merged the LAUNCH-TIME snapshot over the
+                # disk file, which reverted a freshly saved Settings format
+                # selection on the next debounced UI-state save.
+                disk = None
                 try:
                     if PREFERENCES_PATH.exists():
                         with PREFERENCES_PATH.open("r", encoding="utf-8") as f:
                             disk = json.load(f)
                 except (json.JSONDecodeError, OSError):
-                    disk = {}
-                if not isinstance(disk, dict):
-                    disk = {}
-                disk.update(self._prefs)
-                disk["ui_state"] = self._data
+                    disk = None
+                if isinstance(disk, dict):
+                    merged = disk
+                else:
+                    # Unreadable / missing / not an object: fall back to the
+                    # last known-good non-ui keys rather than writing a
+                    # ui_state-only file that drops formats + api key.
+                    merged = {k: v for k, v in self._prefs.items() if k != "ui_state"}
+                merged["ui_state"] = self._data
+                self._prefs = merged
+                disk = merged
                 # Write+replace pattern. Critical: serialize FIRST so a
                 # JSON error doesn't leave the file truncated. THEN open
                 # the real file with "w" which truncates atomically.

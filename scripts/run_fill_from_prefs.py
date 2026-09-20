@@ -14,8 +14,15 @@ import json
 import subprocess
 import datetime as _dt
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# Force UTF-8 output IN PLACE. Re-wrapping `sys.stdout.buffer` in a new
+# TextIOWrapper orphans the old wrapper, whose __del__ closes the shared buffer
+# -- fatal for any caller that already wrapped stdout (pytest, runner scripts).
+# Same root cause as the 2026-09-20 fill_database backfill crash.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Repo root on sys.path: the inline imports below (scrapers.*, analysis.*, db.*)
@@ -33,16 +40,15 @@ _MELEE_ALWAYS = ["legacy", "pauper"]
 
 
 def load_formats():
-    try:
-        if os.path.exists(_PREFS):
-            with open(_PREFS, "r", encoding="utf-8") as f:
-                prefs = json.load(f)
-            fmts = prefs.get("formats", [])
-            if fmts:
-                return fmts
-    except Exception as e:
-        print(f"[prefs] Could not read preferences: {e} — defaulting to Standard")
-    return ["standard"]
+    """Selected formats from preferences.json (one shared implementation;
+    warns loudly when it has to default -- see db.helpers.load_active_formats).
+
+    History: the copy that lived here returned ["standard"] silently when the
+    `formats` key was missing, so Modern/Pioneer went unscraped for ~10 weeks
+    (2026-07 -> 2026-09-20) while the log said "Active formats: standard".
+    """
+    from db.helpers import load_active_formats
+    return load_active_formats(_PREFS)
 
 
 def run(cmd, label):

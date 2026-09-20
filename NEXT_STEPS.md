@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-20 (data-pipeline Bug 2: Scryfall JSONL shape change + stdio double-wrap crash)
+Last updated: 2026-09-20 (data-pipeline Bugs 1+2 shipped; Bug 3 / CHAPIN Task 1 + the fill_database re-run are next)
 
 ---
 
@@ -23,6 +23,14 @@ Last updated: 2026-09-20 (data-pipeline Bug 2: Scryfall JSONL shape change + std
   pre-existing (see below).
 - `.gitignore`: `data/preferences.json.bak-*` (config-repair backups; `data/*.json` did not match
   the `.bak-` suffix and the repo is public) + `_claude_probe*.py`.
+- **Bug 1 shipped (second commit):** `db/helpers.py::load_active_formats` is the ONE format
+  decision; both drivers delegate; every defaulted case prints a loud
+  `[prefs] WARNING: ... DEFAULTING to standard only. Modern/Pioneer will not be scraped.` line.
+  **Root cause of the missing key found + fixed:** `gui/state.py::UIState._save_now` merged its
+  launch-time snapshot over the disk file (reverting a freshly saved Settings format selection on
+  the next UI-state save -- reproduced) and wrote a `ui_state`-only file when the file was
+  unreadable at both load and save. UIState now owns only `ui_state`. `run_fill_from_prefs.py`
+  stdout double-wrap fixed too. 11 tests; suite **538 passed, 1 failed** (same pre-existing).
 
 ### Pick up here (in order, per `docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 
@@ -31,10 +39,7 @@ Last updated: 2026-09-20 (data-pipeline Bug 2: Scryfall JSONL shape change + std
    `_bulk_is_fresh()`, so this run exercises step 3, not the download. Verify with
    `python -m scrapers.mtgmelee_scraper --counts` + `python scripts/data_health_report.py --freshness-only`,
    not the exit code.
-2. **Bug 1 code work** (config already repaired): loud `DEFAULTING to standard only` warning when the
-   `formats` key is missing; dedupe `run_fill_from_prefs.load_formats` / `fill_database._load_formats`
-   into `db/helpers.py`; make the Settings format picker WRITE `formats` on save; tests for
-   missing / empty / malformed / valid.
+2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
 3. **Bug 3 = CHAPIN_METRICS Task 1** -- per-format freshness guard (`normalize_event_date` +
    `SQL_NORM_DATE` in `db/helpers.py`, `analysis/data_health.py::format_freshness`, dashboard chip +
    dead-format banner, per-format `scrape_state.json`). **Lead:** the pre-existing failure
@@ -42,6 +47,12 @@ Last updated: 2026-09-20 (data-pipeline Bug 2: Scryfall JSONL shape change + std
    rows while `standard` has rows, last 4 weeks) surfaced after today's rebuild and looks like the
    mixed `dd/mm/yy`/ISO string comparison. Log it under Task 1; do not chase it separately.
 4. Then CHAPIN_METRICS Tasks 2+ (conversion ratio / cascade flag, etc.).
+5. **Stdio sweep (small, mechanical):** 4 more files replace `sys.stdout` with a new
+   `TextIOWrapper(sys.stdout.buffer)` at MODULE level -- `analysis/query.py`, `main.py`,
+   `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py` -- same orphaned-wrapper
+   crash as the backfill. Replace with in-place `reconfigure()` like `fill_database.py` /
+   `run_fill_from_prefs.py`. (6 more sites are inside `__main__` guards/functions -- lower risk,
+   same treatment when touched.)
 
 **Data state (freshness report, 2026-09-20 12:04):** Modern 11,218 match rows in 2026-09 (config fix
 worked); Standard thin (397 Sep / 292 Aug / 0 Jun); **Pioneer zero `matches` since 2026-05** even

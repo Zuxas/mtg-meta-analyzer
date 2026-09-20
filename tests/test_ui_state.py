@@ -105,3 +105,48 @@ def test_instance_returns_same_object(tmp_prefs):
     a = UIState.instance()
     b = UIState.instance()
     assert a is b
+
+
+# ---------------------------------------------------------------------------
+# UIState owns ONLY the `ui_state` key (2026-09-20, Bug 1 item 3)
+# ---------------------------------------------------------------------------
+
+def test_save_does_not_clobber_keys_changed_on_disk_after_load(tmp_prefs):
+    """Settings/setup_wizard write `formats` etc. while the app runs. UIState's
+    debounced save used to merge its LAUNCH-TIME snapshot over the disk file,
+    reverting the user's freshly saved format selection to the old value."""
+    tmp_prefs.write_text(json.dumps({"formats": ["standard"], "anthropic_api_key": "k1"}),
+                         encoding="utf-8")
+    state = UIState.instance()  # snapshot: formats == ["standard"]
+
+    # Settings tab saves a new selection (its own writer, not UIState)
+    disk = json.loads(tmp_prefs.read_text(encoding="utf-8"))
+    disk["formats"] = ["modern", "standard", "pioneer", "legacy", "pauper"]
+    tmp_prefs.write_text(json.dumps(disk), encoding="utf-8")
+
+    state.set("global.format", "modern")
+    state.flush()
+
+    on_disk = json.loads(tmp_prefs.read_text(encoding="utf-8"))
+    assert on_disk["formats"] == ["modern", "standard", "pioneer", "legacy", "pauper"]
+    assert on_disk["anthropic_api_key"] == "k1"
+    assert on_disk["ui_state"]["global"]["format"] == "modern"
+
+
+def test_save_preserves_last_known_non_ui_keys_when_disk_unreadable(tmp_prefs):
+    """If the file is mid-write/corrupt at save time, fall back to the last
+    known-good non-ui keys rather than writing a `ui_state`-only file."""
+    tmp_prefs.write_text(json.dumps({"formats": ["modern"], "anthropic_api_key": "k1"}),
+                         encoding="utf-8")
+    state = UIState.instance()
+    state.set("global.format", "modern")
+    state.flush()
+
+    tmp_prefs.write_text("{ truncated", encoding="utf-8")
+    state.set("global.format", "standard")
+    state.flush()
+
+    on_disk = json.loads(tmp_prefs.read_text(encoding="utf-8"))
+    assert on_disk["formats"] == ["modern"]
+    assert on_disk["anthropic_api_key"] == "k1"
+    assert on_disk["ui_state"]["global"]["format"] == "standard"

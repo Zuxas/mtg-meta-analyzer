@@ -119,19 +119,14 @@ def step_scryfall_download():
 # Load user preferences
 # ---------------------------------------------------------------------------
 
+PREFS_PATH = os.path.join(_ROOT, "data", "preferences.json")
+
+
 def _load_formats():
-    """Read selected formats from preferences.json, default to standard only."""
-    prefs_path = os.path.join(_ROOT, "data", "preferences.json")
-    try:
-        if os.path.exists(prefs_path):
-            with open(prefs_path, "r", encoding="utf-8") as f:
-                prefs = json.load(f)
-            fmts = prefs.get("formats", ["standard"])
-            if fmts:
-                return fmts
-    except Exception:
-        pass
-    return ["standard"]
+    """Selected formats from preferences.json (one shared implementation;
+    warns loudly when it has to default -- see db.helpers.load_active_formats)."""
+    from db.helpers import load_active_formats
+    return load_active_formats(PREFS_PATH)
 
 
 # ---------------------------------------------------------------------------
