@@ -69,7 +69,7 @@ Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped, Task 4 counts verified -- su
 2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
 3. ~~Bug 3 = CHAPIN_METRICS Task 1~~ DONE 2026-09-20 (see above).
 4. ~~CHAPIN_METRICS Tasks 2+3~~ DONE 2026-09-21. **Task 4 -- counts VERIFIED 2026-09-21, ingest BLOCKED on key:**
-   `ingest_strategy_docs.py --counts` = **1,495 chunks** (was 284 before Chapin); the 11
+   `ingest_strategy_docs.py --counts` = **1,495 chunks** (1,137 Chapin + 358 from the rest of the corpus); the 11
    `chapin_*_rules_reference.md` files chunk to **1,137** over 847 `##` rules, metadata
    `doc_type='rules'`, `archetype='chapin_<domain>'` as designed. (`chapin_archetype_` = rules,
    `chapin_archetypes_` = profiles -- distinct, not a duplicate.) The real ingest needs a Pinecone
