@@ -150,3 +150,47 @@ def test_save_preserves_last_known_non_ui_keys_when_disk_unreadable(tmp_prefs):
     assert on_disk["formats"] == ["modern"]
     assert on_disk["anthropic_api_key"] == "k1"
     assert on_disk["ui_state"]["global"]["format"] == "standard"
+
+
+# ---------------------------------------------------------------------------
+# Debounced saves must never leak into the real preferences.json (2026-09-21)
+# ---------------------------------------------------------------------------
+
+def test_cancel_all_pending_stops_a_scheduled_save(tmp_prefs):
+    import time
+    import gui.state as st
+    state = UIState.instance()
+    state.set("probe.value", 1)              # schedules a debounced save
+    UIState.cancel_all_pending()
+    time.sleep(st.DEBOUNCE_SECONDS + 0.3)
+    assert not tmp_prefs.exists(), "cancelled save must not fire"
+
+
+def test_cancel_all_pending_covers_non_singleton_instances(tmp_prefs):
+    import time
+    import gui.state as st
+    a, b = UIState(), UIState()              # tests build ad-hoc instances too
+    a.load(); b.load()
+    a.set("x", 1); b.set("y", 2)
+    UIState.cancel_all_pending()
+    time.sleep(st.DEBOUNCE_SECONDS + 0.3)
+    assert not tmp_prefs.exists()
+
+
+def test_save_is_atomic_under_concurrent_writers(tmp_prefs):
+    """Several instances saving at once (the leaked-timer race) must never
+    leave a hybrid file: every observed state is valid JSON and no .tmp
+    remains. Atomic replace + a process-wide lock guarantee it."""
+    import threading
+    tmp_prefs.write_text(json.dumps({"formats": ["modern"]}), encoding="utf-8")
+    writers = []
+    for i in range(8):
+        s = UIState(); s.load()
+        s.set("tabs.probe.value", "x" * (50 * (i + 1)))   # different payload sizes
+        writers.append(s)
+    threads = [threading.Thread(target=w._save_now) for w in writers]
+    for t in threads: t.start()
+    for t in threads: t.join()
+    on_disk = json.loads(tmp_prefs.read_text(encoding="utf-8"))   # raises on a hybrid file
+    assert on_disk["formats"] == ["modern"]
+    assert not (tmp_prefs.parent / (tmp_prefs.name + ".tmp")).exists()

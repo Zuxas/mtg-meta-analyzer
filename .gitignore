@@ -50,6 +50,8 @@ data/match_replays/
 data/preferences.json
 # ...and the timestamped backups written by config repairs (2026-09-20)
 data/preferences.json.bak-*
+# atomic-write temp files (UIState, Scryfall bulk download)
+data/*.tmp
 
 # Generated visuals
 data/charts/

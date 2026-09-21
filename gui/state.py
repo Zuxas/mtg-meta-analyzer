@@ -17,11 +17,21 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
+import weakref
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# One lock for EVERY instance (tests build ad-hoc instances; the singleton is
+# reset between tests). Two instances writing the same file with per-instance
+# locks was the race that produced hybrid files -- see _save_now.
+_FILE_LOCK = threading.Lock()
+# Live instances, so pending debounced timers can be cancelled process-wide
+# (tests/conftest.py does this after every test).
+_LIVE: "weakref.WeakSet[UIState]" = weakref.WeakSet()
 
 PREFERENCES_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "preferences.json"
@@ -37,8 +47,28 @@ class UIState:
         self._prefs: dict[str, Any] = {}
         self._data: dict[str, Any] = {}
         self._timer: threading.Timer | None = None
-        self._save_lock = threading.Lock()
+        self._save_lock = _FILE_LOCK
+        _LIVE.add(self)
         self.load()
+
+    @classmethod
+    def cancel_all_pending(cls) -> int:
+        """Cancel every scheduled (debounced) save on every live instance.
+
+        Returns the number cancelled. Used by the test suite so a timer
+        scheduled while PREFERENCES_PATH was monkeypatched can never fire
+        after the patch is undone and write test data into the real
+        data/preferences.json -- which is what corrupted it on 2026-09-21
+        (and, most likely, how the `formats` key went missing in July).
+        """
+        n = 0
+        for inst in list(_LIVE):
+            t = inst._timer
+            if t is not None:
+                t.cancel()
+                inst._timer = None
+                n += 1
+        return n
 
     @classmethod
     def instance(cls) -> "UIState":
@@ -129,23 +159,24 @@ class UIState:
                     merged = {k: v for k, v in self._prefs.items() if k != "ui_state"}
                 merged["ui_state"] = self._data
                 self._prefs = merged
-                disk = merged
-                # Write+replace pattern. Critical: serialize FIRST so a
-                # JSON error doesn't leave the file truncated. THEN open
-                # the real file with "w" which truncates atomically.
-                payload = json.dumps(disk, indent=2)
-                import os as _os
-                # Truncate-and-write directly. Past tmp+replace was
-                # leaving leftover tail bytes on this system, so use a
-                # plain "w" open with explicit truncate + fsync to make
-                # the writer-side fully deterministic.
-                with PREFERENCES_PATH.open("w", encoding="utf-8") as f:
-                    f.truncate(0)
+                # Serialize FIRST so a JSON error can't leave a partial file,
+                # then write a sibling temp file and os.replace() it in: the
+                # file on disk is always one complete payload. The earlier
+                # "leftover tail bytes" seen on this machine were NOT a
+                # tmp+replace problem -- they were concurrent writers with
+                # per-instance locks truncating and writing over each other
+                # (a shorter payload landing on top of a longer one). The
+                # process-wide _FILE_LOCK removes the race; replace() makes
+                # even a stray writer unable to produce a hybrid file.
+                payload = json.dumps(merged, indent=2)
+                tmp = PREFERENCES_PATH.with_name(PREFERENCES_PATH.name + ".tmp")
+                with tmp.open("w", encoding="utf-8") as f:
                     f.write(payload)
                     f.flush()
                     try:
-                        _os.fsync(f.fileno())
+                        os.fsync(f.fileno())
                     except (OSError, AttributeError):
                         pass
+                os.replace(tmp, PREFERENCES_PATH)
             except OSError as e:
                 logger.error("Failed to save preferences.json: %s", e)
