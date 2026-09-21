@@ -7,7 +7,7 @@ import sys
 from unittest.mock import patch
 
 
-def test_exception_hook_swallows_keyboardinterrupt_from_traceback_print(monkeypatch):
+def test_exception_hook_swallows_keyboardinterrupt_from_traceback_print(monkeypatch, tmp_path):
     """If traceback.print_exception raises KeyboardInterrupt (Python 3.13
     formatter bug observed when SIGINT arrives mid-format), the crash
     handler must NOT let it propagate."""
@@ -17,11 +17,16 @@ def test_exception_hook_swallows_keyboardinterrupt_from_traceback_print(monkeypa
         raise KeyboardInterrupt()
 
     monkeypatch.setattr(crash_handler.traceback, "print_exception", _boom)
-    # Also stub out the log file write so it doesn't pollute disk
-    monkeypatch.setattr(crash_handler, "_LOG_DIR", crash_handler._LOG_DIR)
+    # Redirect the log write: until 2026-09-21 this line set _LOG_DIR to
+    # itself, so every suite run appended an empty "=== <ts> ===" header to
+    # the REAL logs/gui_crash_<today>.log.
+    monkeypatch.setattr(crash_handler, "_LOG_DIR", tmp_path)
 
     # If this raises, the test fails — that's the regression we're guarding.
     crash_handler._exception_hook(ValueError, ValueError("test"), None)
+
+    # ...and the header went to the tmp dir, i.e. the redirect is real.
+    assert list(tmp_path.glob("gui_crash_*.log")), "crash log was not written under tmp_path"
 
 
 def test_exception_hook_swallows_systemexit_from_log_write(monkeypatch, tmp_path):

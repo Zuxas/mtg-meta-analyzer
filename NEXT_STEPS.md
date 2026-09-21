@@ -86,7 +86,8 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
    an unstubbed `_get` scraped 20 real Vintage events into the live DB before the guard existed -- kept,
    they are complete and correct). Whole-event rollback in `backfill._process_event`; 25 zero-deck /
    card-less mtgtop8 events (22 from the 04:20 blip, 3 older) deleted so they get re-fetched.
-   Minor: some test installs the GUI crash logger -> empty `logs/gui_crash_<date>.log` headers per run.
+   ~~Minor: empty `logs/gui_crash_<date>.log` headers per suite run~~ FIXED 2026-09-21: `tests/test_crash_handler.py`
+   monkeypatched `_LOG_DIR` to itself (no-op); now `tmp_path`, with an assertion that the header lands there.
 1. **FULL backfill RUNNING since 2026-09-21 ~07:05** (`logs/fill_database_2026-09-21_full.log`, cap raised to
    200k for that process, 1.5s rate unchanged; expect many hours). Also fixed before launch: year ended
    after 2 pages of known events (Modern 2026 Jan-Aug never fetched) -> now ends only on cutoff / empty /
