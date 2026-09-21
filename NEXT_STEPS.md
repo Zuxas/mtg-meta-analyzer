@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped -- suite 602/602; Task 4 ingest + fill_database re-run are next)
+Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped, Task 4 counts verified -- suite 602/602; Pinecone key + fill_database re-run are the two blockers)
 
 ---
 
@@ -68,9 +68,12 @@ Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped -- suite 602/602; Task 4 inge
    not the exit code.
 2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
 3. ~~Bug 3 = CHAPIN_METRICS Task 1~~ DONE 2026-09-20 (see above).
-4. ~~CHAPIN_METRICS Tasks 2+3~~ DONE 2026-09-21. **Task 4**: `python scripts/ingest_strategy_docs.py --counts`
-   to sanity-check the 11 `chapin_*_rules_reference.md` chunk counts (no network); the actual ingest
-   needs a Pinecone key in `config.ini [pinecone]` (never present so far -- see 2026-06-19 note).
+4. ~~CHAPIN_METRICS Tasks 2+3~~ DONE 2026-09-21. **Task 4 -- counts VERIFIED 2026-09-21, ingest BLOCKED on key:**
+   `ingest_strategy_docs.py --counts` = **1,495 chunks** (was 284 before Chapin); the 11
+   `chapin_*_rules_reference.md` files chunk to **1,137** over 847 `##` rules, metadata
+   `doc_type='rules'`, `archetype='chapin_<domain>'` as designed. (`chapin_archetype_` = rules,
+   `chapin_archetypes_` = profiles -- distinct, not a duplicate.) The real ingest needs a Pinecone
+   key in `config.ini [pinecone] api_key` (empty; never present -- see 2026-06-19 note). No code change.
 8. **`_default_field_shares` is decks-derived and EMPTY for Modern** until the MTGTop8 backfill runs,
    so `compute_deck_ev` errors on Modern decks. Fall back to `conversion_by_archetype(fmt, since)`
    field shares (matches-derived) when the decks window is empty -- small, and it makes the EV
