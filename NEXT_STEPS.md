@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-21 (CHAPIN Task 2 conversion/Cascade shipped -- suite 578/578; Task 3 match math + fill_database re-run are next)
+Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped -- suite 602/602; Task 4 ingest + fill_database re-run are next)
 
 ---
 
@@ -15,6 +15,12 @@ Last updated: 2026-09-21 (CHAPIN Task 2 conversion/Cascade shipped -- suite 578/
 - Dashboard: conversions computed in the panel worker; Status column shows Cascade + tooltip.
 - Doc fixture table is one scrape stale (106 -> 112 qualifying events); live test uses drift
   tolerance + the exact flagged set. Suite **578 passed, 0 failed**.
+- **Task 3 shipped:** `analysis/match_math.py` (`match_winrate` / `implied_q` / `required_q`; Chapin's
+  worked cases to 3dp). `compute_deck_ev(use_match_math=False)` keeps the flat bump by default;
+  `True` bumps post-board `q` and recomposes. Game 1 held at observed match WR per row; global
+  G1 prior (match_log, 56.9% n=109) reported as `g1_prior`. EV widget: 'Q for 50%' column +
+  G1 prior in subtitle. Real-data magnitude: 0-0.5pp per matchup, field EV unchanged at 2dp.
+  Suite **602 passed, 0 failed**.
 
 ## 9/20 session (shipped -- Bug 2 of `docs/prompts/DATA_PIPELINE_FIXES.md` + the undocumented backfill crash)
 
@@ -62,9 +68,13 @@ Last updated: 2026-09-21 (CHAPIN Task 2 conversion/Cascade shipped -- suite 578/
    not the exit code.
 2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
 3. ~~Bug 3 = CHAPIN_METRICS Task 1~~ DONE 2026-09-20 (see above).
-4. ~~CHAPIN_METRICS Task 2~~ DONE 2026-09-21. **Task 3 (match math in `deck_ev.py`, `analysis/match_math.py`)**
-   is next code work; then Task 4 (`python scripts/ingest_strategy_docs.py --counts` before any
-   Pinecone spend -- needs the key in `config.ini [pinecone]`).
+4. ~~CHAPIN_METRICS Tasks 2+3~~ DONE 2026-09-21. **Task 4**: `python scripts/ingest_strategy_docs.py --counts`
+   to sanity-check the 11 `chapin_*_rules_reference.md` chunk counts (no network); the actual ingest
+   needs a Pinecone key in `config.ini [pinecone]` (never present so far -- see 2026-06-19 note).
+8. **`_default_field_shares` is decks-derived and EMPTY for Modern** until the MTGTop8 backfill runs,
+   so `compute_deck_ev` errors on Modern decks. Fall back to `conversion_by_archetype(fmt, since)`
+   field shares (matches-derived) when the decks window is empty -- small, and it makes the EV
+   tab work for every format melee covers.
 6. **Date-normalization sweep (mechanical, one call site at a time):** ~18 inline
    `CASE WHEN instr(<date>,'/')>0 ...` copies remain (`win_rates._DATE_KEY`/`_MATCH_DATE_KEY`,
    `scout.py`, `field_optimizer.py`, `card_adoption.py`, `cross_source_dedup.py`, `deck_analysis.py`,

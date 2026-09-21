@@ -14,7 +14,8 @@
 - [ ] **Melee recency check** — Modern/Standard/Legacy stop at 09-13, Pauper at 09-19. See NEXT_STEPS #7.
 - [ ] **Pioneer** — zero `matches` rows since 2026-05 even after a 20-page melee pass; MTGTop8 step 3 is the untested source.
 - [x] **CHAPIN Task 2 — conversion ratio + Cascade status** (2026-09-21) — `analysis/conversion.py` (matches-only field/top-cut, Wilson CI, normalized dates), `classify_status(conversion=)` -> Cascade, dashboard Status column + tooltip; reference script delegates. 10 tests; 578 green.
-- [ ] **CHAPIN Task 3 — match math** — `analysis/match_math.py` (`match_winrate` / `required_q` / `implied_q`), wire into `compute_deck_ev` behind `use_match_math`, `required_q_for_even` per row.
+- [x] **CHAPIN Task 3 — match math** (2026-09-21) — `analysis/match_math.py` (Chapin's cases to 3dp), `compute_deck_ev(use_match_math=)` with the flat bump still default, `required_q_for_even` + `g1_prior`, EV widget 'Q for 50%' column. 24 tests; 602 green.
+- [ ] **EV field-share fallback** — `_default_field_shares` (decks, 14d) is empty for Modern; fall back to matches-derived shares from `conversion_by_archetype`.
 - [ ] **CHAPIN Task 4 — Chapin corpus into strategy search** — `ingest_strategy_docs.py --counts` first; needs Pinecone key.
 
 ## OPEN — GUI follow-ups
@@ -120,6 +121,12 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-21 — CHAPIN Task 3 (Bo3 match math)
+- [x] `analysis/match_math.py` — `match_winrate`, `implied_q` (closed form), `required_q`; pure, no I/O, does not import `analysis/chapin.py`.
+- [x] `analysis/deck_ev.py` — `use_match_math` flag (default off), per-row `math`/`p1`/`implied_q`/`required_q_for_even`, `_game_one_prior()` from `match_log` -> `g1_prior`.
+- [x] `gui/widgets/deck_ev_widget.py` — 'Q for 50%' column (under-50% rows only, tooltip), G1 prior + math-path note in the subtitle.
+- [x] `tests/test_match_math.py` (24) — worked cases, round-trips, boundaries, unreachable target, both `compute_deck_ev` paths with stubbed collaborators, widget column.
 
 ### 2026-09-21 — CHAPIN Task 2 (conversion ratio + Cascade)
 - [x] `analysis/conversion.py::conversion_by_archetype` — ported from `scripts/data_health_report.py` (digit-identical), `events_total`, `SQL_NORM_DATE` window, Wilson CI.

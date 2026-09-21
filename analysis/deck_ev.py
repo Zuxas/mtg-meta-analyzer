@@ -11,6 +11,12 @@ compute_deck_ev(deck_id, field_shares=None, format_name='standard') combines:
        Easy   = +5pp to pre-board WR
        Medium = +0pp
        Hard   = -5pp
+     Default path applies the bump flat to the MATCH win rate. With
+     use_match_math=True the bump is applied to the POST-BOARD GAME win rate
+     q implied by the observed match WR (game-1 held at the observed match
+     WR -- scraped rows are match-level only) and the Bo3 is recomposed via
+     analysis.match_math (Chapin MG-12). Every row also carries
+     required_q_for_even: the post-board game WR needed to reach 50%.
 
 Output includes per-matchup breakdown sorted by contribution to total,
 the top 5 favorable and bottom 5 unfavorable matchups, and a
@@ -29,17 +35,46 @@ from db.database import DB_PATH as CENTRAL_DB_PATH
 from db.helpers import SQL_NORM_DATE
 
 
+def _game_one_prior() -> dict:
+    """Global game-1 win rate from the user's own match_log ({p1, n}).
+
+    A GLOBAL prior, not per matchup: game-level results exist only in
+    match_log (~100 rows), far too thin to split by opponent. Reported for
+    the UI; the per-row math holds p1 at the observed match WR because the
+    scraped matchup rows have no game-level data at all.
+    """
+    try:
+        with sqlite3.connect(str(CENTRAL_DB_PATH)) as con:
+            wins, n = con.execute(
+                "SELECT SUM(CASE WHEN g1_result='win' THEN 1 ELSE 0 END), COUNT(*) "
+                "FROM match_log WHERE g1_result IN ('win','loss')"
+            ).fetchone()
+    except sqlite3.Error:
+        return {"p1": None, "n": 0}
+    n = int(n or 0)
+    return {"p1": (wins / n) if n else None, "n": n}
+
+
 def compute_deck_ev(
     deck_id: int,
     field_shares: Optional[dict] = None,
     format_name: str = "standard",
     pre_post_bumps: Optional[dict] = None,
+    use_match_math: bool = False,
 ) -> dict:
-    """Compute expected field-weighted win rate for a saved deck."""
+    """Compute expected field-weighted win rate for a saved deck.
+
+    use_match_math=False (default, one release): the sideboard bump is added
+    flat to the match win rate, as before. True: the bump is applied to the
+    post-board game win rate and the Bo3 recomposed (analysis.match_math);
+    each row's `math` field says which path produced its post_board_wr so
+    the two can be compared side by side.
+    """
     from db.saved_decks import get_deck, get_sb_plans
     from analysis.archetypes import normalize as norm_arch
     from analysis.win_rates import get_real_matchup_winrates
     from db.untapped_queries import get_untapped_matchup_matrix
+    from analysis.match_math import implied_q, match_winrate, required_q
 
     deck = get_deck(deck_id)
     if not deck:
@@ -105,7 +140,19 @@ def compute_deck_ev(
 
         diff = diff_by_opp.get(opp, "")
         bump = bumps.get(diff, 0.0) if diff else 0.0
-        post = max(0.10, min(0.90, pre + bump))
+
+        # Game-1 held at the observed match WR: the scraped rows are
+        # match-level only, so p1 and q are not separately observable.
+        p1 = pre
+        q = implied_q(p1, pre)
+        req_q = required_q(p1, 0.50)
+        if use_match_math and q is not None:
+            q_post = max(0.10, min(0.90, q + bump))
+            post = match_winrate(p1, q_post)
+            math_path = "implied-q"
+        else:
+            post = max(0.10, min(0.90, pre + bump))
+            math_path = "flat-bump"
 
         contrib = post * share
         weighted_wr += contrib
@@ -122,6 +169,10 @@ def compute_deck_ev(
             "source":        source,
             "sample_n":      n,
             "contribution":  contrib,
+            "math":          math_path,
+            "p1":            p1,
+            "implied_q":     q,
+            "required_q_for_even": req_q,
         })
 
     if total_share > 0:
@@ -144,6 +195,8 @@ def compute_deck_ev(
         "best":                 best,
         "worst":                worst,
         "low_confidence_share": low_conf_share,
+        "use_match_math":       use_match_math,
+        "g1_prior":             _game_one_prior(),
     }
 
 

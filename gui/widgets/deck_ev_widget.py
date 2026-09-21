@@ -99,11 +99,16 @@ class DeckEvWidget(QWidget):
             "(sorted by contribution to total EV)</span>"
         )
         root.addWidget(breakdown_lbl)
-        self._tbl = QTableWidget(0, 8)
+        self._tbl = QTableWidget(0, 9)
         self._tbl.setHorizontalHeaderLabels([
             "Opponent", "Field %", "Pre-board WR", "Post-board WR",
-            "Diff", "Source", "N", "Contrib"
+            "Diff", "Source", "N", "Contrib", "Q for 50%"
         ])
+        self._tbl.horizontalHeaderItem(8).setToolTip(
+            "Post-board GAME win rate this sideboard plan has to reach for the\n"
+            "matchup to become a 50% MATCH (Chapin MG-12: P = p1(2q-q^2) + (1-p1)q^2,\n"
+            "game 1 held at the observed match WR). Shown for matchups under 50%."
+        )
         self._tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._tbl.verticalHeader().setVisible(False)
@@ -159,11 +164,15 @@ class DeckEvWidget(QWidget):
 
         cov = r["field_total_share"] * 100
         low = r["low_confidence_share"] * 100
+        g1 = r.get("g1_prior") or {}
+        g1_txt = (f"  ·  G1 prior {g1['p1']*100:.1f}% (n={g1['n']}, match_log)"
+                  if g1.get("p1") is not None else "")
+        math_txt = "  ·  post-board math" if r.get("use_match_math") else ""
         self._sub_lbl.setText(
             f"{r['deck_archetype']}  ·  "
             f"covers {cov:.0f}% of expected field  ·  "
             f"<span style='color:{theme.WARN};'>{low:.0f}% low-confidence (n<20)</span>  ·  "
-            f"{len(r['rows'])} matchups in field"
+            f"{len(r['rows'])} matchups in field{g1_txt}{math_txt}"
         )
         self._sub_lbl.setTextFormat(Qt.TextFormat.RichText)
 
@@ -248,3 +257,20 @@ class DeckEvWidget(QWidget):
             contrib_item = QTableWidgetItem(f"{row['contribution']*100:.2f}pp")
             contrib_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._tbl.setItem(ri, 7, contrib_item)
+
+            # "To reach 50%, post-board games have to be at X%" -- only for
+            # matchups that are under 50% after the sideboard plan.
+            req = row.get("required_q_for_even")
+            if row["post_board_wr"] < 0.5 and req is not None:
+                req_item = QTableWidgetItem(f"{req*100:.1f}%")
+                req_item.setForeground(QColor(theme.WARN if req <= 0.6 else theme.ERR))
+                req_item.setToolTip(
+                    f"To reach a 50% match win rate vs {row['opponent']}, this sideboard "
+                    f"plan has to get post-board games to {req*100:.1f}% "
+                    f"(game 1 held at {row.get('p1', row['pre_board_wr'])*100:.1f}%)."
+                )
+            else:
+                req_item = QTableWidgetItem("—")
+                req_item.setForeground(QColor(theme.TEXT_DIM))
+            req_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self._tbl.setItem(ri, 8, req_item)
