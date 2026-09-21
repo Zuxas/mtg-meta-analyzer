@@ -150,6 +150,7 @@ def test_score_standings_uses_conversions_when_supplied():
 # Fixture target from the doc: Modern 2025-10-01..2026-06-30 on the live DB
 # ---------------------------------------------------------------------------
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_reference_output_modern_2025_10_to_2026_06():
     """The doc's table was computed on the 2026-09-19 DB (106 qualifying
     events). The DB is live -- today's melee re-scrape already moved it to

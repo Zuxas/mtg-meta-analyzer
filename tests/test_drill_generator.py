@@ -98,6 +98,7 @@ def _connect_or_skip():
     return conn
 
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_generated_drills_well_formed_and_grounded():
     conn = _connect_or_skip()
     with conn:
@@ -127,12 +128,19 @@ def test_generated_drills_well_formed_and_grounded():
     assert len(tiers) >= 3, f"want tier spread, got {sorted(tiers)}"
 
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_generation_is_deterministic():
     conn = _connect_or_skip()
-    with conn:
+    # One explicit read transaction: the sampler is ORDER BY d.id DESC over
+    # the live decks table, so without a snapshot a running scrape (2026-09-21
+    # backfill) inserts between the two calls and the test flakes.
+    conn.execute("BEGIN")
+    try:
         try:
             a = generate_drills(conn, n=12, seed=7)
             b = generate_drills(conn, n=12, seed=7)
         except (sqlite3.OperationalError, RuntimeError) as e:
             pytest.skip(f"cannot sample decklists: {e}")
+    finally:
+        conn.rollback()
     assert [d.question for d in a] == [d.question for d in b]

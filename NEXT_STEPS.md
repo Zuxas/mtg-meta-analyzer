@@ -119,8 +119,8 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
    deleted; `search._deck_search_sql()` extracted. `tests/test_date_normalization_sweep.py` (19) incl. a multi-line-aware guard.
    Live-DB old-vs-new = 0 diffs (events/matches/guides); variant A on guides would be 752/754 wrong.
    Remaining `instr(` hits are a census count (`data_health_report.py:79`), not keys.
-   Known: `test_drill_generator::test_generation_is_deterministic` reads the LIVE decks table -- flaky only
-   while a scrape is writing; should get the tmp-DB treatment (`db.database.DB_PATH` monkeypatch).
+   ~~Known: `test_generation_is_deterministic` flaky while a scrape writes~~ FIXED: one `BEGIN` read snapshot; plus the
+   live-DB guard in conftest (`@pytest.mark.live_db` opt-in, 21 tests) -- 15 tests were silently reading the live DB.
 7. **Melee recency check:** Modern/Standard/Legacy match rows all stop at 2026-09-13 while Pauper
    reaches 09-19 (matches the nightly "meta shifts: 0 since 09-14"). Run
    `python -m scrapers.mtgmelee_scraper --format modern --pages 3` and `--counts`; if 09-14..09-19

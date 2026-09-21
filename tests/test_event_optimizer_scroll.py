@@ -247,6 +247,7 @@ def _quiesce_mainwindow(app, win) -> None:
     win.cleanup()
 
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_mainwindow_min_height_regression_guard(
     app, tmp_prefs, _patched_mainwindow_integrations, _restore_app_theme
 ):
@@ -282,6 +283,7 @@ def test_mainwindow_min_height_regression_guard(
         _quiesce_mainwindow(app, win)
 
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_mainwindow_min_height_meets_original_900_target(
     app, tmp_prefs, _patched_mainwindow_integrations, _restore_app_theme
 ):

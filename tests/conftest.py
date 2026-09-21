@@ -1,6 +1,7 @@
 """Pytest configuration. Adds project root to sys.path so tests can
 import `gui.state`, `gui.widgets.palette_registry`, etc.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -34,6 +35,74 @@ def _no_leaked_ui_state_saves():
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "network: test may reach the real network (everything else is blocked at DNS)")
+    config.addinivalue_line(
+        "markers", "live_db: test reads the real mtg_meta.db (everything else gets an empty tmp DB)")
+
+
+def _norm(path) -> str:
+    import os
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+# The configured live DB paths, captured once at import so the guard below can
+# recognise every copy of them that other modules captured at THEIR import.
+import db.database as _dbm                      # noqa: E402
+LIVE_DB_PATHS = frozenset({_norm(_dbm.DB_PATH), _norm(_dbm.ARCHIVE_PATH)})
+
+
+@pytest.fixture(autouse=True)
+def _no_live_db(request, monkeypatch, tmp_path_factory):
+    """Point every DB path at an EMPTY tmp file unless @pytest.mark.live_db.
+
+    Two incidents on 2026-09-21: a backfill test with an unstubbed fetch wrote
+    20 real Vintage events into the live mtg_meta.db, and
+    test_generation_is_deterministic flaked while the backfill inserted decks
+    between its two calls. Default-deny, like the network guard.
+
+    `db.database.DB_PATH` is not enough: ~25 modules do
+    `from db.database import DB_PATH as CENTRAL_DB_PATH` at import, so every
+    already-imported module holding one of the live paths is redirected too.
+    Modules imported later (inside the test) capture the patched value.
+    A test that needs tables calls `init_db()` itself, as the existing tmp-DB
+    fixtures already do; one that silently relied on live data now fails with
+    `no such table` instead of passing on data it never declared.
+    """
+    if request.node.get_closest_marker("live_db"):
+        yield
+        return
+    import sys
+    tmp = tmp_path_factory.mktemp("db")
+    live = {_norm(_dbm.DB_PATH): _dbm.DB_PATH, _norm(_dbm.ARCHIVE_PATH): _dbm.ARCHIVE_PATH}
+    new = {_norm(_dbm.DB_PATH): str(tmp / "mtg_meta.db"),
+           _norm(_dbm.ARCHIVE_PATH): str(tmp / "mtg_archive.db")}
+    monkeypatch.setattr(_dbm, "DB_PATH", new[_norm(_dbm.DB_PATH)])
+    monkeypatch.setattr(_dbm, "ARCHIVE_PATH", new[_norm(_dbm.ARCHIVE_PATH)])
+    _redirect_captured_paths(new, monkeypatch)
+    yield
+    # A module first imported INSIDE the test captured the tmp path and no
+    # monkeypatch entry exists for it -- put those back to the live paths so a
+    # later @live_db test (or a module-level cache) does not inherit the tmp DB.
+    back = {_norm(v): live[k] for k, v in new.items()}
+    _redirect_captured_paths(back)
+
+
+def _redirect_captured_paths(mapping, monkeypatch=None):
+    """setattr every module-level *_DB_PATH whose value is a key of `mapping`."""
+    import sys
+    for mod in list(sys.modules.values()):
+        if mod is None or mod is _dbm:
+            continue
+        for attr in ("CENTRAL_DB_PATH", "DB_PATH", "ARCHIVE_PATH", "ARCHIVE_DB_PATH"):
+            try:
+                val = getattr(mod, attr, None)
+            except Exception:
+                continue
+            if isinstance(val, (str, os.PathLike)) and _norm(val) in mapping:
+                target = mapping[_norm(val)]
+                if monkeypatch is not None:
+                    monkeypatch.setattr(mod, attr, target)
+                else:
+                    setattr(mod, attr, target)
 
 
 @pytest.fixture(autouse=True)

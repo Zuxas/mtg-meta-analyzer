@@ -136,6 +136,7 @@ def _quiesce(app, tab, timeout_s=20.0) -> None:
 # CHARTS (gui/tabs/charts.py)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_charts_tab_nonempty_on_first_show(app, tmp_prefs):
     """Fresh open (no sticky state) -> Meta Share auto-generates with zero
     clicks: Figure ends up with >=1 Axes carrying >=1 plotted artist."""
@@ -169,6 +170,7 @@ def test_charts_tab_defaults_to_meta_share_with_no_sticky_state(app, tmp_prefs):
         _quiesce(app, tab)
 
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_charts_tab_falls_back_to_meta_share_when_restored_type_has_no_archetype(
     app, tmp_prefs
 ):
@@ -234,6 +236,7 @@ def test_charts_tab_no_double_load_on_reshow(app, tmp_prefs):
 # MATCHUP DATA (gui/tabs/heatmap_tab.py)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_heatmap_tab_nonempty_on_first_show(app, tmp_prefs):
     """Fresh open -> non-empty grid with zero clicks: table rowCount > 0."""
     from gui.tabs.heatmap_tab import HeatmapTab

@@ -1,4 +1,6 @@
 """Unit + regression tests for the cross-format sentinel helper."""
+import pytest
+
 from analysis.win_rates import is_all_formats
 
 
@@ -40,6 +42,7 @@ def test_is_all_formats_concrete_format():
     assert is_all_formats("Pioneer") is False
 
 
+@pytest.mark.live_db   # reads the real DB by design (guarded otherwise, see conftest)
 def test_regression_archetype_trend_all_returns_data():
     """Before the fix, fmt='all' produced WHERE format='all' which matched zero
     rows. Confirm cross-format trend now returns something."""

@@ -125,6 +125,9 @@
 
 ## COMPLETED
 
+### 2026-09-21 — Live-DB test guard
+- `tests/conftest.py::_no_live_db`: empty tmp DB for every test unless `@pytest.mark.live_db`; sweeps import-time `CENTRAL_DB_PATH` copies in and out. 15 silent live-DB readers + 3 silent skips made explicit (21 marked); drill determinism test snapshotted. 789 green, 0 skipped.
+
 ### 2026-09-21 — Date-normalization sweep (NEXT_STEPS #6)
 - Every inline `CASE WHEN instr(date,'/')` copy -> `db.helpers.SQL_NORM_DATE`; `since`/bucket literals to ISO; `card_adoption` Python buckets, `search` inputs, `cross_source_dedup._normalize_date`, `win_rates._parse_match_date` follow. Dead `field_optimizer._legacy_unused_compute_deck_ev_moved_to_deck_ev_module` removed. `tests/test_date_normalization_sweep.py` (18).
 

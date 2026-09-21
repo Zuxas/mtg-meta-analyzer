@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import pytest
 
+pytestmark = pytest.mark.live_db   # the tools are exercised against the real DB (guarded otherwise)
+
 from mcp_server import tools
 
 
