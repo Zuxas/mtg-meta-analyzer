@@ -220,3 +220,38 @@ def test_run_backfill_tolerates_isolated_event_failures(monkeypatch, quiet_backf
     summary = bf.run_backfill("modern")
     assert summary["events"] == 4 and summary["decks"] == 20
     assert summary["event_failures"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Pagination: a page full of already-known events is NOT the end of the year
+# ---------------------------------------------------------------------------
+
+def _listing(ids):
+    day = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%y")
+    return _Resp("".join(
+        f'<tr class="hover_tr"><td class="S14"><a href="event?e={i}&f=MO">Ev {i}</a></td>'
+        f'<td>{day}</td></tr>' for i in ids))
+
+
+def test_run_backfill_continues_past_pages_of_known_events(monkeypatch, quiet_backfill):
+    """Modern 2026 pages 1-2 were fully known (daily scrapes), page 3+ were not,
+    and the year stopped after page 2 -- Jan-Aug 2026 was never fetched."""
+    pages = {1: _listing(["1", "2"]), 2: _listing(["3", "4"]), 3: _listing(["5", "6"]), 4: _listing([])}
+    monkeypatch.setattr(bf, "_get_existing_source_ids", lambda: {"1", "2", "3", "4"})
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3:
+                        pages[int(url.split("cp=")[1])] if "&meta=" in url else EMPTY_PAGE)
+    processed = []
+    monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: processed.append(ev["source_id"]) or (1, True))
+    summary = bf.run_backfill("modern")
+    assert processed == ["5", "6"]
+    assert summary["events"] == 2
+
+
+def test_run_backfill_stops_when_the_site_repeats_the_last_page(monkeypatch, quiet_backfill):
+    """Past the end MTGTop8 keeps serving the last page; a repeat must end the year."""
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: _listing(["7", "8"]) if "&meta=" in url else EMPTY_PAGE)
+    processed = []
+    monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: processed.append(ev["source_id"]) or (1, True))
+    summary = bf.run_backfill("modern")
+    assert processed == ["7", "8"]           # once, not forever
+    assert summary["events"] == 2

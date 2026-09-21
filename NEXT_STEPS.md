@@ -87,7 +87,12 @@ Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for t
    they are complete and correct). Whole-event rollback in `backfill._process_event`; 25 zero-deck /
    card-less mtgtop8 events (22 from the 04:20 blip, 3 older) deleted so they get re-fetched.
    Minor: some test installs the GUI crash logger -> empty `logs/gui_crash_<date>.log` headers per run.
-1. **`fill_database.py`: the 04:20 run ended at 04:58 -- DNS blip, 4 formats at +0, exit 0 (now fixed to
+1. **FULL backfill RUNNING since 2026-09-21 ~07:05** (`logs/fill_database_2026-09-21_full.log`, cap raised to
+   200k for that process, 1.5s rate unchanged; expect many hours). Also fixed before launch: year ended
+   after 2 pages of known events (Modern 2026 Jan-Aug never fetched) -> now ends only on cutoff / empty /
+   repeated page. Baseline 06:55: standard 4071 / modern 1041 / legacy 616 / pioneer 411 / pauper 376
+   events; mtgtop8 by year: modern 2026+2023 only, pioneer/legacy/pauper 2026 only.
+1b. (history) the 04:20 run ended at 04:58 -- DNS blip, 4 formats at +0, exit 0 (now fixed to
    retry + INCOMPLETE/exit 2). Modern got +101 events before it. RELAUNCH after the 06:00 pipeline.**
    `YEAR_META` was wrong for Pioneer/Modern/Legacy 2022-2025 and lacked pauper/vintage -> the next run is
    the FIRST that can actually fetch 2023-2025 history for those formats (expect large deltas). When it

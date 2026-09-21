@@ -85,6 +85,10 @@ PAGE_FETCH_BACKOFF = (30, 60, 120)   # seconds between attempts
 # but this many IN A ROW means the network / host is gone: abort the format.
 MAX_CONSECUTIVE_EVENT_FAILURES = 5
 
+# Hard ceiling on listing pages per year (a year is ~30-70 pages at MTGTop8's
+# ~25 events per page); protects against a pathological pager.
+MAX_PAGES_PER_YEAR = 400
+
 
 def _load_cutoff(format_name):
     """Read retention days from config and return the cutoff datetime."""
@@ -105,9 +109,13 @@ def _get_existing_source_ids():
 def _scrape_year_page(format_name, meta, page, cutoff, existing_ids):
     """
     Fetch one page of events for a given year meta filter.
-    Returns (events_in_window, hit_cutoff).
+    Returns (events_in_window, hit_cutoff, page_ids).
     events_in_window: list of event dicts within the retention window, not yet in DB.
     hit_cutoff: True if any event on this page is older than cutoff.
+    page_ids: EVERY event id seen on the page, new or already stored -- the
+              caller needs it to tell "a page of known events" (keep paging)
+              from "an empty page" (end of year). Until 2026-09-21 those were
+              indistinguishable and Modern 2026 stopped after page 2.
     """
     from bs4 import BeautifulSoup
     code = FORMATS[format_name]
@@ -157,7 +165,7 @@ def _scrape_year_page(format_name, meta, page, cutoff, existing_ids):
         })
 
     time.sleep(DELAY)
-    return events_in_window, hit_cutoff
+    return events_in_window, hit_cutoff, seen_on_page
 
 
 def _delete_event(event_db_id):
@@ -263,12 +271,13 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
         page = 1
         year_events = 0
         year_decks = 0
+        prev_page_ids = None
 
         while True:
             print(f"  Page {page}...", end=" ", flush=True)
             for attempt in range(1, PAGE_FETCH_ATTEMPTS + 1):
                 try:
-                    events, hit_cutoff = _scrape_year_page(
+                    events, hit_cutoff, page_ids = _scrape_year_page(
                         format_name, meta, page, cutoff, existing_ids
                     )
                     break
@@ -282,7 +291,7 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
                           f"waiting {wait}s: {e}")
                     time.sleep(wait)
 
-            skipped = "  [no new events on page]" if not events else ""
+            skipped = f"  [no new events on page; {len(page_ids)} known]" if not events else ""
             print(f"{len(events)} new events{skipped}")
 
             for ev in events:
@@ -313,10 +322,19 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
                 print(f"  Reached cutoff ({cutoff_str}) — stopping year {year}.")
                 break
 
-            if not events and page > 1:
+            # End of year = an EMPTY page, or the site repeating the last page
+            # past the end. A page of already-known events is neither: keep
+            # paging (older events on later pages may still be missing).
+            if not page_ids:
                 print(f"  No more pages for {year}.")
                 break
-
+            if page_ids == prev_page_ids:
+                print(f"  Page {page} repeats page {page - 1} — end of {year}.")
+                break
+            if page >= MAX_PAGES_PER_YEAR:
+                print(f"  [warn] hit MAX_PAGES_PER_YEAR={MAX_PAGES_PER_YEAR} for {year}; stopping.")
+                break
+            prev_page_ids = page_ids
             page += 1
 
         total_events += year_events
