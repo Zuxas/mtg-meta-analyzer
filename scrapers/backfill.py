@@ -29,38 +29,57 @@ from scrapers.mtgtop8 import (
 from db.database import get_connection, upsert_event, upsert_deck, insert_deck_cards, init_db
 from db.maintenance import _parse_event_date
 
-# Meta values per format per year on MTGTop8.
-# Add new years here annually, or new formats as needed.
+# FALLBACK year -> MTGTop8 `meta` filter ids, used only when the live format
+# page cannot be fetched (fetch_year_metas). Captured from the live pages on
+# 2026-09-21. The previous table was extrapolated from Standard (minus 1/2/3)
+# and was WRONG for Pioneer/Modern/Legacy 2022-2025 -- an unknown id makes
+# MTGTop8 fall back to the format's CURRENT listing, so every historical
+# backfill of those years silently re-listed the current year and stored
+# nothing. Pauper and Vintage were absent entirely.
 YEAR_META = {
-    "standard": {
-        2026: 341,
-        2025: 312,
-        2024: 281,
-        2023: 250,
-        2022: 249,
-    },
-    "pioneer": {
-        2026: 340,
-        2025: 311,
-        2024: 280,
-        2023: 248,
-        2022: 247,
-    },
-    "modern": {
-        2026: 339,
-        2025: 310,
-        2024: 279,
-        2023: 246,
-        2022: 245,
-    },
-    "legacy": {
-        2026: 338,
-        2025: 309,
-        2024: 278,
-        2023: 244,
-        2022: 243,
-    },
+    "standard": {2026: 341, 2025: 312, 2024: 281, 2023: 250, 2022: 249},
+    "pioneer":  {2026: 340, 2025: 314, 2024: 277, 2023: 247, 2022: 235},
+    "modern":   {2026: 339, 2025: 315, 2024: 276, 2023: 246, 2022: 236},
+    "legacy":   {2026: 338, 2025: 316, 2024: 275, 2023: 245, 2022: 237},
+    "vintage":  {2026: 337, 2025: 317, 2024: 274, 2023: 244, 2022: 238},
+    "pauper":   {2026: 342, 2025: 311, 2024: 282, 2023: 251, 2022: 239},
 }
+
+_YEAR_LINK = re.compile(
+    r'href="\?f=(\w+)&meta=(\d+)&a="><div[^>]*>All (20\d\d) Decks</div>')
+
+
+def fetch_year_metas(format_name):
+    """
+    {year: meta} for `format_name`, parsed from the live MTGTop8 format page
+    ("All 2025 Decks" links). {} when the page cannot be fetched -- callers
+    fall back to YEAR_META and say so.
+    """
+    code = FORMATS[format_name]
+    resp = _get(f"{BASE_URL}/format?f={code}")
+    if not resp:
+        return {}
+    return {int(year): int(meta)
+            for fmt, meta, year in _YEAR_LINK.findall(resp.text) if fmt == code}
+
+
+class BackfillFetchError(RuntimeError):
+    """A listing page could not be fetched even after retries.
+
+    Raised instead of pretending the year is finished: on 2026-09-21 a DNS
+    blip made every remaining year and format look like it had "reached the
+    cutoff" and fill_database.py printed COMPLETE with four formats at +0.
+    """
+
+
+class BackfillConfigError(RuntimeError):
+    """The format has no YEAR_META mapping (was a print + silent return)."""
+
+
+# Listing-page fetch retry: DNS blips / connection resets last seconds to
+# minutes; give them a few minutes before giving up on the format.
+PAGE_FETCH_ATTEMPTS = 4
+PAGE_FETCH_BACKOFF = (30, 60, 120)   # seconds between attempts
 
 
 def _load_cutoff(format_name):
@@ -91,7 +110,9 @@ def _scrape_year_page(format_name, meta, page, cutoff, existing_ids):
     url = f"{BASE_URL}/format?f={code}&meta={meta}&cp={page}"
     resp = _get(url)
     if not resp:
-        return [], True  # treat fetch failure as end of data
+        # NOT end-of-data. The caller retries with backoff and then aborts
+        # the format; treating this as "hit cutoff" silently skipped years.
+        raise BackfillFetchError(url)
 
     soup = BeautifulSoup(resp.text, "lxml")
     events_in_window = []
@@ -172,10 +193,23 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
     cutoff_str = cutoff.strftime('%Y-%m-%d')
     existing_ids = _get_existing_source_ids()
 
-    year_metas = YEAR_META.get(format_name, {})
+    table = YEAR_META.get(format_name, {})
+    year_metas = fetch_year_metas(format_name)
+    if year_metas:
+        stale = {y: (table.get(y), m) for y, m in year_metas.items()
+                 if y in table and table[y] != m}
+        if stale:
+            print(f"  [warn] YEAR_META fallback table is stale for {format_name} "
+                  f"(year: (table, live)) {stale} -- using live ids; update backfill.py")
+    else:
+        year_metas = table
+        if year_metas:
+            print(f"  [warn] could not fetch the MTGTop8 format page; using the YEAR_META "
+                  f"fallback table for {format_name}")
     if not year_metas:
-        print(f"No year-meta mapping for format '{format_name}'. Add it to YEAR_META in backfill.py.")
-        return
+        raise BackfillConfigError(
+            f"No year-meta mapping for format '{format_name}' (live page unreachable and "
+            f"no YEAR_META fallback). Add it to YEAR_META in backfill.py.")
 
     # Cover years from current year down to the cutoff year
     current_year = datetime.now().year
@@ -191,6 +225,7 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
     print(f"{'='*60}\n")
 
     total_events = 0
+    transient_failures = 0
     total_decks = 0
 
     for year in years_to_cover:
@@ -202,9 +237,21 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
 
         while True:
             print(f"  Page {page}...", end=" ", flush=True)
-            events, hit_cutoff = _scrape_year_page(
-                format_name, meta, page, cutoff, existing_ids
-            )
+            for attempt in range(1, PAGE_FETCH_ATTEMPTS + 1):
+                try:
+                    events, hit_cutoff = _scrape_year_page(
+                        format_name, meta, page, cutoff, existing_ids
+                    )
+                    break
+                except BackfillFetchError as e:
+                    if attempt == PAGE_FETCH_ATTEMPTS:
+                        print(f"\n  [abort] listing page failed {attempt}x: {e}")
+                        raise
+                    wait = PAGE_FETCH_BACKOFF[min(attempt, len(PAGE_FETCH_BACKOFF)) - 1]
+                    transient_failures += 1
+                    print(f"\n  [retry {attempt}/{PAGE_FETCH_ATTEMPTS - 1}] fetch failed, "
+                          f"waiting {wait}s: {e}")
+                    time.sleep(wait)
 
             skipped = "  [no new events on page]" if not events else ""
             print(f"{len(events)} new events{skipped}")
@@ -239,8 +286,11 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
 
     print(f"{'-'*60}")
     print(f"  BACKFILL COMPLETE")
-    print(f"  Total: {total_events} events, {total_decks} decks stored")
+    print(f"  Total: {total_events} events, {total_decks} decks stored"
+          + (f"  ({transient_failures} transient fetch failures recovered)" if transient_failures else ""))
     print(f"{'='*60}\n")
+    return {"format": format_name, "events": total_events, "decks": total_decks,
+            "years": years_to_cover, "transient_failures": transient_failures}
 
 
 if __name__ == "__main__":

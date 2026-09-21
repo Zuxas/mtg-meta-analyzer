@@ -6,7 +6,8 @@
 
 ## OPEN — Data pipeline (`docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 - [x] **Bug 2 — Scryfall bulk API shape change** (2026-09-20) — `jsonl_download_uri` gz-JSONL -> single JSON array on disk (tmp + `os.replace`); `fill_database.py` steps 2/5 degrade to warnings; stdio double-wrap crash fixed. 38,906 cards; 8 tests; 527 green.
-- [~] **`fill_database.py` re-run** — RUNNING since 2026-09-21 ~04:20 (first step-3 pass since 2026-07-01: the backfill was unimportable). Verify with `--counts` + `--freshness-only` + per-format events/decks diff when it finishes.
+- [~] **`fill_database.py` re-run** — 04:20 run died to a DNS blip (+101 Modern events first); relaunch pending. Verify with `--counts` + `--freshness-only` + per-format events/decks diff.
+- [x] **Backfill resilience + correct year ids** (2026-09-21) — fetch failures retry then abort loudly (INCOMPLETE / exit 2); `fetch_year_metas()` from the live page; `YEAR_META` was wrong for Pioneer/Modern/Legacy 2022-2025 and lacked pauper/vintage. 11 tests; 755 green.
 - [x] **UIState test-leak / preferences.json corruption** (2026-09-21) — process-wide lock, atomic replace, `cancel_all_pending()` + autouse conftest guard. 3 tests.
 - [x] **backfill ImportError (`HEADERS`)** (2026-09-21) — unused import removed; `test_scraper_imports.py` pins every scraper module.
 - [x] **Bug 1 — silent format default** (2026-09-20) — `db/helpers.py::load_active_formats` is the one implementation (both drivers delegate); loud `DEFAULTING to standard only` warning on every fallback; real leak was `UIState._save_now` merging its launch snapshot over disk (fixed: UIState owns only `ui_state`); `run_fill_from_prefs.py` stdio double-wrap fixed. 11 tests; 538 green.

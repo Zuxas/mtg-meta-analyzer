@@ -81,7 +81,11 @@ Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for t
 
 ### Pick up here (in order, per `docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 
-1. **`fill_database.py` IS RUNNING (launched 2026-09-21 ~04:20)** -- when it finishes, verify with
+1. **`fill_database.py`: the 04:20 run ended at 04:58 -- DNS blip, 4 formats at +0, exit 0 (now fixed to
+   retry + INCOMPLETE/exit 2). Modern got +101 events before it. RELAUNCH after the 06:00 pipeline.**
+   `YEAR_META` was wrong for Pioneer/Modern/Legacy 2022-2025 and lacked pauper/vintage -> the next run is
+   the FIRST that can actually fetch 2023-2025 history for those formats (expect large deltas). When it
+   finishes, verify with
    `--counts` + `--freshness-only` and the per-format events/decks diff (baseline in 9/21 part 2 above),
    NOT the exit code. Then re-check: Pioneer freshness, Modern `_default_field_shares` (EV tab),
    dashboard Cascade visibility on Modern.

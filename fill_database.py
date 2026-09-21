@@ -138,6 +138,7 @@ def step_mtgtop8_backfill():
 
     init_db()
     t_total = time.time()
+    failed: list[str] = []
 
     for fmt in BACKFILL_FORMATS:
         _section(f"MTGTop8 backfill: {fmt.upper()}")
@@ -149,14 +150,17 @@ def step_mtgtop8_backfill():
             print("\n  [interrupted] Stopping backfill. Progress saved.")
             raise
         except Exception as e:
-            print(f"  [error] {fmt} backfill failed: {e}")
+            print(f"  [error] {fmt} backfill FAILED after {_elapsed(t)}: {e}")
+            failed.append(fmt)
             continue
         after_events, after_decks = _db_counts()
         added_e = after_events - before_events
         added_d = after_decks  - before_decks
         print(f"  {fmt.upper()} done in {_elapsed(t)}: +{added_e} events, +{added_d} decks")
 
-    print(f"\n  MTGTop8 backfill complete ({_elapsed(t_total)} total).")
+    print(f"\n  MTGTop8 backfill complete ({_elapsed(t_total)} total)."
+          + (f"  FAILED: {', '.join(failed)}" if failed else ""))
+    return failed
 
 
 # ---------------------------------------------------------------------------
@@ -287,13 +291,18 @@ def main():
     try:
         step_init()
         _run_optional(step_scryfall_download, "Scryfall download")
-        step_mtgtop8_backfill()
+        failed_formats = step_mtgtop8_backfill() or []
         # step_mtgdecks()  # DISABLED 2026-06: mtgdecks.net soft-banned (403);
         # replaced by first-party MTGO source. Function kept for history; the
         # scraper itself is hard-gated by ENABLED=False in scrapers/mtgdecks.py.
         _run_optional(step_enrich, "Scryfall enrichment")
         step_normalize()
         print_summary(t_start)
+        if failed_formats:
+            # Loud and non-zero: a partial backfill must never read as COMPLETE.
+            print(f"  *** BACKFILL INCOMPLETE -- failed formats: {', '.join(failed_formats)} ***")
+            print("  Re-run fill_database.py once the network is back; existing data is skipped.")
+            sys.exit(2)
     except KeyboardInterrupt:
         print(f"\n\n  Stopped by user after {_elapsed(t_start)}.")
         events, decks = _db_counts()
