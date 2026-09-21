@@ -51,7 +51,7 @@
 
 ## OPEN — Query & Discovery
 - [x] **MCP server** (2026-06-11, branch `feat/mcp-server`) — `mcp_server/` exposes the meta DB as four read-only, agent-callable tools over FastMCP/stdio (`list_decks`, `get_matchup`, `get_field_position`, `search_matchups`), wrapping `analysis/win_rates.py`. Explicit win-rate **provenance** (real melee.gg vs placement-proxy `source` field, real preferred, data-quality notes preserved); self-correcting deck-name resolution via `analysis.archetypes.normalize` (unknown → structured `deck_not_found` + fuzzy suggestions). Registered via project-scope `.mcp.json`. 9 tests; 347/347 green. README: `mcp_server/README.md`. NEXT (deferred): Pinecone-backed `search_strategy_docs` semantic search over the mtg-sim doc corpus.
-- [ ] Card-name decklist search (exact + multi-card AND/OR)
+- [x] **Card-name decklist search (exact + multi-card AND/OR)** — shipped 2026-04-21 (`b47780a` AND via one EXISTS per name, `a0ef161` OR via a single EXISTS + IN) in the Search tab's Deck Search; exact case-insensitive names, both clauses combine. Verified + pinned by test 2026-09-21 (`test_search_deck_sql_card_filters_and_or`).
 - [x] **Global "All Formats" option everywhere** (2026-05-14) — `analysis.win_rates.is_all_formats()` helper rolled across 7 analysis sites + 2 GUI inline-SQL sites
 
 ## OPEN — Testing & Iteration

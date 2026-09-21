@@ -222,6 +222,29 @@ def test_search_deck_sql_accepts_iso_bounds(mixed_db):
     assert [r["event_name"][-1] for r in rows] == ["B", "C"]
 
 
+def test_search_deck_sql_card_filters_and_or(mixed_db):
+    """ROADMAP 'Card-name decklist search (exact + multi-card AND/OR)' shipped
+    2026-04-21 (b47780a AND, a0ef161 OR); pinned here while verifying it.
+    Every seeded deck plays Lightning Bolt + Mountain; nothing plays Island."""
+    from gui.tabs.search import _deck_search_sql
+    from db.database import get_connection
+
+    def run(card_names=(), any_card_names=()):
+        sql, params = _deck_search_sql("modern", query="", max_placement=None, date_from="", date_to="",
+                                       player_q="", card_names=list(card_names), any_card_names=list(any_card_names))
+        with get_connection() as con:
+            return len(con.execute(sql, params).fetchall())
+
+    assert run() == 10                                            # 5 events x 2 decks
+    assert run(card_names=["Lightning Bolt", "Mountain"]) == 10    # AND: both present
+    assert run(card_names=["lightning bolt"]) == 10                # exact name, case-insensitive
+    assert run(card_names=["Lightning Bolt", "Island"]) == 0       # AND: one missing -> none
+    assert run(any_card_names=["Island", "Mountain"]) == 10        # OR: any present
+    assert run(any_card_names=["Island", "Plains"]) == 0
+    assert run(card_names=["Lightning Bolt"], any_card_names=["Island", "Mountain"]) == 10   # both clauses combine
+    assert run(card_names=["Lightning"]) == 0                      # exact match, not substring
+
+
 # ---------------------------------------------------------------------------
 # ORDER BY-only sites
 # ---------------------------------------------------------------------------
