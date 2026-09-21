@@ -151,10 +151,21 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     except Exception:
         pass
 
+    # Conversion ratio per archetype (CHAPIN Task 2, IC-02): top-cut share /
+    # field share from the matches table, over the same window. Enables the
+    # "Cascade" status in score_standings. None when unavailable.
+    conversions = None
+    try:
+        from analysis.conversion import conversion_by_archetype
+        since_iso = since_dt.strftime("%Y-%m-%d") if since_dt else "1970-01-01"
+        conversions = conversion_by_archetype(format_name, since_iso)
+    except Exception:
+        pass
+
     return {"standings": standings, "prior_standings": prior_standings,
             "recent": recent, "real_wrs": real_wrs,
             "raw_standings": raw_standings, "ratings": ratings_map,
-            "freshness": freshness}
+            "freshness": freshness, "conversions": conversions}
 
 
 # ---------------------------------------------------------------------------
@@ -882,6 +893,24 @@ class DashboardTab(QWidget):
         return text, color, describe_freshness(fmt, info)
 
     @staticmethod
+    def _status_tooltip(status: str, conversion: float | None) -> str:
+        """Tooltip for the Status cell; explains the conversion axis when known."""
+        base = {
+            "Pillar": "High share and high win rate -- the deck to beat.",
+            "Trap": "Popular but losing -- avoid or exploit.",
+            "Underplayed": "Low share but high win rate -- sleeper pick.",
+            "Cascade": "Played a lot, ~50% win rate, and its top-cut share is "
+                       "explained by its field share alone (Chapin IC-02): "
+                       "popular because it is popular.",
+            "Fringe": "Low share, middling win rate.",
+        }.get(status, "")
+        if conversion is None:
+            return base
+        return (f"{base}\nConversion {conversion:.2f} = top-cut share / field share "
+                f"over this window (matches table). ~1.00 = presence explained by "
+                f"popularity; >1 over-performs its numbers.")
+
+    @staticmethod
     def _stale_banner_text(fmt: str, info: dict | None) -> str | None:
         """Banner text when `fmt`'s match data is dead; None otherwise."""
         if not info or info.get("status") != "dead":
@@ -957,7 +986,7 @@ class DashboardTab(QWidget):
         # Enrich standings with prep priority + status labels
         from analysis.meta_scoring import score_standings
         real_wrs = data.get("real_wrs", {})
-        score_standings(self._standings, real_wrs)
+        score_standings(self._standings, real_wrs, conversions=data.get("conversions"))
 
         prior_map = {s["archetype"]: s for s in data.get("prior_standings", [])}
         self._populate_winrate(self._standings, prior_map, real_wrs,
@@ -1317,10 +1346,11 @@ class DashboardTab(QWidget):
                 pp_item.setBackground(bg)
             tbl.setItem(ri, 5, pp_item)
 
-            # Status column (Pillar / Trap / Underplayed / Fringe)
+            # Status column (Pillar / Trap / Underplayed / Fringe / Cascade)
             status = s.get("status", "")
             status_color = s.get("status_color", theme.TEXT_DIM)
             st_item = QTableWidgetItem(status)
+            st_item.setToolTip(self._status_tooltip(status, s.get("conversion")))
             st_item.setForeground(QColor(status_color))
             st_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
             st_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)

@@ -90,65 +90,36 @@ def freshness(con, months: int = 12) -> None:
 
 def conversion(con, fmt: str, lo: str, hi: str,
                min_players: int = 16, cut: int = 8) -> None:
-    """Field share, top-cut share and conversion, all from `matches`."""
-    from analysis.archetypes import normalize as norm_arch
+    """Field share, top-cut share and conversion, all from `matches`.
 
-    events: dict = collections.defaultdict(dict)
-    rows = con.execute(
-        """SELECT event_id, player1, player2, player1_arch, player2_arch, result
-             FROM matches
-            WHERE lower(format)=? AND event_date BETWEEN ? AND ?
-              AND event_date LIKE '____-__-__'""", (fmt, lo, hi))
-    for eid, p1, p2, a1, a2, res in rows:
-        for player, arch, won in ((p1, a1, res == "player1"),
-                                  (p2, a2, res == "player2")):
-            if not player:
-                continue
-            rec = events[eid].setdefault(player, [0, 0, None])
-            if arch and rec[2] is None:
-                rec[2] = norm_arch(arch)
-            if res in ("player1", "player2"):
-                rec[0 if won else 1] += 1
+    The algorithm lives in analysis.conversion.conversion_by_archetype (ported
+    from here on 2026-09-21 and verified digit-for-digit); this function is
+    the CLI presentation of it.
+    """
+    from analysis.conversion import conversion_by_archetype
+    from analysis.meta_scoring import classify_status
 
-    field: collections.Counter = collections.Counter()
-    topcut: collections.Counter = collections.Counter()
-    wins: collections.Counter = collections.Counter()
-    played: collections.Counter = collections.Counter()
-    n_events = 0
-    for players in events.values():
-        if len(players) < min_players:
-            continue
-        n_events += 1
-        ranked = sorted(players.items(), key=lambda kv: (-kv[1][0], kv[1][1]))
-        for i, (_player, (w, l, arch)) in enumerate(ranked):
-            if not arch:
-                continue
-            field[arch] += 1
-            wins[arch] += w
-            played[arch] += w + l
-            if i < cut:
-                topcut[arch] += 1
-
-    total_field, total_cut = sum(field.values()), sum(topcut.values())
-    if not total_field:
+    out = conversion_by_archetype(fmt, lo, hi, min_players=min_players,
+                                  cut=cut, con=con)
+    if not out:
         print(f"\nNo {fmt} match data in {lo}..{hi} -- nothing to score.")
         return
 
+    n_events = next(iter(out.values()))["events_total"]
     print(f"\n=== {fmt} conversion, {lo}..{hi} "
           f"({n_events} events with >={min_players} players) ===")
     print(f"{'archetype':<26}{'field%':>8}{'top%':>8}{'conv':>8}"
           f"{'matchWR':>9}{'n':>8}")
     print("-" * 68)
     flagged = []
-    for arch, n in field.most_common(20):
-        fs = n / total_field
-        ts = topcut.get(arch, 0) / total_cut
-        conv = ts / fs if fs else 0.0
-        wr = wins[arch] / played[arch] if played.get(arch) else 0.0
+    ranked = sorted(out.items(), key=lambda kv: -kv[1]["field_share"])[:20]
+    for arch, r in ranked:
+        fs, ts, conv, wr, n = (r["field_share"], r["top_share"], r["conversion"],
+                               r["match_wr"], r["matches"])
         print(f"{arch[:26]:<26}{fs*100:>7.2f}%{ts*100:>7.2f}%{conv:>8.2f}"
-              f"{wr*100:>8.1f}%{played.get(arch, 0):>8}")
-        if fs >= 0.03 and conv <= 1.02 and 0.48 <= wr <= 0.52:
-            flagged.append((arch, fs, conv, wr, played.get(arch, 0)))
+              f"{wr*100:>8.1f}%{n:>8}")
+        if classify_status(fs, wr, conversion=conv)[0] == "Cascade":
+            flagged.append((arch, fs, conv, wr, n))
 
     print("\n--- cascade candidates (share >=3%, conv <=1.02, WR 48-52%) ---")
     for arch, fs, conv, wr, n in flagged or []:

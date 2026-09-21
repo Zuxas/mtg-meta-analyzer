@@ -10,6 +10,9 @@ Statuses:
     Trap Deck        — popular but loses (avoid or exploit)
     Underplayed      — low share but high win rate (sleeper pick)
     Fringe           — low share, middling win rate (niche viable)
+    Cascade          — (opt-in, needs a conversion ratio) played a lot, ~50% WR,
+                       and its top-cut share is explained by its field share
+                       (Chapin IC-02). Popular because it is popular.
 """
 
 from __future__ import annotations
@@ -24,14 +27,28 @@ _LOW_SHARE  = 0.03      # <3% meta share
 _HIGH_WR    = 0.54      # ≥54% win rate
 _LOW_WR     = 0.48      # <48% win rate
 
+# Cascade axis (analysis/conversion.py). A deck at ~50% is neither Pillar nor
+# Trap, so before 2026-09-20 it was labelled Fringe or nothing; conversion
+# ratio adds the missing test: presence explained by popularity alone.
+_CASCADE_SHARE      = 0.03   # ≥3% of the field
+_CASCADE_CONVERSION = 1.02   # top-cut share / field share ≤ 1.02
+_CASCADE_WR         = (0.48, 0.52)
+CASCADE_COLOR       = "#e67e22"
 
-def classify_status(meta_share: float, win_rate: float) -> tuple[str, str]:
+
+def classify_status(meta_share: float, win_rate: float,
+                    conversion: float | None = None) -> tuple[str, str]:
     """Return (status_label, color_hex) for an archetype.
 
     Parameters
     ----------
     meta_share : float   0-1 fraction of the field
     win_rate   : float   0-1 match win rate (real or estimated)
+    conversion : float, optional -- top-cut share / field share from
+                 analysis.conversion.conversion_by_archetype(). When supplied,
+                 a deck with share >= 3%, conversion <= 1.02 and a 48-52% win
+                 rate is a "Cascade". When omitted the four original statuses
+                 are returned exactly as before.
     """
     if meta_share >= _HIGH_SHARE and win_rate >= _HIGH_WR:
         return "Pillar", "#3cb44b"       # green
@@ -39,6 +56,11 @@ def classify_status(meta_share: float, win_rate: float) -> tuple[str, str]:
         return "Trap", "#e6194b"         # red
     if meta_share < _LOW_SHARE and win_rate >= _HIGH_WR:
         return "Underplayed", "#f0c040"  # gold
+    if (conversion is not None
+            and meta_share >= _CASCADE_SHARE
+            and conversion <= _CASCADE_CONVERSION
+            and _CASCADE_WR[0] <= win_rate <= _CASCADE_WR[1]):
+        return "Cascade", CASCADE_COLOR  # orange
     return "Fringe", "#888888"           # grey
 
 
@@ -55,19 +77,24 @@ def prep_priority(meta_share: float, win_rate: float) -> float:
 
 
 def score_standings(standings: list[dict],
-                    real_wrs: dict | None = None) -> list[dict]:
+                    real_wrs: dict | None = None,
+                    conversions: dict | None = None) -> list[dict]:
     """Enrich a standings list with prep priority and status.
 
     Parameters
     ----------
-    standings : list of dicts from get_meta_standings()
-    real_wrs  : optional dict {archetype: {win_rate, wins, losses, ...}}
-                from get_real_archetype_winrates()
+    standings   : list of dicts from get_meta_standings()
+    real_wrs    : optional dict {archetype: {win_rate, wins, losses, ...}}
+                  from get_real_archetype_winrates()
+    conversions : optional dict {archetype: {conversion, ...}} from
+                  analysis.conversion.conversion_by_archetype(). Enables the
+                  "Cascade" status; without it behaviour is unchanged.
 
     Returns the same list, each dict gaining:
         prep_priority  : float 0-100
-        status         : str   (Pillar / Trap / Underplayed / Fringe)
+        status         : str   (Pillar / Trap / Underplayed / Fringe / Cascade)
         status_color   : str   hex color
+        conversion     : float | None  (only when conversions supplied)
     """
     total_apps = sum(s["appearances"] for s in standings) or 1
 
@@ -78,7 +105,12 @@ def score_standings(standings: list[dict],
         real = (real_wrs or {}).get(s["archetype"])
         wr = real["win_rate"] if real else (s.get("est_match_winpct") or 0.5)
 
+        conv = None
+        if conversions is not None:
+            conv = (conversions.get(s["archetype"]) or {}).get("conversion")
+            s["conversion"] = conv
+
         s["prep_priority"] = prep_priority(share, wr)
-        s["status"], s["status_color"] = classify_status(share, wr)
+        s["status"], s["status_color"] = classify_status(share, wr, conversion=conv)
 
     return standings

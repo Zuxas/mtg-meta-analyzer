@@ -1,6 +1,6 @@
 # ROADMAP.md — MTG Meta Analyzer Feature Roadmap
 
-> Last updated: 2026-09-20
+> Last updated: 2026-09-21
 
 ---
 
@@ -13,7 +13,9 @@
 - [ ] **Date-normalization sweep** — ~18 inline `CASE WHEN instr(date,'/')` copies -> `SQL_NORM_DATE` (each site's `since` literal to ISO). See NEXT_STEPS #6.
 - [ ] **Melee recency check** — Modern/Standard/Legacy stop at 09-13, Pauper at 09-19. See NEXT_STEPS #7.
 - [ ] **Pioneer** — zero `matches` rows since 2026-05 even after a 20-page melee pass; MTGTop8 step 3 is the untested source.
-- [ ] CHAPIN_METRICS Tasks 2+ — conversion ratio / cascade flag and the rest.
+- [x] **CHAPIN Task 2 — conversion ratio + Cascade status** (2026-09-21) — `analysis/conversion.py` (matches-only field/top-cut, Wilson CI, normalized dates), `classify_status(conversion=)` -> Cascade, dashboard Status column + tooltip; reference script delegates. 10 tests; 578 green.
+- [ ] **CHAPIN Task 3 — match math** — `analysis/match_math.py` (`match_winrate` / `required_q` / `implied_q`), wire into `compute_deck_ev` behind `use_match_math`, `required_q_for_even` per row.
+- [ ] **CHAPIN Task 4 — Chapin corpus into strategy search** — `ingest_strategy_docs.py --counts` first; needs Pinecone key.
 
 ## OPEN — GUI follow-ups
 - [x] **Settings "Storage" groupbox wired in** (2026-07-12) — never-rendered panel now visible; slots click-only-audited; 5 tests; suite 520 passed/2 skipped. Live-pass 7/7 confirmed the whole polish arc in real pixels.
@@ -118,6 +120,12 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-21 — CHAPIN Task 2 (conversion ratio + Cascade)
+- [x] `analysis/conversion.py::conversion_by_archetype` — ported from `scripts/data_health_report.py` (digit-identical), `events_total`, `SQL_NORM_DATE` window, Wilson CI.
+- [x] `analysis/meta_scoring.py` — optional `conversion` axis -> `Cascade`; `score_standings(conversions=)`; old behaviour pinned by tests.
+- [x] `gui/tabs/dashboard.py` — conversions in `_load_panel_data`, Status tooltip (`_status_tooltip`).
+- [x] `scripts/data_health_report.py::conversion` delegates to the module.
 
 ### 2026-09-20 — Data pipeline Bug 3 / CHAPIN Task 1 (per-format freshness guard)
 - [x] `db/helpers.py`: `normalize_event_date()` + `SQL_NORM_DATE` (ISO for `YYYY-MM-DD` / `dd/mm/yy` / `dd/mm/yyyy`); `analysis/deck_ev.py` refactored onto it (byte-identical output).

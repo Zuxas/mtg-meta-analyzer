@@ -1,8 +1,20 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-20 (data-pipeline Bugs 1+2+3 shipped -- suite 568/568; fill_database re-run + CHAPIN Tasks 2+ are next)
+Last updated: 2026-09-21 (CHAPIN Task 2 conversion/Cascade shipped -- suite 578/578; Task 3 match math + fill_database re-run are next)
 
 ---
+
+## 9/21 session (shipped -- CHAPIN_METRICS.md Task 2: conversion ratio + Cascade)
+
+- `analysis/conversion.py::conversion_by_archetype` -- port of the reference in
+  `scripts/data_health_report.py`, verified digit-for-digit on the same DB; the script now delegates
+  (output byte-identical). Field + top cut from `matches` only; dates normalized (the reference
+  dropped dd/mm/yy rows). Adds `events_total` per row.
+- `meta_scoring.classify_status(..., conversion=None)` -> `Cascade` (#e67e22) at share>=3%,
+  conv<=1.02, WR 48-52%; `score_standings(..., conversions=)`. Old calls unchanged.
+- Dashboard: conversions computed in the panel worker; Status column shows Cascade + tooltip.
+- Doc fixture table is one scrape stale (106 -> 112 qualifying events); live test uses drift
+  tolerance + the exact flagged set. Suite **578 passed, 0 failed**.
 
 ## 9/20 session (shipped -- Bug 2 of `docs/prompts/DATA_PIPELINE_FIXES.md` + the undocumented backfill crash)
 
@@ -50,7 +62,9 @@ Last updated: 2026-09-20 (data-pipeline Bugs 1+2+3 shipped -- suite 568/568; fil
    not the exit code.
 2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
 3. ~~Bug 3 = CHAPIN_METRICS Task 1~~ DONE 2026-09-20 (see above).
-4. **CHAPIN_METRICS Tasks 2+** (conversion ratio / cascade flag, etc.) -- next code work.
+4. ~~CHAPIN_METRICS Task 2~~ DONE 2026-09-21. **Task 3 (match math in `deck_ev.py`, `analysis/match_math.py`)**
+   is next code work; then Task 4 (`python scripts/ingest_strategy_docs.py --counts` before any
+   Pinecone spend -- needs the key in `config.ini [pinecone]`).
 6. **Date-normalization sweep (mechanical, one call site at a time):** ~18 inline
    `CASE WHEN instr(<date>,'/')>0 ...` copies remain (`win_rates._DATE_KEY`/`_MATCH_DATE_KEY`,
    `scout.py`, `field_optimizer.py`, `card_adoption.py`, `cross_source_dedup.py`, `deck_analysis.py`,
