@@ -241,6 +241,7 @@ class DashboardTab(QWidget):
         self._chart_checks  = {}       # archetype -> QCheckBox
         self._chart_mode    = "win_pct"
         self._standings     = []
+        self._panel_banners: list[QLabel] = []   # dead-data banners, one per panel + chart
         self._on_simulate   = on_simulate
         self._hydrated_state = False   # sticky state hydration guard
 
@@ -319,8 +320,7 @@ class DashboardTab(QWidget):
         # shows red here even while scrape_state.json says "ok".
         self._fresh_chip = QLabel()
         self._fresh_chip.setObjectName("freshnessChip")
-        self._panel_banners: list[QLabel] = []
-        self._apply_freshness(None)
+        self._apply_freshness(None)   # chip = "unknown" until the first data load
         ctrl.addWidget(self._fresh_chip)
 
         ctrl.addWidget(QLabel("Timeframe:"))
