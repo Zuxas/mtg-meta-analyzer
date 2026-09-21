@@ -29,3 +29,33 @@ def _no_leaked_ui_state_saves():
         UIState.cancel_all_pending()
     except Exception:
         pass
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "network: test may reach the real network (everything else is blocked at DNS)")
+
+
+@pytest.fixture(autouse=True)
+def _no_network(request, monkeypatch):
+    """Block real network access in tests unless marked @pytest.mark.network.
+
+    On 2026-09-21 a backfill test with an unstubbed `_get` scraped 20 Vintage
+    events from mtgtop8 into the LIVE DB. Tests that mock `requests` are
+    unaffected; a genuine socket to a non-local host fails at name resolution,
+    the same way it would offline.
+    """
+    if request.node.get_closest_marker("network"):
+        yield
+        return
+    import socket
+    real = socket.getaddrinfo
+    local = {None, "", "localhost", "127.0.0.1", "::1"}
+
+    def guarded(host, *args, **kwargs):
+        if host in local:
+            return real(host, *args, **kwargs)
+        raise RuntimeError(f"network access blocked in tests: {host!r} "
+                           f"(mark the test @pytest.mark.network if it must)")
+    monkeypatch.setattr(socket, "getaddrinfo", guarded)
+    yield

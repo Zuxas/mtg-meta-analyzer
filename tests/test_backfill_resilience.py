@@ -144,3 +144,79 @@ def test_run_backfill_falls_back_to_table_when_format_page_fails(monkeypatch, qu
     bf.run_backfill("modern")
     assert any(f"meta={bf.YEAR_META['modern'][datetime.now().year]}" in u for u in seen)
     assert "fallback" in capsys.readouterr().out.lower()
+
+
+# ---------------------------------------------------------------------------
+# An event is stored only if FULLY fetched; partial fetches roll back so the
+# next run re-fetches the whole event (existing_ids would otherwise skip it
+# forever: 17 zero-deck events + one event with 14 card-less decks on 09-21)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def real_db(tmp_path, monkeypatch):
+    import db.database as dbm
+    monkeypatch.setattr(dbm, "DB_PATH", str(tmp_path / "t.db"))
+    dbm.init_db()
+    return dbm
+
+
+EV = {"source_id": "90486", "name": "MTGO Challenge 32", "date": "15/09/26",
+      "url": "https://www.mtgtop8.com/event?e=90486&f=MO"}
+DECKS = [{"source_id": f"8868{i}", "player": f"p{i}", "archetype": "Boros Energy",
+          "placement": i, "url": f"https://www.mtgtop8.com/event?e=90486&d=8868{i}&f=MO"} for i in range(1, 4)]
+CARDS = ({"Lightning Bolt": 4}, {"Wear // Tear": 2})
+
+
+def _counts(dbm):
+    with dbm.get_connection() as c:
+        return (c.execute("SELECT COUNT(*) FROM events").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM decks").fetchone()[0],
+                c.execute("SELECT COUNT(*) FROM deck_cards").fetchone()[0])
+
+
+def test_process_event_stores_a_fully_fetched_event(real_db, monkeypatch):
+    monkeypatch.setattr(bf, "scrape_event_decks", lambda sid, url: DECKS)
+    monkeypatch.setattr(bf, "scrape_deck_cards", lambda url: CARDS)
+    n, ok = bf._process_event(EV, "modern")
+    assert (n, ok) == (3, True)
+    assert _counts(real_db) == (1, 3, 6)
+
+
+def test_process_event_rolls_back_when_the_event_page_fails(real_db, monkeypatch):
+    monkeypatch.setattr(bf, "scrape_event_decks", lambda sid, url: [])     # fetch failed / no decks
+    monkeypatch.setattr(bf, "scrape_deck_cards", lambda url: CARDS)
+    n, ok = bf._process_event(EV, "modern")
+    assert (n, ok) == (0, False)
+    assert _counts(real_db) == (0, 0, 0), "a zero-deck event must not be left behind"
+
+
+def test_process_event_rolls_back_when_a_deck_fetch_fails(real_db, monkeypatch):
+    monkeypatch.setattr(bf, "scrape_event_decks", lambda sid, url: DECKS)
+    calls = iter([CARDS, ({}, {}), CARDS])                                  # 2nd deck fails
+    monkeypatch.setattr(bf, "scrape_deck_cards", lambda url: next(calls))
+    n, ok = bf._process_event(EV, "modern")
+    assert ok is False
+    assert _counts(real_db) == (0, 0, 0), "partial events are rolled back whole"
+
+
+def test_run_backfill_aborts_after_consecutive_event_failures(monkeypatch, quiet_backfill):
+    listing = _Resp("".join(
+        f'<tr class="hover_tr"><td class="S14"><a href="event?e=9{i:04d}&f=MO">Ev {i}</a></td>'
+        f'<td>{(datetime.now() - timedelta(days=1)).strftime("%d/%m/%y")}</td></tr>' for i in range(10)))
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: listing if "&meta=" in url else EMPTY_PAGE)
+    monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: (0, False))   # every event fails
+    with pytest.raises(bf.BackfillFetchError):
+        bf.run_backfill("modern")
+
+
+def test_run_backfill_tolerates_isolated_event_failures(monkeypatch, quiet_backfill):
+    listing = _Resp("".join(
+        f'<tr class="hover_tr"><td class="S14"><a href="event?e=9{i:04d}&f=MO">Ev {i}</a></td>'
+        f'<td>{(datetime.now() - timedelta(days=1)).strftime("%d/%m/%y")}</td></tr>' for i in range(6)))
+    pages = iter([listing, EMPTY_PAGE])
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: next(pages) if "&meta=" in url else EMPTY_PAGE)
+    outcomes = iter([(5, True), (0, False), (5, True), (0, False), (5, True), (5, True)])
+    monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: next(outcomes))
+    summary = bf.run_backfill("modern")
+    assert summary["events"] == 4 and summary["decks"] == 20
+    assert summary["event_failures"] == 2

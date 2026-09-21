@@ -81,6 +81,10 @@ class BackfillConfigError(RuntimeError):
 PAGE_FETCH_ATTEMPTS = 4
 PAGE_FETCH_BACKOFF = (30, 60, 120)   # seconds between attempts
 
+# Per-event fetch failures are tolerated in isolation (a single dead page),
+# but this many IN A ROW means the network / host is gone: abort the format.
+MAX_CONSECUTIVE_EVENT_FAILURES = 5
+
 
 def _load_cutoff(format_name):
     """Read retention days from config and return the cutoff datetime."""
@@ -156,9 +160,26 @@ def _scrape_year_page(format_name, meta, page, cutoff, existing_ids):
     return events_in_window, hit_cutoff
 
 
+def _delete_event(event_db_id):
+    """Remove an event and everything under it (rollback of a partial fetch)."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM deck_cards WHERE deck_id IN "
+                     "(SELECT id FROM decks WHERE event_id=?)", (event_db_id,))
+        conn.execute("DELETE FROM decks WHERE event_id=?", (event_db_id,))
+        conn.execute("DELETE FROM events WHERE id=?", (event_db_id,))
+
+
 def _process_event(ev, format_name, event_type=None):
+    """Store one event and ALL its decks/cards, or nothing. Returns (deck_count, ok).
+
+    An event is kept only when fully fetched. If the event page or ANY deck
+    page fails, the event is rolled back (event + decks + cards) so the next
+    run re-lists and re-fetches it. Before 2026-09-21 the event row was kept
+    regardless -- 17 zero-deck events and one with 14 card-less decks were
+    left behind by a DNS blip, and `existing_ids` would have skipped them on
+    every future run.
+    """
     event_type = event_type or classify_event_type(ev["name"])
-    """Store one event and all its decks/cards. Returns deck count."""
     event_db_id = upsert_event(
         source="mtgtop8",
         source_id=ev["source_id"],
@@ -169,7 +190,15 @@ def _process_event(ev, format_name, event_type=None):
         event_type=event_type,
     )
     decks = scrape_event_decks(ev["source_id"], ev["url"])
+    if not decks:
+        # fetch failure or an empty event page: either way nothing usable
+        _delete_event(event_db_id)
+        return 0, False
     for dk in decks:
+        mainboard, sideboard = scrape_deck_cards(dk["url"])
+        if not mainboard:
+            _delete_event(event_db_id)
+            return 0, False
         deck_db_id = upsert_deck(
             event_id=event_db_id,
             source_id=dk["source_id"],
@@ -178,10 +207,8 @@ def _process_event(ev, format_name, event_type=None):
             placement=dk["placement"],
             url=dk["url"],
         )
-        mainboard, sideboard = scrape_deck_cards(dk["url"])
-        if mainboard:
-            insert_deck_cards(deck_db_id, mainboard, sideboard)
-    return len(decks)
+        insert_deck_cards(deck_db_id, mainboard, sideboard)
+    return len(decks), True
 
 
 def run_backfill(format_name="standard", since=None, dry_run=False):
@@ -226,6 +253,8 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
 
     total_events = 0
     transient_failures = 0
+    event_failures = 0
+    consecutive_failures = 0
     total_decks = 0
 
     for year in years_to_cover:
@@ -264,11 +293,21 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
                 if dry_run:
                     print("  [DRY RUN — skipped]")
                 else:
-                    deck_count = _process_event(ev, format_name)
-                    year_events += 1
-                    year_decks += deck_count
-                    existing_ids.add(ev['source_id'])
-                    print(f"  — {deck_count} decks stored")
+                    deck_count, ok = _process_event(ev, format_name)
+                    if ok:
+                        year_events += 1
+                        year_decks += deck_count
+                        existing_ids.add(ev['source_id'])
+                        consecutive_failures = 0
+                        print(f"  — {deck_count} decks stored")
+                    else:
+                        event_failures += 1
+                        consecutive_failures += 1
+                        print("  — FETCH FAILED, rolled back (will retry next run)")
+                        if consecutive_failures >= MAX_CONSECUTIVE_EVENT_FAILURES:
+                            raise BackfillFetchError(
+                                f"{consecutive_failures} consecutive event fetch failures "
+                                f"in {format_name} {year} -- host/network down, aborting format")
 
             if hit_cutoff:
                 print(f"  Reached cutoff ({cutoff_str}) — stopping year {year}.")
@@ -290,7 +329,8 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
           + (f"  ({transient_failures} transient fetch failures recovered)" if transient_failures else ""))
     print(f"{'='*60}\n")
     return {"format": format_name, "events": total_events, "decks": total_decks,
-            "years": years_to_cover, "transient_failures": transient_failures}
+            "years": years_to_cover, "transient_failures": transient_failures,
+            "event_failures": event_failures}
 
 
 if __name__ == "__main__":

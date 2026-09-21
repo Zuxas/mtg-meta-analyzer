@@ -81,6 +81,12 @@ Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for t
 
 ### Pick up here (in order, per `docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 
+0. **Test-suite hygiene landed 2026-09-21 (all in `tests/conftest.py`):** every test cancels leaked UIState
+   timers, and real network access is BLOCKED at DNS unless `@pytest.mark.network` (a backfill test with
+   an unstubbed `_get` scraped 20 real Vintage events into the live DB before the guard existed -- kept,
+   they are complete and correct). Whole-event rollback in `backfill._process_event`; 25 zero-deck /
+   card-less mtgtop8 events (22 from the 04:20 blip, 3 older) deleted so they get re-fetched.
+   Minor: some test installs the GUI crash logger -> empty `logs/gui_crash_<date>.log` headers per run.
 1. **`fill_database.py`: the 04:20 run ended at 04:58 -- DNS blip, 4 formats at +0, exit 0 (now fixed to
    retry + INCOMPLETE/exit 2). Modern got +101 events before it. RELAUNCH after the 06:00 pipeline.**
    `YEAR_META` was wrong for Pioneer/Modern/Legacy 2022-2025 and lacked pauper/vintage -> the next run is
