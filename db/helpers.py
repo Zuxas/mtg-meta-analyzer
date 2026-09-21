@@ -93,3 +93,45 @@ def load_active_formats(prefs_path: str | None = None, *, log=print) -> list:
         reason = f"could not read preferences.json ({type(e).__name__}: {e})"
     log(f"[prefs] WARNING: {reason} -- {_DEFAULT_WARNING}")
     return list(DEFAULT_FORMATS)
+
+
+# ── Event dates: two shapes live in the same columns ──────────────────────
+#
+# `events.date` and `matches.event_date` each hold BOTH `YYYY-MM-DD` (melee /
+# MTGDecks) and `dd/mm/yy` (MTGTop8). Any MAX() or `>=` string comparison
+# spanning both is wrong ('2026-03-14' < '18/03/26' lexically). Normalize --
+# in Python with normalize_event_date(), in SQL with SQL_NORM_DATE -- before
+# comparing. Both yield ISO `YYYY-MM-DD` so their outputs are interchangeable.
+
+# SQL fragment template; use SQL_NORM_DATE.format(col="e.date").
+# dd/mm/yy (8 chars) and dd/mm/yyyy (10 chars) -> ISO; anything else is
+# assumed ISO-leading and truncated to the date part.
+SQL_NORM_DATE = (
+    "(CASE WHEN instr({col},'/')>0 AND length({col})=10 "
+    "THEN substr({col},7,4)||'-'||substr({col},4,2)||'-'||substr({col},1,2) "
+    "WHEN instr({col},'/')>0 "
+    "THEN '20'||substr({col},7,2)||'-'||substr({col},4,2)||'-'||substr({col},1,2) "
+    "ELSE substr({col},1,10) END)"
+)
+
+
+def normalize_event_date(value) -> str | None:
+    """
+    Return an ISO `YYYY-MM-DD` string for either stored date shape, or None.
+
+    Accepts `YYYY-MM-DD` (optionally with a time suffix), `dd/mm/yy` and
+    `dd/mm/yyyy`. Junk -- wrong type, impossible dates, empty -- returns None
+    rather than raising, so callers can MAX()/filter over dirty columns.
+    """
+    if not isinstance(value, str):
+        return None
+    s = value.strip()
+    if not s:
+        return None
+    try:
+        if "/" in s:
+            fmt = "%d/%m/%Y" if len(s) == 10 else "%d/%m/%y"
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None

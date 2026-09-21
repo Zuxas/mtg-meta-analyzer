@@ -38,34 +38,20 @@ _DOT_COLORS = {
 # Scrape state persistence
 # ---------------------------------------------------------------------------
 
-def write_scrape_state(status="ok", error=None):
+def write_scrape_state(status="ok", error=None, fmt=None):
     """
     Persist last-updated timestamp and status to data/scrape_state.json.
-    Called by MainWindow when a background scrape finishes.
+    Called by MainWindow when a background scrape finishes. Implementation
+    lives in the Qt-free `db.scrape_state` (per-format since 2026-09-20) so
+    the scheduled pipeline can write the same file.
     """
-    os.makedirs(os.path.dirname(_STATE_FILE), exist_ok=True)
-    state = {}
-    try:
-        with open(_STATE_FILE) as f:
-            state = json.load(f)
-    except Exception:
-        pass
-    state["last_updated"] = datetime.now().isoformat(timespec="seconds")
-    state["last_status"]  = status
-    if error:
-        state["last_error"] = str(error)
-    elif "last_error" in state:
-        del state["last_error"]
-    with open(_STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
+    from db.scrape_state import write_scrape_state as _write
+    _write(status=status, error=error, fmt=fmt, path=_STATE_FILE)
 
 
 def read_scrape_state() -> dict:
-    try:
-        with open(_STATE_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    from db.scrape_state import read_scrape_state as _read
+    return _read(path=_STATE_FILE)
 
 
 def _format_last_updated() -> str:

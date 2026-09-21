@@ -9,7 +9,9 @@
 - [ ] **Re-run `fill_database.py`** — first full pass of step 3 (3-year MTGTop8 backfill) since ~2026-07-26; needs go-ahead (hours, live DB). Verify with `--counts` + `data_health_report.py --freshness-only`.
 - [x] **Bug 1 — silent format default** (2026-09-20) — `db/helpers.py::load_active_formats` is the one implementation (both drivers delegate); loud `DEFAULTING to standard only` warning on every fallback; real leak was `UIState._save_now` merging its launch snapshot over disk (fixed: UIState owns only `ui_state`); `run_fill_from_prefs.py` stdio double-wrap fixed. 11 tests; 538 green.
 - [ ] **Stdio sweep** — 4 module-level `sys.stdout = TextIOWrapper(sys.stdout.buffer)` sites (`analysis/query.py`, `main.py`, `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py`) -> in-place `reconfigure()`.
-- [ ] **Bug 3 / Task 1 — per-format freshness guard** — `normalize_event_date` + `SQL_NORM_DATE`, `analysis/data_health.py`, dashboard chip + dead-format banner, per-format `scrape_state.json`. Lead: pre-existing `test_regression_archetype_trend_all_returns_data` failure (`fmt='all'` -> 0 rows).
+- [x] **Bug 3 / Task 1 — per-format freshness guard** (2026-09-20) — `db/helpers.py::normalize_event_date` + `SQL_NORM_DATE`; `analysis/data_health.py::format_freshness` (fresh/stale/dead); dashboard chip + dead-data banner on every panel; per-format `scrape_state.json` (`db/scrape_state.py`) written by the 6AM driver; `deck_ev.py` on the shared normalizer. `test_is_all_formats` failure fixed (matches-fallback `format='all'`). 40 tests; 568 green.
+- [ ] **Date-normalization sweep** — ~18 inline `CASE WHEN instr(date,'/')` copies -> `SQL_NORM_DATE` (each site's `since` literal to ISO). See NEXT_STEPS #6.
+- [ ] **Melee recency check** — Modern/Standard/Legacy stop at 09-13, Pauper at 09-19. See NEXT_STEPS #7.
 - [ ] **Pioneer** — zero `matches` rows since 2026-05 even after a 20-page melee pass; MTGTop8 step 3 is the untested source.
 - [ ] CHAPIN_METRICS Tasks 2+ — conversion ratio / cascade flag and the rest.
 
@@ -116,6 +118,14 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-20 — Data pipeline Bug 3 / CHAPIN Task 1 (per-format freshness guard)
+- [x] `db/helpers.py`: `normalize_event_date()` + `SQL_NORM_DATE` (ISO for `YYYY-MM-DD` / `dd/mm/yy` / `dd/mm/yyyy`); `analysis/deck_ev.py` refactored onto it (byte-identical output).
+- [x] `analysis/data_health.py`: `format_freshness()` / `classify()` / `describe_freshness()` — MAX over normalized dates, junk rows ignored, injectable `con`/`today`.
+- [x] `gui/tabs/dashboard.py`: freshness chip (`_freshness_chip`) + dead-data banners on all three panels and the chart (`_stale_banner_text`, `_apply_freshness`); computed in the panel worker. `theme.ERR_BG` added.
+- [x] `db/scrape_state.py` (Qt-free, per-format, old shape compatible); `gui/tray_icon.py` delegates; `scripts/run_fill_from_prefs.py::record_format_outcomes` records per-format status.
+- [x] `analysis/win_rates.py::_archetype_trend_from_matches` honours `is_all_formats` (fixes `test_regression_archetype_trend_all_returns_data`).
+- [x] Tests: `test_data_health.py` (23), `test_dashboard_freshness.py` (4), + driver + fallback tests. Suite 568 green.
 
 ### 2026-09-20 — Data pipeline Bug 1 (silent format default) + UIState clobber
 - [x] `db/helpers.py::load_active_formats` + `DEFAULT_FORMATS`; `fill_database._load_formats` and `scripts/run_fill_from_prefs.load_formats` delegate; loud warning names the reason on every fallback.

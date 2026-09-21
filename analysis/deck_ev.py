@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 from db.database import DB_PATH as CENTRAL_DB_PATH
+from db.helpers import SQL_NORM_DATE
 
 
 def compute_deck_ev(
@@ -149,15 +150,14 @@ def compute_deck_ev(
 def _default_field_shares(format_name: str = "standard") -> dict:
     """Derive expected field shares from the last 14 days of paper data."""
     db_path = Path(CENTRAL_DB_PATH)
-    since = (datetime.now() - timedelta(days=14)).strftime("%Y%m%d")
+    since = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
+    norm_date = SQL_NORM_DATE.format(col="e.date")   # ISO for both stored shapes
 
     with sqlite3.connect(str(db_path)) as con:
         total = con.execute(f"""
             SELECT COUNT(*) FROM decks d JOIN events e ON e.id=d.event_id
             WHERE lower(e.format) = ?
-              AND (CASE WHEN instr(e.date,'/')>0
-                THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2)
-                ELSE replace(e.date,'-','') END) >= '{since}'
+              AND {norm_date} >= '{since}'
         """, (format_name.lower(),)).fetchone()[0]
         if total <= 0:
             return {}
@@ -165,9 +165,7 @@ def _default_field_shares(format_name: str = "standard") -> dict:
             SELECT d.archetype, COUNT(*) as n
             FROM decks d JOIN events e ON e.id=d.event_id
             WHERE lower(e.format) = ?
-              AND (CASE WHEN instr(e.date,'/')>0
-                THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2)
-                ELSE replace(e.date,'-','') END) >= '{since}'
+              AND {norm_date} >= '{since}'
             GROUP BY d.archetype HAVING n >= ?
             ORDER BY n DESC
         """, (format_name.lower(), max(3, total // 100))).fetchall()

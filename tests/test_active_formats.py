@@ -91,3 +91,24 @@ def test_run_fill_from_prefs_delegates_to_shared_loader(prefs, monkeypatch, caps
     assert rf.load_formats() == ["modern", "legacy"]
     assert "DEFAULTING" not in capsys.readouterr().out
     sys.stdout.write("still writable\n")  # would raise if the buffer were closed
+
+
+# ---------------------------------------------------------------------------
+# The scheduled driver records a per-format outcome in scrape_state.json
+# ---------------------------------------------------------------------------
+
+def test_driver_records_per_format_scrape_state(tmp_path):
+    import scripts.run_fill_from_prefs as rf
+    from db.scrape_state import format_scrape_state
+    path = tmp_path / "scrape_state.json"
+    outcomes = {
+        "modern":  [("MTGTop8 -- modern", 0), ("MTGMelee -- modern", 0)],
+        "pioneer": [("MTGTop8 -- pioneer", 0), ("MTGMelee -- pioneer", 1)],
+        "legacy":  [("MTGMelee -- legacy", 0)],
+    }
+    rf.record_format_outcomes(outcomes, path=path)
+
+    assert format_scrape_state("modern", path=path)["last_status"] == "ok"
+    p = format_scrape_state("pioneer", path=path)
+    assert p["last_status"] == "error" and "MTGMelee -- pioneer" in p["last_error"]
+    assert format_scrape_state("legacy", path=path)["scope"] == "format"

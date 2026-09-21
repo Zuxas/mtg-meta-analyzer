@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-20 (data-pipeline Bugs 1+2 shipped; Bug 3 / CHAPIN Task 1 + the fill_database re-run are next)
+Last updated: 2026-09-20 (data-pipeline Bugs 1+2+3 shipped -- suite 568/568; fill_database re-run + CHAPIN Tasks 2+ are next)
 
 ---
 
@@ -31,6 +31,15 @@ Last updated: 2026-09-20 (data-pipeline Bugs 1+2 shipped; Bug 3 / CHAPIN Task 1 
   the next UI-state save -- reproduced) and wrote a `ui_state`-only file when the file was
   unreadable at both load and save. UIState now owns only `ui_state`. `run_fill_from_prefs.py`
   stdout double-wrap fixed too. 11 tests; suite **538 passed, 1 failed** (same pre-existing).
+- **Bug 3 / CHAPIN Task 1 shipped (third commit):** per-format freshness guard.
+  `db/helpers.py::normalize_event_date` + `SQL_NORM_DATE` (ISO out for both stored shapes;
+  `deck_ev.py` refactored onto it, byte-identical). `analysis/data_health.py::format_freshness`
+  (fresh/stale/dead from the rows that exist, 0.7s on the live DB). Dashboard chip next to the
+  format combo + red dead-data banner on every panel and the chart. `scrape_state.json` per-format
+  via Qt-free `db/scrape_state.py`; the 6AM driver now records per-format outcomes (it never wrote
+  scrape state before). The `test_is_all_formats` failure is FIXED -- it was the matches-fallback
+  trend filtering `format='all'` literally, not a date bug. Suite **568 passed, 0 failed**.
+  Live: Pioneer dead (134d); Modern/Standard/Legacy fresh but all stop at 09-13 (Pauper 09-19).
 
 ### Pick up here (in order, per `docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 
@@ -40,13 +49,19 @@ Last updated: 2026-09-20 (data-pipeline Bugs 1+2 shipped; Bug 3 / CHAPIN Task 1 
    `python -m scrapers.mtgmelee_scraper --counts` + `python scripts/data_health_report.py --freshness-only`,
    not the exit code.
 2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
-3. **Bug 3 = CHAPIN_METRICS Task 1** -- per-format freshness guard (`normalize_event_date` +
-   `SQL_NORM_DATE` in `db/helpers.py`, `analysis/data_health.py::format_freshness`, dashboard chip +
-   dead-format banner, per-format `scrape_state.json`). **Lead:** the pre-existing failure
-   `tests/test_is_all_formats.py::test_regression_archetype_trend_all_returns_data` (`fmt='all'` -> 0
-   rows while `standard` has rows, last 4 weeks) surfaced after today's rebuild and looks like the
-   mixed `dd/mm/yy`/ISO string comparison. Log it under Task 1; do not chase it separately.
-4. Then CHAPIN_METRICS Tasks 2+ (conversion ratio / cascade flag, etc.).
+3. ~~Bug 3 = CHAPIN_METRICS Task 1~~ DONE 2026-09-20 (see above).
+4. **CHAPIN_METRICS Tasks 2+** (conversion ratio / cascade flag, etc.) -- next code work.
+6. **Date-normalization sweep (mechanical, one call site at a time):** ~18 inline
+   `CASE WHEN instr(<date>,'/')>0 ...` copies remain (`win_rates._DATE_KEY`/`_MATCH_DATE_KEY`,
+   `scout.py`, `field_optimizer.py`, `card_adoption.py`, `cross_source_dedup.py`, `deck_analysis.py`,
+   dashboard recent-finishes query, `archetype_detail.py`, `search.py`, `ask_claude.py`,
+   `set_analysis.py`, `challenges.py`, `generate_site_data.py`). They emit compact `YYYYMMDD`;
+   `SQL_NORM_DATE` emits ISO, so each migration must also switch that site's `since` literal to
+   `%Y-%m-%d`. `win_rates._parse_match_date` can delegate to `normalize_event_date`.
+7. **Melee recency check:** Modern/Standard/Legacy match rows all stop at 2026-09-13 while Pauper
+   reaches 09-19 (matches the nightly "meta shifts: 0 since 09-14"). Run
+   `python -m scrapers.mtgmelee_scraper --format modern --pages 3` and `--counts`; if 09-14..09-19
+   events exist on melee but not here, the scraper's paging/date window is the suspect.
 5. **Stdio sweep (small, mechanical):** 4 more files replace `sys.stdout` with a new
    `TextIOWrapper(sys.stdout.buffer)` at MODULE level -- `analysis/query.py`, `main.py`,
    `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py` -- same orphaned-wrapper

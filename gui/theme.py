@@ -40,6 +40,7 @@ ERR       = "#f04040"   # softer red
 INFO_BG      = "#1e2d40"   # dark blue tint for neutral info boxes
 WARN_BG      = "#2a2a1a"   # dark yellow tint for pair-down / caution boxes
 SUCCESS_BG   = "#1e3a22"   # dark green tint for success / all-clear boxes
+ERR_BG       = "#3a1e1e"   # dark red tint for error / dead-data banners (added 2026-09-20)
 HILITE       = "#f0c020"   # yellow callout text (highlighted headings)
 
 # ── Spacing scale ─────────────────────────────────────────────────────────

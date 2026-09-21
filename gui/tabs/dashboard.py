@@ -140,9 +140,21 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     except Exception:
         pass
 
+    # Per-format data freshness (CHAPIN Task 1). Computed here, off the GUI
+    # thread, from the rows that actually exist -- not from scrape_state.json.
+    # None (not {}) when it cannot be computed, so the chip can say "unknown".
+    freshness = None
+    try:
+        from analysis.data_health import format_freshness
+        from analysis.win_rates import is_all_formats
+        freshness = format_freshness(None if is_all_formats(format_name) else [format_name])
+    except Exception:
+        pass
+
     return {"standings": standings, "prior_standings": prior_standings,
             "recent": recent, "real_wrs": real_wrs,
-            "raw_standings": raw_standings, "ratings": ratings_map}
+            "raw_standings": raw_standings, "ratings": ratings_map,
+            "freshness": freshness}
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +313,15 @@ class DashboardTab(QWidget):
         )
         self._fmt.currentIndexChanged.connect(lambda _: self._schedule_refresh())
         ctrl.addWidget(self._fmt)
+
+        # Data-freshness chip (green / amber / red) for the selected format --
+        # derived from the matches table, so a format whose scrape stalled
+        # shows red here even while scrape_state.json says "ok".
+        self._fresh_chip = QLabel()
+        self._fresh_chip.setObjectName("freshnessChip")
+        self._panel_banners: list[QLabel] = []
+        self._apply_freshness(None)
+        ctrl.addWidget(self._fresh_chip)
 
         ctrl.addWidget(QLabel("Timeframe:"))
         self._tf = QComboBox()
@@ -542,6 +563,8 @@ class DashboardTab(QWidget):
         bl.addWidget(self._impact_bar)
 
         # Chart + sidebar
+        bl.addWidget(self._make_stale_banner())   # chart area gets one too
+
         chart_row = QHBoxLayout()
         chart_row.setSpacing(6)
 
@@ -671,9 +694,27 @@ class DashboardTab(QWidget):
         hdr_row.addWidget(hdr, 1)
         fl.addWidget(hdr_frame)
 
+        # Dead-data banner: hidden unless the selected format's match data is
+        # `dead`, then every panel says so (a silently stale number is worse
+        # than no number).
+        fl.addWidget(self._make_stale_banner())
+
         tbl = _make_panel_table(cols)
         fl.addWidget(tbl, 1)
         return frame, tbl, hdr, hdr_row
+
+    def _make_stale_banner(self) -> QLabel:
+        banner = QLabel()
+        banner.setObjectName("staleBanner")
+        banner.setWordWrap(True)
+        banner.setStyleSheet(
+            f"QLabel#staleBanner {{ background: {theme.ERR_BG}; color: {theme.ERR};"
+            f" border: none; border-bottom: 1px solid {theme.ERR};"
+            f" padding: 3px 6px; font-size: 10px; font-weight: bold; }}"
+        )
+        banner.setVisible(False)
+        self._panel_banners.append(banner)
+        return banner
 
     # ------------------------------------------------------------------
     # Public API
@@ -803,7 +844,89 @@ class DashboardTab(QWidget):
     # Slots
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Data freshness (CHAPIN Task 1) -- chip + dead-format banners
+    # ------------------------------------------------------------------
+
+    _CHIP_COLORS = {"fresh": theme.OK, "stale": theme.WARN, "dead": theme.ERR}
+
+    @staticmethod
+    def _freshness_chip(fmt: str, fresh) -> tuple[str, str, str]:
+        """(chip text, color, tooltip) for a format's freshness info.
+
+        `fresh` is the info dict for `fmt`, or -- for the 'all' view -- a
+        {format: info} map, in which case the chip reports the WORST status
+        and the tooltip lists every format. None = freshness unavailable.
+        """
+        from analysis.data_health import describe_freshness
+        from analysis.win_rates import is_all_formats
+
+        if not fresh:
+            return "● freshness unknown", theme.TEXT_DIM, \
+                "Could not compute data freshness (no DB?)."
+
+        if is_all_formats(fmt):
+            order = {"fresh": 0, "stale": 1, "dead": 2}
+            worst_fmt, worst = max(fresh.items(),
+                                   key=lambda kv: order.get(kv[1]["status"], 2))
+            lines = [describe_freshness(f, i) for f, i in sorted(fresh.items())]
+            text = f"● {worst['status']} · worst: {worst_fmt}"
+            return text, DashboardTab._CHIP_COLORS[worst["status"]], "\n".join(lines)
+
+        info = fresh
+        color = DashboardTab._CHIP_COLORS.get(info.get("status"), theme.ERR)
+        if info.get("last_match_date") is None:
+            text = "● no data"
+        else:
+            text = f"● {info['status']} · {info['days_stale']}d"
+        return text, color, describe_freshness(fmt, info)
+
+    @staticmethod
+    def _stale_banner_text(fmt: str, info: dict | None) -> str | None:
+        """Banner text when `fmt`'s match data is dead; None otherwise."""
+        if not info or info.get("status") != "dead":
+            return None
+        name = fmt.capitalize()
+        if info.get("last_match_date") is None:
+            return (f"⚠ No {name} match data at all — every number on this "
+                    f"panel is from other formats or empty.")
+        return (f"⚠ {name} data is {info['days_stale']} days old (last match "
+                f"{info['last_match_date']}) — the scrape has stalled; every "
+                f"number on this panel is stale.")
+
+    def _apply_freshness(self, fresh) -> None:
+        """Update the chip + every panel banner for the selected format."""
+        from analysis.win_rates import is_all_formats
+        fmt = self._fmt.currentText()
+        # `fresh` is the worker's {format: info} map (or None). The helpers
+        # take the map for the 'all' view and the single info dict otherwise.
+        if fresh and not is_all_formats(fmt):
+            fresh = fresh.get(fmt.lower())
+        text, color, tip = self._freshness_chip(fmt, fresh)
+        self._fresh_chip.setText(text)
+        self._fresh_chip.setToolTip(tip)
+        self._fresh_chip.setStyleSheet(
+            f"QLabel#freshnessChip {{ color: {color}; border: 1px solid {color};"
+            f" border-radius: 8px; padding: 1px 7px; font-size: 10px; }}"
+        )
+
+        if fresh and is_all_formats(fmt):
+            dead = {f: i for f, i in fresh.items() if i.get("status") == "dead"}
+            banner = None
+            if dead:
+                parts = [f"{f} ({'no data' if i['last_match_date'] is None else str(i['days_stale']) + ' days old'})"
+                         for f, i in sorted(dead.items())]
+                banner = ("⚠ Includes formats whose match data is dead: "
+                          + ", ".join(parts) + " — their numbers are stale or missing.")
+        else:
+            banner = self._stale_banner_text(fmt, fresh if fresh else None)
+
+        for lbl in self._panel_banners:
+            lbl.setText(banner or "")
+            lbl.setVisible(bool(banner))
+
     def _on_panel_data(self, data: dict):
+        self._apply_freshness(data.get("freshness"))
         self._standings = data["standings"]
         self._prior_standings = data.get("prior_standings", [])
         n = len(self._standings)

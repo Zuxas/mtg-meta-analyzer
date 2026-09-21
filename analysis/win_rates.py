@@ -540,16 +540,21 @@ def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
 
     # Query ALL matches for this archetype (no date filter in SQL — we filter in Python
     # because dates use mixed formats DD/MM/YY and YYYY-MM-DD)
+    # 'all' / None must span every format here too -- this fallback used to
+    # filter `format = 'all'` literally, so once the decks table thinned out
+    # (Standard, 2026-09) fmt='all' returned nothing while 'standard' worked.
+    fmt_clause = "" if is_all_formats(format_name) else "AND lower(format) = lower(?)"
+    fmt_params = [] if is_all_formats(format_name) else [format_name]
     q = f"""
         SELECT event_date, result, player1_arch, player2_arch
         FROM matches
-        WHERE lower(format) = lower(?)
-          AND (player1_arch = ? OR player2_arch = ?)
+        WHERE (player1_arch = ? OR player2_arch = ?)
+          {fmt_clause}
           AND player1_arch NOT IN ({excl_ph})
           AND player2_arch NOT IN ({excl_ph})
           AND result IS NOT NULL
     """
-    params = [format_name, archetype, archetype] + excl_list + excl_list
+    params = [archetype, archetype] + fmt_params + excl_list + excl_list
 
     try:
         with get_connection() as conn:
@@ -558,13 +563,13 @@ def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
             total_q = f"""
                 SELECT event_date, COUNT(*) as n
                 FROM matches
-                WHERE lower(format) = lower(?)
+                WHERE result IS NOT NULL
+                  {fmt_clause}
                   AND player1_arch NOT IN ({excl_ph})
                   AND player2_arch NOT IN ({excl_ph})
-                  AND result IS NOT NULL
                 GROUP BY event_date
             """
-            total_params = [format_name] + excl_list + excl_list
+            total_params = fmt_params + excl_list + excl_list
             total_rows = conn.execute(total_q, total_params).fetchall()
     except Exception:
         return []

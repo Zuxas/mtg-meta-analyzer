@@ -51,7 +51,8 @@ def load_formats():
     return load_active_formats(_PREFS)
 
 
-def run(cmd, label):
+def run(cmd, label) -> int:
+    """Run one pipeline step in a subprocess; returns its exit code."""
     print(f"\n-- {label} " + "-" * max(0, 55 - len(label)))
     result = subprocess.run(
         [sys.executable] + cmd.split(),
@@ -60,16 +61,41 @@ def run(cmd, label):
     )
     if result.returncode != 0:
         print(f"  [warn] exited with code {result.returncode}")
+    return result.returncode
+
+
+def record_format_outcomes(outcomes: dict, path=None) -> None:
+    """
+    Persist a per-format status to data/scrape_state.json.
+
+    `outcomes` = {format: [(step label, exit code), ...]}. A format is "ok"
+    only if every step for it exited 0; otherwise "error" naming the failing
+    steps. Until 2026-09-20 the scheduled pipeline never wrote scrape state
+    at all -- the file only reflected GUI-triggered runs -- so a format whose
+    scrape had stalled for weeks still read `last_status: ok`. Per-format
+    scrape state is a run-level signal; the DB-derived freshness check
+    (analysis/data_health.py) is the ground truth.
+    """
+    from db.scrape_state import write_scrape_state
+    for fmt, steps in outcomes.items():
+        failed = [label for label, rc in steps if rc != 0]
+        if failed:
+            write_scrape_state(status="error", error="; ".join(failed), fmt=fmt, path=path)
+        else:
+            write_scrape_state(status="ok", fmt=fmt, path=path)
 
 
 def main():
     formats = load_formats()
     print(f"[prefs] Active formats: {', '.join(formats)}")
 
+    outcomes: dict = {}   # {format: [(label, exit code), ...]} -> scrape_state.json
+
     # MTGTop8 — selected formats only
     for fmt in formats:
-        run(f"main.py --format {fmt} --pages 2 --max-events 50",
-            f"MTGTop8 — {fmt}")
+        label = f"MTGTop8 — {fmt}"
+        rc = run(f"main.py --format {fmt} --pages 2 --max-events 50", label)
+        outcomes.setdefault(fmt, []).append((label, rc))
 
     # MTGDecks — auto-pull DISABLED 2026-06-04 per user request.
     # Manual paths still available: fill_database.bat (full rebuild), Settings
@@ -81,8 +107,10 @@ def main():
     # MTGMelee — selected formats + always-on extras
     melee_formats = list(dict.fromkeys(formats + _MELEE_ALWAYS))
     for fmt in melee_formats:
-        run(f"-m scrapers.mtgmelee_scraper --format {fmt} --pages 3",
-            f"MTGMelee — {fmt}")
+        label = f"MTGMelee — {fmt}"
+        rc = run(f"-m scrapers.mtgmelee_scraper --format {fmt} --pages 3", label)
+        outcomes.setdefault(fmt, []).append((label, rc))
+    record_format_outcomes(outcomes)
 
     # Spicerack — RCQs, Store Championships, large paper events
     spice_formats = [f for f in formats if f.lower() in
