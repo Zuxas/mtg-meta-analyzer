@@ -116,7 +116,7 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
    backfill is landing events.)
 6. ~~Date-normalization sweep~~ DONE 2026-09-21: 14 SQL sites + 2 Python copies -> `SQL_NORM_DATE` /
    `normalize_event_date`, every neighbouring literal to ISO; dead `field_optimizer._legacy_unused_*` (191 lines)
-   deleted; `search._deck_search_sql()` extracted. `tests/test_date_normalization_sweep.py` (18) incl. a grep guard.
+   deleted; `search._deck_search_sql()` extracted. `tests/test_date_normalization_sweep.py` (19) incl. a multi-line-aware guard.
    Live-DB old-vs-new = 0 diffs (events/matches/guides); variant A on guides would be 752/754 wrong.
    Remaining `instr(` hits are a census count (`data_health_report.py:79`), not keys.
    Known: `test_drill_generator::test_generation_is_deterministic` reads the LIVE decks table -- flaky only

@@ -259,10 +259,13 @@ def test_generate_site_data_guides_newest_first(mixed_db):
 # ---------------------------------------------------------------------------
 
 def test_no_inline_date_case_expressions_remain():
-    """The whole point of the sweep: one expression, `db.helpers.SQL_NORM_DATE`."""
+    """The whole point of the sweep: one expression, `db.helpers.SQL_NORM_DATE`.
+    Matches across newlines so a copy with CASE and WHEN on separate lines
+    cannot slip past; `instr(date,'/')` used as a plain census predicate
+    (data_health_report) is not a CASE and is not flagged."""
     import os, re
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    pat = re.compile(r"instr\(\s*[\w.]*date[\w.]*\s*,\s*'/'\s*\)")
+    pat = re.compile(r"CASE\s+WHEN\s+instr\(\s*[\w.]*date[\w.]*\s*,\s*'/'\s*\)", re.I)
     offenders = []
     for base, _dirs, files in os.walk(root):
         if any(part in base for part in ("tests", ".git", "__pycache__", "venv", ".venv", "node_modules")):
@@ -272,7 +275,19 @@ def test_no_inline_date_case_expressions_remain():
                 continue
             p = os.path.join(base, fn)
             with open(p, encoding="utf-8", errors="replace") as f:
-                for n, line in enumerate(f, 1):
-                    if "CASE WHEN" in line and pat.search(line):
-                        offenders.append(f"{os.path.relpath(p, root)}:{n}")
+                src = f.read()
+            for m in pat.finditer(src):
+                offenders.append(f"{os.path.relpath(p, root)}:{src.count(chr(10), 0, m.start()) + 1}")
     assert offenders == [], f"inline date CASE copies remain: {offenders}"
+
+
+def test_dedup_confidence_same_date_across_shapes():
+    """`cross_source_dedup._normalize_date` is only ever used as a set-equality
+    key in `_score_confidence` ("same date -> +0.25"); pin that the three
+    stored shapes of one date collapse to one key, and different dates don't."""
+    from analysis.cross_source_dedup import _score_confidence
+    def ev(date):
+        return {"date": date, "deck_count": 32, "name": "Modern Challenge 64", "source": "x"}
+    same = _score_confidence([ev("2026-09-19"), ev("19/09/26"), ev("19/09/2026")])
+    diff = _score_confidence([ev("2026-09-19"), ev("20/09/26")])
+    assert same - diff == pytest.approx(0.25)
