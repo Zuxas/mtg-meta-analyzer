@@ -83,8 +83,9 @@ def compute_deck_ev(
     deck_archetype = norm_arch(deck.get("archetype", ""))
 
     # Build field_shares from 14d meta if not provided
+    field_source = "explicit"
     if field_shares is None:
-        field_shares = _default_field_shares(format_name)
+        field_shares, field_source = _default_field_shares(format_name)
         if not field_shares:
             return {"error": "no recent meta data to derive field shares"}
 
@@ -197,33 +198,48 @@ def compute_deck_ev(
         "low_confidence_share": low_conf_share,
         "use_match_math":       use_match_math,
         "g1_prior":             _game_one_prior(),
+        "field_source":         field_source,
     }
 
 
-def _default_field_shares(format_name: str = "standard") -> dict:
-    """Derive expected field shares from the last 14 days of paper data."""
-    db_path = Path(CENTRAL_DB_PATH)
+def _default_field_shares(format_name: str = "standard", *, con=None) -> tuple[dict, str | None]:
+    """
+    Expected field shares for the last 14 days -> (shares, source).
+
+    Source "decks-14d" = the decks table (MTGTop8 / MTGO decklists). When that
+    window is empty -- Modern's was, for weeks, while the MTGTop8 backfill was
+    unrunnable -- fall back to "matches-14d": distinct (event, player) field
+    shares from the melee matches table via analysis.conversion. (None, {})
+    when neither has rows. `con` is injectable for tests.
+    """
     since = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
     norm_date = SQL_NORM_DATE.format(col="e.date")   # ISO for both stored shapes
 
-    with sqlite3.connect(str(db_path)) as con:
+    own = con is None
+    if own:
+        con = sqlite3.connect(str(Path(CENTRAL_DB_PATH)))
+    try:
         total = con.execute(f"""
             SELECT COUNT(*) FROM decks d JOIN events e ON e.id=d.event_id
             WHERE lower(e.format) = ?
               AND {norm_date} >= '{since}'
         """, (format_name.lower(),)).fetchone()[0]
-        if total <= 0:
-            return {}
-        rows = con.execute(f"""
-            SELECT d.archetype, COUNT(*) as n
-            FROM decks d JOIN events e ON e.id=d.event_id
-            WHERE lower(e.format) = ?
-              AND {norm_date} >= '{since}'
-            GROUP BY d.archetype HAVING n >= ?
-            ORDER BY n DESC
-        """, (format_name.lower(), max(3, total // 100))).fetchall()
+        if total > 0:
+            rows = con.execute(f"""
+                SELECT d.archetype, COUNT(*) as n
+                FROM decks d JOIN events e ON e.id=d.event_id
+                WHERE lower(e.format) = ?
+                  AND {norm_date} >= '{since}'
+                GROUP BY d.archetype HAVING n >= ?
+                ORDER BY n DESC
+            """, (format_name.lower(), max(3, total // 100))).fetchall()
+            return {arch: n / total for arch, n in rows}, "decks-14d"
 
-    shares = {}
-    for arch, n in rows:
-        shares[arch] = n / total
-    return shares
+        from analysis.conversion import conversion_by_archetype
+        conv = conversion_by_archetype(format_name, since, con=con)
+        if conv:
+            return {arch: r["field_share"] for arch, r in conv.items()}, "matches-14d"
+        return {}, None
+    finally:
+        if own:
+            con.close()

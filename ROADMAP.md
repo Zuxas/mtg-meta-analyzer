@@ -17,7 +17,7 @@
 - [ ] **Pioneer** — zero `matches` rows since 2026-05 even after a 20-page melee pass; MTGTop8 step 3 is the untested source.
 - [x] **CHAPIN Task 2 — conversion ratio + Cascade status** (2026-09-21) — `analysis/conversion.py` (matches-only field/top-cut, Wilson CI, normalized dates), `classify_status(conversion=)` -> Cascade, dashboard Status column + tooltip; reference script delegates. 10 tests; 578 green.
 - [x] **CHAPIN Task 3 — match math** (2026-09-21) — `analysis/match_math.py` (Chapin's cases to 3dp), `compute_deck_ev(use_match_math=)` with the flat bump still default, `required_q_for_even` + `g1_prior`, EV widget 'Q for 50%' column. 24 tests; 602 green.
-- [ ] **EV field-share fallback** — `_default_field_shares` (decks, 14d) is empty for Modern; fall back to matches-derived shares from `conversion_by_archetype`.
+- [x] **EV field-share fallback** (2026-09-21) — `_default_field_shares()` returns `(shares, source)`, matches-derived fallback via `conversion_by_archetype`; `field_source` in the EV result + widget subtitle. 4 tests.
 - [~] **CHAPIN Task 4 — Chapin corpus into strategy search** — `--counts` verified 2026-09-21 (1,495 chunks; 1,137 Chapin over 847 rules; metadata correct). Ingest blocked: no Pinecone key.
 
 ## OPEN — GUI follow-ups

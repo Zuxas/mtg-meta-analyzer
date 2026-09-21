@@ -168,11 +168,13 @@ class DeckEvWidget(QWidget):
         g1_txt = (f"  ·  G1 prior {g1['p1']*100:.1f}% (n={g1['n']}, match_log)"
                   if g1.get("p1") is not None else "")
         math_txt = "  ·  post-board math" if r.get("use_match_math") else ""
+        fs = r.get("field_source")
+        field_txt = (f"  ·  field from {fs}" if fs and fs != "explicit" else "")
         self._sub_lbl.setText(
             f"{r['deck_archetype']}  ·  "
             f"covers {cov:.0f}% of expected field  ·  "
             f"<span style='color:{theme.WARN};'>{low:.0f}% low-confidence (n<20)</span>  ·  "
-            f"{len(r['rows'])} matchups in field{g1_txt}{math_txt}"
+            f"{len(r['rows'])} matchups in field{field_txt}{g1_txt}{math_txt}"
         )
         self._sub_lbl.setTextFormat(Qt.TextFormat.RichText)
 

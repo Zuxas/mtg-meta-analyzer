@@ -93,10 +93,11 @@ Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for t
    `doc_type='rules'`, `archetype='chapin_<domain>'` as designed. (`chapin_archetype_` = rules,
    `chapin_archetypes_` = profiles -- distinct, not a duplicate.) The real ingest needs a Pinecone
    key in `config.ini [pinecone] api_key` (empty; never present -- see 2026-06-19 note). No code change.
-8. **`_default_field_shares` is decks-derived and EMPTY for Modern** until the MTGTop8 backfill runs,
-   so `compute_deck_ev` errors on Modern decks. Fall back to `conversion_by_archetype(fmt, since)`
-   field shares (matches-derived) when the decks window is empty -- small, and it makes the EV
-   tab work for every format melee covers.
+8. ~~EV field-share fallback~~ DONE 2026-09-21: `_default_field_shares()` -> `(shares, source)`;
+   falls back to matches-derived shares (`conversion_by_archetype`, 14d) when the decks window is
+   empty; `compute_deck_ev` reports `field_source` (explicit | decks-14d | matches-14d), shown in the
+   EV widget subtitle. 4 tests. (Live Modern already resolves via decks-14d again now that the
+   backfill is landing events.)
 6. **Date-normalization sweep (mechanical, one call site at a time):** ~18 inline
    `CASE WHEN instr(<date>,'/')>0 ...` copies remain (`win_rates._DATE_KEY`/`_MATCH_DATE_KEY`,
    `scout.py`, `field_optimizer.py`, `card_adoption.py`, `cross_source_dedup.py`, `deck_analysis.py`,

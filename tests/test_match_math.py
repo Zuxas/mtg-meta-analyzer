@@ -183,3 +183,67 @@ def test_ev_widget_shows_required_q_for_unfavourable_rows(monkeypatch):
     assert by_name["Amulet Titan"].text() == "\u2014"        # already >= 50%: nothing to reach
     assert "G1 prior" in w._sub_lbl.text() and "56.9%" in w._sub_lbl.text()
     w.deleteLater(); app.processEvents()
+
+
+# ---------------------------------------------------------------------------
+# Field shares: decks-derived first, matches-derived when the decks window is
+# empty (Modern's decks table was empty for 14 days while the backfill was broken)
+# ---------------------------------------------------------------------------
+
+def _shares_con(with_decks: bool):
+    import sqlite3
+    from datetime import date, timedelta
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute("CREATE TABLE events (id INTEGER PRIMARY KEY, format TEXT, date TEXT)")
+    con.execute("CREATE TABLE decks (id INTEGER PRIMARY KEY, event_id INTEGER, archetype TEXT)")
+    con.execute("""CREATE TABLE matches (id INTEGER PRIMARY KEY, event_id TEXT, round INTEGER,
+        player1 TEXT, player2 TEXT, player1_arch TEXT, player2_arch TEXT, winner_arch TEXT,
+        result TEXT, format TEXT, event_date TEXT, source TEXT)""")
+    today = date.today().isoformat()
+    if with_decks:
+        con.execute("INSERT INTO events VALUES (1, 'modern', ?)", (today,))
+        con.executemany("INSERT INTO decks (event_id, archetype) VALUES (1, ?)",
+                        [("Boros Energy",)] * 6 + [("Amulet Titan",)] * 4)
+    # a 16-player melee event: 8 Izzet Prowess, 8 Jeskai Blink, round robin
+    from itertools import combinations
+    arch = lambda i: "Izzet Prowess" if i < 8 else "Jeskai Blink"
+    con.executemany("INSERT INTO matches (event_id, round, player1, player2, player1_arch, player2_arch, "
+                    "winner_arch, result, format, event_date, source) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    [("ev", r, f"p{a:02d}", f"p{b:02d}", arch(a), arch(b), arch(a), "player1",
+                      "modern", (date.today() - timedelta(days=3)).isoformat(), "mtgmelee")
+                     for r, (a, b) in enumerate(combinations(range(16), 2), start=1)])
+    return con
+
+
+def test_default_field_shares_prefers_decks():
+    from analysis.deck_ev import _default_field_shares
+    shares, source = _default_field_shares("modern", con=_shares_con(with_decks=True))
+    assert source == "decks-14d"
+    assert shares["Boros Energy"] == pytest.approx(0.6) and shares["Amulet Titan"] == pytest.approx(0.4)
+
+
+def test_default_field_shares_falls_back_to_matches_when_decks_window_is_empty():
+    from analysis.deck_ev import _default_field_shares
+    shares, source = _default_field_shares("modern", con=_shares_con(with_decks=False))
+    assert source == "matches-14d"
+    assert shares["Izzet Prowess"] == pytest.approx(0.5) and shares["Jeskai Blink"] == pytest.approx(0.5)
+
+
+def test_default_field_shares_empty_when_both_sources_empty():
+    import sqlite3
+    from analysis.deck_ev import _default_field_shares
+    con = _shares_con(with_decks=False)
+    con.execute("DELETE FROM matches")
+    assert _default_field_shares("modern", con=con) == ({}, None)
+
+
+def test_compute_deck_ev_reports_field_source(ev_env, monkeypatch):
+    import analysis.deck_ev as dev
+    from analysis.deck_ev import compute_deck_ev
+    monkeypatch.setattr(dev, "_default_field_shares",
+                        lambda fmt, con=None: ({"Boros Energy": 0.5, "Amulet Titan": 0.5}, "matches-14d"))
+    r = compute_deck_ev(1, format_name="modern")          # no explicit field_shares
+    assert r["field_source"] == "matches-14d"
+    r2 = compute_deck_ev(1, field_shares={"Boros Energy": 1.0}, format_name="modern")
+    assert r2["field_source"] == "explicit"
