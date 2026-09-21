@@ -23,10 +23,16 @@ written for the global fields) so existing installs keep working.
 """
 import json
 import os
+import threading
 from datetime import datetime
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_PATH = os.path.join(_ROOT, "data", "scrape_state.json")
+
+# One lock for the read-modify-write: the scheduled driver writes one entry
+# per format in quick succession while the GUI may write the global fields.
+# Same shape of bug as gui/state.py had (racing writers -> hybrid file).
+_LOCK = threading.Lock()
 
 
 def read_scrape_state(path=None) -> dict:
@@ -61,24 +67,31 @@ def write_scrape_state(status="ok", error=None, fmt=None, path=None) -> None:
     global fields (the pre-2026-09-20 behaviour). Other keys (balloon_shown,
     other formats) are preserved.
     """
-    target = path or STATE_PATH
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    state = read_scrape_state(target)
+    target = str(path or STATE_PATH)
+    with _LOCK:
+        os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+        state = read_scrape_state(target)
 
-    if fmt:
-        formats = state.setdefault("formats", {})
-        if not isinstance(formats, dict):
-            formats = state["formats"] = {}
-        entry = formats.setdefault(fmt.lower(), {})
-    else:
-        entry = state
+        if fmt:
+            formats = state.setdefault("formats", {})
+            if not isinstance(formats, dict):
+                formats = state["formats"] = {}
+            entry = formats.setdefault(fmt.lower(), {})
+        else:
+            entry = state
 
-    entry["last_updated"] = datetime.now().isoformat(timespec="seconds")
-    entry["last_status"] = status
-    if error:
-        entry["last_error"] = str(error)
-    else:
-        entry.pop("last_error", None)
+        entry["last_updated"] = datetime.now().isoformat(timespec="seconds")
+        entry["last_status"] = status
+        if error:
+            entry["last_error"] = str(error)
+        else:
+            entry.pop("last_error", None)
 
-    with open(target, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
+        # Serialize FIRST (a JSON error can't truncate the file), write a
+        # sibling temp file, then replace atomically: the file on disk is
+        # always one complete payload even with another process writing.
+        payload = json.dumps(state, indent=2)
+        tmp = target + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(payload)
+        os.replace(tmp, target)

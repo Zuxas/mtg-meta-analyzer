@@ -247,3 +247,19 @@ def test_missing_state_file_reads_as_empty(state_path):
     from db.scrape_state import format_scrape_state, read_scrape_state
     assert read_scrape_state(path=state_path) == {}
     assert format_scrape_state("modern", path=state_path) == {"scope": "global"}
+
+
+def test_write_scrape_state_is_atomic_and_safe_under_concurrent_writers(state_path):
+    """Same class of bug as UIState: read-modify-write with json.dump into the
+    open handle and no lock. Eight threads writing eight formats at once must
+    leave one valid file with all eight entries and no .tmp behind."""
+    import threading
+    from db.scrape_state import read_scrape_state, write_scrape_state
+    fmts = [f"fmt{i}" for i in range(8)]
+    threads = [threading.Thread(target=write_scrape_state,
+                                kwargs=dict(status="ok", fmt=f, path=state_path)) for f in fmts]
+    for t in threads: t.start()
+    for t in threads: t.join()
+    raw = read_scrape_state(path=state_path)             # raises on a hybrid file
+    assert set(raw["formats"]) == set(fmts)
+    assert not (state_path.parent / (state_path.name + ".tmp")).exists()
