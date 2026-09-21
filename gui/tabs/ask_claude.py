@@ -12,6 +12,7 @@ the user saves a valid key.
 import os
 import re
 from datetime import datetime, timedelta
+from db.helpers import SQL_NORM_DATE
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -78,10 +79,8 @@ names or abilities — if uncertain, say so."""
 def _fetch_meta_context(fmt: str) -> str:
     try:
         from db.database import get_combined_connection
-        since = (datetime.now() - timedelta(weeks=4)).strftime("%Y%m%d")
-        _dk = ("CASE WHEN instr(e.date,'/')>0 "
-               "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-               "ELSE replace(e.date,'-','') END")
+        since = (datetime.now() - timedelta(weeks=4)).strftime("%Y-%m-%d")
+        _dk = SQL_NORM_DATE.format(col="e.date")   # ISO out
         conn = get_combined_connection()
         try:
             rows = conn.execute(f"""

@@ -11,6 +11,7 @@ Core functions (no UI coupling — safe to call from CLI, GUI, or scripts):
 """
 
 from db.database import get_connection
+from db.helpers import SQL_NORM_DATE
 
 
 # ---------------------------------------------------------------------------
@@ -401,9 +402,7 @@ def get_recent_event(format_name="standard", event_type=None):
         if event_type:
             q += " AND event_type=?"
             params.append(event_type)
-        q += (" ORDER BY (CASE WHEN instr(date,'/')>0 "
-              "THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2) "
-              "ELSE replace(date,'-','') END) DESC LIMIT 1")
+        q += f" ORDER BY {SQL_NORM_DATE.format(col='date')} DESC LIMIT 1"
         row = conn.execute(q, params).fetchone()
     return dict(row) if row else None
 
@@ -425,9 +424,7 @@ def search_decks(archetype=None, format_name=None, limit=20):
         if not is_all_formats(format_name):
             q += " AND lower(e.format) = lower(?)"
             params.append(format_name)
-        q += (" ORDER BY (CASE WHEN instr(e.date,'/')>0 "
-              "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-              "ELSE replace(e.date,'-','') END) DESC, d.placement ASC LIMIT ?")
+        q += f" ORDER BY {SQL_NORM_DATE.format(col='e.date')} DESC, d.placement ASC LIMIT ?"
         params.append(limit)
         rows = conn.execute(q, params).fetchall()
     return [dict(r) for r in rows]

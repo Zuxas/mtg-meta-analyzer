@@ -12,6 +12,7 @@ Usage:
 import re
 import argparse
 from db.database import init_db, upsert_event, upsert_deck, insert_deck_cards
+from db.helpers import SQL_NORM_DATE
 from scrapers.mtgtop8 import (
     scrape_format_events,
     scrape_event_decks,
@@ -103,12 +104,10 @@ def get_latest_challenge(format_name="pioneer", event_type="mtgo_challenge_32"):
     """
     from db.database import get_connection
     with get_connection() as conn:
-        row = conn.execute("""
+        row = conn.execute(f"""
             SELECT * FROM events
             WHERE format = ? AND event_type = ?
-            ORDER BY (CASE WHEN instr(date,'/')>0
-                          THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2)
-                          ELSE replace(date,'-','') END) DESC
+            ORDER BY {SQL_NORM_DATE.format(col="date")} DESC
             LIMIT 1
         """, (format_name, event_type)).fetchone()
     return dict(row) if row else None

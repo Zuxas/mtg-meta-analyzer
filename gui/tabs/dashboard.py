@@ -14,6 +14,7 @@ Mana color pips are inferred from archetype names (guild/shard/mono keywords).
 Double-clicking any archetype row opens ArchetypeDetailDialog.
 """
 from datetime import datetime, timedelta
+from db.helpers import SQL_NORM_DATE
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -107,12 +108,8 @@ def _load_panel_data(format_name: str, since_dt, top: int,
 
     conn = get_combined_connection()
     try:
-        # Normalize dates to YYYYMMDD for correct ordering (MTGTop8=DD/MM/YY, MTGDecks=ISO)
-        _date_key = (
-            "CASE WHEN instr(e.date,'/')>0 "
-            "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-            "ELSE replace(e.date,'-','') END"
-        )
+        # Normalize dates to ISO for correct ordering (MTGTop8=DD/MM/YY, MTGDecks=ISO)
+        _date_key = SQL_NORM_DATE.format(col="e.date")
         from analysis.win_rates import is_all_formats
         q = """
             SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
@@ -126,7 +123,7 @@ def _load_panel_data(format_name: str, since_dt, top: int,
             params.append(format_name)
         if since_dt:
             q += f" AND ({_date_key}) >= ?"
-            params.append(since_dt.strftime("%Y%m%d"))
+            params.append(since_dt.strftime("%Y-%m-%d"))
         q += f" ORDER BY ({_date_key}) DESC, d.placement ASC LIMIT 15"
         recent = [dict(r) for r in conn.execute(q, params).fetchall()]
     finally:

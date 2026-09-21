@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Optional
 
 from db.database import DB_PATH as CENTRAL_DB_PATH
+from db.helpers import SQL_NORM_DATE
+
+_norm_date = SQL_NORM_DATE.format(col="e.date")   # ISO out (2026-09-21 sweep)
 
 
 def _handle_db():
@@ -72,7 +75,7 @@ def get_priority_finishers(
     db_path = db_path or Path(CENTRAL_DB_PATH)
     if not target_archetypes:
         return []
-    since = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
     placeholders = ",".join("?" * len(target_archetypes))
     sql = f"""
@@ -83,12 +86,8 @@ def get_priority_finishers(
       AND d.archetype IN ({placeholders})
       AND d.placement <= ?
       AND d.placement > 0
-      AND (CASE WHEN instr(e.date,'/')>0
-        THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2)
-        ELSE replace(e.date,'-','') END) >= ?
-    ORDER BY (CASE WHEN instr(e.date,'/')>0
-        THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2)
-        ELSE replace(e.date,'-','') END) DESC,
+      AND ({_norm_date}) >= ?
+    ORDER BY ({_norm_date}) DESC,
         d.placement ASC
     LIMIT ?
     """
@@ -124,19 +123,15 @@ def get_pilot_history(
 ) -> list:
     """Every event finish for a specific pilot."""
     db_path = db_path or Path(CENTRAL_DB_PATH)
-    since = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     sql = f"""
     SELECT d.player, d.archetype, d.placement, e.name, e.date,
            e.source, d.url, e.event_type
     FROM decks d JOIN events e ON e.id = d.event_id
     WHERE lower(e.format) = ?
       AND lower(d.player) = ?
-      AND (CASE WHEN instr(e.date,'/')>0
-        THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2)
-        ELSE replace(e.date,'-','') END) >= ?
-    ORDER BY (CASE WHEN instr(e.date,'/')>0
-        THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2)
-        ELSE replace(e.date,'-','') END) DESC
+      AND ({_norm_date}) >= ?
+    ORDER BY ({_norm_date}) DESC
     LIMIT ?
     """
     with sqlite3.connect(str(db_path)) as con:

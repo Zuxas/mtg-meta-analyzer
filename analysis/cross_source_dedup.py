@@ -11,6 +11,7 @@ Usage:
 """
 
 from datetime import datetime
+from db.helpers import SQL_NORM_DATE, normalize_event_date
 
 
 def find_duplicate_events(format_name: str = "standard",
@@ -38,7 +39,7 @@ def find_duplicate_events(format_name: str = "standard",
     conn = get_connection()
     try:
         # Get all events with their fingerprints and deck counts
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT e.id, e.source, e.source_id, e.name, e.date, e.format,
                    e.event_fingerprint_cs AS fp_cs,
                    COUNT(d.id) AS deck_count
@@ -48,7 +49,7 @@ def find_duplicate_events(format_name: str = "standard",
               AND e.event_fingerprint_cs IS NOT NULL
               AND e.event_fingerprint_cs != ''
             GROUP BY e.id
-            ORDER BY (CASE WHEN instr(e.date,'/')>0 THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) ELSE replace(e.date,'-','') END) DESC
+            ORDER BY {SQL_NORM_DATE.format(col="e.date")} DESC
         """, (format_name,)).fetchall()
     finally:
         conn.close()
@@ -128,16 +129,8 @@ def _score_confidence(events: list) -> float:
 
 
 def _normalize_date(date_str: str) -> str:
-    """Normalize date to YYYYMMDD for comparison."""
-    d = (date_str or "").strip()
-    if "/" in d:
-        parts = d.split("/")
-        if len(parts) == 3:
-            dd, mm, yy = parts
-            if len(yy) == 2:
-                yy = "20" + yy
-            return f"{yy}{mm}{dd}"
-    return d.replace("-", "")
+    """Normalize date to ISO for comparison (junk normalizes to itself)."""
+    return normalize_event_date(date_str) or (date_str or "").strip()
 
 
 def _explain_match(events: list, confidence: float) -> str:

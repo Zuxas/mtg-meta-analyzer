@@ -21,6 +21,7 @@ Core functions (no UI coupling):
 import re
 from datetime import datetime, timedelta
 from db.database import get_connection, get_combined_connection
+from db.helpers import SQL_NORM_DATE, normalize_event_date
 from core.query_engine.dedup_filters import apply_deck_filters
 
 # Archetype names to exclude from real-match win rate calculations.
@@ -146,28 +147,22 @@ def _parse_date(date_str):
 
 
 def _dt_to_db_str(dt):
-    # Normalize to YYYYMMDD for comparison against _DATE_KEY
-    return dt.strftime('%Y%m%d') if dt else None
+    # ISO, to compare against _DATE_KEY / _MATCH_DATE_KEY (SQL_NORM_DATE output)
+    return dt.strftime('%Y-%m-%d') if dt else None
 
 
-# Normalize stored dates to YYYYMMDD for correct ordering and filtering.
-# MTGTop8 stores DD/MM/YY; MTGDecks stores YYYY-MM-DD.
-_DATE_KEY = (
-    "CASE WHEN instr(e.date,'/')>0 "
-    "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-    "ELSE replace(e.date,'-','') END"
-)
+# Normalize stored dates to ISO for correct ordering and filtering.
+# MTGTop8 stores DD/MM/YY; MTGDecks stores YYYY-MM-DD; the guides sheet
+# DD/MM/YYYY. One expression for every site: db.helpers.SQL_NORM_DATE
+# (2026-09-21 sweep -- the inline copies read 4-digit years as 2020).
+_DATE_KEY = SQL_NORM_DATE.format(col="e.date")
 
 # Same normalization for the matches table's event_date column.
 # The matches scraper may write DD/MM/YY (MTGTop8 origin) or YYYY-MM-DD
 # (MTGMelee). Plain string comparison against a YYYY-MM-DD 'since' string
 # produces wrong results for any DD/MM/YY date whose day ≥ 20 (e.g.
 # '21/03/24' compares as '21...' > '2026...' = True, pulling in old data).
-_MATCH_DATE_KEY = (
-    "CASE WHEN instr(event_date,'/')>0 "
-    "THEN '20'||substr(event_date,7,2)||substr(event_date,4,2)||substr(event_date,1,2) "
-    "ELSE replace(event_date,'-','') END"
-)
+_MATCH_DATE_KEY = SQL_NORM_DATE.format(col="event_date")
 
 
 # ---------------------------------------------------------------------------
@@ -510,15 +505,9 @@ def _meta_standings_from_matches(format_name, since=None, until=None,
 
 
 def _parse_match_date(raw: str):
-    """Parse event_date from matches table — handles both YYYY-MM-DD and DD/MM/YY."""
-    if not raw:
-        return None
-    try:
-        if "/" in raw:
-            return datetime.strptime(raw, "%d/%m/%y")
-        return datetime.strptime(raw[:10], "%Y-%m-%d")
-    except (ValueError, TypeError):
-        return None
+    """Parse event_date from matches table (YYYY-MM-DD, DD/MM/YY or DD/MM/YYYY)."""
+    iso = normalize_event_date(raw)
+    return datetime.strptime(iso, "%Y-%m-%d") if iso else None
 
 
 def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
@@ -1010,7 +999,7 @@ def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_ap
     if since:
         # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
         q += f" AND ({_MATCH_DATE_KEY}) >= ?"
-        params.append(_dt_to_db_str(since))   # YYYYMMDD string
+        params.append(_dt_to_db_str(since))   # ISO string
     q += " GROUP BY arch_a, arch_b HAVING total >= ?"
     params.append(min_matches)
 
@@ -1091,7 +1080,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     params_base  = [format_name]
     if since:
         # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
-        since_str    = _dt_to_db_str(since)   # YYYYMMDD string
+        since_str    = _dt_to_db_str(since)   # ISO string
         since_clause = f" AND ({_MATCH_DATE_KEY}) >= ?"
         params_base.append(since_str)
 

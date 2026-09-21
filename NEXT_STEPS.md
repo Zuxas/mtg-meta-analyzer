@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for the first time since July; UIState leak + backfill ImportError fixed; suite 740/740)
+Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill_database.py backfill RUNNING since ~07:05 -- see item 1)
 
 ---
 
@@ -113,13 +113,13 @@ Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for t
    empty; `compute_deck_ev` reports `field_source` (explicit | decks-14d | matches-14d), shown in the
    EV widget subtitle. 4 tests. (Live Modern already resolves via decks-14d again now that the
    backfill is landing events.)
-6. **Date-normalization sweep (mechanical, one call site at a time):** ~18 inline
-   `CASE WHEN instr(<date>,'/')>0 ...` copies remain (`win_rates._DATE_KEY`/`_MATCH_DATE_KEY`,
-   `scout.py`, `field_optimizer.py`, `card_adoption.py`, `cross_source_dedup.py`, `deck_analysis.py`,
-   dashboard recent-finishes query, `archetype_detail.py`, `search.py`, `ask_claude.py`,
-   `set_analysis.py`, `challenges.py`, `generate_site_data.py`). They emit compact `YYYYMMDD`;
-   `SQL_NORM_DATE` emits ISO, so each migration must also switch that site's `since` literal to
-   `%Y-%m-%d`. `win_rates._parse_match_date` can delegate to `normalize_event_date`.
+6. ~~Date-normalization sweep~~ DONE 2026-09-21: 14 SQL sites + 2 Python copies -> `SQL_NORM_DATE` /
+   `normalize_event_date`, every neighbouring literal to ISO; dead `field_optimizer._legacy_unused_*` (191 lines)
+   deleted; `search._deck_search_sql()` extracted. `tests/test_date_normalization_sweep.py` (18) incl. a grep guard.
+   Live-DB old-vs-new = 0 diffs (events/matches/guides); variant A on guides would be 752/754 wrong.
+   Remaining `instr(` hits are a census count (`data_health_report.py:79`), not keys.
+   Known: `test_drill_generator::test_generation_is_deterministic` reads the LIVE decks table -- flaky only
+   while a scrape is writing; should get the tmp-DB treatment (`db.database.DB_PATH` monkeypatch).
 7. **Melee recency check:** Modern/Standard/Legacy match rows all stop at 2026-09-13 while Pauper
    reaches 09-19 (matches the nightly "meta shifts: 0 since 09-14"). Run
    `python -m scrapers.mtgmelee_scraper --format modern --pages 3` and `--counts`; if 09-14..09-19

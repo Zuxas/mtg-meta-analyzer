@@ -15,6 +15,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 _HERE       = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_HERE))
+from db.helpers import SQL_NORM_DATE   # noqa: E402  (2026-09-21 date sweep)
 DB_PATH     = str(Path(os.environ.get("MTG_META_DB",   _HERE / "data" / "mtg_meta.db")))
 SITE_DATA   = str(Path(os.environ.get("WEBSITE_DATA",  _HERE.parent / "My-Website" / "data")))
 
@@ -147,13 +149,9 @@ def generate_matchups(conn):
 def generate_guides(conn):
     """Guide links per deck from the Skill Issue sheet."""
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
         SELECT archetype, type, author, url, date, comment
-        FROM guides WHERE format=? ORDER BY (CASE WHEN instr(date,'/')>0 AND length(date)=10
-            THEN substr(date,7,4)||substr(date,4,2)||substr(date,1,2)
-            WHEN instr(date,'/')>0
-            THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2)
-            ELSE replace(date,'-','') END) DESC
+        FROM guides WHERE format=? ORDER BY {SQL_NORM_DATE.format(col="date")} DESC
     """, (FORMAT,))
     rows = cur.fetchall()
 

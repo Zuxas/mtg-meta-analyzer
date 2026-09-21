@@ -13,7 +13,7 @@
 - [x] **Bug 1 — silent format default** (2026-09-20) — `db/helpers.py::load_active_formats` is the one implementation (both drivers delegate); loud `DEFAULTING to standard only` warning on every fallback; real leak was `UIState._save_now` merging its launch snapshot over disk (fixed: UIState owns only `ui_state`); `run_fill_from_prefs.py` stdio double-wrap fixed. 11 tests; 538 green.
 - [x] **Stdio sweep** (2026-09-21) — `db/helpers.py::force_utf8_stdio()` at all 6 unguarded sites; `tests/test_stdio_hygiene.py` AST guard. 740 green.
 - [x] **Bug 3 / Task 1 — per-format freshness guard** (2026-09-20) — `db/helpers.py::normalize_event_date` + `SQL_NORM_DATE`; `analysis/data_health.py::format_freshness` (fresh/stale/dead); dashboard chip + dead-data banner on every panel; per-format `scrape_state.json` (`db/scrape_state.py`) written by the 6AM driver; `deck_ev.py` on the shared normalizer. `test_is_all_formats` failure fixed (matches-fallback `format='all'`). 40 tests; 568 green.
-- [ ] **Date-normalization sweep** — ~18 inline `CASE WHEN instr(date,'/')` copies -> `SQL_NORM_DATE` (each site's `since` literal to ISO). See NEXT_STEPS #6.
+- [x] **Date-normalization sweep** (2026-09-21) — 14 SQL sites + 2 Python copies -> `SQL_NORM_DATE` / `normalize_event_date`, literals to ISO in the same edits; dead `field_optimizer` EV function deleted; `search._deck_search_sql()` extracted. 18 tests + grep guard; live-DB old-vs-new = 0 diffs. 783 green.
 - [ ] **Melee recency check** — Modern/Standard/Legacy stop at 09-13, Pauper at 09-19. See NEXT_STEPS #7.
 - [ ] **Pioneer** — zero `matches` rows since 2026-05 even after a 20-page melee pass; MTGTop8 step 3 is the untested source.
 - [x] **CHAPIN Task 2 — conversion ratio + Cascade status** (2026-09-21) — `analysis/conversion.py` (matches-only field/top-cut, Wilson CI, normalized dates), `classify_status(conversion=)` -> Cascade, dashboard Status column + tooltip; reference script delegates. 10 tests; 578 green.
@@ -124,6 +124,9 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-21 — Date-normalization sweep (NEXT_STEPS #6)
+- Every inline `CASE WHEN instr(date,'/')` copy -> `db.helpers.SQL_NORM_DATE`; `since`/bucket literals to ISO; `card_adoption` Python buckets, `search` inputs, `cross_source_dedup._normalize_date`, `win_rates._parse_match_date` follow. Dead `field_optimizer._legacy_unused_compute_deck_ev_moved_to_deck_ev_module` removed. `tests/test_date_normalization_sweep.py` (18).
 
 ### 2026-09-21 — UIState test-leak fix + backfill ImportError + stdio sweep
 - [x] `gui/state.py` — `_FILE_LOCK`, atomic `.tmp` + `os.replace()`, `cancel_all_pending()`; `tests/conftest.py` autouse guard; `preferences.json` restored.

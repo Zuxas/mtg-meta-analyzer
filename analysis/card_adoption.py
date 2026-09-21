@@ -10,6 +10,7 @@ Usage:
 """
 
 from datetime import datetime, timedelta
+from db.helpers import SQL_NORM_DATE
 
 
 def get_card_adoption(archetype: str, format_name: str = "standard",
@@ -39,11 +40,7 @@ def get_card_adoption(archetype: str, format_name: str = "standard",
     now = datetime.now()
     since = now - timedelta(weeks=weeks)
 
-    _date_key = (
-        "CASE WHEN instr(e.date,'/')>0 "
-        "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-        "ELSE replace(e.date,'-','') END"
-    )
+    _date_key = SQL_NORM_DATE.format(col="e.date")   # ISO out
 
     conn = get_combined_connection()
     try:
@@ -56,7 +53,7 @@ def get_card_adoption(archetype: str, format_name: str = "standard",
               AND lower(e.format) = lower(?)
               AND ({_date_key}) >= ?
             ORDER BY sort_date
-        """, (f"%{archetype}%", format_name, since.strftime("%Y%m%d"))).fetchall()
+        """, (f"%{archetype}%", format_name, since.strftime("%Y-%m-%d"))).fetchall()
 
         if not rows:
             return {"archetype": archetype, "format": format_name, "weeks": [], "cards": []}
@@ -83,7 +80,7 @@ def get_card_adoption(archetype: str, format_name: str = "standard",
         bucket_end = bucket_start + bucket_size
         bucket_deck_ids = {
             did for did, sd in deck_dates.items()
-            if bucket_start.strftime("%Y%m%d") <= sd < bucket_end.strftime("%Y%m%d")
+            if bucket_start.strftime("%Y-%m-%d") <= sd < bucket_end.strftime("%Y-%m-%d")
         }
         buckets.append({
             "start": bucket_start.strftime("%Y-%m-%d"),
@@ -174,11 +171,7 @@ def get_card_trend(card_name: str, format_name: str = "modern",
     now = datetime.now()
     since = now - timedelta(weeks=weeks)
 
-    _date_key = (
-        "CASE WHEN instr(e.date,'/')>0 "
-        "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-        "ELSE replace(e.date,'-','') END"
-    )
+    _date_key = SQL_NORM_DATE.format(col="e.date")   # ISO out
 
     conn = get_combined_connection()
     try:
@@ -190,7 +183,7 @@ def get_card_trend(card_name: str, format_name: str = "modern",
             WHERE lower(e.format) = lower(?)
               AND ({_date_key}) >= ?
             """,
-            (format_name, since.strftime("%Y%m%d")),
+            (format_name, since.strftime("%Y-%m-%d")),
         ).fetchall()
         if not rows:
             return {"card": card_name, "format": format_name,
@@ -219,7 +212,7 @@ def get_card_trend(card_name: str, format_name: str = "modern",
     while bs < now:
         be = bs + bucket_size
         ids_in_bucket = {did for did, sd in deck_dates.items()
-                         if bs.strftime("%Y%m%d") <= sd < be.strftime("%Y%m%d")}
+                         if bs.strftime("%Y-%m-%d") <= sd < be.strftime("%Y-%m-%d")}
         if ids_in_bucket:
             hits = len(ids_in_bucket & decks_with_card)
             buckets.append({

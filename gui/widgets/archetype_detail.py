@@ -9,6 +9,7 @@ Three tabs:
 The heavy DB work runs in DataLoadWorker so the UI stays responsive.
 """
 from datetime import datetime, timedelta
+from db.helpers import SQL_NORM_DATE
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
@@ -46,15 +47,11 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
             WHERE lower(d.archetype) LIKE lower(?)
               AND lower(e.format) = lower(?)
         """
-        _date_key = (
-            "CASE WHEN instr(e.date,'/')>0 "
-            "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-            "ELSE replace(e.date,'-','') END"
-        )
+        _date_key = SQL_NORM_DATE.format(col="e.date")   # ISO out
         params = [f"%{archetype}%", format_name]
         if since_dt:
             q += f" AND ({_date_key}) >= ?"
-            params.append(since_dt.strftime("%Y%m%d"))
+            params.append(since_dt.strftime("%Y-%m-%d"))
         q += f" ORDER BY ({_date_key}) DESC, d.placement ASC"
         deck_rows = conn.execute(q, params).fetchall()
 
@@ -148,11 +145,7 @@ def _load_archetype_data(archetype: str, format_name: str, since_dt):
                    type, author AS title, source, comment, 'guide' AS origin
             FROM guides
             WHERE {_arch_match}
-            ORDER BY {_fmt_order}, (CASE WHEN instr(date,'/')>0 AND length(date)=10
-                THEN substr(date,7,4)||substr(date,4,2)||substr(date,1,2)
-                WHEN instr(date,'/')>0
-                THEN '20'||substr(date,7,2)||substr(date,4,2)||substr(date,1,2)
-                ELSE replace(date,'-','') END) DESC
+            ORDER BY {_fmt_order}, {SQL_NORM_DATE.format(col="date")} DESC
         """, [archetype, archetype]).fetchall()
         bm_rows = conn2.execute(f"""
             SELECT added_at AS date_str, url, format, archetype,

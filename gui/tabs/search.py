@@ -69,13 +69,63 @@ def _btn(text, style="primary"):
 
 
 from gui.widgets.table_helpers import NumItem as _NumItem, DateItem as _DateItem, date_sort_key as _date_sort_key
+from db.helpers import SQL_NORM_DATE, normalize_event_date
 
 
-_DATE_KEY = (
-    "CASE WHEN instr(e.date,'/')>0 "
-    "THEN '20'||substr(e.date,7,2)||substr(e.date,4,2)||substr(e.date,1,2) "
-    "ELSE replace(e.date,'-','') END"
-)
+_DATE_KEY = SQL_NORM_DATE.format(col="e.date")   # ISO out (2026-09-21 date sweep)
+
+
+def _deck_search_sql(fmt, query, max_placement, date_from, date_to, player_q,
+                     card_names, any_card_names):
+    """(sql, params) for the deck search. Module-level so the date bounds
+    (ISO `YYYY-MM-DD`, straight from the inputs) are testable without Qt."""
+    sql = f"""
+        SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
+               e.id AS event_id, e.name AS event_name, e.date,
+               e.url AS event_url,
+               ({_DATE_KEY}) AS sort_date
+        FROM decks d
+        JOIN events e ON e.id = d.event_id
+        WHERE lower(e.format) = lower(?)
+    """
+    params = [fmt]
+    if query:
+        sql += " AND lower(d.archetype) LIKE ?"
+        params.append(f"%{query.lower()}%")
+    if max_placement is not None:
+        sql += " AND d.placement <= ?"
+        params.append(max_placement)
+    if date_from:
+        sql += f" AND ({_DATE_KEY}) >= ?"
+        params.append(date_from)
+    if date_to:
+        sql += f" AND ({_DATE_KEY}) <= ?"
+        params.append(date_to)
+    if player_q:
+        sql += " AND lower(d.player) LIKE ?"
+        params.append(f"%{player_q.lower()}%")
+    # AND-semantics card filter: require a deck_cards row for
+    # each requested card. One EXISTS subquery per card so all
+    # names must be present on the same deck.
+    for card in card_names:
+        sql += (" AND EXISTS (SELECT 1 FROM deck_cards dc "
+                "JOIN cards c ON c.id = dc.card_id "
+                "WHERE dc.deck_id = d.id "
+                "AND dc.is_sideboard = 0 "
+                "AND lower(c.name) = lower(?))")
+        params.append(card)
+    # OR-semantics: a single EXISTS whose inner IN clause covers
+    # all 'Any of' names, so the deck matches if it plays any.
+    if any_card_names:
+        any_ph = ",".join("lower(?)" for _ in any_card_names)
+        sql += (f" AND EXISTS (SELECT 1 FROM deck_cards dc "
+                f"JOIN cards c ON c.id = dc.card_id "
+                f"WHERE dc.deck_id = d.id "
+                f"AND dc.is_sideboard = 0 "
+                f"AND lower(c.name) IN ({any_ph}))")
+        params.extend(any_card_names)
+    sql += " ORDER BY sort_date DESC, d.placement ASC LIMIT 500"
+    return sql, params
 
 _PLACEMENT_FILTERS = {
     "Any placement": None,
@@ -429,8 +479,8 @@ class SearchTab(QWidget):
         placement_label = self._deck_placement.currentText()
         max_placement   = _PLACEMENT_FILTERS.get(placement_label)
 
-        date_from = self._deck_from.text().strip().replace("-", "")
-        date_to   = self._deck_to.text().strip().replace("-", "")
+        date_from = self._deck_from.text().strip()      # YYYY-MM-DD, compared as ISO
+        date_to   = self._deck_to.text().strip()
         player_q  = self._deck_player_q.text().strip()
         card_names = [c.strip() for c in self._deck_cards_q.text().split(",")
                        if c.strip()]
@@ -443,54 +493,10 @@ class SearchTab(QWidget):
 
         def _do():
             from db.database import get_combined_connection
+            sql, params = _deck_search_sql(fmt, query, max_placement, date_from, date_to,
+                                           player_q, card_names, any_card_names)
             conn = get_combined_connection()
             try:
-                sql = f"""
-                    SELECT d.id AS deck_id, d.archetype, d.player, d.placement,
-                           e.id AS event_id, e.name AS event_name, e.date,
-                           e.url AS event_url,
-                           ({_DATE_KEY}) AS sort_date
-                    FROM decks d
-                    JOIN events e ON e.id = d.event_id
-                    WHERE lower(e.format) = lower(?)
-                """
-                params = [fmt]
-                if query:
-                    sql += " AND lower(d.archetype) LIKE ?"
-                    params.append(f"%{query.lower()}%")
-                if max_placement is not None:
-                    sql += " AND d.placement <= ?"
-                    params.append(max_placement)
-                if date_from:
-                    sql += f" AND ({_DATE_KEY}) >= ?"
-                    params.append(date_from)
-                if date_to:
-                    sql += f" AND ({_DATE_KEY}) <= ?"
-                    params.append(date_to)
-                if player_q:
-                    sql += " AND lower(d.player) LIKE ?"
-                    params.append(f"%{player_q.lower()}%")
-                # AND-semantics card filter: require a deck_cards row for
-                # each requested card. One EXISTS subquery per card so all
-                # names must be present on the same deck.
-                for card in card_names:
-                    sql += (" AND EXISTS (SELECT 1 FROM deck_cards dc "
-                            "JOIN cards c ON c.id = dc.card_id "
-                            "WHERE dc.deck_id = d.id "
-                            "AND dc.is_sideboard = 0 "
-                            "AND lower(c.name) = lower(?))")
-                    params.append(card)
-                # OR-semantics: a single EXISTS whose inner IN clause covers
-                # all 'Any of' names, so the deck matches if it plays any.
-                if any_card_names:
-                    any_ph = ",".join("lower(?)" for _ in any_card_names)
-                    sql += (f" AND EXISTS (SELECT 1 FROM deck_cards dc "
-                            f"JOIN cards c ON c.id = dc.card_id "
-                            f"WHERE dc.deck_id = d.id "
-                            f"AND dc.is_sideboard = 0 "
-                            f"AND lower(c.name) IN ({any_ph}))")
-                    params.extend(any_card_names)
-                sql += " ORDER BY sort_date DESC, d.placement ASC LIMIT 500"
                 rows = conn.execute(sql, params).fetchall()
             finally:
                 conn.close()
@@ -991,17 +997,9 @@ def _format_h2h_html(a: str, b: str, fmt: str, data: dict, wr_map: dict) -> str:
     # Trend: last 90 days vs all-time
     if matchups:
         from datetime import datetime, timedelta
-        cutoff_str = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
-
-        def _to_sortable(d):
-            d = d or ""
-            if "/" in d:
-                parts = d.split("/")
-                if len(parts) == 3:
-                    return f"20{parts[2]}{parts[1]}{parts[0]}"
-            return d.replace("-", "")
-
-        recent = [m for m in matchups if _to_sortable(m.get("date", "")) >= cutoff_str]
+        cutoff_str = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+        recent = [m for m in matchups
+                  if (normalize_event_date(m.get("date", "")) or "") >= cutoff_str]
         if recent and len(recent) < total:
             a_key = f"{a}_place"
             b_key = f"{b}_place"
