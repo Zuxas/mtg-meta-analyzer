@@ -8,8 +8,8 @@ Usage:
 """
 
 import sys, io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+from db.helpers import force_utf8_stdio
+force_utf8_stdio()
 
 import argparse
 from db.database import init_db

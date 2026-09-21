@@ -10,9 +10,9 @@ Usage:
     python scripts/sync_archetypes.py --format modern
 """
 import sys, os, io, csv, argparse
-if hasattr(sys.stdout, "buffer"):
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from db.helpers import force_utf8_stdio
+force_utf8_stdio()
 
 from db.database import get_connection
 from analysis.archetype_classifier import load_archetype_configs

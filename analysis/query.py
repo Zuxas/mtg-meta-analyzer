@@ -30,8 +30,9 @@ import argparse
 import sys
 import io
 
-# Force UTF-8 output on Windows
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# Force UTF-8 output on Windows (in place -- see db.helpers.force_utf8_stdio)
+from db.helpers import force_utf8_stdio
+force_utf8_stdio()
 
 from analysis.deck_analysis import (
     get_average_deck,

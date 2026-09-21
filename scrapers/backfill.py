@@ -22,7 +22,7 @@ import os
 from datetime import datetime, timedelta
 from scrapers.challenges import classify_event_type
 from scrapers.mtgtop8 import (
-    FORMATS, HEADERS, DELAY, BASE_URL,
+    FORMATS, DELAY, BASE_URL,
     _get, _abs_url, _parse_event_id, _parse_deck_id,
     scrape_event_decks, scrape_deck_cards,
 )

@@ -32,23 +32,16 @@ def _force_utf8_stdio():
     script, pytest's capture) died with ``ValueError: I/O operation on closed
     file`` -- the 2026-09-20 backfill crash.
     """
-    for name in ("stdout", "stderr"):
-        stream = getattr(sys, name, None)
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is None:
-            continue
-        try:
-            reconfigure(encoding="utf-8", errors="replace")
-        except (ValueError, OSError):
-            pass  # closed or non-reconfigurable stream; leave it alone
+    from db.helpers import force_utf8_stdio
+    force_utf8_stdio()
 
-
-_force_utf8_stdio()
 
 # Ensure the project root is on sys.path regardless of where the script is called from
 _ROOT = os.path.dirname(os.path.abspath(__file__))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+
+_force_utf8_stdio()
 
 
 # ---------------------------------------------------------------------------

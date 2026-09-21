@@ -1,8 +1,28 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped, Task 4 counts verified -- suite 602/602; Pinecone key + fill_database re-run are the two blockers)
+Last updated: 2026-09-21 (fill_database.py RUNNING -- step 3 backfill live for the first time since July; UIState leak + backfill ImportError fixed; suite 740/740)
 
 ---
+
+## 9/21 session, part 2 (shipped -- the two crashes the first real backfill run surfaced)
+
+- **`preferences.json` corrupted BY THE TEST SUITE** (03:50, during a full run): UIState's debounced
+  `threading.Timer` saves fired after `tmp_prefs` teardown restored the real path; racing writers
+  with per-instance locks produced valid JSON + a stale tail and dropped `formats`. Almost certainly
+  the July `formats` loss too. Fixed: process-wide lock, atomic tmp+replace, `cancel_all_pending()`,
+  autouse conftest guard after every test. Restored from the 11:17 backup. Full suite now leaves the
+  file intact (verified).
+- **`scrapers/backfill.py` unimportable since 2026-07-01** (unused `HEADERS` import removed in the
+  polite-client refactor) -> `fill_database.py` step 3 raised ImportError on every run. Fixed;
+  `tests/test_scraper_imports.py` pins every real scraper module's import.
+- **Stdio sweep DONE** (was #5): `db/helpers.py::force_utf8_stdio()`; 6 sites replaced (incl.
+  `scrapers/mtgmelee_scraper.py`, which was closing pytest's stdout on import);
+  `tests/test_stdio_hygiene.py` AST-guards the whole tree. Suite **740 passed, 0 failed**.
+- **`fill_database.py` launched ~04:20** -> `logs/fill_database_2026-09-21.log`. Step 3 confirmed
+  scraping (5 formats, cutoff 2023-09-22). Baseline before: events standard 4070 / modern 959 /
+  legacy 576 / pioneer 398 / pauper 335; matches 330,113. Verify after with
+  `python -m scrapers.mtgmelee_scraper --counts` + `python scripts/data_health_report.py --freshness-only`
+  and diff against `scratchpad/counts_before.txt` (events/decks per format above).
 
 ## 9/21 session (shipped -- CHAPIN_METRICS.md Task 2: conversion ratio + Cascade)
 
@@ -61,11 +81,10 @@ Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped, Task 4 counts verified -- su
 
 ### Pick up here (in order, per `docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 
-1. **Re-run `python fill_database.py`** (or `scripts/scratch/_rebuild.bat`) -- needs a go-ahead: it is
-   a multi-hour 3-year MTGTop8 scrape into the live DB. Step 2 will short-circuit on
-   `_bulk_is_fresh()`, so this run exercises step 3, not the download. Verify with
-   `python -m scrapers.mtgmelee_scraper --counts` + `python scripts/data_health_report.py --freshness-only`,
-   not the exit code.
+1. **`fill_database.py` IS RUNNING (launched 2026-09-21 ~04:20)** -- when it finishes, verify with
+   `--counts` + `--freshness-only` and the per-format events/decks diff (baseline in 9/21 part 2 above),
+   NOT the exit code. Then re-check: Pioneer freshness, Modern `_default_field_shares` (EV tab),
+   dashboard Cascade visibility on Modern.
 2. ~~Bug 1 code work~~ DONE 2026-09-20 (see above).
 3. ~~Bug 3 = CHAPIN_METRICS Task 1~~ DONE 2026-09-20 (see above).
 4. ~~CHAPIN_METRICS Tasks 2+3~~ DONE 2026-09-21. **Task 4 -- counts VERIFIED 2026-09-21, ingest BLOCKED on key:**
@@ -89,12 +108,8 @@ Last updated: 2026-09-21 (CHAPIN Tasks 2+3 shipped, Task 4 counts verified -- su
    reaches 09-19 (matches the nightly "meta shifts: 0 since 09-14"). Run
    `python -m scrapers.mtgmelee_scraper --format modern --pages 3` and `--counts`; if 09-14..09-19
    events exist on melee but not here, the scraper's paging/date window is the suspect.
-5. **Stdio sweep (small, mechanical):** 4 more files replace `sys.stdout` with a new
-   `TextIOWrapper(sys.stdout.buffer)` at MODULE level -- `analysis/query.py`, `main.py`,
-   `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py` -- same orphaned-wrapper
-   crash as the backfill. Replace with in-place `reconfigure()` like `fill_database.py` /
-   `run_fill_from_prefs.py`. (6 more sites are inside `__main__` guards/functions -- lower risk,
-   same treatment when touched.)
+5. ~~Stdio sweep~~ DONE 2026-09-21 (6 sites incl. `mtgmelee_scraper.py` + `sync_archetypes.py`;
+   AST hygiene test guards the tree).
 
 **Data state (freshness report, 2026-09-20 12:04):** Modern 11,218 match rows in 2026-09 (config fix
 worked); Standard thin (397 Sep / 292 Aug / 0 Jun); **Pioneer zero `matches` since 2026-05** even

@@ -135,3 +135,28 @@ def normalize_event_date(value) -> str | None:
         return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
     except ValueError:
         return None
+
+
+# ── UTF-8 stdio (Windows) ─────────────────────────────────────────────────
+
+def force_utf8_stdio() -> None:
+    """
+    Force UTF-8 on sys.stdout / sys.stderr, IN PLACE.
+
+    Never `sys.stdout = io.TextIOWrapper(sys.stdout.buffer, ...)`: that orphans
+    the previous wrapper, whose __del__ closes the SHARED buffer, so any caller
+    that already wrapped stdout (a runner script, pytest capture) dies with
+    "ValueError: I/O operation on closed file" (the 2026-09-20 backfill crash).
+    reconfigure() changes the encoding on the existing object instead.
+    tests/test_stdio_hygiene.py rejects the old pattern at module level.
+    """
+    import sys
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass

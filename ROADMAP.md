@@ -6,9 +6,11 @@
 
 ## OPEN — Data pipeline (`docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 - [x] **Bug 2 — Scryfall bulk API shape change** (2026-09-20) — `jsonl_download_uri` gz-JSONL -> single JSON array on disk (tmp + `os.replace`); `fill_database.py` steps 2/5 degrade to warnings; stdio double-wrap crash fixed. 38,906 cards; 8 tests; 527 green.
-- [ ] **Re-run `fill_database.py`** — first full pass of step 3 (3-year MTGTop8 backfill) since ~2026-07-26; needs go-ahead (hours, live DB). Verify with `--counts` + `data_health_report.py --freshness-only`.
+- [~] **`fill_database.py` re-run** — RUNNING since 2026-09-21 ~04:20 (first step-3 pass since 2026-07-01: the backfill was unimportable). Verify with `--counts` + `--freshness-only` + per-format events/decks diff when it finishes.
+- [x] **UIState test-leak / preferences.json corruption** (2026-09-21) — process-wide lock, atomic replace, `cancel_all_pending()` + autouse conftest guard. 3 tests.
+- [x] **backfill ImportError (`HEADERS`)** (2026-09-21) — unused import removed; `test_scraper_imports.py` pins every scraper module.
 - [x] **Bug 1 — silent format default** (2026-09-20) — `db/helpers.py::load_active_formats` is the one implementation (both drivers delegate); loud `DEFAULTING to standard only` warning on every fallback; real leak was `UIState._save_now` merging its launch snapshot over disk (fixed: UIState owns only `ui_state`); `run_fill_from_prefs.py` stdio double-wrap fixed. 11 tests; 538 green.
-- [ ] **Stdio sweep** — 4 module-level `sys.stdout = TextIOWrapper(sys.stdout.buffer)` sites (`analysis/query.py`, `main.py`, `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py`) -> in-place `reconfigure()`.
+- [x] **Stdio sweep** (2026-09-21) — `db/helpers.py::force_utf8_stdio()` at all 6 unguarded sites; `tests/test_stdio_hygiene.py` AST guard. 740 green.
 - [x] **Bug 3 / Task 1 — per-format freshness guard** (2026-09-20) — `db/helpers.py::normalize_event_date` + `SQL_NORM_DATE`; `analysis/data_health.py::format_freshness` (fresh/stale/dead); dashboard chip + dead-data banner on every panel; per-format `scrape_state.json` (`db/scrape_state.py`) written by the 6AM driver; `deck_ev.py` on the shared normalizer. `test_is_all_formats` failure fixed (matches-fallback `format='all'`). 40 tests; 568 green.
 - [ ] **Date-normalization sweep** — ~18 inline `CASE WHEN instr(date,'/')` copies -> `SQL_NORM_DATE` (each site's `since` literal to ISO). See NEXT_STEPS #6.
 - [ ] **Melee recency check** — Modern/Standard/Legacy stop at 09-13, Pauper at 09-19. See NEXT_STEPS #7.
@@ -121,6 +123,11 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-21 — UIState test-leak fix + backfill ImportError + stdio sweep
+- [x] `gui/state.py` — `_FILE_LOCK`, atomic `.tmp` + `os.replace()`, `cancel_all_pending()`; `tests/conftest.py` autouse guard; `preferences.json` restored.
+- [x] `scrapers/backfill.py` — unused `HEADERS` import (broken since a397da8) removed; `tests/test_scraper_imports.py`.
+- [x] `db/helpers.py::force_utf8_stdio()` at `main.py`, `scrapers/mtgmelee_scraper.py`, `scripts/analyze_duplicates.py`, `scripts/backfill_fingerprints.py`, `scripts/sync_archetypes.py`, `analysis/query.py`; `fill_database.py` + `run_fill_from_prefs.py` delegate; `tests/test_stdio_hygiene.py`.
 
 ### 2026-09-21 — CHAPIN Task 3 (Bo3 match math)
 - [x] `analysis/match_math.py` — `match_winrate`, `implied_q` (closed form), `required_q`; pure, no I/O, does not import `analysis/chapin.py`.

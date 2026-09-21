@@ -21,13 +21,14 @@ import os
 import argparse
 import io
 
-# Force UTF-8 output on Windows
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+
+# Force UTF-8 output on Windows (in place -- see db.helpers.force_utf8_stdio)
+from db.helpers import force_utf8_stdio
+force_utf8_stdio()
 
 from core.data_engine.duplicate_analysis import (
     get_duplicate_events,

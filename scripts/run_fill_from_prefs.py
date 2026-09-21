@@ -14,16 +14,6 @@ import json
 import subprocess
 import datetime as _dt
 
-# Force UTF-8 output IN PLACE. Re-wrapping `sys.stdout.buffer` in a new
-# TextIOWrapper orphans the old wrapper, whose __del__ closes the shared buffer
-# -- fatal for any caller that already wrapped stdout (pytest, runner scripts).
-# Same root cause as the 2026-09-20 fill_database backfill crash.
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError, OSError):
-        pass
-
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Repo root on sys.path: the inline imports below (scrapers.*, analysis.*, db.*)
 # fail without this when invoked as `python scripts\run_fill_from_prefs.py`,
@@ -32,6 +22,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 'scrapers'" failures in logs/background_fill.log.
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+
+# Force UTF-8 output IN PLACE (see db.helpers.force_utf8_stdio)
+from db.helpers import force_utf8_stdio
+force_utf8_stdio()
+
 _PREFS = os.path.join(_ROOT, "data", "preferences.json")
 
 # Formats that get MTGMelee scrapes regardless of user preference

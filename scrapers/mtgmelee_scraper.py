@@ -34,10 +34,8 @@ import argparse
 from datetime import datetime
 
 # Force UTF-8 output on Windows (tournament names can contain non-ASCII characters)
-if hasattr(sys.stdout, "buffer"):
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-if hasattr(sys.stderr, "buffer"):
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+from db.helpers import force_utf8_stdio
+force_utf8_stdio()
 
 import cloudscraper
 from bs4 import BeautifulSoup
