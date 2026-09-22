@@ -30,9 +30,20 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
 - Container setup needed to run the GUI suite on Linux: `libegl1 libgl1 libxkbcommon0 libdbus-1-3`,
   then `pip install -r requirements.txt` **with `--ignore-installed PyJWT`** (a Debian-owned PyJWT
   aborts the whole install otherwise, silently leaving matplotlib/numpy/thefuzz missing).
-- **New minor finding (NOT fixed, out of scope):** `tests/test_heatmap_low_n_tint.py` writes its
-  render check to a hardcoded `C:/temp/gr8_lowN_render_check.png`. On Linux that creates a literal
-  `C:/` directory in the repo root — test pollution that will also hit the ubuntu-latest CI job.
+- **Test pollution FIXED (same session):** `tests/test_heatmap_low_n_tint.py` wrote its render
+  check to a hardcoded `C:/temp/gr8_lowN_render_check.png`. The comment's stated intent is "NOT
+  into the repo working tree", which `C:/temp` satisfies on Windows — but on Linux that string is
+  a *relative* path, so it created a literal `C:/` dir inside the repo (untracked, and it would
+  hit the ubuntu-latest CI checkout too). New `_debug_png_dir()` helper keeps `C:/temp` on Windows
+  (preserving the runbook screenshot convention) and uses `tempfile.gettempdir()` elsewhere.
+  Verified: 14/14 pass, no `C:/` dir created, PNG still written (11K in /tmp).
+- **Pre-existing intermittent SEGFAULT in the full suite (open, NOT caused by the above).** Under
+  offscreen Qt on Linux, `tests/test_gr3_chart_chrome.py` (matplotlib canvas via
+  `event_hub_tab.py` lambda) hard-crashes the pytest process ~30-50% of full-suite runs. It passes
+  12/12 in isolation every time. Confirmed pre-existing by running the full suite on a stashed
+  baseline: baseline crashed 1 of 4 runs, with-change 2 of 4 — same crash site both ways. Does not
+  affect CI (neither workflow runs pytest). Worth root-causing before anyone relies on a green
+  full-suite run in a Linux container.
 
 ---
 
