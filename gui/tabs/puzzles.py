@@ -9,7 +9,7 @@ from typing import Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit,
-    QComboBox, QSpinBox, QSplitter, QFrame, QTabWidget, QTableWidget,
+    QComboBox, QScrollArea, QSpinBox, QSplitter, QFrame, QTabWidget, QTableWidget,
     QTableWidgetItem, QHeaderView, QMessageBox,
 )
 
@@ -86,7 +86,18 @@ class PuzzlesTab(QWidget):
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self._scene_widget = PuzzleSceneWidget()
-        splitter.addWidget(self._scene_widget)
+        # The board is a stack of fixed-size card rows (~720px tall). Wrapped
+        # in a QScrollArea -- the same treatment SettingsTab / DeckAnalyzerTab /
+        # EventWidget got for the 900px MainWindow min-height gate -- so a
+        # board puzzle scrolls on a short window instead of forcing the
+        # window taller. (Surfaced 2026-09-21: the daily feed serves overdue
+        # board puzzles first, where the old newest-first order happened to
+        # land on a boardless drill.)
+        self._scene_scroll = QScrollArea()
+        self._scene_scroll.setWidgetResizable(True)
+        self._scene_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scene_scroll.setWidget(self._scene_widget)
+        splitter.addWidget(self._scene_scroll)
 
         right = QFrame()
         right_v = QVBoxLayout(right)
@@ -288,6 +299,7 @@ class PuzzlesTab(QWidget):
         hidden entirely, question panel takes the vast majority of the tab
         width. Board-having puzzles keep the original board+question split
         unaffected."""
+        self._scene_scroll.setVisible(not boardless)
         self._scene_widget.setVisible(not boardless)
         if boardless:
             # A hidden splitter child is auto-collapsed by QSplitter, but
