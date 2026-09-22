@@ -1,6 +1,38 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-07-11 (GUI polish COMPLETE — all 9 gripes closed across Waves A/B/C)
+Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitignore guardrail)
+
+---
+
+## 9/22 session (shipped — Wave C follow-up: Storage groupbox + corpus guardrail)
+
+- **Storage groupbox orphan FIXED** (the open find from Wave C). `gui/tabs/settings.py::_build_ui`
+  built `store_box` (storage label + Collect More Data / Refresh / Scan Duplicates), gave it a
+  layout and wired all three buttons, but never called `outer.addWidget(store_box)` — so it was
+  orphaned, garbage-collected when `_build_ui` returned, and had **never rendered in any release**.
+  Fix is that one line. `_refresh_storage()` was already being called (settings.py:312), so the
+  label populates with no further wiring.
+- **Test pin flipped.** `tests/test_settings_deck_analyzer_scroll.py::_SETTINGS_GROUPBOX_TITLES`
+  previously *documented* the bug by excluding "Storage" from the expected set; it now includes it,
+  so the pin asserts the fix. +3 new tests: tree membership (parented into the scroll content),
+  all three buttons reachable + `receivers(clicked) > 0`, and the label off its "Loading…"
+  placeholder. **Falsifiability verified**: reverting the single `addWidget` fails all 4.
+- **Private-corpus gitignore guardrail.** This repo is public and had *no* rule covering the
+  paraphrased strategy corpus — `.gitignore` covered only 3 scryfall/rules files. Added
+  `data/rules_reference/chapin*`, `data/rules_reference/*_rules_reference.md`, `data/corpus/`,
+  `data/private_corpus/`, verified with `git check-ignore -v` against real probe files. Nothing
+  had leaked (the directory is empty); this is preventive, prompted by cross-repo corpus work.
+- **Suite in a fresh Linux container: 498 passed, 5 skipped, 14 failed, 3 errors.** The 14+3 are
+  **environmental, not regressions** — verified by stashing the change and re-running: baseline is
+  identically 14 failed / 3 errors / **495** passed. Causes: no `data/mtg_meta.db` in the container
+  (`sqlite3.OperationalError: no such table: untapped_entries` etc.) and a missing `mcp` submodule
+  for `fastmcp`. Net effect of this change = +3 passing.
+- Container setup needed to run the GUI suite on Linux: `libegl1 libgl1 libxkbcommon0 libdbus-1-3`,
+  then `pip install -r requirements.txt` **with `--ignore-installed PyJWT`** (a Debian-owned PyJWT
+  aborts the whole install otherwise, silently leaving matplotlib/numpy/thefuzz missing).
+- **New minor finding (NOT fixed, out of scope):** `tests/test_heatmap_low_n_tint.py` writes its
+  render check to a hardcoded `C:/temp/gr8_lowN_render_check.png`. On Linux that creates a literal
+  `C:/` directory in the repo root — test pollution that will also hit the ubuntu-latest CI job.
 
 ---
 
