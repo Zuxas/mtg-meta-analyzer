@@ -133,3 +133,66 @@ def test_daily_stats_streak_uses_attempt_counts_per_local_day(puzzle_db):
     st = daily_stats(target=2, today=TODAY)
     assert (st.done_today, st.streak) == (1, 2)
     assert st.new_count == 0 and st.due_count == 0   # pid attempted today -> not due
+
+
+@pytest.fixture
+def sampleable_deck(puzzle_db):
+    """One 60-card Modern deck with card_data so drill_generator can sample it."""
+    from db.database import upsert_event, upsert_deck, insert_deck_cards, get_connection
+    eid = upsert_event(source="mtgtop8", source_id="evT", name="Modern Challenge T", date="2026-09-01",
+                       fmt="modern", url="http://x/T", event_type="mtgo_challenge_32")
+    did = upsert_deck(event_id=eid, source_id="dkT", player="pilot", archetype="Burn", placement=1, url="http://x/T/1")
+    main = {"Mountain": 20, "Lightning Bolt": 4, "Monastery Swiftspear": 4, "Lava Spike": 4,
+            "Rift Bolt": 4, "Skewer the Critics": 4, "Boros Charm": 4, "Eidolon of the Great Revel": 4,
+            "Goblin Guide": 4, "Searing Blaze": 4, "Sacred Foundry": 4}
+    assert sum(main.values()) == 60
+    insert_deck_cards(did, main, {})
+    with get_connection() as con:
+        for name in main:
+            tl = "Land" if name in ("Mountain", "Sacred Foundry") else "Instant"
+            con.execute("INSERT OR REPLACE INTO card_data (name, type_line) VALUES (?,?)", (name, tl))
+    return did
+
+
+def test_top_up_generates_exactly_the_shortfall_for_drills(puzzle_db, sampleable_deck):
+    from analysis.puzzles.feed import todays_feed
+    from db import puzzles as db_puzzles
+    puzzle_db["add_puzzle"]("drill_outs")                      # one existing new drill
+    feed = todays_feed("drill_outs", target=4, today=TODAY)
+    assert feed.generated == 3 and len(feed.puzzles) == 4
+    made = [p for p in db_puzzles.get_puzzles(category="drill_outs") if p["author"] == "drill_generator"]
+    assert len(made) == 3
+    assert {p["grading_mode"] for p in made} <= {"number", "keyword"}   # raw/compound=number, scry=keyword
+    assert all(p["category"] == "drill_outs" and p["deck_id"] is None for p in made)
+
+
+def test_top_up_is_idempotent_within_a_day_and_continues_the_sequence(puzzle_db, sampleable_deck, monkeypatch):
+    """Same day + same target -> no second batch; target raised -> only the
+    shortfall, from a seed that has advanced by the number already minted
+    today (so the generator does not replay its first k drills)."""
+    import analysis.puzzles.drill_generator as dg
+    from analysis.puzzles.feed import todays_feed
+    seeds = []
+    real = dg.generate_drills
+    monkeypatch.setattr(dg, "generate_drills",
+                        lambda conn, n, *, seed: seeds.append((n, seed)) or real(conn, n, seed=seed))
+    first = todays_feed("drill_outs", target=3, today=TODAY)
+    assert first.generated == 3
+    again = todays_feed("drill_outs", target=3, today=TODAY)   # same day, same target
+    assert again.generated == 0 and [p["id"] for p in again.puzzles] == [p["id"] for p in first.puzzles]
+    raised = todays_feed("drill_outs", target=5, today=TODAY)  # target raised -> just the shortfall
+    assert raised.generated == 2 and len(raised.puzzles) == 5
+    day = int(TODAY.strftime("%Y%m%d")) * 1000
+    assert seeds == [(3, day + 0), (2, day + 3)]
+
+
+def test_top_up_never_fires_for_positional_categories(puzzle_db, sampleable_deck):
+    from analysis.puzzles.feed import todays_feed
+    feed = todays_feed("find_lethal", target=5, today=TODAY)
+    assert feed.generated == 0 and feed.puzzles == []
+
+
+def test_top_up_is_silent_when_no_decklists_are_sampleable(puzzle_db):
+    from analysis.puzzles.feed import todays_feed
+    feed = todays_feed(None, target=5, today=TODAY)          # empty DB: nothing to ground drills in
+    assert feed.generated == 0 and feed.puzzles == []
