@@ -92,6 +92,13 @@
 - [ ] Blocking/teammate support math
 
 ## OPEN — UI/UX
+- [ ] **Basic/Pro progressive disclosure: verify + test what already shipped** — `9e6bcda`
+      (2026-07-01) put a Basic|Pro header toggle, a Pro-only tab set
+      (LADDER/SIMULATE/PREDICTIONS/CALIBRATION/HYPOTHESES), a META reorder and a dismissible
+      Dashboard banner on `main`. It was undocumented until 2026-09-22 (now in CLAUDE.md §6),
+      its commit says "visual check pending", and it has **zero test coverage**. Two separate
+      jobs: write the tests (no GUI session needed) and run the visual checklist in
+      NEXT_STEPS.
 - [ ] Interaction speed (filters update in place)
 
 ## OPEN — Format Expansion

@@ -260,6 +260,30 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Reload Tab button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh). Renamed from "Refresh" in Wave A (GR-5) so the dashboard filter-row "Refresh" is the only Refresh-labeled control.
 
+### Basic / Pro progressive disclosure (shipped 2026-07-01, commit `9e6bcda`)
+A **Basic|Pro** segmented control in the branded header hides advanced surfaces for
+newcomers. Documented retroactively on 2026-09-22 — it shipped to `main` undocumented,
+its commit message says *"visual check pending"*, and it still has **zero automated test
+coverage** (no test references `ui_level` / `_PRO_TAB_LABELS` / `dash_banner`).
+
+- **Pro-only sub-tabs** (`main_window.py::_PRO_TAB_LABELS`): `LADDER`, `SIMULATE`,
+  `PREDICTIONS`, `CALIBRATION` (all in META) + `HYPOTHESES` (inside Tournament Prep).
+  Basic removes them; Pro re-adds them with plain `addTab` in Pro order so the original
+  positions are restored exactly.
+- **META order changed** by the same commit — now CHARTS / MATCHUP DATA / **LADDER** /
+  SIMULATE / PREDICTIONS / CALIBRATION (LADDER moved ahead of PREDICTIONS).
+- **First-run default** via `_is_existing_user()`: any row in `saved_decks` or `match_log`
+  → **Pro** (existing users see no change); otherwise **Basic**. Resolved *before*
+  `_build_ui`, persisted to `global.ui_level`, then never consulted again. Each table read
+  is individually try/except'd, so a missing table reads as "fresh install".
+- **Basic-mode navigation safety:** a persisted `global.last_active_tab_path` pointing at a
+  Pro tab is not restored (`_path_has_pro_part`); the command palette still indexes Pro
+  tabs and jumping to one from Basic **auto-reveals Pro** first; the SIMULATE hand-off
+  paths force Pro for the same reason.
+- **Dashboard banner:** dismissible "First 3 things to try" strip (links → Decks / Search /
+  Meta), persisted via `global.dash_banner_dismissed`.
+- State keys live in `gui/state_keys.py`: `UI_LEVEL`, `DASH_BANNER_DISMISSED`.
+
 ### Timeframe System
 `theme.TIMEFRAME_OPTIONS`: 1w/2w/4w/8w/3m/6m/1y/2y/All Time. `None` = All Time = no date filter.
 All query functions handle `since=None` via `if since:` guards.

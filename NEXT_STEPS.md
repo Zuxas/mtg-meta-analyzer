@@ -319,6 +319,41 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
 - **Test count:** 26 new tests in `tests/test_event_finder_ux.py`. Full suite **328/328 green**. Zero regressions on existing tabs.
 - **Plan:** `docs/superpowers/plans/2026-06-04-event-finder-ux-fix.md`. **Spec:** `docs/superpowers/specs/2026-06-04-event-finder-ux-fix-design.md`.
 
+### Basic/Pro progressive disclosure — SHIPPED BUT UNVERIFIED + UNTESTED (found 2026-09-22)
+
+`9e6bcda` (2026-07-01) shipped **Basic/Pro progressive disclosure + a META tab reorder** to
+`main` — 365 lines across `gui/main_window.py`, `state_keys.py`, `tournament_prep.py`,
+`calibration.py`, `event_optimizer.py`, `hypotheses.py`, `predictions.py`. Until 2026-09-22 it
+appeared in **none** of CLAUDE.md / NEXT_STEPS.md / ROADMAP.md, so a feature that changes which
+tabs users see was invisible to anyone reading the docs. Now described in CLAUDE.md §6.
+
+Two things are still open, and they are independent:
+
+1. **Visual check never done** — its own commit message says "visual check pending".
+2. **Zero automated test coverage** — verified by grep: no test references `ui_level`,
+   `UI_LEVEL`, `_PRO_TAB_LABELS`, `dash_banner` or `_set_ui_level`. (Earlier apparent hits were
+   the card name "Boomerang Basics".) Every behaviour below is currently unguarded by tests, so
+   a refactor could silently break the first-run experience. **Tests are the cheaper of the two
+   and do not need a GUI session** — worth doing before the manual pass.
+
+**Visual-check checklist (do on next GUI launch):**
+- [ ] Existing install (has saved decks / match log) opens in **Pro** — no visible change,
+      all of LADDER / SIMULATE / PREDICTIONS / CALIBRATION present in META, HYPOTHESES in
+      Tournament Prep.
+- [ ] META order reads CHARTS · MATCHUP DATA · LADDER · SIMULATE · PREDICTIONS · CALIBRATION
+      (LADDER now sits ahead of PREDICTIONS — the reorder half of the commit).
+- [ ] Click **Basic** → those five disappear, no crash, the current tab stays valid.
+- [ ] Click **Pro** → all five come back **in the order above**, not appended at the end.
+- [ ] In Pro, sit on LADDER, switch to Basic, close and relaunch → app lands on a *visible*
+      tab, not a hidden one (`_path_has_pro_part` guard).
+- [ ] In Basic, Ctrl+K → jump to a Pro tab (e.g. "Ladder") → auto-switches to Pro and lands
+      on it.
+- [ ] Basic/Pro choice survives a restart (`global.ui_level`).
+- [ ] Dashboard "First 3 things to try" banner: all three links navigate; dismiss it; relaunch
+      → stays dismissed (`global.dash_banner_dismissed`).
+- [ ] **Fresh-install path** (the only one needing a throwaway DB): with no saved decks and no
+      match log, first launch opens in **Basic** with the banner showing.
+
 ### Manual GUI smoke still pending the user (Event Finder)
 
 Launch app → Tournament → Event Finder. Enter zipcode, try 300 mi RCQ. Confirm: (1) Distance column header click sorts numerically (25 before 100); (2) Time column shows local-tz times; (3) Date column reads "Sat Jun 7" and sorts chronologically; (4) RCQ rows tinted; (5) "When" combo narrows results; (6) right-click row → Google Maps opens to the store; (7) close + relaunch app, filters restored. Plus the *still-outstanding* M2/M3/M4 replay-viewer smoke from the 5/24 + 5/25 sessions.
