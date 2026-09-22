@@ -1425,7 +1425,22 @@ class DashboardTab(QWidget):
 
             raw_date = r.get("date", "") or ""
             date_item = _SortItem(_fmt_date(raw_date))
-            date_item.setData(_SORT_ROLE, _date_sort_key(raw_date))
+            # Tie-break the date key by placement so a same-day group reads
+            # 1st, 2nd, 3rd, 4th rather than backwards.
+            #
+            # The SQL already returns "date DESC, placement ASC", but the table
+            # is sorted by the Date column afterwards -- and setSortingEnabled
+            # (True) itself re-sorts immediately -- so rows sharing a date were
+            # re-ordered arbitrarily. In practice that inverted them: a panel
+            # called "Recent Top Finishes" showed 4th above 1st.
+            #
+            # date_sort_key returns a "YYYYMMDD" STRING, so the suffix has to
+            # stay string-sortable: 999-placement, zero-padded, means a DESC
+            # sort puts the lowest placement first within a date.
+            _pl = r["placement"] if isinstance(r["placement"], int) else 999
+            _pl = min(max(_pl, 0), 999)
+            date_item.setData(
+                _SORT_ROLE, f"{_date_sort_key(raw_date)}{999 - _pl:03d}")
             date_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             tbl.setItem(ri, 5, date_item)
 

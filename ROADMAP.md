@@ -92,6 +92,10 @@
 - [ ] Blocking/teammate support math
 
 ## OPEN — UI/UX
+- [x] **Recent Top Finishes listed a day's results backwards** (2026-09-22) — 4th above 1st.
+      Query was correct; the Date-column re-sort scrambled same-day ties because Qt's sort is
+      unstable. Placement folded into the date sort key. 5 tests. Found by driving the Dashboard
+      against a populated DB instead of an empty one.
 - [x] **Icons on the named text-only buttons** (2026-09-22) — 3 of the 5 surfaces the item
       listed already had icons; SearchTab (h2h + search) and the vs-field Recalc button did
       not, and now do. 5 tests, including pins on the already-done tabs.

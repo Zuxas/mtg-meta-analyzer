@@ -638,6 +638,21 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **Recent Top Finishes ordering bug — FOUND + FIXED (2026-09-22).** Seeded a synthetic
+      populated DB (48 events / 768 decks / 8 archetypes) and drove the Dashboard against it —
+      the first time this session anything was checked with real data rather than an empty DB.
+      Everything populated correctly (status "8 archetypes loaded", 15 recent rows, 8 win-rate
+      rows, 8 popular rows, 8 chart lines, meta% summing to exactly 100.0%) **except** that
+      within a single day the panel listed 4th, 3rd, 2nd, 1st. The SQL was right all along;
+      `setSortingEnabled(True)` + `sortByColumn(5, DESC)` re-sorted by date only and Qt's
+      unstable sort scrambled the ties. Fixed by folding placement into the date sort key.
+      `tests/test_dashboard_recent_order.py` (5 tests) — 4 fail with the tiebreak reverted, and
+      one feeds rows in the WRONG order so a fix can't pass just because the query inserts them
+      sorted.
+      **Also confirmed NOT a bug:** the `constrained_layout ... axes collapsed to zero`
+      UserWarning on every chart draw is cosmetic — measured axes occupy 0.775 x 0.770 of the
+      figure (918x397 px at 1600x950, 685x255 at 1200x700), so the plot renders correctly at
+      every size tested. Noise on stderr, not a collapsed chart.
 - [x] **Chart empty states (2026-09-22, follow-up to the panels below).** Checked empirically
       first: neither chart surface was blank — the Dashboard canvas already said "No data to
       display." and CHARTS "No meta data available *for this selection*" — so the table bug did

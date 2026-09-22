@@ -188,6 +188,15 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - "Best Deck" button: meta-based deck recommendation with composite scoring
 - Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes. **Default = Win Rate Over Time** (2026-05-14). X-axis uses real datetime objects (not categorical strings) so chronological order is invariant to archetype plot order; year shows in tick labels only when data crosses a year boundary. Per-bucket appearance threshold is `n>=1` (was `n>=3`, too aggressive for short windows).
 - Dynamic panel titles update with timeframe selector
+- **Recent Top Finishes ordering (fixed 2026-09-22):** the SQL ends
+  `ORDER BY (date) DESC, d.placement ASC`, but `_populate_recent` then calls
+  `setSortingEnabled(True)` + `sortByColumn(5, Descending)` on the Date column. Qt's sort is
+  **not stable** and enabling sorting re-sorts immediately, so rows sharing a date were free to
+  move — in practice inverting them, so the panel showed 4th above 1st. Fix = fold placement
+  into the Date column's sort key: `date_sort_key` returns a `"YYYYMMDD"` **string**, so the
+  tiebreak is a zero-padded `999 - placement` suffix, and a DESC sort puts the best finish first
+  within a day. Found only by driving the Dashboard against a POPULATED db — every earlier check
+  this session used an empty one.
 - Dedup-aware Meta Impact bar shows filter effects
 - **Empty states (2026-09-22):** each of the three panels carries a hidden
   `theme.empty_state_label` (`_EMPTY_STATE_TEXT`, keyed by the panel's **construction-time**
