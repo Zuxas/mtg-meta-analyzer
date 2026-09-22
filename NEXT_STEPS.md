@@ -72,9 +72,30 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
   full-suite runs** (510 passed each), against a pre-fix crash rate of ~30-50%. Caveat kept
   deliberately: 5 clean runs is ~8-17% likely by chance at that rate, so the mechanistic argument
   (root cause removed) carries the claim, not the run count alone.
-  (Latent hardening still available if wanted: `_all_workers_idle` only looks for `_workers`/
-  `_worker` attributes and so would still miss `EventHubTab._mtgo_worker`; and that `win = ...`
-  belongs inside the `try`.)
+- **Worker-lifecycle hardening SHIPPED + launch-path audit CLEAN (2026-09-22, follow-up).**
+  Three gaps of the same family closed:
+  (1) all six `_done` worker callbacks in `gui/tabs/event_optimizer.py` now carry
+  `@_skip_if_widgets_deleted` — a worker result landing after teardown was raising
+  `RuntimeError: wrapped C/C++ object ... has been deleted` straight out of the Qt callback
+  (caught empirically at `event_optimizer.py:316`, `self._deck_combo.blockSignals(True)`);
+  narrow by design, only the "has been deleted" RuntimeError is dropped, genuine ones still raise.
+  (2) `_all_workers_idle` now scans EVERY attribute ending in `_worker`, not just the literal
+  `_worker`/`_workers` names — it was reporting "idle" while `EventHubTab._mtgo_worker` ran.
+  (3) `win = _build_mainwindow_offscreen()` moved INSIDE the `try` (both MainWindow tests), so a
+  construction failure can no longer skip `_quiesce_mainwindow` and leak started workers.
+  Verified: the exact in-process harness that died now constructs + tears down 17/17 tabs with no
+  unhandled RuntimeError. `tests/test_worker_callback_after_teardown.py` (5 tests) — 4 pin the
+  decorator's semantics, 1 pins that every `_done` is actually decorated (that one fails if a
+  future callback is added unguarded).
+- **Launch-path audit: NO other tab has the untapped_entries-class bug.** `init_db()` creates only
+  7 real tables (bookmarks, card_data, cards, deck_cards, decks, events, guides), yet the app uses
+  ~19 — so the obvious worry was more eager unguarded queries on scraper-created tables. Probed all
+  17 tabs, each in an isolated subprocess, against a purpose-built fresh DB: **all 17 construct, and
+  so does the full MainWindow.** The harness was validated against the known bug first (guard
+  stripped -> `RAISE LadderMetaTab OperationalError @ db/untapped_queries.py:516`), so the all-clear
+  is a real negative, not a blind spot. Why untapped was unique: the other non-core tables are
+  created on demand via `ensure_table` helpers, while the untapped_* ones are scraper-only and
+  queried through raw `sqlite3.connect`.
 
 ---
 

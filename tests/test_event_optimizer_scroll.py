@@ -96,9 +96,19 @@ def _all_workers_idle(root: QWidget) -> bool:
     the tree (MainWindow owns ~16 tabs, each with its own worker refs)."""
     for wdg in root.findChildren(QWidget):
         candidates = list(getattr(wdg, "_workers", []) or [])
-        single = getattr(wdg, "_worker", None)
-        if single is not None:
-            candidates.append(single)
+        # Scan EVERY attribute ending in "_worker", not just the literal
+        # "_worker" name. gui/tabs/event_hub_tab.py stores its background
+        # thread as _mtgo_worker, so the old two-name scan reported "idle"
+        # while it was still running -- which is how a live worker survived
+        # teardown and later fired a queued lambda into freed memory.
+        for attr in dir(wdg):
+            if attr.endswith("_worker"):
+                try:
+                    val = getattr(wdg, attr)
+                except Exception:
+                    continue  # properties may raise on a half-built widget
+                if val is not None and hasattr(val, "isRunning"):
+                    candidates.append(val)
         for w in candidates:
             try:
                 if w.isRunning():
@@ -270,8 +280,13 @@ def test_mainwindow_min_height_regression_guard(
     into a flaky, everyone-blocking failure for near-zero marginal
     protection. 1300 is comfortably below the old ~1460 baseline and
     comfortably above the ~746 measured here."""
-    win = _build_mainwindow_offscreen()
+    # Construction INSIDE the try: if MainWindow.__init__ raises partway, the
+    # partially-built window still owns started workers, and skipping
+    # _quiesce_mainwindow leaks them into later tests (they fire queued
+    # callbacks into freed memory on the next processEvents()).
+    win = None
     try:
+        win = _build_mainwindow_offscreen()
         h = win.minimumSizeHint().height()
         assert h < 1300, (
             f"MainWindow minimum height {h} is back near the pre-fix "
@@ -279,7 +294,8 @@ def test_mainwindow_min_height_regression_guard(
             "regressed"
         )
     finally:
-        _quiesce_mainwindow(app, win)
+        if win is not None:
+            _quiesce_mainwindow(app, win)
 
 
 def test_mainwindow_min_height_meets_original_900_target(
@@ -294,9 +310,15 @@ def test_mainwindow_min_height_meets_original_900_target(
     applied the same QScrollArea wrap to both of those tabs, closing the
     gap (MainWindow now measures ~746px) -- flipped to a normal passing
     assertion."""
-    win = _build_mainwindow_offscreen()
+    # Construction INSIDE the try: if MainWindow.__init__ raises partway, the
+    # partially-built window still owns started workers, and skipping
+    # _quiesce_mainwindow leaks them into later tests (they fire queued
+    # callbacks into freed memory on the next processEvents()).
+    win = None
     try:
+        win = _build_mainwindow_offscreen()
         h = win.minimumSizeHint().height()
         assert h <= 900, f"MainWindow minimum height {h} exceeds 900"
     finally:
-        _quiesce_mainwindow(app, win)
+        if win is not None:
+            _quiesce_mainwindow(app, win)
