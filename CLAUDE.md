@@ -1,6 +1,32 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-09-22 (**Populated-DB correctness pass**: two display-layer bugs that an
+Last updated: 2026-09-22 (**Populated-DB correctness pass, part 2 — burn spells were invisible
+to every deck-evaluation engine.** Extending the populated-DB method from placement data to
+*card* data turned up a defect in three engines at once. `analysis/blunders.py:274` and
+`analysis/chapin.py:117` tested for the literal substring `"deals damage to target"`, and
+`analysis/deck_roles.py:32` for `"deals damage to"` — none of which can occur in real oracle
+text, because the damage amount sits between the two words (*"Lightning Bolt deals 3 damage to
+any target."*). Every damage-based removal spell was therefore invisible to all three: a Mono Red
+deck with 4 burn spells reported **"Very low interaction: only 0 interactive spells"** (a *major*
+issue worth 10 blunder points) and scored **0.0 on Chapin's Answers** principle. This is not a
+wording preference — `analysis/sb_advisor.py:48` in this same repo already matches
+`deals? \d+ damage to any target`, so one part of the codebase had the template right and three
+did not. **All three engines had ZERO test coverage**, which is how it survived. Fix = one shared
+predicate `analysis/card_text.py::is_damage_removal`, called by all three; deliberately narrow
+(it answers only the damage question — each engine keeps its own destroy/exile/counter/bounce
+list, since those legitimately differ), and the target clause is **required** so self-damage
+("this land deals 1 damage to you") is not counted as removal. Measured: Mono Red blunder 20.0
+*Fair* → 14.0 *Good*, Answers 0.0 → 6.7; **Izzet Prowess** (this project's focus deck) Answers
+0.0 → 10.0 with the interaction issue gone. A repo-wide grep for every `"...damage to..."` literal then found a **fourth** copy the
+tab-probe could never have reached: `gui/widgets/archetype_detail.py:721`, feeding the Tech
+Choices role grouping, so burn spells were grouped as Threat/Utility rather than Removal.
+`tests/test_damage_removal_detection.py` (19 tests — 7 real templates, 6 false-positive guards,
+the mechanism pinned, one end-to-end per site; neutering the predicate fails 11). Confirmed working in the same drive and left alone:
+`deck_roles` classifies all 5 seeded archetypes correctly, `blunders` catches both
+deliberately-broken decks (12 lands → major land_count; all-6-drops → major mana_curve), Chapin
+principles all within 0-10.
+
+Earlier 2026-09-22 (**Populated-DB correctness pass**: two display-layer bugs that an
 empty database renders identically to "no data", so every prior headless check missed them.
 (1) **Recent Top Finishes listed a day's results backwards** — see §6 Dashboard. (2) **`top8_rate`
 was not a rate.** `analysis/win_rates.py::_aggregate_appearances` took its numerator over ALL

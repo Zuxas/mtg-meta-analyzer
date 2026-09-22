@@ -638,6 +638,51 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **Burn spells were invisible to every deck-evaluation engine — FOUND + FIXED
+      (2026-09-22).** Extended the populated-DB method to *card* data (seed v2 gives each
+      archetype a decklist of a known strategic shape plus two decks built wrong on purpose)
+      and drove the card-driven engines, which had **zero test coverage** — no tests existed
+      for `blunders.py`, `chapin.py` or `deck_roles.py` at all, which is how this survived.
+      A Mono Red deck with 4 burn spells reported **"Very low interaction: only 0 interactive
+      spells"** (a *major* issue, 10 blunder points) and scored **0.0 on Chapin's Answers**
+      principle.
+      **Mechanism.** Three engines each carried their own near-duplicate "is this
+      interaction?" keyword list, and all three had the same defect in the same place —
+      a LITERAL substring that cannot occur in real oracle text, because the damage amount
+      sits between "deals" and "damage":
+      `blunders.py:274` and `chapin.py:117` looked for `"deals damage to target"`,
+      `deck_roles.py:32` for `"deals damage to"`, while real text reads
+      *"Lightning Bolt deals 3 damage to any target."*
+      **Not a matter of taste:** `analysis/sb_advisor.py:48` in this same repo already
+      matches `deals? \d+ damage to any target` — one part of the codebase had the template
+      right and three did not.
+      Fix = one shared predicate `analysis/card_text.py::is_damage_removal` (regex over the
+      templates Wizards actually prints), called by all three. Deliberately narrow: it
+      answers ONLY the damage question and each engine keeps its own destroy/exile/counter/
+      bounce list, because those legitimately differ and unifying them would change
+      behaviour beyond the bug. The target clause is **required** so self-damage
+      ("this land deals 1 damage to you") is not miscounted as removal — a bare "damage to"
+      would pick those up.
+      **Measured impact** on a seeded Mono Red deck: blunder score 20.0 *Fair* -> 14.0
+      *Good*, "0 interactive spells" -> 4, Chapin Answers 0.0 -> 6.7. On Izzet Prowess —
+      **the project's own focus deck** — Answers 0.0 -> 10.0 and the interaction issue
+      disappears entirely.
+      **A repo-wide sweep found a FOURTH copy** the tab-probe never would have:
+      `gui/widgets/archetype_detail.py:721`, feeding the Tech Choices role grouping —
+      so burn spells were falling through to Threat/Utility instead of Removal in a
+      burn deck's flex-slot breakdown. Fixed and pinned alongside the other three.
+      `tests/test_damage_removal_detection.py` (19 tests): 7 real burn templates, 6
+      false-positive guards incl. self-damage, the mechanism itself pinned (the old
+      substrings provably absent from real text), and one end-to-end test per site.
+      Falsifiability verified — neutering the predicate fails 11 of 19.
+      **Method note:** the probe found three sites; only `grep` over every
+      `"...damage to..."` literal in the repo found the fourth. Driving the UI finds what
+      the UI exercises, not what shares the bug.
+      **Also confirmed working** by the same card-driven drive, so recorded rather than
+      touched: `deck_roles` classifies all 5 seeded archetypes correctly (Aggro / Control /
+      Midrange as designed), `blunders` catches both deliberately-broken decks (12 lands ->
+      *major* land_count; all-6-drops -> *major* mana_curve avg CMC 5.80), and every Chapin
+      principle stays inside 0-10.
 - [x] **Top-8 rate was not a rate — FOUND + FIXED (2026-09-22).** Continuing the
       populated-DB drive that found the ordering bug: `get_meta_standings` returned
       `top8_rate: 1.422` for Izzet Prowess. `gui/widgets/meta_table.py:46` renders that

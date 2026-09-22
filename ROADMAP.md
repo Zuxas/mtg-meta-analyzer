@@ -156,6 +156,16 @@ DB renders them identically to "no data".
       match-derived paths already emit) when nothing is measurable.
       `tests/test_top8_rate.py` (7 tests). Also guarded the one display site,
       `analysis/query.py:216`, that would have raised `TypeError` on the sentinel.
+- [x] **Burn spells invisible to every deck-evaluation engine** — `blunders.py`,
+      `chapin.py` and `deck_roles.py` each tested for the literal substring
+      `"deals damage to target"`, which cannot match real oracle text (the amount sits
+      in between: *"deals 3 damage to any target"*). A burn deck therefore reported
+      **0 interactive spells** and scored **0.0 on Chapin Answers**. All three engines
+      had zero test coverage. Fixed with one shared predicate,
+      `analysis/card_text.py::is_damage_removal`. A repo-wide sweep found a fourth copy in
+      `gui/widgets/archetype_detail.py:721` (Tech Choices role grouping).
+      `tests/test_damage_removal_detection.py` (19 tests) is the first coverage any of them
+      has had.
 
 
 ### 2026-05-14 / 2026-05-15 — MTGA Live Import + Match History + Replay Viewer
