@@ -37,13 +37,34 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
   hit the ubuntu-latest CI checkout too). New `_debug_png_dir()` helper keeps `C:/temp` on Windows
   (preserving the runbook screenshot convention) and uses `tempfile.gettempdir()` elsewhere.
   Verified: 14/14 pass, no `C:/` dir created, PNG still written (11K in /tmp).
-- **Pre-existing intermittent SEGFAULT in the full suite (open, NOT caused by the above).** Under
-  offscreen Qt on Linux, `tests/test_gr3_chart_chrome.py` (matplotlib canvas via
-  `event_hub_tab.py` lambda) hard-crashes the pytest process ~30-50% of full-suite runs. It passes
-  12/12 in isolation every time. Confirmed pre-existing by running the full suite on a stashed
-  baseline: baseline crashed 1 of 4 runs, with-change 2 of 4 — same crash site both ways. Does not
-  affect CI (neither workflow runs pytest). Worth root-causing before anyone relies on a green
-  full-suite run in a Linux container.
+- **LAUNCH-BLOCKING BUG FOUND AND FIXED — the app would not start without Untapped data.**
+  Chasing the segfault below led to the real defect. Every untapped_* table and view
+  (`untapped_entries`, `untapped_snapshots`, `untapped_replays`, `untapped_sideboard_plans`, the
+  `v_untapped_*` views) is created by `scrapers/untapped_mythic_scraper.py`, **not** by
+  `db.database.init_db` — verified: `init_db()` creates 8 tables and `untapped_entries` is not one.
+  `LadderMetaTab.__init__` calls `refresh()` eagerly (ladder_meta.py:38) →
+  `get_mythic_archetype_rollup()` → `sqlite3.OperationalError: no such table` → propagates out of
+  `MainWindow._build_ui` (main_window.py:559) → **MainWindow raises, the app never opens.** Anyone
+  with a DB but no Untapped pipeline run (fresh clone, new teammate) was locked out entirely. Our
+  own machine has the table (pipeline running since 2026-05-12), which is why it was never seen.
+  Fix = `_empty_if_untapped_tables_missing` decorator on all 8 DB-touching functions in
+  `db/untapped_queries.py`, returning an empty dict/list. **Deliberately narrow: only
+  "no such table" is swallowed** — a corrupt DB still raises `DatabaseError` (pinned by test), so
+  real data loss stays loud. Verified on a purpose-built fresh DB: pre-fix `LadderMetaTab` and
+  `MainWindow` both raised; post-fix both construct and the app launches.
+  `tests/test_untapped_missing_tables.py` (10 tests) pins all three properties; 9 of 10 fail with
+  the decorator stripped.
+- **The intermittent SEGFAULT was a SYMPTOM of the above, and is resolved.** Under offscreen Qt on
+  Linux the full suite hard-crashed in `tests/test_gr3_chart_chrome.py` on ~30-50% of runs while
+  passing 12/12 in isolation. Mechanism: the aborted `MainWindow` construction above left
+  `EventHubTab`'s MTGO worker running and unreferenced (`win` is assigned OUTSIDE the `try` in
+  `test_event_optimizer_scroll.py`, so `_quiesce_mainwindow` never ran), and its queued
+  `finished`/`error` lambdas — which capture `self` and touch `self._refresh_mtgo_btn` — fired into
+  freed memory on the next `app.processEvents()`, which is `_make_canvas` line 125 in the gr3 test.
+  With construction no longer aborting, the leak cannot occur. Post-fix: 2 consecutive clean runs so far (further runs in progress at commit time; update this line with the final count).
+  (Latent hardening still available if wanted: `_all_workers_idle` only looks for `_workers`/
+  `_worker` attributes and so would still miss `EventHubTab._mtgo_worker`; and that `win = ...`
+  belongs inside the `try`.)
 
 ---
 
