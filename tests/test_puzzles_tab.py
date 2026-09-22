@@ -150,3 +150,45 @@ def test_solve_reaches_done_state_and_keep_going_serves_more(tmp_path, monkeypat
     assert tab._target_spin.value() == 1                       # persisted target untouched
     tab._record_and_next("incorrect")                          # a miss: comes back tomorrow, not now
     assert "Done for today" in tab._question_lbl.text()
+
+
+def test_solve_tab_survives_a_feed_error_in_a_slot(tmp_path, monkeypatch):
+    """PyQt6 aborts the whole process when a slot raises. The feed touches the
+    live DB (a scrape may hold it) from every Solve-tab slot, so a DB error
+    must degrade to a message, never propagate."""
+    import sqlite3
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr("gui.state.PREFERENCES_PATH", tmp_path / "prefs.json")
+    monkeypatch.setattr("gui.state.UIState._instance", None)
+    from db.database import init_db; init_db()
+    _seed_drills(2)
+    from gui.tabs.puzzles import PuzzlesTab
+    tab = PuzzlesTab()
+    assert "Drill 1" in tab._question_lbl.text()
+
+    def _locked(*a, **k):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr("gui.tabs.puzzles.todays_feed", _locked)
+    monkeypatch.setattr("gui.tabs.puzzles.daily_stats", _locked)
+    tab._target_spin.setValue(3)                                # slot -> _load_next_puzzle -> feed raises
+    assert "database is locked" in tab._question_lbl.text()
+    assert tab._current_puzzle is None and not tab._reveal_btn.isEnabled()
+    assert "Session:" in tab._stats_lbl.text()                  # header degrades to the session part
+
+
+def test_keep_going_override_is_cleared_by_a_category_change(tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr("gui.state.PREFERENCES_PATH", tmp_path / "prefs.json")
+    monkeypatch.setattr("gui.state.UIState._instance", None)
+    from db.database import init_db; init_db()
+    _seed_drills(3)
+    from gui.tabs.puzzles import PuzzlesTab
+    tab = PuzzlesTab()
+    tab._target_spin.setValue(1)
+    tab._record_and_next("correct")
+    tab._keep_going_btn.click()
+    assert tab._effective_target() == 2                         # override active
+    tab._category_combo.setCurrentIndex(1)                      # any other category
+    assert tab._effective_target() == 1                         # back to the spinbox value

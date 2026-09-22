@@ -206,6 +206,7 @@ class PuzzlesTab(QWidget):
 
     # ── Solve mode data flow ───────────────────────────────────
     def _on_category_changed(self, _idx: int) -> None:
+        self._target_override = None     # "Keep going" is per category/session, not sticky
         self._load_next_puzzle()
 
     def _on_target_changed(self, value: int) -> None:
@@ -227,9 +228,23 @@ class PuzzlesTab(QWidget):
 
     def _load_next_puzzle(self) -> None:
         cat = self._category_combo.currentData() or None
-        feed = todays_feed(cat, self._effective_target(), date.today())
         self._refresh_stats()
         self._keep_going_btn.hide()
+        try:
+            feed = todays_feed(cat, self._effective_target(), date.today())
+        except Exception as exc:                       # noqa: BLE001
+            # Every Solve-tab slot ends here, and PyQt6 aborts the process on a
+            # raising slot. The feed reads (and may write, via top-up) the live
+            # DB, which a scrape can hold locked. Degrade to a message.
+            self._current_puzzle = None
+            self._question_lbl.setText(
+                f"<i style='color:{theme.TEXT_DIM};'>Feed unavailable: {exc}. "
+                "Press F5 / Reload Tab to retry.</i>")
+            self._answer_edit.clear(); self._answer_edit.setEnabled(False)
+            self._reveal_btn.setEnabled(False)
+            self._solution_lbl.hide(); self._verdict_chip.hide()
+            self._got_it_btn.hide(); self._missed_btn.hide()
+            return
         if not feed.puzzles:
             self._current_puzzle = None
             if feed.remaining == 0:
@@ -390,14 +405,18 @@ class PuzzlesTab(QWidget):
 
     def _refresh_stats(self) -> None:
         target = self._effective_target()
-        today = daily_stats(target, date.today(), self._category_combo.currentData() or None)
-        parts = [f"<b>Today {today.done_today}/{target}</b>"]
-        if today.due_count:
-            parts.append(f"{today.due_count} due")
-        if today.new_count:
-            parts.append(f"{today.new_count} new")
-        if today.streak >= 2:
-            parts.append(f"streak {today.streak}\U0001F525")
+        parts = []
+        try:
+            today = daily_stats(target, date.today(), self._category_combo.currentData() or None)
+            parts.append(f"<b>Today {today.done_today}/{target}</b>")
+            if today.due_count:
+                parts.append(f"{today.due_count} due")
+            if today.new_count:
+                parts.append(f"{today.new_count} new")
+            if today.streak >= 2:
+                parts.append(f"streak {today.streak}\U0001F525")
+        except Exception:                              # noqa: BLE001 -- see _load_next_puzzle
+            parts.append(f"<b>Today ?/{target}</b>")
         stats = db_puzzles.get_session_stats()
         wr_pct = stats["wr_overall"] * 100
         self._stats_lbl.setText(

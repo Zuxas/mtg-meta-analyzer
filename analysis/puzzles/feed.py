@@ -120,19 +120,22 @@ def _top_up(shortfall: int, today: date) -> int:
     already = db_puzzles.count_puzzles_created_since(
         author=DRILL_AUTHOR, category=DRILL_CATEGORY, since_iso=_local_midnight_utc_iso(today))
     seed = int(today.strftime("%Y%m%d")) * 1000 + already
+    saved = 0
     try:
         with get_connection() as conn:
             drills = generate_drills(conn, n=shortfall, seed=seed)
+        for d in drills:
+            db_puzzles.save_puzzle(
+                deck_id=None, arena_match_id=None, game_num=None, turn_num=d.turn_num,
+                category=d.category, difficulty=d.difficulty, question=d.question,
+                solution_text=d.solution_text, solution_keywords=d.solution_keywords,
+                grading_mode=d.grading_mode, author=DRILL_AUTHOR, notes=d.notes, scene=d.scene)
+            saved += 1
     except (RuntimeError, sqlite3.OperationalError):
         # RuntimeError: no sampleable 60-card decklists (house rule 8 -- never
-        # fabricate). OperationalError: a DB without the decks schema at all
-        # (tests that only create the puzzle tables). Either way the feed just
-        # runs short; nothing is minted.
-        return 0
-    for d in drills:
-        db_puzzles.save_puzzle(
-            deck_id=None, arena_match_id=None, game_num=None, turn_num=d.turn_num,
-            category=d.category, difficulty=d.difficulty, question=d.question,
-            solution_text=d.solution_text, solution_keywords=d.solution_keywords,
-            grading_mode=d.grading_mode, author=DRILL_AUTHOR, notes=d.notes, scene=d.scene)
-    return len(drills)
+        # fabricate). OperationalError: a DB without the decks schema (tests
+        # that only create the puzzle tables) or the live DB locked by a
+        # scrape mid-batch. The feed just runs short; whatever was saved
+        # counts toward `already` next time, so the seed still advances.
+        pass
+    return saved
