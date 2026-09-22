@@ -638,6 +638,43 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **Prep Checklist called every missing sideboard plan "LOW PRIO" — FOUND + FIXED
+      (2026-09-22).** `get_meta_standings` has two implementations behind one documented
+      shape: the placement-based path (the default, what nearly every caller gets) and
+      `_meta_standings_from_matches` (a sparse-data fallback). **Only the fallback emitted
+      a `meta_share` key.** Consumers written against the documented shape used
+      `s.get("meta_share", 0)` — the kind of defensive default that hides a missing key —
+      and silently got 0 on every call.
+      `gui/tabs/prep_checklist.py:185` does exactly that, so the Meta % column showed
+      **0.0% for every opponent**; worse, `_readiness()` decides priority with
+      `if meta_share >= 0.05: return "GAP"`, a branch that **could never fire**. A missing
+      sideboard plan against a 25%-of-the-field deck reported "LOW PRIO". Measured on the
+      seeded DB: 5 of 6 opponents should be GAP, all 6 read LOW PRIO. For a checklist whose
+      whole job is flagging which plans are missing against decks that matter, it reported
+      that nothing mattered — and this is the Team Resolve RC-prep workflow.
+      `analysis/deck_recommender.py:66` has the same `.get("meta_share", 0)`, but its only
+      consumer (the Dashboard Best Deck dialog) renders 7 columns and **not** that field,
+      so that one was latent, not visible. Recorded as such rather than inflated.
+      Fixed at the ROOT — `get_meta_standings` now sets `meta_share` on the placement path
+      too, computed over the *trimmed* list so it is a fraction of the field the caller was
+      actually handed. Verified against SQL truth (exact match, sums to 1.0) and end-to-end
+      through `_readiness`. `tests/test_meta_share_on_standings.py` (6 tests); reverting
+      fails all 6.
+- [x] **Regression I introduced in `8d9c562`, caught before release.** Making `top8_rate`
+      `None` put a `None` into `get_meta_standings`' sort key
+      `(avg_points, top8_rate)`. Python only compares the second tuple element when the
+      first TIES — and `avg_points` is a rounded average, so ties are common — meaning it
+      raised `TypeError: '<' not supported between float and NoneType` intermittently,
+      escaping `get_meta_standings` and taking out the Dashboard, Charts and CLI together.
+      The full suite did **not** catch it (637 green) because no fixture produced an
+      avg_points tie with mixed measurability. Found by auditing every `top8_rate` use for
+      None-safety after adding the sentinel; that audit showed this sort was the ONLY
+      unguarded one of 20 sites. Fix = unmeasurable sorts last (`-1.0`), since an unknown
+      rate must not outrank a measured one. +2 tests in `tests/test_top8_rate.py` (now 9),
+      one reproducing the exact tie shape and one pinning the guard in source.
+      **Lesson:** a green suite is not evidence a new sentinel value is safe — grep every
+      consumer of the changed field, including comparisons and sort keys, not just
+      formatting sites.
 - [x] **A format's most-played deck was labelled "Fringe" — FOUND + FIXED (2026-09-22).**
       Invariant-probing the numeric engines (`meta_scoring`, `tournament`, `equilibrium`,
       `field_optimizer`, `ratings` — **none of which had any test coverage**).

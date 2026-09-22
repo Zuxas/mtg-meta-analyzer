@@ -469,9 +469,32 @@ def get_meta_standings(format_name="standard", event_type=None,
             stats["archetype"] = key
         results.append(stats)
 
-    results.sort(key=lambda s: (s["avg_points"], s["top8_rate"]), reverse=True)
+    # top8_rate is None when no event in an archetype's sample recorded a field
+    # deep enough to measure top-8 conversion. Python only compares the second
+    # tuple element when the first ties, so a bare None here raises TypeError
+    # exactly when two archetypes share an avg_points -- common, since it is a
+    # rounded average. Unmeasurable sorts last: an unknown rate must not
+    # outrank a measured one.
+    results.sort(key=lambda s: (s["avg_points"],
+                                s["top8_rate"] if s["top8_rate"] is not None
+                                else -1.0),
+                 reverse=True)
 
     trimmed = results[:top]
+
+    # meta_share: the fraction of the returned field each archetype makes up.
+    # _meta_standings_from_matches (below) has always emitted this key, but
+    # this placement-based path -- the default, and the one nearly every
+    # caller actually gets -- did not. Consumers written against the documented
+    # shape therefore did `s.get("meta_share", 0)` and silently received 0
+    # every time: the Prep Checklist showed 0.0% for every opponent and, worse,
+    # its readiness rule (>= 5% share -> "GAP") could never fire, so a missing
+    # sideboard plan against a 25%-of-the-field deck read "LOW PRIO".
+    # Computed over the trimmed list so it matches what the caller is shown.
+    _share_total = sum(s["appearances"] for s in trimmed)
+    for _s in trimmed:
+        _s["meta_share"] = (round(_s["appearances"] / _share_total, 4)
+                            if _share_total else 0.0)
 
     # Fallback: if decks data is too sparse (top archetype < 20 appearances,
     # or total appearances across all results < 100), use matches table instead

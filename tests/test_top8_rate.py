@@ -153,3 +153,53 @@ def test_none_is_a_sentinel_display_sites_already_handle():
         "the match-derived paths no longer emit None -- if that sentinel is "
         "gone, this fix needs revisiting alongside its display sites"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression introduced BY the fix above, caught before it reached a user
+# ---------------------------------------------------------------------------
+
+def test_standings_sort_survives_a_none_rate():
+    """get_meta_standings sorts on (avg_points, top8_rate).
+
+    Making top8_rate None (correct -- see above) put a None into that sort
+    key. Python only compares the second element when the first TIES, so this
+    raises TypeError exactly when two archetypes share an avg_points, which is
+    common since it is a rounded average. The exception escapes
+    get_meta_standings and would take out the Dashboard, Charts and the CLI
+    together.
+
+    Reproduces the precise shape: equal avg_points, one measurable rate and
+    one not.
+    """
+    def mk(name, rows):
+        d = _aggregate_appearances(rows)
+        d["archetype"] = name
+        return d
+
+    measurable = mk("Measurable", [_row(1, 16, 1)])
+    unmeasurable = mk("Unmeasurable", [_row(1, 4, 2)])
+    assert measurable["avg_points"] == unmeasurable["avg_points"], (
+        "this test only bites on an avg_points tie -- the inputs drifted")
+    assert measurable["top8_rate"] is not None
+    assert unmeasurable["top8_rate"] is None
+
+    # The exact sort key used in get_meta_standings.
+    key = lambda s: (s["avg_points"],
+                     s["top8_rate"] if s["top8_rate"] is not None else -1.0)
+    ordered = sorted([unmeasurable, measurable], key=key, reverse=True)
+    assert [d["archetype"] for d in ordered] == ["Measurable", "Unmeasurable"], (
+        "a measured top-8 rate should outrank an unmeasurable one on a tie")
+
+
+def test_the_real_standings_sort_key_is_none_safe():
+    """Pins the guard in the source, so a refactor cannot drop it and
+    reintroduce a crash that only fires on a tie."""
+    import inspect
+    import analysis.win_rates as wr
+
+    src = inspect.getsource(wr)
+    assert 'results.sort(key=lambda s: (s["avg_points"],' in src
+    assert 's["top8_rate"] if s["top8_rate"] is not None' in src, (
+        "the standings sort no longer guards None -- it will raise TypeError "
+        "whenever two archetypes tie on avg_points")

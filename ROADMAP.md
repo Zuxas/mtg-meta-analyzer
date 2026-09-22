@@ -172,6 +172,15 @@ DB renders them identically to "no data".
       docstring and the Dashboard legend, which both define Fringe as LOW share. Added a
       fifth label (`_ESTABLISHED`) for that cell plus the matching legend line.
       `tests/test_meta_status_labels.py` (37 tests). `meta_scoring` had no coverage either.
+- [x] **Prep Checklist could never flag a sideboard GAP** — `get_meta_standings`' default
+      placement path never emitted `meta_share` (only its sparse-data fallback did), so
+      `prep_checklist.py`'s `.get("meta_share", 0)` always read 0, the Meta % column showed
+      0.0% for every opponent and the `>= 5% -> GAP` branch was unreachable. Fixed at the
+      root so both standings paths agree. `tests/test_meta_share_on_standings.py` (6 tests).
+- [x] **Self-inflicted regression caught pre-release** — the new `top8_rate=None` sentinel
+      put a None in the standings sort key, raising TypeError whenever two archetypes tied
+      on `avg_points`. The 637-green suite did not catch it; an audit of all 20 `top8_rate`
+      uses did. Unmeasurable now sorts last. +2 tests.
 
 
 ### 2026-05-14 / 2026-05-15 — MTGA Live Import + Match History + Replay Viewer

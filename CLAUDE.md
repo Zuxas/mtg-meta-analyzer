@@ -1,6 +1,29 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-09-22 (**Populated-DB correctness pass, part 3 — a format's most-played deck
+Last updated: 2026-09-22 (**Populated-DB correctness pass, part 4 — the Prep Checklist could
+never flag a sideboard GAP, plus a self-inflicted regression caught pre-release.**
+(1) `analysis/win_rates.py::get_meta_standings` has TWO implementations behind one documented
+shape — the placement-based path (the default) and `_meta_standings_from_matches` (a sparse-data
+fallback) — and **only the fallback emitted a `meta_share` key**. Consumers wrote
+`s.get("meta_share", 0)` and silently received 0 forever. `gui/tabs/prep_checklist.py:185` does
+this, so its Meta % column read **0.0% for every opponent** and `_readiness()`'s
+`if meta_share >= 0.05: return "GAP"` branch was **unreachable** — a missing sideboard plan
+against a 25%-of-the-field deck reported "LOW PRIO". Measured: 5 of 6 opponents should be GAP,
+all 6 read LOW PRIO. That is the Team Resolve RC-prep workflow reporting that nothing matters.
+`analysis/deck_recommender.py:66` shares the bug but its only consumer does not render the
+field, so it was latent. Fixed at the root (both paths now agree), computed over the trimmed
+list. `tests/test_meta_share_on_standings.py` (6 tests; reverting fails all 6).
+(2) **A regression I introduced in `8d9c562`:** making `top8_rate` `None` put a None into
+`get_meta_standings`' sort key `(avg_points, top8_rate)`. Python compares the second tuple
+element only when the first TIES, and `avg_points` is a rounded average, so this raised
+`TypeError` intermittently and would have taken out Dashboard + Charts + CLI together. **The
+637-green suite did not catch it** — no fixture produced an avg_points tie with mixed
+measurability. Found by auditing all 20 `top8_rate` uses for None-safety, which showed this sort
+was the only unguarded one. Unmeasurable now sorts last (`-1.0`). **Lesson: a green suite is not
+evidence that a new sentinel is safe — grep every consumer of the changed field, including
+comparisons and sort keys, not just formatting sites.**
+
+Earlier 2026-09-22 (**Populated-DB correctness pass, part 3 — a format's most-played deck
 was labelled "Fringe".** Invariant-probing the numeric engines (`meta_scoring`, `tournament`,
 `equilibrium`, `field_optimizer`, `ratings` — none of which had any test coverage).
 `analysis/meta_scoring.py::classify_status` has four labels, and three of its rules require an
