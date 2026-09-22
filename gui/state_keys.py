@@ -36,6 +36,9 @@ SCOUT_FORMAT = "tabs.scout.format"
 SCOUT_TOP = "tabs.scout.top"
 SCOUT_TARGET_ARCHETYPES = "tabs.scout.target_archetypes"
 
+# Puzzles
+PUZZLES_DAILY_TARGET = "tabs.puzzles.daily_target"  # int 1-50; Solve tab daily session target
+
 # Match History replay viewer
 MATCH_HISTORY_REPLAY_VIEWER_MODE = "tabs.match_history.replay_viewer_mode"  # "full" | "classic"
 

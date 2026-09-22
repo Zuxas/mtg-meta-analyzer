@@ -3,17 +3,21 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import date
 from typing import Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit,
-    QComboBox, QSplitter, QFrame, QTabWidget, QTableWidget,
+    QComboBox, QSpinBox, QSplitter, QFrame, QTabWidget, QTableWidget,
     QTableWidgetItem, QHeaderView, QMessageBox,
 )
 
 from analysis.puzzles.scene_builder import Scene, PlayerState, build_scene
+from analysis.puzzles.feed import daily_stats, todays_feed
 from db import puzzles as db_puzzles
+from gui.state import UIState
+from gui.state_keys import PUZZLES_DAILY_TARGET
 from gui.widgets.puzzle_scene import PuzzleSceneWidget, is_boardless
 from gui.widgets.puzzle_author_dialog import PuzzleAuthorDialog
 
@@ -37,6 +41,7 @@ class PuzzlesTab(QWidget):
         self._current_puzzle: Optional[dict] = None
         self._reveal_t0_ms: Optional[int] = None
         self._last_rating_delta: Optional[float] = None
+        self._target_override: Optional[int] = None   # "Keep going" raises the target in memory only
         self._build_ui()
         self._load_next_puzzle()
         self._refresh_inbox()
@@ -65,6 +70,15 @@ class PuzzlesTab(QWidget):
         self._category_combo.currentIndexChanged.connect(self._on_category_changed)
         top.addWidget(QLabel("Category:"))
         top.addWidget(self._category_combo)
+        top.addSpacing(12)
+        top.addWidget(QLabel("Daily target:"))
+        self._target_spin = QSpinBox()
+        self._target_spin.setRange(1, 50)
+        self._target_spin.setValue(10)
+        self._target_spin.setToolTip("Puzzles per day. Reviews that are due come first, then new ones; "
+                                     "outs-math drills are generated when the feed runs short.")
+        self._target_spin.valueChanged.connect(self._on_target_changed)
+        top.addWidget(self._target_spin)
         top.addStretch(1)
         self._stats_lbl = QLabel("")
         top.addWidget(self._stats_lbl)
@@ -118,6 +132,13 @@ class PuzzlesTab(QWidget):
             b.hide()
             verdict_row.addWidget(b)
         right_v.addLayout(verdict_row)
+
+        self._keep_going_btn = QPushButton("Keep going \u2192")
+        self._keep_going_btn.setToolTip("Serve more reviews / new puzzles beyond today's target "
+                                        "(the saved target is not changed).")
+        self._keep_going_btn.clicked.connect(self._on_keep_going)
+        self._keep_going_btn.hide()
+        right_v.addWidget(self._keep_going_btn)
 
         splitter.addWidget(right)
         splitter.setSizes([720, 320])
@@ -176,17 +197,42 @@ class PuzzlesTab(QWidget):
     def _on_category_changed(self, _idx: int) -> None:
         self._load_next_puzzle()
 
+    def _on_target_changed(self, value: int) -> None:
+        self._target_override = None
+        try:
+            UIState.instance().set(PUZZLES_DAILY_TARGET, int(value))
+        except Exception:
+            pass    # a preferences error must not abort the app (PyQt6 aborts on a raising slot)
+        self._load_next_puzzle()
+
+    def _on_keep_going(self) -> None:
+        stats = daily_stats(self._effective_target(), date.today(),
+                            self._category_combo.currentData() or None)
+        self._target_override = stats.done_today + 1
+        self._load_next_puzzle()
+
+    def _effective_target(self) -> int:
+        return self._target_override or int(self._target_spin.value())
+
     def _load_next_puzzle(self) -> None:
         cat = self._category_combo.currentData() or None
-        candidates = db_puzzles.get_puzzles(category=cat, unsolved_only=True)
+        feed = todays_feed(cat, self._effective_target(), date.today())
         self._refresh_stats()
-        if not candidates:
+        self._keep_going_btn.hide()
+        if not feed.puzzles:
             self._current_puzzle = None
-            self._question_lbl.setText(
-                f"<i style='color:{theme.TEXT_DIM};'>Queue is empty. "
-                "Promote a candidate from the Inbox tab or run "
-                "scripts/scan_for_puzzles.py to populate it.</i>"
-            )
+            if feed.remaining == 0:
+                nxt = (f"next reviews due {feed.next_due.isoformat()}" if feed.next_due
+                       else "nothing scheduled yet")
+                self._question_lbl.setText(
+                    f"<b style='color:#80c890;'>Done for today \u2713</b> "
+                    f"<span style='color:{theme.TEXT_DIM};'>\u2014 {nxt}</span>")
+                self._keep_going_btn.show()
+            else:
+                self._question_lbl.setText(
+                    f"<i style='color:{theme.TEXT_DIM};'>Queue is empty. "
+                    "Promote a candidate from the Inbox tab or run "
+                    "scripts/scan_for_puzzles.py to populate it.</i>")
             self._answer_edit.clear(); self._answer_edit.setEnabled(False)
             self._reveal_btn.setEnabled(False)
             self._solution_lbl.hide()
@@ -195,9 +241,21 @@ class PuzzlesTab(QWidget):
             self._scene_widget.set_scene(_empty_scene())
             self._apply_board_layout(boardless=True)
             return
-        puzzle = candidates[0]  # newest first (get_puzzles returns DESC by id)
+        puzzle = feed.puzzles[0]
         self._current_puzzle = puzzle
         self._render_puzzle(puzzle)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_hydrated_state", False):
+            return
+        self._hydrated_state = True
+        saved = UIState.instance().get(PUZZLES_DAILY_TARGET)
+        if saved is not None and hasattr(self, "_target_spin"):
+            self._target_spin.blockSignals(True)
+            self._target_spin.setValue(max(1, min(50, int(saved))))
+            self._target_spin.blockSignals(False)
+            self._load_next_puzzle()
 
     def _render_puzzle(self, puzzle: dict) -> None:
         self._reveal_t0_ms = int(time.monotonic() * 1000)
@@ -319,12 +377,22 @@ class PuzzlesTab(QWidget):
         self._load_next_puzzle()
 
     def _refresh_stats(self) -> None:
+        target = self._effective_target()
+        today = daily_stats(target, date.today(), self._category_combo.currentData() or None)
+        parts = [f"<b>Today {today.done_today}/{target}</b>"]
+        if today.due_count:
+            parts.append(f"{today.due_count} due")
+        if today.new_count:
+            parts.append(f"{today.new_count} new")
+        if today.streak >= 2:
+            parts.append(f"streak {today.streak}\U0001F525")
         stats = db_puzzles.get_session_stats()
         wr_pct = stats["wr_overall"] * 100
         self._stats_lbl.setText(
-            f"<span style='color:{theme.TEXT_DIM};'>Session:</span> "
-            f"<b style='color:#80c890;'>{stats['n_solved']} ✓</b> · "
-            f"<b style='color:#d88060;'>{stats['n_missed']} ✗</b> · "
+            " \u00b7 ".join(parts)
+            + f" <span style='color:{theme.TEXT_DIM};'>| Session:</span> "
+            f"<b style='color:#80c890;'>{stats['n_solved']} \u2713</b> \u00b7 "
+            f"<b style='color:#d88060;'>{stats['n_missed']} \u2717</b> \u00b7 "
             f"{wr_pct:.0f}%"
             + self._rating_html()
         )
