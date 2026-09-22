@@ -96,9 +96,10 @@
       (2026-07-01) put a Basic|Pro header toggle, a Pro-only tab set
       (LADDER/SIMULATE/PREDICTIONS/CALIBRATION/HYPOTHESES), a META reorder and a dismissible
       Dashboard banner on `main`. It was undocumented until 2026-09-22 (now in CLAUDE.md §6),
-      its commit says "visual check pending", and it has **zero test coverage**. Two separate
-      jobs: write the tests (no GUI session needed) and run the visual checklist in
-      NEXT_STEPS.
+      its commit says "visual check pending", and it had **zero test coverage**. Tests SHIPPED
+      2026-09-22 (`tests/test_basic_pro_disclosure.py`, 14 tests, falsifiable). **Remaining: the
+      visual checklist in NEXT_STEPS** — needs a GUI session, and includes the fresh-install
+      Basic default (the only item needing a throwaway DB).
 - [ ] Interaction speed (filters update in place)
 
 ## OPEN — Format Expansion

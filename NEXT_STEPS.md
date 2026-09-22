@@ -330,11 +330,19 @@ tabs users see was invisible to anyone reading the docs. Now described in CLAUDE
 Two things are still open, and they are independent:
 
 1. **Visual check never done** — its own commit message says "visual check pending".
-2. **Zero automated test coverage** — verified by grep: no test references `ui_level`,
-   `UI_LEVEL`, `_PRO_TAB_LABELS`, `dash_banner` or `_set_ui_level`. (Earlier apparent hits were
-   the card name "Boomerang Basics".) Every behaviour below is currently unguarded by tests, so
-   a refactor could silently break the first-run experience. **Tests are the cheaper of the two
-   and do not need a GUI session** — worth doing before the manual pass.
+2. ~~**Zero automated test coverage**~~ — **CLOSED 2026-09-22**:
+   `tests/test_basic_pro_disclosure.py` (14 tests) now pins `_PRO_TAB_LABELS` membership,
+   `_is_existing_user()` across five cases (no DB file / bare DB / empty tables / a row in
+   either table — and that the check never *creates* a DB), Basic hiding and Pro showing every
+   Pro tab, `_path_has_pro_part`, toggle + banner-dismissal persistence, and the
+   **META order across a full Pro→Basic→Pro round trip**. Falsifiability verified by reversing
+   `_meta_pro_tabs`: exactly one test failed (the round-trip order one), the other 13 unaffected.
+   Latent fragility this surfaced and now guards: the round trip only preserves order *because*
+   all four META Pro tabs sit contiguously at the end — `_add_pro_tabs` re-adds with plain
+   `addTab`, so inserting a Basic tab after a Pro one would silently reorder META on every
+   toggle. Cost: ~34s (seven MainWindow constructions); cross-file Qt/palette leakage checked by
+   running it alongside `test_heatmap_low_n_tint` / `test_event_optimizer_scroll` /
+   `test_settings_deck_analyzer_scroll` — 47 passed together.
 
 **Visual-check checklist (do on next GUI launch):**
 - [ ] Existing install (has saved decks / match log) opens in **Pro** — no visible change,

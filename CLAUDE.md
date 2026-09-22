@@ -263,8 +263,13 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 ### Basic / Pro progressive disclosure (shipped 2026-07-01, commit `9e6bcda`)
 A **Basic|Pro** segmented control in the branded header hides advanced surfaces for
 newcomers. Documented retroactively on 2026-09-22 — it shipped to `main` undocumented,
-its commit message says *"visual check pending"*, and it still has **zero automated test
-coverage** (no test references `ui_level` / `_PRO_TAB_LABELS` / `dash_banner`).
+its commit message says *"visual check pending"* (still true — a GUI session is owed). It had
+**zero test coverage** until `tests/test_basic_pro_disclosure.py` (14 tests, 2026-09-22) pinned
+the label set, the `_is_existing_user()` default across five cases, both toggle directions,
+`_path_has_pro_part`, persistence, and the META order across a Pro→Basic→Pro round trip.
+**Fragility that test guards:** `_add_pro_tabs` re-adds with plain `addTab`, so the round trip
+only preserves order because the four META Pro tabs are contiguous at the end — a Basic tab
+inserted after a Pro one would silently reorder META on every toggle.
 
 - **Pro-only sub-tabs** (`main_window.py::_PRO_TAB_LABELS`): `LADDER`, `SIMULATE`,
   `PREDICTIONS`, `CALIBRATION` (all in META) + `HYPOTHESES` (inside Tournament Prep).
