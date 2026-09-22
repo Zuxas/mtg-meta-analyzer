@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence, TypeVar
 
 INTERVALS: tuple[int, ...] = (1, 3, 7, 14, 30, 90)   # days; index = rung
 CORRECT = "correct"
@@ -39,3 +39,25 @@ def schedule_for(attempts: Sequence[tuple[date, str]], today: date) -> Schedule:
         return Schedule("retired", rung, None, last)
     due = last + timedelta(days=INTERVALS[rung])
     return Schedule("due" if due <= today else "scheduled", rung, due, last)
+
+
+T = TypeVar("T")
+
+
+def build_session(due: Sequence[tuple[date, T]], new: Sequence[T], remaining: int) -> list[T]:
+    """Due first (most overdue first, stable), then new, cut to `remaining`."""
+    if remaining <= 0:
+        return []
+    ordered_due = [item for _, item in sorted(due, key=lambda pair: pair[0])]
+    return (ordered_due + list(new))[:remaining]
+
+
+def streak(counts_by_day: Mapping[date, int], target: int, today: date) -> int:
+    """Consecutive days meeting `target`, ending today or (if today is not
+    finished yet) yesterday."""
+    day = today if counts_by_day.get(today, 0) >= target else today - timedelta(days=1)
+    n = 0
+    while counts_by_day.get(day, 0) >= target:
+        n += 1
+        day -= timedelta(days=1)
+    return n

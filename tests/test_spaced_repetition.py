@@ -57,3 +57,37 @@ def test_attempts_are_sorted_by_date_before_scoring():
     from analysis.puzzles.spaced_repetition import schedule_for
     unordered = [(d(0), "correct"), (d(2), "incorrect"), (d(1), "correct")]
     assert schedule_for(unordered, T).rung == 2
+
+
+def test_build_session_due_first_most_overdue_first_then_new_truncated():
+    from analysis.puzzles.spaced_repetition import build_session
+    due = [(d(1), "a"), (d(5), "b"), (d(3), "c")]      # b most overdue
+    new = ["n1", "n2", "n3"]
+    assert build_session(due, new, remaining=10) == ["b", "c", "a", "n1", "n2", "n3"]
+    assert build_session(due, new, remaining=4) == ["b", "c", "a", "n1"]
+    assert build_session(due, new, remaining=0) == []
+    assert build_session([], new, remaining=2) == ["n1", "n2"]
+
+
+def test_build_session_ties_keep_input_order():
+    from analysis.puzzles.spaced_repetition import build_session
+    due = [(d(2), "newer_id"), (d(2), "older_id")]
+    assert build_session(due, [], remaining=5) == ["newer_id", "older_id"]
+
+
+def test_streak_counts_consecutive_days_meeting_target():
+    from analysis.puzzles.spaced_repetition import streak
+    counts = {d(0): 10, d(1): 12, d(2): 10, d(3): 3, d(4): 10}
+    assert streak(counts, target=10, today=T) == 3          # today, -1, -2; -3 breaks it
+
+
+def test_streak_survives_an_unfinished_today():
+    from analysis.puzzles.spaced_repetition import streak
+    counts = {d(0): 2, d(1): 10, d(2): 10}
+    assert streak(counts, target=10, today=T) == 2          # yesterday + the day before
+
+
+def test_streak_zero_when_neither_today_nor_yesterday_met_target():
+    from analysis.puzzles.spaced_repetition import streak
+    assert streak({d(2): 10, d(3): 10}, target=10, today=T) == 0
+    assert streak({}, target=10, today=T) == 0
