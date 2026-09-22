@@ -4,6 +4,12 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
 
 ---
 
+## 9/21 afternoon (while the full backfill runs)
+
+- ROADMAP 'Card-name decklist search' was shipped 2026-04-21 -- checked off, AND/OR pinned by test.
+- **T1.1 spaced repetition: spec written + approved** (`docs/superpowers/specs/2026-09-21-puzzle-spaced-repetition-design.md`).
+  Next: implementation plan -> `analysis/puzzles/spaced_repetition.py` (pure), `analysis/puzzles/feed.py`, Solve header.
+
 ## 9/21 session, part 2 (shipped -- the two crashes the first real backfill run surfaced)
 
 - **`preferences.json` corrupted BY THE TEST SUITE** (03:50, during a full run): UIState's debounced
