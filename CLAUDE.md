@@ -195,6 +195,14 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
   table when it has no rows, via `_apply_empty_state`. Win Rate uses `_BELOW_THRESHOLD_TEXT`
   instead when standings exist but nothing cleared the 15-appearance floor. Before this, a
   never-scraped DB showed three blank tables.
+- **Chart empty states (2026-09-22):** the chart surfaces were never blank — the Dashboard canvas
+  said "No data to display." and CHARTS said "No meta data available *for this selection*" — but
+  neither named a fix, and "for this selection" blamed the dropdowns for what is usually an empty
+  DB. `chart_canvas._no_data_hint()` now appends a second line branching on whether `events` has
+  any rows: nothing scraped → Settings → Collect More Data; data present → widen the timeframe /
+  change format. Best-effort (any failure returns `""`, so a hint can never break a chart) and
+  applied to the 6 terse messages only — loading, error, "No archetypes selected", and the
+  already-actionable Untapped/heatmap copy are untouched. Overlay got `setWordWrap(True)`.
 
 ### Key GUI Features
 - **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export. Average Deck tab includes Mythic % column with ↑/↓ tech-divergence arrows.
