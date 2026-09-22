@@ -268,9 +268,10 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/predictions.py` | Auto-generated predictions, validation, accuracy tracking |
 | `analysis/blunders.py` | Deck scoring: land count, curve, color consistency, interaction (Major/Moderate/Minor) |
 | `analysis/chapin.py` | 6-principle evaluation: Threats/Answers/Consistency/Velocity/Mana/Clock (0-10 each) |
+| `analysis/card_text.py` | Shared oracle-text predicates — `is_damage_removal` (used by blunders / chapin / deck_roles / archetype_detail, and via that by slot_analysis) |
 | `analysis/sideboard_guides.py` | Guide parsing (regex IN/OUT), post-board WR model, flip detection |
 | `analysis/tournament.py` | Event equity, standings, ID recommendation, EVENT_PRESETS, x-loss cutoff |
-| `analysis/meta_scoring.py` | Prep priority (0-100), status labels (Pillar/Trap/Underplayed/Fringe) |
+| `analysis/meta_scoring.py` | Prep priority (0-100), status labels (Pillar/Trap/Underplayed/**Established**/Fringe — `_ESTABLISHED` is the high-share/ordinary-WR cell added 2026-09-22; the word is a one-line rename) |
 | `analysis/ratings.py` | Glicko-2 power ratings, weekly periods, 260k+ matches, 120s TTL cache |
 | `analysis/equilibrium.py` | Nash LP solver, replicator dynamics, RPS cycle detection, Monte Carlo sim |
 | `analysis/card_embeddings.py` | 768-dim ModernBERT vectors for 32k cards (HuggingFace parquet) |
@@ -507,6 +508,7 @@ analysis/cooccurrence_embeddings.py  Card2Vec (Word2Vec on decklists)
 analysis/knn_classifier.py      KNN archetype classifier
 analysis/meta_change.py         Compare two time periods (rising/falling/new/gone)
 analysis/deck_roles.py          Classify archetypes as Aggro/Midrange/Control/Combo/Tempo
+analysis/card_text.py           Shared oracle-text predicates (is_damage_removal)
 analysis/deck_recommender.py    Meta-based deck recommendation engine
 analysis/card_adoption.py       Card inclusion rate tracking over time
 analysis/slot_analysis.py       "Why this card?" — role, trend, substitutes, competitors
