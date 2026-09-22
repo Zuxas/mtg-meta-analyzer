@@ -54,6 +54,13 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
   `MainWindow` both raised; post-fix both construct and the app launches.
   `tests/test_untapped_missing_tables.py` (10 tests) pins all three properties; 9 of 10 fail with
   the decorator stripped.
+- **The 12 remaining failures + 3 errors are environmental — verified, not assumed.** Enumerated:
+  11 in `tests/test_mcp_server.py` (needs the `mcp` submodule for `fastmcp` plus a populated DB),
+  3 in `tests/test_gr4_empty_on_open.py` (`*_nonempty_on_first_show` — asserts rows are present),
+  1 `tests/test_is_all_formats.py::test_regression_archetype_trend_all_returns_data` (asserts the
+  trend query returns data). All of them assert NON-EMPTY results, which cannot hold in a container
+  with no tournament data. The two MainWindow min-height tests that used to sit in this bucket are
+  now passing — they were the launch bug, not the environment.
 - **The intermittent SEGFAULT was a SYMPTOM of the above, and is resolved.** Under offscreen Qt on
   Linux the full suite hard-crashed in `tests/test_gr3_chart_chrome.py` on ~30-50% of runs while
   passing 12/12 in isolation. Mechanism: the aborted `MainWindow` construction above left
@@ -61,7 +68,10 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
   `test_event_optimizer_scroll.py`, so `_quiesce_mainwindow` never ran), and its queued
   `finished`/`error` lambdas — which capture `self` and touch `self._refresh_mtgo_btn` — fired into
   freed memory on the next `app.processEvents()`, which is `_make_canvas` line 125 in the gr3 test.
-  With construction no longer aborting, the leak cannot occur. Post-fix: 2 consecutive clean runs so far (further runs in progress at commit time; update this line with the final count).
+  With construction no longer aborting, the leak cannot occur. Post-fix: **5 consecutive clean
+  full-suite runs** (510 passed each), against a pre-fix crash rate of ~30-50%. Caveat kept
+  deliberately: 5 clean runs is ~8-17% likely by chance at that rate, so the mechanistic argument
+  (root cause removed) carries the claim, not the run count alone.
   (Latent hardening still available if wanted: `_all_workers_idle` only looks for `_workers`/
   `_worker` attributes and so would still miss `EventHubTab._mtgo_worker`; and that `win = ...`
   belongs inside the `try`.)
