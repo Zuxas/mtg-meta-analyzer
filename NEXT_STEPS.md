@@ -87,6 +87,26 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
   unhandled RuntimeError. `tests/test_worker_callback_after_teardown.py` (5 tests) — 4 pin the
   decorator's semantics, 1 pins that every `_done` is actually decorated (that one fails if a
   future callback is added unguarded).
+- **Launch audit is now a PERMANENT test, not a one-off.** `tests/test_fresh_db_launch.py` (19
+  tests) builds a fresh `init_db()` database and constructs every tab plus the full MainWindow, so
+  the untapped_entries class of bug fails in CI instead of on a user's machine. Falsifiability
+  verified: strip the untapped guard and exactly `LadderMetaTab` + `MainWindow` fail while the other
+  15 tabs still pass. Includes a self-check test that points the probe at a nonexistent class, so a
+  broken harness can't read as "every tab is fine". Runs in ~9s.
+  Two probe-design traps worth remembering, both hit while writing it:
+  (1) one subprocess for ALL tabs gets SIGABRT'd by Qt 6.10 before printing any verdict, so it is
+  one subprocess PER tab; (2) the child MUST keep a reference to each widget it builds — dropping it
+  lets Python collect the tab while its `DataLoadWorker` is still running, which also aborts (exit
+  134) and looks identical to "this tab is broken".
+- **Classic replay dialog retirement: BLOCKED, deliberately not done.** ROADMAP gates it on "Full
+  has been the default ~1 week with no regressions", but the M2 AND M3 manual smoke checklists are
+  still outstanding — the Full viewer has never been human-verified, so deleting Classic would
+  remove the fallback for an unverified replacement. Also note the scope is UI-only:
+  `analysis/replay_transcript.py::build_transcript` must stay regardless, because
+  `gui/mtga_log_watcher.py:78` calls it for every completed match and the puzzle scene builder
+  consumes that cache. Do the M2/M3 smoke first, then this is a small change
+  (`gui/widgets/replay_transcript_dialog.py` + the split-button branch in `deck_match_history.py`
+  ~line 701, plus a migration for anyone whose `tabs.match_history.replay_viewer_mode` is "classic").
 - **Launch-path audit: NO other tab has the untapped_entries-class bug.** `init_db()` creates only
   7 real tables (bookmarks, card_data, cards, deck_cards, decks, events, guides), yet the app uses
   ~19 — so the obvious worry was more eager unguarded queries on scraper-created tables. Probed all
