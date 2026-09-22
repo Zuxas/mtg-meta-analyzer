@@ -217,8 +217,6 @@ def nash_equilibrium(
 
     Falls back to replicator dynamics if scipy fails.
     """
-    from scipy.optimize import linprog
-
     n = len(arch_list)
     if n == 0:
         return EquilibriumResult([], {}, {}, {}, {}, True, 0)
@@ -233,6 +231,14 @@ def nash_equilibrium(
     #   sum(x) = 1
     #   x >= 0, v unconstrained (but we make it bounded)
     try:
+        # Imported HERE, not at function scope: scipy is not in
+        # requirements.txt, and an ImportError raised above this try escaped
+        # the function instead of reaching the `except Exception` fallback
+        # below -- so the Equilibrium button (heatmap_tab.py:1421, which asks
+        # for method="nash") failed on every install that followed
+        # requirements.txt. deck_analyzer.py:861 already used this pattern.
+        from scipy.optimize import linprog
+
         c = np.zeros(n + 1)
         c[n] = -1  # minimize -v
 

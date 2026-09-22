@@ -181,6 +181,11 @@ DB renders them identically to "no data".
       put a None in the standings sort key, raising TypeError whenever two archetypes tied
       on `avg_points`. The 637-green suite did not catch it; an audit of all 20 `top8_rate`
       uses did. Unmeasurable now sorts last. +2 tests.
+- [x] **Equilibrium button failed on every fresh install** — `nash_equilibrium`'s scipy
+      import sat outside the `try` that holds its documented replicator fallback, and scipy
+      is not in requirements.txt. Moving the import inside the try made the intended
+      behaviour reachable. `tests/test_nash_scipy_fallback.py` (5 tests). Declaring scipy as
+      a dependency is left as a product decision — the codebase treats it as optional.
 
 
 ### 2026-05-14 / 2026-05-15 — MTGA Live Import + Match History + Replay Viewer

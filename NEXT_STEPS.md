@@ -638,6 +638,50 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **Equilibrium button failed on every fresh install — FOUND + FIXED (2026-09-22).**
+      `analysis/equilibrium.py::nash_equilibrium` promises in its own docstring *"Falls back
+      to replicator dynamics if scipy fails"*, and the machinery is right there — a broad
+      `except Exception: return replicator_dynamics(...)`. But `from scipy.optimize import
+      linprog` sat **14 lines ABOVE the `try`**, so an ImportError escaped instead of
+      falling back. **scipy is not in `requirements.txt`**, so "absent" is the state of
+      every fresh clone. `gui/tabs/heatmap_tab.py:1421` calls
+      `analyze_metagame(..., method="nash")` explicitly, so the Matchup Data tab's
+      Equilibrium button reported an error rather than computing. Not a crash — the GUI
+      wraps the call in try/except and shows `theme.friendly_error` — but the feature was
+      unavailable and the message was environmental, not actionable.
+      **The repo already had the right pattern:** `gui/tabs/deck_analyzer.py:861` does
+      `try: from scipy.stats import hypergeom / except ImportError:` with a manual
+      `math.comb` fallback. equilibrium.py just did not follow it.
+      Fix = **move the import inside the existing try**. No new fallback logic; the intended
+      behaviour merely became reachable. Verified end-to-end on a purpose-seeded `matches`
+      table: pre-fix the button's exact call raised `ModuleNotFoundError`, post-fix it
+      returns a valid equilibrium (shares summing to 1.0).
+      `tests/test_nash_scipy_fallback.py` (5 tests) simulates an absent scipy via
+      `sys.modules`, so it behaves identically whether or not the developer has scipy;
+      pins that the fallback is *specifically* replicator dynamics, drives the real
+      `analyze_metagame(method="nash")` path, and asserts in source that the import stays
+      inside the try (without which the other 4 would pass on any machine that has scipy).
+      Reverting fails all 5.
+      **Deliberately NOT done — your call:** adding `scipy` to `requirements.txt`. The
+      codebase's established stance is that scipy is OPTIONAL (deck_analyzer ships a manual
+      fallback), and scipy is a heavy dependency, so declaring it is a product decision
+      rather than a bug fix. Without it the exact LP solver is never used and you always get
+      the replicator answer — which agrees to ~1e-6 on the textbook RPS case, so the
+      practical difference is small.
+      **Also probed CLEAN in the same pass** and left alone: `replicator_dynamics` converges
+      to exactly 1/3 each on a textbook RPS matrix with shares summing to 1.0;
+      `detect_rps_cycles` finds the cycle in a literal RPS matrix; `simulate_tournament`
+      returns a top-8 distribution summing to 1.0.
+- [x] **Defensive-`.get()` sweep — NO further instances found (2026-09-22).** After the two
+      `meta_share` bugs I suspected more of the same class and swept for keys read with a
+      default that no producer ever writes. 90 raw hits, but **all** are reads of *external*
+      data (MTGA log JSON, Scryfall responses, HTML attributes, env vars, config), where a
+      defensive default is correct. Narrowing to keys our own producers emit surfaced 30
+      candidates, every one a false positive on inspection (`heatmap_tab` builds its own
+      `winrate`/`matches` cells; `deck_match_history` builds its dict locally;
+      `get_average_deck` really does emit `deck_count`/`avg_qty_in`). **Correcting my own
+      earlier speculation:** I said there were "likely more of these" — the evidence says the
+      two `meta_share` sites were the only ones, so the broader refactor is not warranted.
 - [x] **Prep Checklist called every missing sideboard plan "LOW PRIO" — FOUND + FIXED
       (2026-09-22).** `get_meta_standings` has two implementations behind one documented
       shape: the placement-based path (the default, what nearly every caller gets) and

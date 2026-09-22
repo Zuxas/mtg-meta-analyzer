@@ -1,6 +1,27 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-09-22 (**Populated-DB correctness pass, part 4 — the Prep Checklist could
+Last updated: 2026-09-22 (**Populated-DB correctness pass, part 5 — the Equilibrium button
+failed on every fresh install.** `analysis/equilibrium.py::nash_equilibrium` documents *"Falls
+back to replicator dynamics if scipy fails"* and has the machinery for it (a broad
+`except Exception: return replicator_dynamics(...)`), but `from scipy.optimize import linprog`
+sat **14 lines above the `try`**, so an ImportError escaped rather than falling back — and
+**scipy is not in `requirements.txt`**, making "absent" the state of every fresh clone.
+`gui/tabs/heatmap_tab.py:1421` calls `analyze_metagame(..., method="nash")` explicitly, so the
+Matchup Data tab's Equilibrium button reported an error instead of computing (not a crash: the
+GUI shows `theme.friendly_error`). The repo already had the correct pattern at
+`gui/tabs/deck_analyzer.py:861` (`try: from scipy.stats import hypergeom / except ImportError:`
+with a manual `math.comb` fallback). Fix = move the import inside the existing try; no new
+logic. `tests/test_nash_scipy_fallback.py` (5 tests) simulates an absent scipy via `sys.modules`
+so it behaves the same with or without scipy installed, and pins the import's placement in
+source — without that pin the other four would pass on any machine that has scipy. **Left as a
+product decision: whether to add `scipy` to requirements.txt.** The codebase treats scipy as
+optional, and the replicator fallback agrees with the LP answer to ~1e-6 on textbook RPS.
+Probed CLEAN and left alone: `replicator_dynamics` (exactly 1/3 each on RPS, shares sum to 1),
+`detect_rps_cycles`, `simulate_tournament`. Also swept for further defensive-`.get()` bugs of
+the `meta_share` class and found **none** — all 90 raw hits read external data (MTGA/Scryfall/
+HTML/env), where the default is correct; correcting my own earlier guess that more existed.
+
+Earlier 2026-09-22 (**Populated-DB correctness pass, part 4 — the Prep Checklist could
 never flag a sideboard GAP, plus a self-inflicted regression caught pre-release.**
 (1) `analysis/win_rates.py::get_meta_standings` has TWO implementations behind one documented
 shape — the placement-based path (the default) and `_meta_standings_from_matches` (a sparse-data
