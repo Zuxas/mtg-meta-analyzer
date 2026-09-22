@@ -92,6 +92,11 @@
 - [ ] Blocking/teammate support math
 
 ## OPEN — UI/UX
+- [x] **Dashboard empty-state polish** (2026-09-22) — the three panels rendered as blank 0-row
+      tables on a never-scraped database (verified against a fresh `init_db()` DB). Each now
+      swaps in a `theme.empty_state_label` when it has no rows, with separate Win Rate copy for
+      "filtered out by the 15-appearance floor" vs "no data at all". 9 tests. Heatmap already
+      had empty states and needed no change.
 - [ ] **Basic/Pro progressive disclosure: verify + test what already shipped** — `9e6bcda`
       (2026-07-01) put a Basic|Pro header toggle, a Pro-only tab set
       (LADDER/SIMULATE/PREDICTIONS/CALIBRATION/HYPOTHESES), a META reorder and a dismissible

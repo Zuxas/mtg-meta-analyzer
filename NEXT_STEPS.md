@@ -601,7 +601,20 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
-- [ ] Dashboard + Heatmap empty-state polish
+- [x] **Dashboard empty-state polish (2026-09-22).** Verified empirically first: on a fresh
+      `init_db()` database the three Dashboard panels rendered as 0-row tables with **no**
+      per-panel message. (The tab was not silent — a status line already said "No standard data
+      in the last 2 weeks…" — but the panels themselves were blank rectangles.) Each panel frame
+      now carries a hidden `theme.empty_state_label`, the same helper `heatmap_tab.py` and
+      `my_decks.py` already used, swapped in whenever the panel has no rows. Win Rate gets
+      **distinct copy** for "standings exist but everything fell under the 15-appearance floor",
+      since that is fixed by widening the timeframe, not by scraping — a blank panel made the two
+      indistinguishable. Hints point at real affordances (Settings → Collect More Data, which only
+      became visible after the orphaned Storage groupbox fix, pinned by a test).
+      `tests/test_dashboard_empty_states.py` (9 tests); stripping the wiring fails exactly the 4
+      integration tests. **Heatmap needed no work** — it already had hero-sized empty states.
+      Test-writing note: assert `isHidden()`, not `isVisible()`; Qt reports `isVisible()` False
+      for any widget whose ancestor is hidden, and these tabs are never shown in tests.
 - [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
       / card_browser Search button / h2h / vs-field forms)
 - [x] **Global "All Formats" option rollout (2026-05-14).** The "all" option

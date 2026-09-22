@@ -189,6 +189,12 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes. **Default = Win Rate Over Time** (2026-05-14). X-axis uses real datetime objects (not categorical strings) so chronological order is invariant to archetype plot order; year shows in tick labels only when data crosses a year boundary. Per-bucket appearance threshold is `n>=1` (was `n>=3`, too aggressive for short windows).
 - Dynamic panel titles update with timeframe selector
 - Dedup-aware Meta Impact bar shows filter effects
+- **Empty states (2026-09-22):** each of the three panels carries a hidden
+  `theme.empty_state_label` (`_EMPTY_STATE_TEXT`, keyed by the panel's **construction-time**
+  title — the visible titles are later rewritten by the timeframe selector) that swaps in for the
+  table when it has no rows, via `_apply_empty_state`. Win Rate uses `_BELOW_THRESHOLD_TEXT`
+  instead when standings exist but nothing cleared the 15-appearance floor. Before this, a
+  never-scraped DB showed three blank tables.
 
 ### Key GUI Features
 - **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export. Average Deck tab includes Mythic % column with ↑/↓ tech-divergence arrows.
