@@ -211,9 +211,14 @@ def print_meta_standings(results, format_name, date_label):
     print(f"  {'#':<3} {'Archetype':<30} {'Apps':>5} {'Top8%':>6} {'AvgPts':>7} {'EstW%':>6}  Confidence")
     print(f"  {'-'*3} {'-'*30} {'-'*5} {'-'*6} {'-'*7} {'-'*6}  ----------")
     for i, s in enumerate(results, 1):
+        # top8_rate is None when no event in the sample recorded a deep
+        # enough field to measure top-8 conversion (see _aggregate_appearances);
+        # print_trend below already used this same N/A convention.
+        top8 = f"{s['top8_rate']*100:>4.0f}%" if s['top8_rate'] is not None \
+            else " N/A"
         print(f"  {i:<3} {s['archetype']:<30} "
               f"{s['appearances']:>5} "
-              f"{s['top8_rate']*100:>5.0f}% "
+              f"{top8:>6} "
               f"{s['avg_points']:>7.2f} "
               f"{s['est_match_winpct']*100:>5.0f}%")
     print()

@@ -241,8 +241,17 @@ def _aggregate_appearances(rows):
     appearances   = len(rows)
     event_ids     = {r["event_id"] for r in rows}
     wins          = sum(1 for r in rows if r["placement"] == 1)
-    top8          = sum(1 for r in rows if r["placement"] <= 8)
-    top8_eligible = sum(1 for r in rows if r["max_placement"] >= 8)
+
+    # Top-8 rate is measured only over appearances where making top 8 was
+    # observable.  max_placement is the deepest placement RECORDED for the
+    # event, so a field that stops short of 8th (MTGO leagues publish only
+    # 5-0 decks; partial paper coverage) tells us nothing -- every deck in it
+    # is "top 8" by default.  Counting those in the numerator while excluding
+    # them from the denominator made the ratio span two different sets and
+    # produced rates above 100%.
+    top8_rows     = [r for r in rows if r["max_placement"] >= 8]
+    top8_eligible = len(top8_rows)
+    top8          = sum(1 for r in top8_rows if r["placement"] <= 8)
 
     total_est_w = total_est_l = 0
     total_score = total_pts   = 0
@@ -264,7 +273,11 @@ def _aggregate_appearances(rows):
         "win_rate":          round(wins / len(event_ids), 3) if event_ids else 0,
         "top8_appearances":  top8,
         "top8_eligible":     top8_eligible,
-        "top8_rate":         round(top8 / top8_eligible, 3) if top8_eligible else 0.0,
+        # None, not 0.0, when nothing was measurable: 0.0 renders as a
+        # confident "0% top-8 rate" for an archetype that may have made every
+        # cut it played.  None is the sentinel the match-derived paths below
+        # already emit and every display site already handles.
+        "top8_rate":         round(top8 / top8_eligible, 3) if top8_eligible else None,
         "avg_performance":   round(total_score / appearances, 1),
         "total_points":      total_pts,
         "avg_points":        round(total_pts / appearances, 2),

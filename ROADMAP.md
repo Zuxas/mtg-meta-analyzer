@@ -136,6 +136,28 @@
 
 ## COMPLETED
 
+### 2026-09-22 — Populated-DB correctness pass
+
+Driving real data through paths that had only ever been checked against an empty
+database. Both finds were invisible to every prior headless check because an empty
+DB renders them identically to "no data".
+
+- [x] **Recent Top Finishes listed a day's results backwards** — Qt's unstable sort
+      re-ordered same-date ties after `setSortingEnabled(True)`; fixed by folding
+      placement into the Date column's sort key. `tests/test_dashboard_recent_order.py`
+      (5 tests).
+- [x] **Top-8 rate was not a rate** — numerator counted all appearances with
+      `placement <= 8` while the denominator counted only appearances in events whose
+      recorded field reached 8th, so the ratio spanned two different sets. Produced
+      **142%** on real standings, **92% where the truth was 50%** on a mixed field, and a
+      confident **0%** for an archetype that had made the cut in every event it played.
+      Rendered verbatim by `meta_table.py` and plotted as a "Top 8 Rate %" chart series.
+      Numerator now restricted to the measurable set; `None` (the sentinel the
+      match-derived paths already emit) when nothing is measurable.
+      `tests/test_top8_rate.py` (7 tests). Also guarded the one display site,
+      `analysis/query.py:216`, that would have raised `TypeError` on the sentinel.
+
+
 ### 2026-05-14 / 2026-05-15 — MTGA Live Import + Match History + Replay Viewer
 **Huge build day. RC DC 14 days out. Everything below shipped in one session.**
 

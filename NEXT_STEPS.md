@@ -638,6 +638,37 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **Top-8 rate was not a rate — FOUND + FIXED (2026-09-22).** Continuing the
+      populated-DB drive that found the ordering bug: `get_meta_standings` returned
+      `top8_rate: 1.422` for Izzet Prowess. `gui/widgets/meta_table.py:46` renders that
+      verbatim as **"142.2%"** and `gui/widgets/chart_canvas.py:689` plots it as a
+      "Top 8 Rate %" series (so one bad archetype also blows out the axis for every other
+      series on that chart).
+      **Mechanism.** `_fetch_appearances` defines `max_placement` as the deepest placement
+      *recorded* for an event, so a field that stops short of 8th (MTGO leagues publish only
+      5-0 decks; partial paper coverage) has `max_placement < 8`. The old code took the
+      numerator over ALL rows (`placement <= 8`) and the denominator over ELIGIBLE rows only
+      (`max_placement >= 8`) — two different sets, so the ratio was not a rate at all.
+      **Three falsehoods, all reproduced:** rate above 100%; a mixed field reporting 92%
+      where the truth was 50%; and — worst — an archetype seen only in partial events
+      reporting a confident **0%** (the `else 0.0` fallback) despite having made the cut in
+      every event it played.
+      Fix = numerator restricted to the same eligible set, and `None` (not `0.0`) when
+      nothing was measurable. `None` is **not a new contract**: the match-derived paths at
+      `win_rates.py:503` and `:624` already emit it and 4 of the 5 display sites already
+      handle it. The 5th, `analysis/query.py:216`, interpolated unconditionally and would
+      have raised `TypeError`; it now prints "N/A", matching the convention `print_trend`
+      already used 11 lines below. `analysis/predictions.py:145` needed no change — its
+      `or 0` already treats None like the other nullable signals beside it.
+      `tests/test_top8_rate.py` (7 tests): 3 pin the falsehoods, 4 pin the cases that already
+      worked (full field unchanged at 25%, the `>= 8` boundary, the denominator's meaning,
+      and that the None sentinel survives). Falsifiability verified — reverting fails
+      exactly the 3, and the 4 regression pins still pass.
+      **Known latent gap, deliberately NOT fixed here:** a NULL `placement` raises
+      `TypeError: '<=' not supported between NoneType and int` in the same function, which
+      would take out the whole Dashboard. Every shipped scraper fills placement (all use a
+      `_parse_placement(...) or len(decks)+1` fallback), so this is unreachable today and
+      fixing it would be speculative scope creep on a hot-adjacent path.
 - [x] **Recent Top Finishes ordering bug — FOUND + FIXED (2026-09-22).** Seeded a synthetic
       populated DB (48 events / 768 decks / 8 archetypes) and drove the Dashboard against it —
       the first time this session anything was checked with real data rather than an empty DB.
