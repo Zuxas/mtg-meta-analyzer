@@ -463,6 +463,16 @@ python -m db.maintenance
 `analysis/charts.py` sets `matplotlib.use("Agg")` at import. **Never import it in GUI code.**
 GUI uses `gui/widgets/chart_canvas.py`. `run_gui.py` calls `matplotlib.use("QtAgg")` first.
 
+### Test-infra: modals wedge the suite
+`gui/crash_handler.py::_exception_hook` ends in a **modal** `QMessageBox.critical`, guarded only
+by `QApplication.instance() is not None`. `tests/test_crash_handler.py` calls that hook directly,
+so it only terminated because nothing alphabetically earlier had created a QApplication — it
+passed by accident of ordering for as long as it existed. Adding a Qt test file earlier in the
+alphabet hung the whole suite (a hang, not a failure — indistinguishable from "still running").
+Fixed with an autouse fixture no-op'ing `gui.crash_handler.QMessageBox.critical`. **Rule:** any
+test that calls a GUI code path directly must neutralise modals, and cross-file interaction
+checks should include alphabetical neighbours, not just topically related files.
+
 ### Worker lifecycle
 All workers: `finished → deleteLater()`. All tabs expose `cleanup()`. `_cancel_worker()` uses `blockSignals(True)` with `RuntimeError` guard.
 

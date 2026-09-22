@@ -319,6 +319,38 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
 - **Test count:** 26 new tests in `tests/test_event_finder_ux.py`. Full suite **328/328 green**. Zero regressions on existing tabs.
 - **Plan:** `docs/superpowers/plans/2026-06-04-event-finder-ux-fix.md`. **Spec:** `docs/superpowers/specs/2026-06-04-event-finder-ux-fix-design.md`.
 
+### Suite HANG root-caused: a modal dialog in test_crash_handler (2026-09-22)
+
+The full suite began hanging — not failing — partway through. Root cause was **not** the
+obvious one, and two earlier theories were wrong (process contention; a leaked
+`sys.excepthook` — `MainWindow` never touches `excepthook`).
+
+`gui/crash_handler.py::_exception_hook` finishes with:
+
+    if QApplication.instance() is not None:
+        QMessageBox.critical(None, "Unhandled exception", ...)
+
+`QMessageBox.critical` is **modal** — it blocks until a button is clicked, which never happens
+headless. `tests/test_crash_handler.py` calls `_exception_hook` directly, so whether it
+terminated depended entirely on whether an earlier test file had left a `QApplication` alive.
+Nothing alphabetically before `test_crash_handler` ever created one, so it passed **by accident
+of ordering**. Adding `tests/test_basic_pro_disclosure.py` ("b" < "c") put a QApplication in
+place first and the suite wedged.
+
+Fixed in `tests/test_crash_handler.py` with an autouse fixture that no-ops
+`gui.crash_handler.QMessageBox.critical` — patched as imported INTO crash_handler, so it is
+independent of Qt initialisation and of test ordering. Verified: the exact pair that hung at
+150s now completes in ~30s (17 passed).
+
+**Lessons worth keeping:**
+- A hang is much worse than a failure — it looks identical to "still running". Anything that
+  calls a GUI code path directly should neutralise modals.
+- Cross-file interaction checks must consider **alphabetical neighbours**, not just topically
+  related files. The earlier check paired the new tests with heatmap/scroll/dashboard and so
+  missed `test_crash_handler.py` entirely.
+- `QMessageBox.critical`/`warning`/`information` anywhere reachable from a test is a latent
+  wedge; grep for them before adding a file that creates a QApplication early in the alphabet.
+
 ### Basic/Pro progressive disclosure — SHIPPED BUT UNVERIFIED + UNTESTED (found 2026-09-22)
 
 `9e6bcda` (2026-07-01) shipped **Basic/Pro progressive disclosure + a META tab reorder** to
