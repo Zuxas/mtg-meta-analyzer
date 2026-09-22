@@ -241,8 +241,17 @@ def _aggregate_appearances(rows):
     appearances   = len(rows)
     event_ids     = {r["event_id"] for r in rows}
     wins          = sum(1 for r in rows if r["placement"] == 1)
-    top8          = sum(1 for r in rows if r["placement"] <= 8)
-    top8_eligible = sum(1 for r in rows if r["max_placement"] >= 8)
+
+    # Top-8 rate is measured only over appearances where making top 8 was
+    # observable.  max_placement is the deepest placement RECORDED for the
+    # event, so a field that stops short of 8th (MTGO leagues publish only
+    # 5-0 decks; partial paper coverage) tells us nothing -- every deck in it
+    # is "top 8" by default.  Counting those in the numerator while excluding
+    # them from the denominator made the ratio span two different sets and
+    # produced rates above 100%.
+    top8_rows     = [r for r in rows if r["max_placement"] >= 8]
+    top8_eligible = len(top8_rows)
+    top8          = sum(1 for r in top8_rows if r["placement"] <= 8)
 
     total_est_w = total_est_l = 0
     total_score = total_pts   = 0
@@ -264,7 +273,11 @@ def _aggregate_appearances(rows):
         "win_rate":          round(wins / len(event_ids), 3) if event_ids else 0,
         "top8_appearances":  top8,
         "top8_eligible":     top8_eligible,
-        "top8_rate":         round(top8 / top8_eligible, 3) if top8_eligible else 0.0,
+        # None, not 0.0, when nothing was measurable: 0.0 renders as a
+        # confident "0% top-8 rate" for an archetype that may have made every
+        # cut it played.  None is the sentinel the match-derived paths below
+        # already emit and every display site already handles.
+        "top8_rate":         round(top8 / top8_eligible, 3) if top8_eligible else None,
         "avg_performance":   round(total_score / appearances, 1),
         "total_points":      total_pts,
         "avg_points":        round(total_pts / appearances, 2),
@@ -456,9 +469,32 @@ def get_meta_standings(format_name="standard", event_type=None,
             stats["archetype"] = key
         results.append(stats)
 
-    results.sort(key=lambda s: (s["avg_points"], s["top8_rate"]), reverse=True)
+    # top8_rate is None when no event in an archetype's sample recorded a field
+    # deep enough to measure top-8 conversion. Python only compares the second
+    # tuple element when the first ties, so a bare None here raises TypeError
+    # exactly when two archetypes share an avg_points -- common, since it is a
+    # rounded average. Unmeasurable sorts last: an unknown rate must not
+    # outrank a measured one.
+    results.sort(key=lambda s: (s["avg_points"],
+                                s["top8_rate"] if s["top8_rate"] is not None
+                                else -1.0),
+                 reverse=True)
 
     trimmed = results[:top]
+
+    # meta_share: the fraction of the returned field each archetype makes up.
+    # _meta_standings_from_matches (below) has always emitted this key, but
+    # this placement-based path -- the default, and the one nearly every
+    # caller actually gets -- did not. Consumers written against the documented
+    # shape therefore did `s.get("meta_share", 0)` and silently received 0
+    # every time: the Prep Checklist showed 0.0% for every opponent and, worse,
+    # its readiness rule (>= 5% share -> "GAP") could never fire, so a missing
+    # sideboard plan against a 25%-of-the-field deck read "LOW PRIO".
+    # Computed over the trimmed list so it matches what the caller is shown.
+    _share_total = sum(s["appearances"] for s in trimmed)
+    for _s in trimmed:
+        _s["meta_share"] = (round(_s["appearances"] / _share_total, 4)
+                            if _share_total else 0.0)
 
     # Fallback: if decks data is too sparse (top archetype < 20 appearances,
     # or total appearances across all results < 100), use matches table instead

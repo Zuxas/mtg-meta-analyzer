@@ -21,6 +21,7 @@ from PyQt6.QtGui import QColor, QFont
 import gui.theme as theme
 from gui.worker_threads import DataLoadWorker
 from gui.widgets.deck_export import show_export_menu
+from analysis.card_text import is_damage_removal
 
 
 # ---------------------------------------------------------------------------
@@ -716,13 +717,17 @@ def _classify_card_role(type_line: str, oracle_text: str) -> str:
     if "land" in tl:
         return "Mana"
 
-    # Removal / interaction
+    # Removal / interaction.
+    # "deals damage to" is NOT a literal here: real oracle text puts the
+    # amount in between ("deals 3 damage to any target"), so the substring
+    # never matched and burn spells were grouped as Threat/Utility instead
+    # of Removal in the Tech Choices tab. Handled by is_damage_removal.
     removal_keywords = [
-        "destroy target", "exile target", "deals damage to",
+        "destroy target", "exile target",
         "counter target", "return target", "-x/-x", "gets -",
         "sacrifice a", "destroy all", "exile all",
     ]
-    if any(kw in ot for kw in removal_keywords):
+    if any(kw in ot for kw in removal_keywords) or is_damage_removal(ot):
         return "Removal"
 
     # Card advantage / selection

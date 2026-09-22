@@ -211,6 +211,51 @@ def _fmt_date(raw: str) -> str:
 # Dashboard tab
 # ---------------------------------------------------------------------------
 
+# Empty-state copy keyed by the panel's CONSTRUCTION-time title (the
+# visible titles are later rewritten by the timeframe selector, so these
+# keys must match the literals passed to _panel_frame/_build_ranked_panel,
+# not whatever the header currently reads).
+# Hints point at real affordances: the
+# Settings tab's "Collect More Data" button and the 6 AM background task.
+_EMPTY_STATE_TEXT = {
+    "RECENT TOP FINISHES": (
+        "No tournament results yet",
+        "Scrape some events from Settings \u2192 Collect More Data, "
+        "or wait for the daily background update.",
+    ),
+    "WIN RATE THIS WEEK": (
+        "No win-rate data yet",
+        "Needs scraped events with enough repeat archetypes to estimate "
+        "match win rates.",
+    ),
+    "POPULAR THIS WEEK": (
+        "No archetype data yet",
+        "Scrape some events from Settings \u2192 Collect More Data to see "
+        "what the field is playing.",
+    ),
+}
+
+# Shown instead of the generic copy when data EXISTS but the panel's own
+# threshold filtered everything out -- a different problem with a different
+# fix, and the old blank panel made the two indistinguishable.
+_BELOW_THRESHOLD_TEXT = (
+    "Not enough matches per archetype yet",
+    "Archetypes need 15+ appearances in this window. Try a longer "
+    "timeframe, or scrape more events.",
+)
+
+
+def _apply_empty_state(tbl, has_rows: bool, override=None) -> None:
+    """Show the table when it has rows, the placeholder when it does not."""
+    lbl = getattr(tbl, "_empty_label", None)
+    if lbl is None:
+        return
+    if override is not None and not has_rows:
+        lbl.setText(theme.empty_state_label(*override).text())
+    lbl.setVisible(not has_rows)
+    tbl.setVisible(has_rows)
+
+
 class DashboardTab(QWidget):
 
     _TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
@@ -448,6 +493,7 @@ class DashboardTab(QWidget):
             "Pillar       (green)  High share + high win rate — the decks to beat\n"
             "Trap         (red)    Popular but losing — avoid or exploit\n"
             "Underplayed  (gold)   Low share + high win rate — sleeper pick\n"
+            "Established  (blue)   High share, ordinary win rate — a fixture\n"
             "Fringe       (grey)   Low share, middling win rate"
         )
         self._winrate_tbl.horizontalHeaderItem(7).setToolTip(
@@ -673,6 +719,18 @@ class DashboardTab(QWidget):
 
         tbl = _make_panel_table(cols)
         fl.addWidget(tbl, 1)
+
+        # Empty-state placeholder, swapped in for the table when a panel has
+        # no rows. A fresh install reaches this screen with nothing scraped
+        # yet and used to see three blank panels and no explanation of why.
+        # Stashed on the table rather than returned, so no caller signature
+        # changes. Same helper heatmap_tab.py / my_decks.py already use.
+        empty = theme.empty_state_label(*_EMPTY_STATE_TEXT.get(
+            title, ("Nothing here yet", "")))
+        empty.setVisible(False)
+        fl.addWidget(empty, 1)
+        tbl._empty_label = empty
+
         return frame, tbl, hdr, hdr_row
 
     # ------------------------------------------------------------------
@@ -1069,6 +1127,13 @@ class DashboardTab(QWidget):
         prior_total = (sum(p.get("appearances", 0) for p in prior_map.values()) or 1
                        if prior_map else 1)
 
+        # Standings exist but every archetype fell under the
+        # 15-appearance floor -> say so, instead of the generic
+        # "no data" copy for something a longer timeframe would fix.
+        _apply_empty_state(
+            tbl, bool(ranked),
+            override=_BELOW_THRESHOLD_TEXT if standings else None,
+        )
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
@@ -1194,7 +1259,7 @@ class DashboardTab(QWidget):
                 pp_item.setBackground(bg)
             tbl.setItem(ri, 5, pp_item)
 
-            # Status column (Pillar / Trap / Underplayed / Fringe)
+            # Status column (Pillar / Trap / Underplayed / Established / Fringe)
             status = s.get("status", "")
             status_color = s.get("status_color", theme.TEXT_DIM)
             st_item = QTableWidgetItem(status)
@@ -1250,6 +1315,7 @@ class DashboardTab(QWidget):
         total_apps      = sum(s["appearances"] for s in standings) or 1
         prior_total     = sum(p.get("appearances", 0) for p in prior_map.values()) or 1 \
                           if prior_map else 1
+        _apply_empty_state(tbl, bool(ranked))
         tbl.setRowCount(len(ranked))
         for ri, s in enumerate(ranked):
             ident = _color_identity(s["archetype"])
@@ -1322,6 +1388,7 @@ class DashboardTab(QWidget):
         # Columns: 0=Pl, 1=Colors(pip), 2=Archetype, 3=Player, 4=Event, 5=Date
         tbl = self._recent_tbl
         tbl.setSortingEnabled(False)
+        _apply_empty_state(tbl, bool(recent))
         tbl.setRowCount(len(recent))
         for ri, r in enumerate(recent):
             pl  = r["placement"]
@@ -1359,7 +1426,22 @@ class DashboardTab(QWidget):
 
             raw_date = r.get("date", "") or ""
             date_item = _SortItem(_fmt_date(raw_date))
-            date_item.setData(_SORT_ROLE, _date_sort_key(raw_date))
+            # Tie-break the date key by placement so a same-day group reads
+            # 1st, 2nd, 3rd, 4th rather than backwards.
+            #
+            # The SQL already returns "date DESC, placement ASC", but the table
+            # is sorted by the Date column afterwards -- and setSortingEnabled
+            # (True) itself re-sorts immediately -- so rows sharing a date were
+            # re-ordered arbitrarily. In practice that inverted them: a panel
+            # called "Recent Top Finishes" showed 4th above 1st.
+            #
+            # date_sort_key returns a "YYYYMMDD" STRING, so the suffix has to
+            # stay string-sortable: 999-placement, zero-padded, means a DESC
+            # sort puts the lowest placement first within a date.
+            _pl = r["placement"] if isinstance(r["placement"], int) else 999
+            _pl = min(max(_pl, 0), 999)
+            date_item.setData(
+                _SORT_ROLE, f"{_date_sort_key(raw_date)}{999 - _pl:03d}")
             date_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             tbl.setItem(ri, 5, date_item)
 

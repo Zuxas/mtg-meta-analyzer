@@ -12,6 +12,8 @@ Usage:
 
 from functools import lru_cache
 
+from analysis.card_text import is_damage_removal
+
 
 # ── Card classification helpers ───────────────────────────────────────────
 
@@ -28,11 +30,15 @@ def _is_planeswalker(type_line: str) -> bool:
 
 
 def _is_removal(oracle: str) -> bool:
+    # "deals damage to" is handled by is_damage_removal rather than as a
+    # literal: real text is "deals 3 damage to any target", with the amount
+    # in between, so the substring never matched any burn spell.
     keywords = [
-        "destroy target", "exile target", "deals damage to",
+        "destroy target", "exile target",
         "counter target", "-x/-x", "gets -", "destroy all", "exile all",
     ]
-    return any(kw in (oracle or "").lower() for kw in keywords)
+    return (any(kw in (oracle or "").lower() for kw in keywords)
+            or is_damage_removal(oracle))
 
 
 def _is_draw(oracle: str) -> bool:

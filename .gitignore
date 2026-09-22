@@ -65,6 +65,14 @@ data/rules_reference/scryfall_oracle_cards.json
 data/rules_reference/scryfall_rulings.json
 data/rules_reference/MagicCompRules.txt
 
+# Private strategy corpus -- paraphrased/derived reference notes (e.g. Chapin,
+# NLMF). NEVER commit: this repo is public and the corpus is personal-use only.
+# The Pinecone index built from it (scripts/ingest_strategy_docs.py) is private.
+data/rules_reference/chapin*
+data/rules_reference/*_rules_reference.md
+data/corpus/
+data/private_corpus/
+
 # Trained ML models (retrainable)
 data/models/
 

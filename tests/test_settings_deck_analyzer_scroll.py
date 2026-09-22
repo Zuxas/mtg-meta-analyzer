@@ -96,15 +96,15 @@ _SETTINGS_GROUPBOX_TITLES = {
     "Formats to Track",
     "Data Window",
     "Auto-Update Frequency",
-    # NOTE: a "Storage" QGroupBox is instantiated in _build_ui (store_box)
-    # but never added to any layout -- a pre-existing orphaned-widget bug
-    # (confirmed present before this QScrollArea wrap, via `git diff` on
-    # this file: the wrap touches none of the store_box lines). It and its
-    # children (storage label + backfill/refresh/dedup buttons) are
-    # garbage-collected once _build_ui returns and never appear in the
-    # widget tree at all. Unrelated to and out of scope for this item
-    # (files: settings.py/deck_analyzer.py QScrollArea wrap only) -- not
-    # fixed here, just accurately reflected in this test's expectations.
+    # "Storage" was ABSENT here until 2026-09-22: store_box was built in
+    # _build_ui but never added to `outer`, so it (and the storage label +
+    # Collect More Data / Refresh / Scan Duplicates buttons) was
+    # garbage-collected once _build_ui returned and had NEVER rendered.
+    # Found during the Wave C QScrollArea wrap, documented as out of scope
+    # there, fixed since by the one missing `outer.addWidget(store_box)`.
+    # Keeping it in this set is the regression pin: drop the addWidget and
+    # this test fails.
+    "Storage",
     "ML Models (Advanced Analytics)",
     "Archetype Manager",
     "AI Assistant (optional)",
@@ -292,4 +292,81 @@ def test_deck_analyzer_tab_no_simulate_button_without_callback(app):
         assert not hasattr(w, "_simulate_btn")
     finally:
         _pump_until(app, lambda: _workers_idle(w))
+        w.cleanup()
+
+
+# ── Storage groupbox orphan fix (2026-09-22) ──────────────────────────────
+# Regression cover for the pre-existing bug found (and deliberately left
+# unfixed) during the Wave C QScrollArea wrap: settings.py built a "Storage"
+# QGroupBox with a storage label and three wired buttons, then never called
+# outer.addWidget(store_box) -- so the whole group was orphaned, collected,
+# and had never rendered in any release. Fix = the one missing addWidget.
+# These assert the user-visible outcome (controls reachable + wired), not
+# just that a widget with the right title exists.
+
+_STORAGE_BUTTON_LABELS = {"Collect More Data", "Refresh", "Scan Duplicates"}
+
+
+def _storage_box(w):
+    from PyQt6.QtWidgets import QGroupBox
+
+    for box in w.findChildren(QGroupBox):
+        if box.title() == "Storage":
+            return box
+    raise AssertionError(
+        "no 'Storage' QGroupBox in the widget tree -- store_box is orphaned "
+        "again (missing outer.addWidget(store_box) in settings.py::_build_ui)"
+    )
+
+
+def test_settings_storage_groupbox_is_in_the_widget_tree(app):
+    """The Storage group is parented into the scroll area's content widget,
+    not floating unparented."""
+    from gui.tabs.settings import SettingsTab
+
+    w = SettingsTab()
+    try:
+        box = _storage_box(w)
+        assert box.parent() is not None, "Storage box has no parent widget"
+        scroll = _first_scroll_area(w)
+        assert box in scroll.findChildren(type(box)), (
+            "Storage box exists but is not inside the QScrollArea content"
+        )
+    finally:
+        w.cleanup()
+
+
+def test_settings_storage_buttons_reachable_and_wired(app):
+    """All three Storage buttons are descendants of the group and connected
+    (receiver count > 0), i.e. clicking them actually does something."""
+    from PyQt6.QtWidgets import QPushButton
+
+    from gui.tabs.settings import SettingsTab
+
+    w = SettingsTab()
+    try:
+        box = _storage_box(w)
+        buttons = {b.text(): b for b in box.findChildren(QPushButton)}
+        assert _STORAGE_BUTTON_LABELS <= set(buttons), (
+            f"expected {_STORAGE_BUTTON_LABELS}, found {set(buttons)}"
+        )
+        for label in _STORAGE_BUTTON_LABELS:
+            btn = buttons[label]
+            assert btn.receivers(btn.clicked) > 0, f"{label!r} has no handler"
+    finally:
+        w.cleanup()
+
+
+def test_settings_storage_label_populated_not_placeholder(app):
+    """_refresh_storage() runs in __init__, so the label must have moved off
+    its 'Loading...' placeholder by the time the tab is built."""
+    from gui.tabs.settings import SettingsTab
+
+    w = SettingsTab()
+    try:
+        text = w._storage_lbl.text()
+        assert text and text != "Loading…", (
+            f"storage label never refreshed (still {text!r})"
+        )
+    finally:
         w.cleanup()

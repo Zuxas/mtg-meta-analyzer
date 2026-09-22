@@ -1,6 +1,122 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-07-11 (**GUI polish Wave C — arc COMPLETE, all 9 gripes closed** on `bob/bob-20260710-231652-ed02`: **GR-3** compact 32px icon-only chart toolbar (objectName-scoped QSS `QToolBar#mplNavToolbar`) + shared `_place_legend()` putting every multi-series legend OUTSIDE the axes (entry-per-series, `ncol=ceil(n/10)` so Top-N=20 doesn't collapse the axes) + `constrained_layout` (all sticky `tight_layout()` calls removed); **GR-6** Decklist sub-tab rebuilt as `gui/widgets/decklist_pane.py::DecklistPane` — type groups w/ counts (read-only card_data), mana-curve mini-bar, pips, card-hover; "(auto-imported <date>)" display-stripped, DB rows byte-identical; **GR-7** boardless scenes (drill_outs) render question-card layout via `puzzle_scene.is_boardless()` + splitter collapse, board puzzles unaffected; **min-height** EventWidget/SettingsTab/DeckAnalyzerTab QScrollArea-wrapped — MainWindow minimumSizeHint ~1460→746px. Suite **515 passed, 2 skipped** (+40). Known NEW finding (pre-existing, open): settings.py "Storage" QGroupBox never added to a layout — has never rendered. GUI polish handoff `../harness/handoffs/mta-gui-polish-2026-07-10.md` EXECUTED.)
+Last updated: 2026-09-22 (**Populated-DB correctness pass, part 5 — the Equilibrium button
+failed on every fresh install.** `analysis/equilibrium.py::nash_equilibrium` documents *"Falls
+back to replicator dynamics if scipy fails"* and has the machinery for it (a broad
+`except Exception: return replicator_dynamics(...)`), but `from scipy.optimize import linprog`
+sat **14 lines above the `try`**, so an ImportError escaped rather than falling back — and
+**scipy is not in `requirements.txt`**, making "absent" the state of every fresh clone.
+`gui/tabs/heatmap_tab.py:1421` calls `analyze_metagame(..., method="nash")` explicitly, so the
+Matchup Data tab's Equilibrium button reported an error instead of computing (not a crash: the
+GUI shows `theme.friendly_error`). The repo already had the correct pattern at
+`gui/tabs/deck_analyzer.py:861` (`try: from scipy.stats import hypergeom / except ImportError:`
+with a manual `math.comb` fallback). Fix = move the import inside the existing try; no new
+logic. `tests/test_nash_scipy_fallback.py` (5 tests) simulates an absent scipy via `sys.modules`
+so it behaves the same with or without scipy installed, and pins the import's placement in
+source — without that pin the other four would pass on any machine that has scipy. **Left as a
+product decision: whether to add `scipy` to requirements.txt.** The codebase treats scipy as
+optional, and the replicator fallback agrees with the LP answer to ~1e-6 on textbook RPS.
+Probed CLEAN and left alone: `replicator_dynamics` (exactly 1/3 each on RPS, shares sum to 1),
+`detect_rps_cycles`, `simulate_tournament`. Also swept for further defensive-`.get()` bugs of
+the `meta_share` class and found **none** — all 90 raw hits read external data (MTGA/Scryfall/
+HTML/env), where the default is correct; correcting my own earlier guess that more existed.
+
+Earlier 2026-09-22 (**Populated-DB correctness pass, part 4 — the Prep Checklist could
+never flag a sideboard GAP, plus a self-inflicted regression caught pre-release.**
+(1) `analysis/win_rates.py::get_meta_standings` has TWO implementations behind one documented
+shape — the placement-based path (the default) and `_meta_standings_from_matches` (a sparse-data
+fallback) — and **only the fallback emitted a `meta_share` key**. Consumers wrote
+`s.get("meta_share", 0)` and silently received 0 forever. `gui/tabs/prep_checklist.py:185` does
+this, so its Meta % column read **0.0% for every opponent** and `_readiness()`'s
+`if meta_share >= 0.05: return "GAP"` branch was **unreachable** — a missing sideboard plan
+against a 25%-of-the-field deck reported "LOW PRIO". Measured: 5 of 6 opponents should be GAP,
+all 6 read LOW PRIO. That is the Team Resolve RC-prep workflow reporting that nothing matters.
+`analysis/deck_recommender.py:66` shares the bug but its only consumer does not render the
+field, so it was latent. Fixed at the root (both paths now agree), computed over the trimmed
+list. `tests/test_meta_share_on_standings.py` (6 tests; reverting fails all 6).
+(2) **A regression I introduced in `8d9c562`:** making `top8_rate` `None` put a None into
+`get_meta_standings`' sort key `(avg_points, top8_rate)`. Python compares the second tuple
+element only when the first TIES, and `avg_points` is a rounded average, so this raised
+`TypeError` intermittently and would have taken out Dashboard + Charts + CLI together. **The
+637-green suite did not catch it** — no fixture produced an avg_points tie with mixed
+measurability. Found by auditing all 20 `top8_rate` uses for None-safety, which showed this sort
+was the only unguarded one. Unmeasurable now sorts last (`-1.0`). **Lesson: a green suite is not
+evidence that a new sentinel is safe — grep every consumer of the changed field, including
+comparisons and sort keys, not just formatting sites.**
+
+Earlier 2026-09-22 (**Populated-DB correctness pass, part 3 — a format's most-played deck
+was labelled "Fringe".** Invariant-probing the numeric engines (`meta_scoring`, `tournament`,
+`equilibrium`, `field_optimizer`, `ratings` — none of which had any test coverage).
+`analysis/meta_scoring.py::classify_status` has four labels, and three of its rules require an
+EXTREME win rate (Pillar needs >=54%, Trap needs <48%, Underplayed needs <3% share AND >=54%),
+so a deck with a large share and an ORDINARY 48-54% win rate — the most common region of any
+real metagame — fell through to the catch-all, "Fringe". Measured: **24 of 24** cells in that
+region. The format's defining deck at a flat 50% win rate displayed "Fringe" in the Dashboard
+Status column. **A bug rather than a taste question**, because the code contradicted its own
+contract in two places: `meta_scoring.py:12` and the user-facing legend at `dashboard.py:496`
+both define Fringe as *low share*. Fix = a fifth label `_ESTABLISHED` (blue `#4a9edd`) for that
+cell, plus the tooltip line so the legend matches what the column can show; the Status column
+reads `status_color` from the data with no hardcoded label map, so no rendering change was
+needed. **The word is team vocabulary, not logic** — rename `_ESTABLISHED` plus one tooltip line
+to change it. `tests/test_meta_status_labels.py` (37 tests; reverting fails 33). Probed CLEAN in
+the same pass and left alone: `swiss_rounds` matches the DCI table and is monotonic over
+2..1199, `encounter_probability` is a proper hypergeometric PMF (sums to 1 across 630 parameter
+combinations), `prep_priority` stays in 0-100. **Cleared, not a bug:** `top_cut_size` is
+non-monotonic (8->8, 16->4, 32->8) but that is MTR Appendix E, as its docstring states.
+
+Earlier 2026-09-22 (**Populated-DB correctness pass, part 2 — burn spells were invisible
+to every deck-evaluation engine.** Extending the populated-DB method from placement data to
+*card* data turned up a defect in three engines at once. `analysis/blunders.py:274` and
+`analysis/chapin.py:117` tested for the literal substring `"deals damage to target"`, and
+`analysis/deck_roles.py:32` for `"deals damage to"` — none of which can occur in real oracle
+text, because the damage amount sits between the two words (*"Lightning Bolt deals 3 damage to
+any target."*). Every damage-based removal spell was therefore invisible to all three: a Mono Red
+deck with 4 burn spells reported **"Very low interaction: only 0 interactive spells"** (a *major*
+issue worth 10 blunder points) and scored **0.0 on Chapin's Answers** principle. This is not a
+wording preference — `analysis/sb_advisor.py:48` in this same repo already matches
+`deals? \d+ damage to any target`, so one part of the codebase had the template right and three
+did not. **All three engines had ZERO test coverage**, which is how it survived. Fix = one shared
+predicate `analysis/card_text.py::is_damage_removal`, called by all three; deliberately narrow
+(it answers only the damage question — each engine keeps its own destroy/exile/counter/bounce
+list, since those legitimately differ), and the target clause is **required** so self-damage
+("this land deals 1 damage to you") is not counted as removal. Measured: Mono Red blunder 20.0
+*Fair* → 14.0 *Good*, Answers 0.0 → 6.7; **Izzet Prowess** (this project's focus deck) Answers
+0.0 → 10.0 with the interaction issue gone. A repo-wide grep for every `"...damage to..."` literal then found a **fourth** copy the
+tab-probe could never have reached: `gui/widgets/archetype_detail.py:721`, feeding the Tech
+Choices role grouping, so burn spells were grouped as Threat/Utility rather than Removal.
+`tests/test_damage_removal_detection.py` (19 tests — 7 real templates, 6 false-positive guards,
+the mechanism pinned, one end-to-end per site; neutering the predicate fails 11). Confirmed working in the same drive and left alone:
+`deck_roles` classifies all 5 seeded archetypes correctly, `blunders` catches both
+deliberately-broken decks (12 lands → major land_count; all-6-drops → major mana_curve), Chapin
+principles all within 0-10.
+
+Earlier 2026-09-22 (**Populated-DB correctness pass**: two display-layer bugs that an
+empty database renders identically to "no data", so every prior headless check missed them.
+(1) **Recent Top Finishes listed a day's results backwards** — see §6 Dashboard. (2) **`top8_rate`
+was not a rate.** `analysis/win_rates.py::_aggregate_appearances` took its numerator over ALL
+appearances with `placement <= 8` but its denominator only over appearances whose event recorded
+a field reaching 8th (`max_placement >= 8`) — `max_placement` being the deepest placement
+*recorded*, so MTGO-league 5-0 dumps and partial paper coverage fall out of the denominator while
+staying in the numerator. Three falsehoods, all reproduced: **142%** on seeded standings, **92%
+where the truth was 50%** on a mixed field, and a confident **0%** for an archetype seen only in
+partial events (the `else 0.0` fallback) that had in fact made the cut every time. It is not an
+internal number: `gui/widgets/meta_table.py:46` prints it verbatim and `gui/widgets/chart_canvas.py:689`
+plots it as a "Top 8 Rate %" series, where one >100% archetype also wrecks the axis for every
+other series. Fix = numerator restricted to the same eligible set + `None` when nothing is
+measurable. **`None` is not a new contract** — `win_rates.py:503`/`:624` already emit it and 4 of
+5 display sites already handle it; the 5th (`analysis/query.py:216`) interpolated unconditionally
+and now prints "N/A" like `print_trend` 11 lines below. `tests/test_top8_rate.py` (7 tests, 3 pin
+the falsehoods + 4 pin the unchanged cases; reverting fails exactly the 3). **Latent, NOT fixed:**
+a NULL `placement` raises `TypeError` in the same function and would take out the Dashboard — but
+every shipped scraper fills placement via a `_parse_placement(...) or len(decks)+1` fallback, so
+it is unreachable today and fixing it would be speculative. Method note: both bugs were found by
+seeding a DB whose properties are known *by construction* (exact appearance counts, deliberate
+ties, one archetype confined to the oldest week) and checking displayed VALUES against
+independently computed expectations — not by checking that widgets rendered.)
+
+Earlier 2026-09-22 (**Wave C follow-up**: the one open Wave C find is closed — `gui/tabs/settings.py::_build_ui` built the "Storage" QGroupBox (label + Collect More Data / Refresh / Scan Duplicates, all wired) but never called `outer.addWidget(store_box)`, so it was orphaned, GC'd on return, and had **never rendered in any release**; fix = that single line (`_refresh_storage()` was already invoked at settings.py:312). The test pin in `tests/test_settings_deck_analyzer_scroll.py` that *documented* the bug by excluding "Storage" now includes it, +3 tests (tree membership / buttons reachable+wired / label off placeholder); reverting the addWidget fails all 4. Also **`.gitignore` now blocks the private paraphrased strategy corpus** (`data/rules_reference/chapin*`, `*_rules_reference.md`, `data/corpus/`, `data/private_corpus/`, verified via `git check-ignore`) — this repo is **public** and previously had no such rule. Suite in a fresh Linux container: **498 passed, 5 skipped**, +14 failed/3 errors that are environmental only (no `data/mtg_meta.db`; missing `mcp` submodule) — confirmed by a stashed-baseline run showing the identical 14/3 with 495 passed. Linux container setup: apt `libegl1 libgl1 libxkbcommon0 libdbus-1-3`, and `pip install -r requirements.txt` needs `--ignore-installed PyJWT` or the Debian-owned PyJWT aborts the install. Also **fixed in the same session**: `tests/test_heatmap_low_n_tint.py` hardcoded `C:/temp/gr8_lowN_render_check.png` — a *relative* path on Linux, so it created a literal `C:/` dir inside the repo (contradicting its own "NOT into the repo working tree" comment) and would do the same in the ubuntu-latest CI checkout; new `_debug_png_dir()` keeps `C:/temp` on Windows and uses `tempfile.gettempdir()` elsewhere. **LAUNCH-BLOCKING BUG FOUND + FIXED (the important one):** every `untapped_*` table/view is created by `scrapers/untapped_mythic_scraper.py`, **not** by `db.database.init_db` (verified: `init_db()` makes 8 tables, `untapped_entries` absent). `LadderMetaTab.__init__` eagerly calls `refresh()` (ladder_meta.py:38) -> `get_mythic_archetype_rollup()` -> `sqlite3.OperationalError: no such table` -> propagates out of `MainWindow._build_ui` (main_window.py:559) -> **the app never opens.** Any DB without an Untapped pipeline run (fresh clone, new teammate) was locked out; our machine has the table, which is why it went unseen. Fix = `_empty_if_untapped_tables_missing` decorator on all 8 DB functions in `db/untapped_queries.py` returning empty dict/list, **narrow by design — only "no such table" is swallowed, a corrupt DB still raises `DatabaseError`** (test-pinned, so data loss stays loud). `tests/test_untapped_missing_tables.py` (10 tests; 9 fail with the decorator stripped). The intermittent full-suite **segfault was a SYMPTOM of this**: the aborted MainWindow construction orphaned `EventHubTab`'s running MTGO worker (`win = ...` sits outside the `try` in `test_event_optimizer_scroll.py`, so `_quiesce_mainwindow` never ran), and its queued lambda touched `self._refresh_mtgo_btn` on freed memory at the next `processEvents()` (gr3 `_make_canvas`:125). Post-fix: **5 consecutive clean full-suite runs**, 510 passed/5 skipped each (pre-fix crash rate ~30-50%; 5 clean runs is ~8-17% likely by chance at that rate, so the removed root cause carries the claim rather than the count). **Hardening since SHIPPED + audit clean:** all six `_done` worker callbacks in `gui/tabs/event_optimizer.py` now carry `@_skip_if_widgets_deleted` (a result landing after teardown raised `RuntimeError: wrapped C/C++ object ... has been deleted` out of the Qt callback; narrow — only that error is dropped); `_all_workers_idle` scans every `*_worker` attribute (was missing `EventHubTab._mtgo_worker`); `win = ...` moved inside the `try` in both MainWindow tests. **Launch-path audit:** `init_db()` creates only 7 real tables while the app uses ~19, so all 17 tabs were probed in isolated subprocesses against a fresh DB — **all 17 plus MainWindow construct**, i.e. untapped_entries was the ONLY launch-blocker; harness validated against the known bug before trusting the all-clear. The other non-core tables are created on demand via `ensure_table`, whereas the untapped_* ones are scraper-only and hit through raw `sqlite3.connect`. Suite: 515 passed, 5 skipped. **The audit is now permanent**: `tests/test_fresh_db_launch.py` (19 tests) builds a fresh `init_db()` DB and constructs every tab + MainWindow, so this bug class fails in CI rather than on a user's machine — falsifiable (strip the guard -> exactly LadderMetaTab + MainWindow fail) and self-checking. Probe-design traps: one subprocess PER tab (all-in-one gets SIGABRT'd by Qt 6.10 before printing), and the child must KEEP a reference to each widget (a collected tab with a live `DataLoadWorker` aborts with exit 134, which mimics a broken tab). **Classic replay dialog retirement is BLOCKED** — its ROADMAP gate requires "no regressions" but M2/M3 manual smoke was never done, and `analysis/replay_transcript.py` must stay regardless (`mtga_log_watcher.py:78` + the puzzle scene builder use it). **Final verified suite (fresh container, after the modal-hang fix): 557 passed, 5 skipped, 12 failed, 3 errors in 154s — no hang, no segfault.** Reconciles exactly: 534 + 14 (Basic/Pro) + 9 (Dashboard empty states). The 12+3 are the documented environmental set — 11 `test_mcp_server` (missing `mcp` submodule + unpopulated DB), 3 gr4 `*_nonempty_on_first_show`, 1 `test_regression_archetype_trend_all_returns_data` — all of which assert NON-EMPTY results and cannot pass without tournament data.)
+
+Earlier 2026-07-11: (**GUI polish Wave C — arc COMPLETE, all 9 gripes closed** on `bob/bob-20260710-231652-ed02`: **GR-3** compact 32px icon-only chart toolbar (objectName-scoped QSS `QToolBar#mplNavToolbar`) + shared `_place_legend()` putting every multi-series legend OUTSIDE the axes (entry-per-series, `ncol=ceil(n/10)` so Top-N=20 doesn't collapse the axes) + `constrained_layout` (all sticky `tight_layout()` calls removed); **GR-6** Decklist sub-tab rebuilt as `gui/widgets/decklist_pane.py::DecklistPane` — type groups w/ counts (read-only card_data), mana-curve mini-bar, pips, card-hover; "(auto-imported <date>)" display-stripped, DB rows byte-identical; **GR-7** boardless scenes (drill_outs) render question-card layout via `puzzle_scene.is_boardless()` + splitter collapse, board puzzles unaffected; **min-height** EventWidget/SettingsTab/DeckAnalyzerTab QScrollArea-wrapped — MainWindow minimumSizeHint ~1460→746px. Suite **515 passed, 2 skipped** (+40). Known NEW finding (pre-existing, open): settings.py "Storage" QGroupBox never added to a layout — has never rendered. GUI polish handoff `../harness/handoffs/mta-gui-polish-2026-07-10.md` EXECUTED.)
 
 Earlier 2026-07-11: (**GUI polish Wave B** on `bob/bob-20260710-231652-ed02`: **GR-4** CHARTS auto-generates last-used/Meta-Share and MATCHUP DATA auto-loads cache on first show (one-shot `showEvent` guards, async, no double-fire); **GR-2** matchup columns fill the viewport (0 dead gutter, 48px floor + scrollbar) with unique middle-out-elided headers + full-name tooltips via new `gui/widgets/header_elide.py`, legend on FlowLayout (HeatmapTab min-width ~1660→~520px); **GR-8** new additive `theme.winrate_bg_n(wr, n)` alpha-ramps cell tint by sample size (floor 70 at N=0, opaque N>=20; `winrate_bg`/`fg` untouched + test-pinned), N in cell tooltips, low-N legend key. 31 new tests; suite **472 passed, 2 skipped**; independent verifier 9/9 gates + refute-council 0/3. Known: 23 archetype headers hit a geometric ceiling (unique stubs + tooltips by design); app min-height ~1460px root-caused to `event_optimizer.py::EventWidget` (un-scrolled, 3 tab levels deep) — deferred. Test-infra rule: Qt 6.10 kills pytest if a QThread worker is still running at teardown — drain workers before `cleanup()`.)
 
@@ -152,9 +268,10 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 | `analysis/predictions.py` | Auto-generated predictions, validation, accuracy tracking |
 | `analysis/blunders.py` | Deck scoring: land count, curve, color consistency, interaction (Major/Moderate/Minor) |
 | `analysis/chapin.py` | 6-principle evaluation: Threats/Answers/Consistency/Velocity/Mana/Clock (0-10 each) |
+| `analysis/card_text.py` | Shared oracle-text predicates — `is_damage_removal` (used by blunders / chapin / deck_roles / archetype_detail, and via that by slot_analysis) |
 | `analysis/sideboard_guides.py` | Guide parsing (regex IN/OUT), post-board WR model, flip detection |
 | `analysis/tournament.py` | Event equity, standings, ID recommendation, EVENT_PRESETS, x-loss cutoff |
-| `analysis/meta_scoring.py` | Prep priority (0-100), status labels (Pillar/Trap/Underplayed/Fringe) |
+| `analysis/meta_scoring.py` | Prep priority (0-100), status labels (Pillar/Trap/Underplayed/**Established**/Fringe — `_ESTABLISHED` is the high-share/ordinary-WR cell added 2026-09-22; the word is a one-line rename) |
 | `analysis/ratings.py` | Glicko-2 power ratings, weekly periods, 260k+ matches, 120s TTL cache |
 | `analysis/equilibrium.py` | Nash LP solver, replicator dynamics, RPS cycle detection, Monte Carlo sim |
 | `analysis/card_embeddings.py` | 768-dim ModernBERT vectors for 32k cards (HuggingFace parquet) |
@@ -186,7 +303,30 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
 - "Best Deck" button: meta-based deck recommendation with composite scoring
 - Popularity/Win Rate Over Time charts with Weekly|Daily toggle, event markers, archetype checkboxes. **Default = Win Rate Over Time** (2026-05-14). X-axis uses real datetime objects (not categorical strings) so chronological order is invariant to archetype plot order; year shows in tick labels only when data crosses a year boundary. Per-bucket appearance threshold is `n>=1` (was `n>=3`, too aggressive for short windows).
 - Dynamic panel titles update with timeframe selector
+- **Recent Top Finishes ordering (fixed 2026-09-22):** the SQL ends
+  `ORDER BY (date) DESC, d.placement ASC`, but `_populate_recent` then calls
+  `setSortingEnabled(True)` + `sortByColumn(5, Descending)` on the Date column. Qt's sort is
+  **not stable** and enabling sorting re-sorts immediately, so rows sharing a date were free to
+  move — in practice inverting them, so the panel showed 4th above 1st. Fix = fold placement
+  into the Date column's sort key: `date_sort_key` returns a `"YYYYMMDD"` **string**, so the
+  tiebreak is a zero-padded `999 - placement` suffix, and a DESC sort puts the best finish first
+  within a day. Found only by driving the Dashboard against a POPULATED db — every earlier check
+  this session used an empty one.
 - Dedup-aware Meta Impact bar shows filter effects
+- **Empty states (2026-09-22):** each of the three panels carries a hidden
+  `theme.empty_state_label` (`_EMPTY_STATE_TEXT`, keyed by the panel's **construction-time**
+  title — the visible titles are later rewritten by the timeframe selector) that swaps in for the
+  table when it has no rows, via `_apply_empty_state`. Win Rate uses `_BELOW_THRESHOLD_TEXT`
+  instead when standings exist but nothing cleared the 15-appearance floor. Before this, a
+  never-scraped DB showed three blank tables.
+- **Chart empty states (2026-09-22):** the chart surfaces were never blank — the Dashboard canvas
+  said "No data to display." and CHARTS said "No meta data available *for this selection*" — but
+  neither named a fix, and "for this selection" blamed the dropdowns for what is usually an empty
+  DB. `chart_canvas._no_data_hint()` now appends a second line branching on whether `events` has
+  any rows: nothing scraped → Settings → Collect More Data; data present → widen the timeframe /
+  change format. Best-effort (any failure returns `""`, so a hint can never break a chart) and
+  applied to the 6 terse messages only — loading, error, "No archetypes selected", and the
+  already-actionable Untapped/heatmap copy are untouched. Overlay got `setWordWrap(True)`.
 
 ### Key GUI Features
 - **Archetype detail dialog:** 7 tabs (This List / Average Deck / Recent Lists / Tech Choices / Bo3 SB Plans / Card Trends / Resources) + "View Event" + Export. Average Deck tab includes Mythic % column with ↑/↓ tech-divergence arrows.
@@ -257,6 +397,44 @@ Card-based dedup: `find_card_based_duplicates()` finds similar-named archetypes 
   `puzzle-rating-farmable-on-reattempt`. **Puzzle Trainer v0 COMPLETE.**
 - **System tray:** Team Resolve logo + green/orange/red status dot, close-to-tray, Run Now menu
 - **F5 / ↻ Reload Tab button** in branded header — reloads current tab's data from DB (walks nested QTabWidgets to find leaf, calls reload/refresh). Renamed from "Refresh" in Wave A (GR-5) so the dashboard filter-row "Refresh" is the only Refresh-labeled control.
+
+### Basic / Pro progressive disclosure (shipped 2026-07-01, commit `9e6bcda`)
+A **Basic|Pro** segmented control in the branded header hides advanced surfaces for
+newcomers. Documented retroactively on 2026-09-22 — it shipped to `main` undocumented,
+its commit message says *"visual check pending"* (still true — a GUI session is owed). It had
+**zero test coverage** until `tests/test_basic_pro_disclosure.py` (14 tests, 2026-09-22) pinned
+the label set, the `_is_existing_user()` default across five cases, both toggle directions,
+`_path_has_pro_part`, persistence, and the META order across a Pro→Basic→Pro round trip.
+**Fragility that test guards:** `_add_pro_tabs` re-adds with plain `addTab`, so the round trip
+only preserves order because the four META Pro tabs are contiguous at the end — a Basic tab
+inserted after a Pro one would silently reorder META on every toggle.
+
+- **Pro-only sub-tabs** (`main_window.py::_PRO_TAB_LABELS`): `LADDER`, `SIMULATE`,
+  `PREDICTIONS`, `CALIBRATION` (all in META) + `HYPOTHESES` (inside Tournament Prep).
+  Basic removes them; Pro re-adds them with plain `addTab` in Pro order so the original
+  positions are restored exactly.
+- **META order changed** by the same commit — now CHARTS / MATCHUP DATA / **LADDER** /
+  SIMULATE / PREDICTIONS / CALIBRATION (LADDER moved ahead of PREDICTIONS).
+- **First-run default** via `_is_existing_user()`: any row in `saved_decks` or `match_log`
+  → **Pro** (existing users see no change); otherwise **Basic**. Resolved *before*
+  `_build_ui`, persisted to `global.ui_level`, then never consulted again. Each table read
+  is individually try/except'd, so a missing table reads as "fresh install".
+- **Basic-mode navigation safety:** a persisted `global.last_active_tab_path` pointing at a
+  Pro tab is not restored (`_path_has_pro_part`); the command palette still indexes Pro
+  tabs and jumping to one from Basic **auto-reveals Pro** first; the SIMULATE hand-off
+  paths force Pro for the same reason.
+- **Dashboard banner:** dismissible "First 3 things to try" strip (links → Decks / Search /
+  Meta), persisted via `global.dash_banner_dismissed`.
+- State keys live in `gui/state_keys.py`: `UI_LEVEL`, `DASH_BANNER_DISMISSED`.
+
+### Button icons
+`gui/icons_util.py::btn_icon(name)` maps a semantic action name to a font-awesome glyph via
+`_ICON_MAP`, returning a **null QIcon** when qtawesome is missing or the name is unknown — Qt
+then renders a bare button, so icons are always optional and a typo cannot crash a tab.
+Convention: `QPushButton(btn_icon("search"), "Search")`. `gui/tabs/search.py` wraps this in its
+local `_btn(text, style, icon=None)`. As of 2026-09-22 the Dashboard/Charts/Predictions/
+AskClaude/CardBrowser/EventOptimizer/Search/DeckEv buttons carry icons; **HeatmapTab (8),
+MyDecksTab (13) and SettingsTab (11) deliberately do not yet** — see ROADMAP.
 
 ### Timeframe System
 `theme.TIMEFRAME_OPTIONS`: 1w/2w/4w/8w/3m/6m/1y/2y/All Time. `None` = All Time = no date filter.
@@ -330,6 +508,7 @@ analysis/cooccurrence_embeddings.py  Card2Vec (Word2Vec on decklists)
 analysis/knn_classifier.py      KNN archetype classifier
 analysis/meta_change.py         Compare two time periods (rising/falling/new/gone)
 analysis/deck_roles.py          Classify archetypes as Aggro/Midrange/Control/Combo/Tempo
+analysis/card_text.py           Shared oracle-text predicates (is_damage_removal)
 analysis/deck_recommender.py    Meta-based deck recommendation engine
 analysis/card_adoption.py       Card inclusion rate tracking over time
 analysis/slot_analysis.py       "Why this card?" — role, trend, substitutes, competitors
@@ -425,6 +604,16 @@ python -m db.maintenance
 ### matplotlib backend
 `analysis/charts.py` sets `matplotlib.use("Agg")` at import. **Never import it in GUI code.**
 GUI uses `gui/widgets/chart_canvas.py`. `run_gui.py` calls `matplotlib.use("QtAgg")` first.
+
+### Test-infra: modals wedge the suite
+`gui/crash_handler.py::_exception_hook` ends in a **modal** `QMessageBox.critical`, guarded only
+by `QApplication.instance() is not None`. `tests/test_crash_handler.py` calls that hook directly,
+so it only terminated because nothing alphabetically earlier had created a QApplication — it
+passed by accident of ordering for as long as it existed. Adding a Qt test file earlier in the
+alphabet hung the whole suite (a hang, not a failure — indistinguishable from "still running").
+Fixed with an autouse fixture no-op'ing `gui.crash_handler.QMessageBox.critical`. **Rule:** any
+test that calls a GUI code path directly must neutralise modals, and cross-file interaction
+checks should include alphabetical neighbours, not just topically related files.
 
 ### Worker lifecycle
 All workers: `finished → deleteLater()`. All tabs expose `cleanup()`. `_cancel_worker()` uses `blockSignals(True)` with `RuntimeError` guard.

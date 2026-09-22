@@ -167,6 +167,7 @@ class SettingsTab(QWidget):
         self._backfill_status.setWordWrap(True)
         store_btns.addWidget(self._backfill_status)
         sv.addLayout(store_btns)
+        outer.addWidget(store_box)
 
         # ── ML Models ─────────────────────────────────────────────
         ml_box = QGroupBox("ML Models (Advanced Analytics)")
