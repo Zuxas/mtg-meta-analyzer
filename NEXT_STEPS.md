@@ -638,6 +638,39 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **A format's most-played deck was labelled "Fringe" — FOUND + FIXED (2026-09-22).**
+      Invariant-probing the numeric engines (`meta_scoring`, `tournament`, `equilibrium`,
+      `field_optimizer`, `ratings` — **none of which had any test coverage**).
+      `classify_status` has four labels, and three of its rules require an EXTREME win
+      rate: `share>=5% & wr>=54%` -> Pillar, `share>=5% & wr<48%` -> Trap,
+      `share<3% & wr>=54%` -> Underplayed, **everything else -> Fringe**. So a deck with a
+      big share and an ORDINARY 48-54% win rate — the most common region of any real
+      metagame — fell through to Fringe. Measured: **24 of 24** cells in that region.
+      The format's defining deck at a flat 50% WR displayed **"Fringe"** in the Dashboard's
+      Status column.
+      **A bug, not a taste question:** the code contradicted its own contract in two
+      places — `meta_scoring.py:12` ("Fringe — low share, middling win rate") and the
+      user-facing legend at `dashboard.py:496` ("Fringe (grey) Low share, middling win
+      rate"). Both define Fringe as LOW share; the code returned it for high share. The
+      taxonomy simply had no home for high-share/ordinary-WR.
+      Fix = a fifth label for that cell, `_ESTABLISHED` (blue `#4a9edd`), plus the
+      Dashboard tooltip so the legend matches what the column can actually show. The Status
+      column reads `status_color` straight from the data with no hardcoded label map, so
+      the new label needed no rendering changes. **The WORD is team vocabulary, not logic**
+      — rename `_ESTABLISHED` in `meta_scoring.py` and the one tooltip line to change it
+      everywhere.
+      `tests/test_meta_status_labels.py` (37 tests) covers the whole 30-cell region, the
+      headline case, Fringe matching its documented definition, all three original labels
+      unchanged, exact threshold boundaries, and that all five labels carry DISTINCT
+      colours. Falsifiability verified — reverting fails 33 of 37.
+      **Also probed and found CLEAN** in the same pass, so recorded rather than touched:
+      `swiss_rounds` matches the published DCI table at 8/16/32/64/128/226/409 players and
+      is monotonic over 2..1199; `encounter_probability` is a proper hypergeometric PMF
+      (sums to 1.0 within 1e-6 and stays in [0,1] across 630 parameter combinations);
+      `prep_priority` stays in 0-100 across its grid.
+      **Cleared, NOT a bug:** `top_cut_size` is non-monotonic (8 players -> 8, 16 -> 4,
+      32 -> 8) which looks wrong but is MTR Appendix E — an 8-player event is a single-elim
+      bracket where all 8 play, and 9-16 genuinely cuts to top 4. Its docstring says so.
 - [x] **Burn spells were invisible to every deck-evaluation engine — FOUND + FIXED
       (2026-09-22).** Extended the populated-DB method to *card* data (seed v2 gives each
       archetype a decklist of a known strategic shape plus two decks built wrong on purpose)

@@ -493,6 +493,7 @@ class DashboardTab(QWidget):
             "Pillar       (green)  High share + high win rate — the decks to beat\n"
             "Trap         (red)    Popular but losing — avoid or exploit\n"
             "Underplayed  (gold)   Low share + high win rate — sleeper pick\n"
+            "Established  (blue)   High share, ordinary win rate — a fixture\n"
             "Fringe       (grey)   Low share, middling win rate"
         )
         self._winrate_tbl.horizontalHeaderItem(7).setToolTip(
@@ -1258,7 +1259,7 @@ class DashboardTab(QWidget):
                 pp_item.setBackground(bg)
             tbl.setItem(ri, 5, pp_item)
 
-            # Status column (Pillar / Trap / Underplayed / Fringe)
+            # Status column (Pillar / Trap / Underplayed / Established / Fringe)
             status = s.get("status", "")
             status_color = s.get("status_color", theme.TEXT_DIM)
             st_item = QTableWidgetItem(status)

@@ -1,6 +1,26 @@
 # CLAUDE.md — MTG Meta Analyzer
 
-Last updated: 2026-09-22 (**Populated-DB correctness pass, part 2 — burn spells were invisible
+Last updated: 2026-09-22 (**Populated-DB correctness pass, part 3 — a format's most-played deck
+was labelled "Fringe".** Invariant-probing the numeric engines (`meta_scoring`, `tournament`,
+`equilibrium`, `field_optimizer`, `ratings` — none of which had any test coverage).
+`analysis/meta_scoring.py::classify_status` has four labels, and three of its rules require an
+EXTREME win rate (Pillar needs >=54%, Trap needs <48%, Underplayed needs <3% share AND >=54%),
+so a deck with a large share and an ORDINARY 48-54% win rate — the most common region of any
+real metagame — fell through to the catch-all, "Fringe". Measured: **24 of 24** cells in that
+region. The format's defining deck at a flat 50% win rate displayed "Fringe" in the Dashboard
+Status column. **A bug rather than a taste question**, because the code contradicted its own
+contract in two places: `meta_scoring.py:12` and the user-facing legend at `dashboard.py:496`
+both define Fringe as *low share*. Fix = a fifth label `_ESTABLISHED` (blue `#4a9edd`) for that
+cell, plus the tooltip line so the legend matches what the column can show; the Status column
+reads `status_color` from the data with no hardcoded label map, so no rendering change was
+needed. **The word is team vocabulary, not logic** — rename `_ESTABLISHED` plus one tooltip line
+to change it. `tests/test_meta_status_labels.py` (37 tests; reverting fails 33). Probed CLEAN in
+the same pass and left alone: `swiss_rounds` matches the DCI table and is monotonic over
+2..1199, `encounter_probability` is a proper hypergeometric PMF (sums to 1 across 630 parameter
+combinations), `prep_priority` stays in 0-100. **Cleared, not a bug:** `top_cut_size` is
+non-monotonic (8->8, 16->4, 32->8) but that is MTR Appendix E, as its docstring states.
+
+Earlier 2026-09-22 (**Populated-DB correctness pass, part 2 — burn spells were invisible
 to every deck-evaluation engine.** Extending the populated-DB method from placement data to
 *card* data turned up a defect in three engines at once. `analysis/blunders.py:274` and
 `analysis/chapin.py:117` tested for the literal substring `"deals damage to target"`, and

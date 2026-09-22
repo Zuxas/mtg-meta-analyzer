@@ -166,6 +166,12 @@ DB renders them identically to "no data".
       `gui/widgets/archetype_detail.py:721` (Tech Choices role grouping).
       `tests/test_damage_removal_detection.py` (19 tests) is the first coverage any of them
       has had.
+- [x] **A format's most-played deck was labelled "Fringe"** — `classify_status`'s three
+      specific rules all require an extreme win rate, so any deck with a big share and an
+      ordinary 48-54% win rate fell through to the catch-all. The code contradicted its own
+      docstring and the Dashboard legend, which both define Fringe as LOW share. Added a
+      fifth label (`_ESTABLISHED`) for that cell plus the matching legend line.
+      `tests/test_meta_status_labels.py` (37 tests). `meta_scoring` had no coverage either.
 
 
 ### 2026-05-14 / 2026-05-15 — MTGA Live Import + Match History + Replay Viewer

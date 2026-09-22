@@ -9,6 +9,7 @@ Statuses:
     Meta Pillar      — high share AND high win rate (the decks to beat)
     Trap Deck        — popular but loses (avoid or exploit)
     Underplayed      — low share but high win rate (sleeper pick)
+    Established      — high share, ordinary win rate (a fixture of the format)
     Fringe           — low share, middling win rate (niche viable)
 """
 
@@ -23,6 +24,17 @@ _HIGH_SHARE = 0.05      # ≥5% meta share
 _LOW_SHARE  = 0.03      # <3% meta share
 _HIGH_WR    = 0.54      # ≥54% win rate
 _LOW_WR     = 0.48      # <48% win rate
+
+# Label for a deck with a large share and an ORDINARY win rate (48-54%) --
+# the most common region of any real metagame, and the one cell the original
+# four-label taxonomy had no home for. It fell through to "Fringe", which
+# both this module's docstring and the Dashboard legend define as LOW share,
+# so the format's most-played deck displayed as marginal.
+#
+# The WORD is team vocabulary, not logic: rename this constant and the
+# tooltip in gui/tabs/dashboard.py to change it everywhere.
+_ESTABLISHED       = "Established"
+_ESTABLISHED_COLOR = "#4a9edd"   # blue — distinct from Fringe's grey
 
 
 def classify_status(meta_share: float, win_rate: float) -> tuple[str, str]:
@@ -39,6 +51,11 @@ def classify_status(meta_share: float, win_rate: float) -> tuple[str, str]:
         return "Trap", "#e6194b"         # red
     if meta_share < _LOW_SHARE and win_rate >= _HIGH_WR:
         return "Underplayed", "#f0c040"  # gold
+    # Large share, ordinary win rate. Must come before the Fringe fallback:
+    # Fringe means LOW share (see module docstring), so a heavily played deck
+    # can never be fringe no matter how average its results are.
+    if meta_share >= _HIGH_SHARE:
+        return _ESTABLISHED, _ESTABLISHED_COLOR
     return "Fringe", "#888888"           # grey
 
 
@@ -66,7 +83,8 @@ def score_standings(standings: list[dict],
 
     Returns the same list, each dict gaining:
         prep_priority  : float 0-100
-        status         : str   (Pillar / Trap / Underplayed / Fringe)
+        status         : str   (Pillar / Trap / Underplayed /
+                                Established / Fringe)
         status_color   : str   hex color
     """
     total_apps = sum(s["appearances"] for s in standings) or 1
