@@ -67,3 +67,69 @@ def test_count_puzzles_created_since(puzzle_db):
     since = "2000-01-01T00:00:00Z"
     assert db_puzzles.count_puzzles_created_since(author="drill_generator", category="drill_outs", since_iso=since) == 2
     assert db_puzzles.count_puzzles_created_since(author="drill_generator", category="drill_outs", since_iso="2999-01-01T00:00:00Z") == 0
+
+
+def test_attempt_date_converts_utc_z_to_local_day():
+    from analysis.puzzles.feed import attempt_date
+    assert attempt_date(_utc_iso(TODAY)) == TODAY
+    assert attempt_date(_utc_iso(TODAY - timedelta(days=3))) == TODAY - timedelta(days=3)
+
+
+def test_feed_orders_due_before_new_and_never_repeats_today(puzzle_db):
+    from analysis.puzzles.feed import todays_feed
+    add_p, add_a = puzzle_db["add_puzzle"], puzzle_db["add_attempt"]
+    solved_today = add_p()                       # attempted today -> excluded
+    add_a(solved_today, TODAY, "correct")
+    due_3d = add_p()                             # rung 1, due = -3d + 3 = today
+    add_a(due_3d, TODAY - timedelta(days=3))
+    overdue = add_p()                            # missed 5 days ago -> due 4 days ago
+    add_a(overdue, TODAY - timedelta(days=5), "incorrect")
+    scheduled = add_p()                          # correct yesterday -> due in 2 days
+    add_a(scheduled, TODAY - timedelta(days=1))
+    retired = add_p()                            # six corrects
+    for k in range(6, 0, -1):
+        add_a(retired, TODAY - timedelta(days=100 * k))
+    new_old = add_p()
+    new_newest = add_p()
+
+    feed = todays_feed(None, target=10, today=TODAY, top_up=False)
+    assert [p["id"] for p in feed.puzzles] == [overdue, due_3d, new_newest, new_old]
+    assert (feed.done_today, feed.due_count, feed.new_count, feed.generated) == (1, 2, 2, 0)
+    assert feed.remaining == 9
+    assert feed.next_due == TODAY + timedelta(days=2)
+
+
+def test_feed_truncates_to_remaining_and_zero_when_target_met(puzzle_db):
+    from analysis.puzzles.feed import todays_feed
+    add_p, add_a = puzzle_db["add_puzzle"], puzzle_db["add_attempt"]
+    ids = [add_p() for _ in range(5)]
+    for pid in ids[:3]:
+        add_a(pid, TODAY)
+    feed = todays_feed(None, target=4, today=TODAY, top_up=False)
+    assert feed.remaining == 1 and [p["id"] for p in feed.puzzles] == [ids[4]]
+    feed = todays_feed(None, target=3, today=TODAY, top_up=False)
+    assert feed.remaining == 0 and feed.puzzles == []
+
+
+def test_feed_respects_category_filter_but_counts_done_today_globally(puzzle_db):
+    from analysis.puzzles.feed import todays_feed
+    add_p, add_a = puzzle_db["add_puzzle"], puzzle_db["add_attempt"]
+    drill = add_p("drill_outs")
+    lethal = add_p("find_lethal")
+    add_a(lethal, TODAY)
+    feed = todays_feed("drill_outs", target=5, today=TODAY, top_up=False)
+    assert [p["id"] for p in feed.puzzles] == [drill]
+    assert feed.done_today == 1 and feed.remaining == 4
+
+
+def test_daily_stats_streak_uses_attempt_counts_per_local_day(puzzle_db):
+    from analysis.puzzles.feed import daily_stats
+    add_p, add_a = puzzle_db["add_puzzle"], puzzle_db["add_attempt"]
+    pid = add_p()
+    for back in (1, 2):                          # two full days before today
+        for _ in range(2):
+            add_a(pid, TODAY - timedelta(days=back))
+    add_a(pid, TODAY)                            # today unfinished (1 < 2)
+    st = daily_stats(target=2, today=TODAY)
+    assert (st.done_today, st.streak) == (1, 2)
+    assert st.new_count == 0 and st.due_count == 0   # pid attempted today -> not due
