@@ -6,6 +6,13 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
 
 ## 9/22 (while the full backfill runs)
 
+- **match_log deck-linking fix**: personal stats now match `my_deck` OR the `my_deck_id` saved deck
+  (archetype/name, case-insensitive). 15 of 109 live rows were invisible; Izzet Prowess 4 -> 10 matches.
+  Unblocks `analysis/matchup_advisor.get_advice`, which HAS NO CALLERS -- surfacing it is the next real feature
+  (suggested home: a panel in My Decks beside 'EV vs Field' / 'Match History', or the prep checklist).
+- **ROADMAP audit**: 3 lines were stale (card-name search, event bookmarks/.ics, hypothesis tracker) -- all
+  shipped, now checked off. Worth re-auditing the rest before picking work.
+
 - **Event Hub `.ics` export fixed** (ROADMAP Scope B was already shipped -- second stale line this week):
   escaping, DTSTAMP, 75-octet folding, and `write_ics(newline='')` for the CR CR LF on disk. 12 tests, 830 green.
 - Backfill still running: Modern 2026 (936 ev) + 2025 (1,952 ev / 20,043 decks) DONE, 2024 in progress.

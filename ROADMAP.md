@@ -56,7 +56,7 @@
 
 ## OPEN — Testing & Iteration
 - [ ] Card swap rationale tracker (why you changed cards)
-- [ ] Matchup hypothesis tracker (record + validate theories)
+- [x] **Matchup hypothesis tracker** — `db/hypotheses.py` + `gui/tabs/hypotheses.py` (Tournament Prep sub-tab): log a matchup prediction, validate it against the personal match log. Shipped; 0 hypotheses logged so far.
 - [ ] Gauntlet builder (auto top decks to test against)
 - [ ] Test recommendation engine
 - [ ] Testing insights from logged matches
@@ -66,7 +66,7 @@
 - [x] **Mulligan analysis from logged matches** (2026-05-14) — `db.match_games.keep_stats_for_deck` aggregates keep-7 / mull-to-6 / mull-to-5 / mull-to-4 buckets with per-bucket WR; surfaced in Match History sub-tab with reliability coloring + actionable warning
 - [x] **Canonical vs Actual SB plan diff** (2026-05-14) — `analysis.sb_plan_diff.compare_match_to_canonical` shows IN-match % colored by reliability under each plan line in Match Detail panel
 - [ ] Trend analysis: personal WR over time, improving/declining matchups
-- [ ] Integration with SB advisor: "your WR is low vs X, adjust your plan"
+- [~] **Integration with SB advisor** — `analysis/matchup_advisor.py::get_advice` is WRITTEN (personal vs meta WR, severity, guide IN/OUT, saved-plan check) but has **zero callers**; it returned 'no match data' for every deck until the 2026-09-22 deck-linking fix. Remaining work is purely surfacing it in the GUI.
 
 ## OPEN — MTGA Live Integration (next: 5/16 chain)
 - [x] **Auto-import MTGA Player.log into match_log** (2026-05-14) — wired into M/W/F pipeline + auto-sync on GUI launch + 30s live-tail QThread

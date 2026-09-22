@@ -134,6 +134,27 @@ def delete_match(match_id: int):
 # Read
 # ---------------------------------------------------------------------------
 
+def _my_deck_clause(alias: str = "") -> str:
+    """SQL fragment matching one of YOUR decks by either link.
+
+    `match_log` carries two: the legacy free-text `my_deck` and `my_deck_id`,
+    the saved-decks FK that the MTGA importer and the Resolve dialog write.
+    Filtering on the text alone silently drops every id-linked row -- 15 of
+    109 on the live DB (2026-09-22) -- and with them the personal numbers in
+    Event Optimizer, the hypotheses tab, the prep checklist, Simulate and
+    analysis/matchup_advisor. Takes ONE parameter, bound three times.
+    """
+    m = f"{alias}." if alias else ""
+    return (f"({m}my_deck = ? OR {m}my_deck_id IN ("
+            f"SELECT id FROM saved_decks WHERE lower(archetype) = lower(?) "
+            f"OR lower(name) = lower(?)))")
+
+
+def _my_deck_params(my_deck: str) -> list:
+    """The three bindings `_my_deck_clause()` needs, in order."""
+    return [my_deck, my_deck, my_deck]
+
+
 def get_matches(format_name: str = None, my_deck: str = None,
                 since: str = None, limit: int = 200,
                 my_deck_id: int | None = None) -> list[dict]:
@@ -153,8 +174,8 @@ def get_matches(format_name: str = None, my_deck: str = None,
         q += " AND lower(format) = lower(?)"
         params.append(format_name)
     if my_deck:
-        q += " AND my_deck = ?"
-        params.append(my_deck)
+        q += f" AND {_my_deck_clause()}"
+        params.extend(_my_deck_params(my_deck))
     if my_deck_id is not None:
         q += " AND my_deck_id = ?"
         params.append(my_deck_id)
@@ -176,8 +197,8 @@ def get_matchup_stats(my_deck: str, format_name: str = None,
                           "total": int, "wr": float, "play_wr": float, "draw_wr": float}}
     """
     _ensure_table()
-    q = "SELECT * FROM match_log WHERE my_deck = ?"
-    params = [my_deck]
+    q = f"SELECT * FROM match_log WHERE {_my_deck_clause()}"
+    params = _my_deck_params(my_deck)
     if format_name:
         q += " AND lower(format) = lower(?)"
         params.append(format_name)
@@ -232,8 +253,8 @@ def get_overall_stats(my_deck: str = None, format_name: str = None,
     q = "SELECT result, COUNT(*) as n FROM match_log WHERE 1=1"
     params = []
     if my_deck:
-        q += " AND my_deck = ?"
-        params.append(my_deck)
+        q += f" AND {_my_deck_clause()}"
+        params.extend(_my_deck_params(my_deck))
     if format_name:
         q += " AND lower(format) = lower(?)"
         params.append(format_name)
@@ -340,8 +361,8 @@ def get_trend_data(my_deck: str = None, format_name: str = None) -> list[dict]:
     """
     params = []
     if my_deck:
-        q += " AND my_deck = ?"
-        params.append(my_deck)
+        q += f" AND {_my_deck_clause()}"
+        params.extend(_my_deck_params(my_deck))
     if format_name:
         q += " AND lower(format) = lower(?)"
         params.append(format_name)
