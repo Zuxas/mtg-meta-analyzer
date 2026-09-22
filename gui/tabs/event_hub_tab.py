@@ -26,7 +26,7 @@ from db.event_hub_db import (
     ensure_tables, upsert_event_bookmark, upsert_store_bookmark,
     get_all_bookmarks, get_all_store_bookmarks,
     update_bookmark_field, remove_event_bookmark, remove_store_bookmark,
-    is_bookmarked, export_ics,
+    is_bookmarked, export_ics, write_ics,
 )
 
 # ---------------------------------------------------------------------------
@@ -1302,10 +1302,9 @@ class MyEventsView(QWidget):
             self, "Export Calendar", "mtg_events.ics", "iCalendar Files (*.ics)"
         )
         if path:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(export_ics(going))
+            n = write_ics(path, going)
             QMessageBox.information(self, "Exported",
-                f"Exported {len(going)} event(s) to {path}\n\n"
+                f"Exported {n} event(s) to {path}\n\n"
                 "Open the file to import into Google Calendar, Outlook, or Apple Calendar.")
 
 

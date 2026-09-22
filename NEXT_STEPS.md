@@ -4,6 +4,13 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
 
 ---
 
+## 9/22 (while the full backfill runs)
+
+- **Event Hub `.ics` export fixed** (ROADMAP Scope B was already shipped -- second stale line this week):
+  escaping, DTSTAMP, 75-octet folding, and `write_ics(newline='')` for the CR CR LF on disk. 12 tests, 830 green.
+- Backfill still running: Modern 2026 (936 ev) + 2025 (1,952 ev / 20,043 decks) DONE, 2024 in progress.
+  Modern events 1,041 -> 5,197. Standard/Pioneer/Legacy/Pauper still queued behind it.
+
 ## 9/21 afternoon (while the full backfill runs)
 
 - ROADMAP 'Card-name decklist search' was shipped 2026-04-21 -- checked off, AND/OR pinned by test.

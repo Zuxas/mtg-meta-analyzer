@@ -7,6 +7,7 @@ Two tables in mtg_meta.db:
 """
 
 import json
+from datetime import datetime, timezone
 from db.database import get_connection
 
 
@@ -150,12 +151,52 @@ def remove_store_bookmark(org_id: str):
 # .ics export
 # ---------------------------------------------------------------------------
 
+def _ics_text(value) -> str:
+    """Escape a TEXT value per RFC 5545 s3.3.11.
+
+    Backslash FIRST (so the escapes we add are not re-escaped), then the
+    value separators `;` and `,`, then newlines. Without this a store called
+    "Gamer's Haven, LLC" hands the client a second value at the comma and
+    everything after it is dropped, and a note with a real newline ends the
+    content line outright.
+    """
+    return (str(value or "")
+            .replace("\\", "\\\\")
+            .replace(";", "\\;")
+            .replace(",", "\\,")
+            .replace("\r\n", "\\n")
+            .replace("\n", "\\n")
+            .replace("\r", "\\n"))
+
+
+def _fold(line: str) -> list[str]:
+    """Split one content line into <=75-OCTET pieces (RFC 5545 s3.1).
+
+    Continuation lines start with a single space, which the client strips.
+    Measured in UTF-8 octets, never mid-character, so non-ASCII store names
+    survive the trip.
+    """
+    if len(line.encode("utf-8")) <= 75:
+        return [line]
+    out, cur, budget = [], "", 75
+    for ch in line:
+        n = len(ch.encode("utf-8"))
+        if len(cur.encode("utf-8")) + n > budget:
+            out.append(cur)
+            cur, budget = " ", 75          # the leading space counts toward 75
+        cur += ch
+    if cur.strip():
+        out.append(cur)
+    return out
+
+
 def export_ics(bookmarks: list[dict] | None = None) -> str:
-    """Generate iCalendar string from bookmarks (default: going + interested)."""
+    """Generate an iCalendar string from bookmarks (default: going + interested)."""
     if bookmarks is None:
         all_bm = get_all_bookmarks()
         bookmarks = [b for b in all_bm if b["status"] in ("going", "interested")]
 
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -178,23 +219,37 @@ def export_ics(bookmarks: list[dict] | None = None) -> str:
             f"Status: {b['status'].title()}"
         )
         if b.get("personal_notes"):
-            desc += f"\\nNotes: {b['personal_notes']}"
+            desc += f"\nNotes: {b['personal_notes']}"
 
         lines += [
             "BEGIN:VEVENT",
             f"UID:{b['event_id']}@mtg-event-hub",
+            f"DTSTAMP:{stamp}",
             f"DTSTART:{date_str}T120000Z",
             f"DTEND:{date_str}T200000Z",
-            f"SUMMARY:{b['title']} @ {b['store_name'] or '?'}",
-            f"LOCATION:{b['store_name'] or ''}",
-            f"DESCRIPTION:{desc}",
+            f"SUMMARY:{_ics_text(f'{b["title"]} @ {b["store_name"] or "?"}')}",
+            f"LOCATION:{_ics_text(b.get('store_name') or '')}",
+            f"DESCRIPTION:{_ics_text(desc)}",
         ]
         if b.get("event_url"):
             lines.append(f"URL:{b['event_url']}")
         lines.append("END:VEVENT")
 
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines)
+    folded = [piece for line in lines for piece in _fold(line)]
+    return "\r\n".join(folded)
+
+
+def write_ics(path: str, bookmarks: list[dict] | None = None) -> int:
+    """Write the .ics for `bookmarks` to `path`; returns the VEVENT count.
+
+    `newline=""` matters: export_ics already emits CRLF, and Windows text
+    mode would translate the LF again, putting CR CR LF on disk.
+    """
+    payload = export_ics(bookmarks)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(payload)
+    return payload.count("BEGIN:VEVENT")
 
 
 # ---------------------------------------------------------------------------
