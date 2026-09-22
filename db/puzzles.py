@@ -198,6 +198,31 @@ def get_attempts(puzzle_id: int) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def get_attempt_log(*, category: Optional[str] = None) -> list[dict[str, Any]]:
+    """Every attempt with its puzzle's category, oldest first. One query for
+    the whole feed instead of one `get_attempts` per puzzle."""
+    _ensure_tables()
+    sql = ("SELECT a.puzzle_id, a.attempted_at, a.verdict, p.category "
+           "FROM puzzle_attempts a JOIN puzzles p ON p.id = a.puzzle_id")
+    params: list[Any] = []
+    if category:
+        sql += " WHERE p.category = ?"; params.append(category)
+    sql += " ORDER BY a.id ASC"
+    with get_connection() as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_puzzles_created_since(*, author: str, category: str, since_iso: str) -> int:
+    """Puzzles by `author` in `category` created at/after `since_iso` (UTC 'Z')."""
+    _ensure_tables()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM puzzles WHERE author = ? AND category = ? AND created_at >= ?",
+            (author, category, since_iso)).fetchone()
+    return int(row[0])
+
+
 def get_session_stats(*, since: Optional[str] = None) -> dict[str, Any]:
     """Aggregate solve stats. `since` is ISO timestamp; None = all-time."""
     _ensure_tables()
