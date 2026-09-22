@@ -321,6 +321,11 @@ Last updated: 2026-09-22 (Storage-groupbox orphan fixed + private-corpus gitigno
 
 ### Suite HANG root-caused: a modal dialog in test_crash_handler (2026-09-22)
 
+**Final verified numbers (fresh container, post-fix): 557 passed, 5 skipped, 12 failed, 3 errors
+in 154s — completes cleanly, no hang, no segfault.** 534 + 14 (Basic/Pro) + 9 (Dashboard) = 557.
+The 12+3 remain the enumerated environmental set and are unchanged from before this session's work.
+
+
 The full suite began hanging — not failing — partway through. Root cause was **not** the
 obvious one, and two earlier theories were wrong (process contention; a leaked
 `sys.excepthook` — `MainWindow` never touches `excepthook`).
