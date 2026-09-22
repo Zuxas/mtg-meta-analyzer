@@ -665,8 +665,19 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       integration tests. **Heatmap needed no work** — it already had hero-sized empty states.
       Test-writing note: assert `isHidden()`, not `isVisible()`; Qt reports `isVisible()` False
       for any widget whose ancestor is hidden, and these tabs are never shown in tests.
-- [ ] Extend icons to remaining text-only buttons (ask_claude / predictions
-      / card_browser Search button / h2h / vs-field forms)
+- [x] **Icons on the buttons this item named (2026-09-22).** Probed the real widgets first:
+      **three of the five were already done** — ask_claude, predictions and card_browser all
+      had icons. Outstanding were SearchTab (which owns the "h2h" Show Matchups button plus
+      Search/Compare/Detect) and the vs-field `DeckEvWidget` Recalc button. search.py's local
+      `_btn()` helper gained an optional `icon=` argument rather than bypassing it.
+      `tests/test_button_icons.py` (5 tests) also pins the three already-done tabs so they
+      can't regress. Stripping the icons fails the SearchTab test.
+- [ ] **Icons elsewhere — NOT done, needs a design decision.** The probe found ~32 more
+      icon-free labelled buttons this item never named: **HeatmapTab 8 (all), MyDecksTab 13,
+      SettingsTab 11 (all)**. Left alone deliberately — HeatmapTab's toolbar was given a
+      deliberate grouped Sources|Analysis|Export design in Wave A (GR-5), so adding icons
+      there is a choice rather than a side effect, and icon *selection* cannot be verified
+      headlessly.
 - [x] **Global "All Formats" option rollout (2026-05-14).** The "all" option
       existed on Dashboard / Charts / Predictions dropdowns but the underlying
       queries filtered `WHERE lower(format) = lower('all')` and returned zero

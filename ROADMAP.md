@@ -92,6 +92,12 @@
 - [ ] Blocking/teammate support math
 
 ## OPEN — UI/UX
+- [x] **Icons on the named text-only buttons** (2026-09-22) — 3 of the 5 surfaces the item
+      listed already had icons; SearchTab (h2h + search) and the vs-field Recalc button did
+      not, and now do. 5 tests, including pins on the already-done tabs.
+- [ ] **Icons on the remaining ~32 buttons** — HeatmapTab (8), MyDecksTab (13), SettingsTab
+      (11). Not part of the original item and a real design decision: HeatmapTab's toolbar
+      was deliberately grouped in Wave A, and icon choice can't be verified headlessly.
 - [x] **Dashboard empty-state polish** (2026-09-22) — the three panels rendered as blank 0-row
       tables on a never-scraped database (verified against a fresh `init_db()` DB). Each now
       swaps in a `theme.empty_state_label` when it has no rows, with separate Win Rate copy for

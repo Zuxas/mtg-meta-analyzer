@@ -303,6 +303,15 @@ inserted after a Pro one would silently reorder META on every toggle.
   Meta), persisted via `global.dash_banner_dismissed`.
 - State keys live in `gui/state_keys.py`: `UI_LEVEL`, `DASH_BANNER_DISMISSED`.
 
+### Button icons
+`gui/icons_util.py::btn_icon(name)` maps a semantic action name to a font-awesome glyph via
+`_ICON_MAP`, returning a **null QIcon** when qtawesome is missing or the name is unknown — Qt
+then renders a bare button, so icons are always optional and a typo cannot crash a tab.
+Convention: `QPushButton(btn_icon("search"), "Search")`. `gui/tabs/search.py` wraps this in its
+local `_btn(text, style, icon=None)`. As of 2026-09-22 the Dashboard/Charts/Predictions/
+AskClaude/CardBrowser/EventOptimizer/Search/DeckEv buttons carry icons; **HeatmapTab (8),
+MyDecksTab (13) and SettingsTab (11) deliberately do not yet** — see ROADMAP.
+
 ### Timeframe System
 `theme.TIMEFRAME_OPTIONS`: 1w/2w/4w/8w/3m/6m/1y/2y/All Time. `None` = All Time = no date filter.
 All query functions handle `since=None` via `if since:` guards.

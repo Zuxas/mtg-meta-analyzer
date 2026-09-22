@@ -15,6 +15,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QPixmap, QColor
 
 from gui.worker_threads import DataLoadWorker
+from gui.icons_util import btn_icon
 import gui.theme as theme
 
 
@@ -62,8 +63,12 @@ def _fetch_card_image(card_name: str) -> str | None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _btn(text, style="primary"):
-    w = QPushButton(text)
+def _btn(text, style="primary", icon=None):
+    """Local button factory. `icon` takes an icons_util semantic name; the
+    helper returns a null QIcon when qtawesome is missing or the name is
+    unknown, and Qt renders a bare button in that case -- so this stays
+    optional and cannot fail."""
+    w = QPushButton(btn_icon(icon), text) if icon else QPushButton(text)
     w.setStyleSheet(theme.btn_primary() if style == "primary" else theme.btn_secondary())
     return w
 
@@ -389,7 +394,7 @@ class SearchTab(QWidget):
         self._deck_cards_any_q.setMinimumWidth(180)
         row2.addWidget(self._deck_cards_any_q, 1)
 
-        btn = _btn("Search")
+        btn = _btn("Search", icon="search")
         btn.clicked.connect(self._search_decks)
         row2.addWidget(btn)
 
@@ -640,7 +645,7 @@ class SearchTab(QWidget):
         self._h2h_tf.setFixedWidth(100)
         row.addWidget(self._h2h_tf)
 
-        btn = _btn("Compare")
+        btn = _btn("Compare", icon="analyze")
         btn.clicked.connect(self._run_h2h)
         row.addWidget(btn)
         v.addLayout(row)
@@ -708,7 +713,7 @@ class SearchTab(QWidget):
         self._vsf_fmt.currentTextChanged.connect(self._vsf_fmt_changed)
         row.addWidget(self._vsf_fmt)
 
-        btn = _btn("Show Matchups")
+        btn = _btn("Show Matchups", icon="field")
         btn.clicked.connect(self._run_vs_field)
         row.addWidget(btn)
 
@@ -733,7 +738,7 @@ class SearchTab(QWidget):
         self._vsf_decklist.setFont(QFont("Consolas", 9))
         dl_row.addWidget(self._vsf_decklist, 1)
 
-        detect_btn = _btn("Detect", style="secondary")
+        detect_btn = _btn("Detect", style="secondary", icon="search")
         detect_btn.setToolTip("Detect archetype from pasted decklist")
         detect_btn.setFixedWidth(70)
         detect_btn.clicked.connect(self._detect_archetype)
