@@ -7,8 +7,12 @@ Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill
 ## 9/21 afternoon (while the full backfill runs)
 
 - ROADMAP 'Card-name decklist search' was shipped 2026-04-21 -- checked off, AND/OR pinned by test.
-- **T1.1 spaced repetition: spec written + approved** (`docs/superpowers/specs/2026-09-21-puzzle-spaced-repetition-design.md`).
-  Next: implementation plan -> `analysis/puzzles/spaced_repetition.py` (pure), `analysis/puzzles/feed.py`, Solve header.
+- **T1.1 spaced repetition + daily feed SHIPPED** (spec + plan under `docs/superpowers/`): ladder derived from
+  `puzzle_attempts`, due-first feed, daily target + streak, drill auto top-up (seed advances per day/batch), Solve
+  tab header/done state/Keep going. Live: 6 due / 43 new / 0 generated. Fixed on the way: PyQt6 aborts on a raising
+  slot (guarded); board puzzles pushed MainWindow past the 900px gate (scene now in a QScrollArea). Suite 816.
+  Follow-ups (not started): the 6 overdue July puzzles will be the first thing served -- expected; the GUI's
+  top-up mints drills at tab construction when the feed is short (by design, C).
 
 ## 9/21 session, part 2 (shipped -- the two crashes the first real backfill run surfaced)
 
