@@ -97,6 +97,10 @@
       swaps in a `theme.empty_state_label` when it has no rows, with separate Win Rate copy for
       "filtered out by the 15-appearance floor" vs "no data at all". 9 tests. Heatmap already
       had empty states and needed no change.
+- [x] **Chart empty states** (2026-09-22) — the charts were never blank, but said nothing
+      actionable and (on CHARTS) blamed the user's selection for what is usually an empty
+      database. `chart_canvas._no_data_hint()` appends advice branched on whether `events`
+      has any rows. 7 tests.
 - [ ] **Basic/Pro progressive disclosure: verify + test what already shipped** — `9e6bcda`
       (2026-07-01) put a Basic|Pro header toggle, a Pro-only tab set
       (LADDER/SIMULATE/PREDICTIONS/CALIBRATION/HYPOTHESES), a META reorder and a dismissible

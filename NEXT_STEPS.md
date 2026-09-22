@@ -638,6 +638,19 @@ alt-tab elsewhere. Skipped Maps deeplink (deferred to 5/17).
       `_on_active_tab_changed` wired to every nested QTabWidget. Verified via
       manual smoke (close + relaunch returns to leaf path). Shipped 2026-05-13.
 - [ ] Interaction speed — filters update in place (no full refresh)
+- [x] **Chart empty states (2026-09-22, follow-up to the panels below).** Checked empirically
+      first: neither chart surface was blank — the Dashboard canvas already said "No data to
+      display." and CHARTS "No meta data available *for this selection*" — so the table bug did
+      NOT extend to them. Two real problems remained: neither named a next action while the
+      panels directly above them now do (an inconsistency that reads as an oversight), and "for
+      this selection" blames the dropdown when a fresh install has no data for ANY selection.
+      `chart_canvas._no_data_hint()` appends a line branched on whether `events` has rows —
+      nothing scraped → Settings → Collect More Data; data present → widen the timeframe.
+      Best-effort (any failure returns `""`), applied to the 6 terse messages only; loading,
+      error, "No archetypes selected" and the already-actionable Untapped/heatmap copy are
+      untouched. Overlay gained `setWordWrap(True)`. `tests/test_chart_empty_hints.py` (7 tests).
+      Note: the source-scanning tests first matched `_no_data_hint`'s own docstring (which quotes
+      the old strings as examples) — they now scan `show_message()` CALL SITES.
 - [x] **Dashboard empty-state polish (2026-09-22).** Verified empirically first: on a fresh
       `init_db()` database the three Dashboard panels rendered as 0-row tables with **no**
       per-panel message. (The tab was not silent — a status line already said "No standard data
