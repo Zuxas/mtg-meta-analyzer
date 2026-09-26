@@ -16,21 +16,37 @@ Fetch  : ALWAYS through scrapers.polite_client.get (robots-checked, rate-gated,
 Writes : JSON snapshot files under data/mymtgo/. There is NO DB write here on purpose
          (the live DB is a hot zone). A DB mapping is a follow-up that needs sign-off.
 
+DATA QUALITY (audit 2026-09-26, harness/knowledge candidate: inbox/promoted/mymtgo-data-audit-2026-09-26.md)
+    Verified : site math (matchup symmetry, k=27 shrinkage, Wilson ranges, seat sums) and
+               challenge standings/records/archetype labels vs mtgo.com (32/32 exact), and
+               reconstructed pairings reproduce every published player's official W-L.
+    Caveats  : tracker pilots win ~51-68% of league matches depending on deck (their lean
+               lands on the deck they pilot); published-vs-published challenge matches
+               attenuate matchups toward 50% by ~0.5-3pp; '(Provisional)' / Rogue labels
+               soak up fast losses; the site's matchup window is a fixed 90 days that can
+               cross set releases / B&R. Store raw counts; derive estimates downstream
+               (analysis/mymtgo_quality.py). Swiss pairings are NOT published by MTGO, so
+               event matches carry provenance 'mymtgo_reconstructed'.
+
 PUBLIC SURFACE
-    extract_page(html) -> dict                   # {'component', 'url', 'props'}; raises MyMtgoParseError
+    extract_page(html) -> dict                   # {'component', 'url', 'props', '_sha256'}; raises MyMtgoParseError
     parse_index(page)  -> dict                   # field shares + win rates (one page of the index)
     parse_deck(page)   -> dict                   # one archetype: matchups, mulligans, openers
     fetch_index(fmt, days=30) -> dict            # all index pages merged
     fetch_deck(fmt, slug) -> dict
     snapshot(fmt, days=30, top=20) -> dict       # index + the top-N decks' matchup spreads
     matchup_matrix(snap, rate='shrunk') -> {deck: {opp: rate}}
+    parse_events_index(page) / parse_event(page) -> dict   # events + reconstructed pairings
+    fetch_events(fmt, since, until=None) -> list[dict]     # event pages in a date window
     CLI: python -m scrapers.mymtgo --format modern --days 30 --top 20
+         python -m scrapers.mymtgo --format modern --events-since 2026-08-14
 
 Spec: harness/specs/2026-09-26-session-assets-intake.md (amendment 1)
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html as _html
 import json
 import os
@@ -74,6 +90,9 @@ def extract_page(html: str) -> dict:
             page = None
     if not isinstance(page, dict) or not isinstance(page.get("props"), dict):
         raise MyMtgoParseError("data-page island is not an Inertia page object")
+    # Archive-friendly fingerprint of the raw payload: lets a later audit tell
+    # "the metagame changed" from "the (alpha) site revised its backend".
+    page["_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return page
 
 
@@ -102,6 +121,7 @@ def parse_index(page: dict) -> dict:
             "win_rate": _num(d.get("winRate")), "wr_lo": lo, "wr_hi": hi,
             "wr_matches": d.get("winRateMatches"), "signature": d.get("signature"),
             "has_page": bool(d.get("hasPage", True)),
+            "provisional": "(provisional)" in str(d.get("name", "")).lower(),
         })
     pg = p.get("pagination") or {}
     return {
@@ -110,7 +130,7 @@ def parse_index(page: dict) -> dict:
         "win_rate_window_days": p.get("winRateWindowDays"),
         "total_decks": p.get("decks"), "unlisted": p.get("unlisted") or {},
         "page": pg.get("page", 1), "last_page": pg.get("lastPage", 1),
-        "decks": decks,
+        "decks": decks, "payload_sha256": page.get("_sha256"),
     }
 
 
@@ -133,6 +153,7 @@ def parse_deck(page: dict) -> dict:
             "shrunk_rate": _num(r.get("shrunkRate")),  # pulled toward the deck's field rate
             "lo": rlo, "hi": rhi, "favoured_chance": r.get("favouredChance"),
             "wins": r.get("wins"), "matches": r.get("matches"), "games": r.get("games"),
+            "unit": "match",
         })
     mull = [{"kept": x.get("kept"), "games": x.get("games"), "share": _num(x.get("share")),
              "win_rate": _num(x.get("winRate")), "pooled": bool(x.get("pooled"))}
@@ -147,7 +168,20 @@ def parse_deck(page: dict) -> dict:
               "opener_wr": _num(c.get("openingHand")),
               "sided_in": _num(c.get("sidedIn")), "sided_out": _num(c.get("sidedOut"))}
              for c in (d.get("main") or []) + (d.get("side") or [])]
+    lr = d.get("leagueRuns") or {}
+    lw = sum((f.get("wins") or 0) * (f.get("runs") or 0) for f in lr.get("finishes") or [])
+    ln = sum(5 * (f.get("runs") or 0) for f in lr.get("finishes") or [])
+    cr = d.get("challengeResults") or {}
+    rows = cr.get("rows") or []
     return {
+        "payload_sha256": page.get("_sha256"),
+        # Tracker pilots' COMPLETE 5-match league runs only (drops excluded -> reads high).
+        # This is the tracker-skill lean that reported matches inherit for this deck.
+        "tracker_league": {"runs": lr.get("runs"), "wins": lw, "matches": ln,
+                           "win_rate": round(100 * lw / ln, 1) if ln else None},
+        "challenge": {"entries": cr.get("entries"), "trophies": cr.get("trophies"),
+                      "top8s": cr.get("topEights"), "recent_rows": len(rows),
+                      "recent_unique_pilots": len({r.get("pilot") for r in rows})},
         "slug": d.get("slug"), "name": d.get("name"), "format": d.get("formatSlug"),
         "colors": d.get("colors"), "lineage": d.get("lineage"),
         "win_rate": _num(d.get("winRate")), "wr_lo": lo, "wr_hi": hi,
@@ -156,6 +190,101 @@ def parse_deck(page: dict) -> dict:
         "refreshed_at": d.get("refreshedAt"),
         "matchups": matchups, "matchups_other": mu.get("other"),
         "mulligan": mull, "openers": openers, "cards": cards,
+    }
+
+
+# --------------------------------------------------------------------------- events (pure)
+
+PROVENANCE_EVENT = "mymtgo_reconstructed"   # MTGO does not publish swiss pairings; see audit
+
+
+def parse_events_index(page: dict) -> dict:
+    if page.get("component") != "events/Index":
+        raise MyMtgoParseError(f"expected component events/Index, got {page.get('component')!r}")
+    p = page["props"]
+    evs = []
+    for e in p.get("events") or []:
+        evs.append({"number": e.get("number"), "description": e.get("description"),
+                    "format": e.get("format"), "started_at": e.get("startedAt"),
+                    "player_count": e.get("playerCount"), "published_decks": e.get("publishedDecks"),
+                    "has_matches": bool(e.get("hasMatches"))})
+    pg = p.get("pagination") or {}
+    return {"events": evs, "page": pg.get("page", 1), "last_page": pg.get("lastPage", 1)}
+
+
+def _score(s):
+    """'2-1' -> (2, 1); None/garbage -> None."""
+    m = re.fullmatch(r"\s*(\d+)-(\d+)(?:-(\d+))?\s*", s or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def parse_event(page: dict) -> dict:
+    """One event: standings (published 32) + every pairing the site reconstructed.
+
+    Each match is emitted ONCE (deduped on event+round+both login ids) with:
+      a_*/b_* player + raw archetype label (None = unpublished or unclassified),
+      a_games/b_games, result ('a'|'b'|'draw'), both_published, playoff,
+      fingerprint, provenance='mymtgo_reconstructed'.
+    Also returns `reconciliation`: for every published player, W-L rebuilt from the
+    pairings vs the official standings record -- the check that the reconstruction
+    is coherent (it is NOT proof of where the pairings came from).
+    """
+    if page.get("component") != "events/Show":
+        raise MyMtgoParseError(f"expected component events/Show, got {page.get('component')!r}")
+    p = page["props"]
+    ev = p.get("event") or {}
+    if not isinstance(p.get("rounds"), list) or not isinstance(p.get("standings"), list):
+        raise MyMtgoParseError("event props lack rounds[] / standings[]")
+    standings = [{"login_id": s.get("loginId"), "player": s.get("playerName"),
+                  "final_rank": s.get("finalRank"), "swiss_rank": s.get("swissRank"),
+                  "record": s.get("record"), "deck_uuid": s.get("deckUuid"),
+                  "archetype": (s.get("archetype") or {}).get("name")}
+                 for s in p["standings"]]
+    published = {s["login_id"] for s in standings if s["deck_uuid"]}
+    labels = {s["login_id"]: s["archetype"] for s in standings}
+    seen, matches, rebuilt = set(), [], {}
+    for r in p["rounds"]:
+        rnd = r.get("round")
+        for row in r.get("rows") or []:
+            opp = row.get("opponent")
+            sc = _score(row.get("score"))
+            if not opp or row.get("bye") or sc is None:
+                continue
+            a, b = row.get("loginId"), opp.get("loginId")
+            ga, gb = sc
+            w = rebuilt.setdefault(a, [0, 0])
+            if ga > gb:
+                w[0] += 1
+            elif gb > ga:
+                w[1] += 1
+            key = (ev.get("number"), rnd, min(a, b), max(a, b))
+            if key in seen:
+                continue
+            seen.add(key)
+            matches.append({
+                "event": ev.get("number"), "round": rnd, "playoff": bool(r.get("playoff")),
+                "a_login": a, "a_player": row.get("playerName"),
+                "a_archetype": (row.get("archetype") or {}).get("name") or labels.get(a),
+                "b_login": b, "b_player": opp.get("playerName"),
+                "b_archetype": (opp.get("archetype") or {}).get("name") or labels.get(b),
+                "a_games": ga, "b_games": gb,
+                "result": "a" if ga > gb else ("b" if gb > ga else "draw"),
+                "both_published": a in published and b in published,
+                "fingerprint": "%s:%s:%s:%s" % key,
+                "provenance": PROVENANCE_EVENT,
+            })
+    recon = []
+    for s in standings:
+        w = rebuilt.get(s["login_id"], [0, 0])
+        recon.append({"player": s["player"], "official": s["record"], "rebuilt": f"{w[0]}-{w[1]}",
+                      "ok": s["record"] == f"{w[0]}-{w[1]}"})
+    return {
+        "number": ev.get("number"), "description": ev.get("description"),
+        "format": ev.get("format"), "started_at": ev.get("startedAt"),
+        "player_count": ev.get("playerCount"), "published_decks": ev.get("publishedDecks"),
+        "payload_sha256": page.get("_sha256"),
+        "standings": standings, "matches": matches, "reconciliation": recon,
+        "reconciled": all(x["ok"] for x in recon) if recon else None,
     }
 
 
@@ -201,6 +330,44 @@ def fetch_deck(fmt: str, slug: str) -> dict:
     return parse_deck(_get_page(f"/metagame/{fmt}/{slug}"))
 
 
+def fetch_event(fmt: str, number: int) -> dict:
+    return parse_event(_get_page(f"/events/{fmt}/{int(number)}"))
+
+
+def fetch_events(fmt: str = "modern", since: str = "", until: str | None = None,
+                 max_pages: int = 40) -> list[dict]:
+    """Every event in [since, until] (ISO dates, inclusive; the site lists newest first).
+    One index request per 15 events + one request per event. Stops paging once a
+    whole index page predates `since`."""
+    if fmt not in FORMATS:
+        raise ValueError(f"format must be one of {FORMATS}")
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", since or ""):
+        raise ValueError("since must be YYYY-MM-DD")
+    out, page = [], 1
+    while page <= max_pages:
+        idx = parse_events_index(_get_page(f"/events/{fmt}?page={page}"))
+        # The listing is only roughly newest-first (an RCQ can sort after later
+        # challenges), so stop only once a WHOLE page predates `since`.
+        older = bool(idx["events"])
+        for e in idx["events"]:
+            day = (e["started_at"] or "")[:10]
+            if day < since:
+                continue
+            older = False
+            if until and day > until:
+                continue
+            if not e["has_matches"]:
+                continue
+            try:
+                out.append(fetch_event(fmt, e["number"]))
+            except MyMtgoParseError as err:
+                out.append({"number": e["number"], "error": str(err)})
+        if older or page >= idx["last_page"]:
+            break
+        page += 1
+    return out
+
+
 def snapshot(fmt: str = "modern", days: int = 30, top: int = 20) -> dict:
     """Index (~3 requests) + the top-N decks by share that have a page (N requests)."""
     idx = fetch_index(fmt, days)
@@ -242,7 +409,27 @@ def main(argv=None) -> int:
     ap.add_argument("--days", type=int, default=30, choices=WINDOWS)
     ap.add_argument("--top", type=int, default=20, help="deck pages to fetch (1 request each)")
     ap.add_argument("--deck", help="print one deck's matchup spread from the snapshot")
+    ap.add_argument("--events-since", metavar="YYYY-MM-DD",
+                    help="instead: fetch every event (with pairings) since this date")
+    ap.add_argument("--events-until", metavar="YYYY-MM-DD")
     a = ap.parse_args(argv)
+    if a.events_since:
+        evs = fetch_events(a.format, a.events_since, a.events_until)
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        doc = {"source": "mymtgo.com", "fetched_at": stamp, "format": a.format,
+               "since": a.events_since, "until": a.events_until, "events": evs}
+        os.makedirs(OUT_DIR, exist_ok=True)
+        path = os.path.join(OUT_DIR, f"{a.format}_events_{a.events_since}_{stamp[:10]}.json")
+        with open(path + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, indent=1, ensure_ascii=False)
+        os.replace(path + ".tmp", path)
+        ok = [e for e in evs if "error" not in e]
+        bad_recon = [e["number"] for e in ok if e["reconciled"] is False]
+        print(f"{len(ok)} events, {sum(len(e['matches']) for e in ok)} matches "
+              f"({sum(m['both_published'] for e in ok for m in e['matches'])} both-published); "
+              f"{len(evs) - len(ok)} errors; reconciliation failures: {bad_recon or 'none'}")
+        print(f"Wrote {path}")
+        return 1 if bad_recon else 0
     snap = snapshot(a.format, a.days, a.top)
     path = save_snapshot(snap)
     idx = snap["index"]
