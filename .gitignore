@@ -112,3 +112,6 @@ ChatGPT Image*.png
 Thumbs.db
 Desktop.ini
 data/http_cache/
+
+# MyMTGO dated snapshots (scrapers/mymtgo.py) -- regenerable, not source
+data/mymtgo/

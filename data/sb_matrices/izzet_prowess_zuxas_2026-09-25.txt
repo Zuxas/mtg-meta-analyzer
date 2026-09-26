@@ -1,0 +1,31 @@
+// Izzet Prowess - Zuxas (locked 2026-09-25, MTGO Modern Challenge 64)
+// Source: Claude+Tom Cowork session 2026-09; pairs with izzet_prowess_zuxas_2026-09-25.json
+4 Bloodstained Mire
+3 Steam Vents
+4 Mishra's Bauble
+1 Thundering Falls
+3 Arid Mesa
+3 Mountain
+1 Fiery Islet
+3 Wooded Foothills
+4 Preordain
+1 Violent Urge
+4 Lightning Bolt
+4 Monastery Swiftspear
+1 Monstrous Rage
+4 Mutagenic Growth
+4 Dragon's Rage Channeler
+4 Lava Dart
+1 Assault Strobe
+4 Cori-Steel Cutter
+4 Slickshot Show-Off
+3 Expressive Iteration
+
+// Sideboard
+1 Into the Flood Maw
+2 Spell Pierce
+3 Unholy Heat
+2 Spell Snare
+4 Consign to Memory
+1 Abhorrent Oculus
+2 Meltdown

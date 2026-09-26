@@ -1,0 +1,251 @@
+{
+  "schema": "sb-matrix/1",
+  "source": "Claude+Tom session 2026-09 (Cowork); adapted from the Metafy Izzet Prowess guide to Jermey's locked 75; Scepter Chant and Devoted Druid plans are original (not in the guide). Locked 2026-09-25 for MTGO Modern Challenge 64.",
+  "deck": {
+    "name": "Izzet Prowess (Zuxas, locked 2026-09-25)",
+    "format": "modern",
+    "archetype": "Izzet Prowess"
+  },
+  "matchups": {
+    "Prowess Mirror": {
+      "out": {
+        "Expressive Iteration": 3,
+        "Mutagenic Growth": 4
+      },
+      "in": {
+        "Unholy Heat": 3,
+        "Spell Pierce": 2,
+        "Spell Snare": 1,
+        "Abhorrent Oculus": 1
+      },
+      "note": "Counterspells are for Cutter. Flood Maw is also good here."
+    },
+    "Boros Energy": {
+      "out": {
+        "Expressive Iteration": 2,
+        "Mutagenic Growth": 4
+      },
+      "in": {
+        "Unholy Heat": 3,
+        "Spell Snare": 1,
+        "Abhorrent Oculus": 1,
+        "Into the Flood Maw": 1
+      },
+      "note": "The guide is still testing Flood Maw against Phlage-less Energy."
+    },
+    "Broodscale": {
+      "out": {
+        "Expressive Iteration": 3,
+        "Mutagenic Growth": 1
+      },
+      "in": {
+        "Unholy Heat": 3,
+        "Consign to Memory": 1
+      },
+      "note": "The guide's plan is 4 Heat; Consign stands in for the 4th Heat you don't have (it hits Broodscale's trigger, Kozilek's Command and Emrakul's cast trigger)."
+    },
+    "Affinity": {
+      "out": {
+        "Expressive Iteration": 1,
+        "Mutagenic Growth": 2
+      },
+      "in": {
+        "Meltdown": 2,
+        "Unholy Heat": 1
+      },
+      "note": "Meltdown for X=0 or 1 wipes Opal, Bauble, Crypt, Welding Jar, Claws, Needle. For a 3rd Meltdown-type card, cut the 2nd Expressive. Never target Kappa Cannoneer (ward 4)."
+    },
+    "Goryo's": {
+      "out": {
+        "Violent Urge": 1,
+        "Mutagenic Growth": 4
+      },
+      "in": {
+        "Spell Pierce": 2,
+        "Spell Snare": 1,
+        "Unholy Heat": 2
+      },
+      "note": "Only Snare a Psychic Frog or Goryo's Vengeance."
+    },
+    "Esper/Azorius Blink": {
+      "out": {
+        "Mutagenic Growth": 4,
+        "Lava Dart": 1
+      },
+      "in": {
+        "Unholy Heat": 3,
+        "Spell Pierce": 2
+      },
+      "note": "Flood Maw is also good here."
+    },
+    "Dimir Frog": {
+      "out": {
+        "Mutagenic Growth": 4
+      },
+      "in": {
+        "Spell Pierce": 2,
+        "Spell Snare": 1,
+        "Unholy Heat": 1
+      },
+      "note": "Snare the Frog."
+    },
+    "Domain Zoo": {
+      "out": {
+        "Violent Urge": 1,
+        "Expressive Iteration": 3,
+        "Mutagenic Growth": 4,
+        "Lava Dart": 1
+      },
+      "in": {
+        "Consign to Memory": 4,
+        "Unholy Heat": 3,
+        "Abhorrent Oculus": 1,
+        "Spell Snare": 1
+      },
+      "note": "Against the energy version (Guide of Souls, Ocelot Pride), cut Snare and keep the Dart in. Flood Maw is good here."
+    },
+    "Amulet Titan": {
+      "out": {
+        "Expressive Iteration": 3,
+        "Lava Dart": 2,
+        "Lightning Bolt": 3
+      },
+      "in": {
+        "Consign to Memory": 4,
+        "Unholy Heat": 3,
+        "Into the Flood Maw": 1
+      },
+      "note": "Consign Primeval Titan's triggers; Flood Maw bounces Titan. The guide is testing Spell Pierce and trimming a Cutter here."
+    },
+    "Eldrazi Tron": {
+      "out": {
+        "Expressive Iteration": 3,
+        "Lightning Bolt": 3,
+        "Lava Dart": 1
+      },
+      "in": {
+        "Unholy Heat": 2,
+        "Consign to Memory": 4,
+        "Spell Pierce": 1
+      },
+      "note": "Consign Trinisphere."
+    },
+    "Living End": {
+      "out": {
+        "Cori-Steel Cutter": 4,
+        "Dragon's Rage Channeler": 2
+      },
+      "in": {
+        "Consign to Memory": 4,
+        "Spell Pierce": 2
+      },
+      "note": "Consign the cascade trigger. Keep your main-deck Assault Strobe for a fast double-strike kill."
+    },
+    "Ruby Storm": {
+      "out": {
+        "Expressive Iteration": 3,
+        "Lava Dart": 1
+      },
+      "in": {
+        "Spell Pierce": 2,
+        "Spell Snare": 1,
+        "Into the Flood Maw": 1
+      },
+      "note": "Flood Maw Ral in response to the first ritual."
+    },
+    "Belcher": {
+      "out": {
+        "Lava Dart": 3,
+        "Expressive Iteration": 3
+      },
+      "in": {
+        "Consign to Memory": 4,
+        "Spell Pierce": 2
+      },
+      "note": "Spell Snare doesn't have enough targets."
+    },
+    "Neoform": {
+      "out": {
+        "Expressive Iteration": 3
+      },
+      "in": {
+        "Spell Pierce": 2,
+        "Spell Snare": 1
+      },
+      "note": "Counter Neoform or Eldritch Evolution."
+    },
+    "Rhinos": {
+      "out": {
+        "Expressive Iteration": 3,
+        "Lightning Bolt": 2,
+        "Lava Dart": 1
+      },
+      "in": {
+        "Consign to Memory": 4,
+        "Spell Pierce": 2
+      },
+      "note": "Consign the cascade triggers."
+    },
+    "Burn": {
+      "out": {
+        "Mutagenic Growth": 4
+      },
+      "in": {
+        "Spell Pierce": 2,
+        "Spell Snare": 2
+      },
+      "note": "If they leave creatures in (Goblin Guide), take out Expressive Iteration for Heat."
+    },
+    "Izzet Steel-Cutter": {
+      "out": {
+        "Expressive Iteration": 2,
+        "Monastery Swiftspear": 1,
+        "Lava Dart": 2
+      },
+      "in": {
+        "Spell Pierce": 2,
+        "Meltdown": 2,
+        "Consign to Memory": 1
+      },
+      "note": "Meltdown at X=2 kills their Cutters too (and yours), so time it when you're behind on Cutters."
+    },
+    "Yawgmoth": {
+      "out": {
+        "Expressive Iteration": 3
+      },
+      "in": {
+        "Unholy Heat": 3
+      },
+      "note": "Kill the creatures."
+    },
+    "Scepter Chant": {
+      "out": {
+        "Mutagenic Growth": 2,
+        "Lava Dart": 2,
+        "Assault Strobe": 1,
+        "Monstrous Rage": 1,
+        "Violent Urge": 1
+      },
+      "in": {
+        "Spell Snare": 2,
+        "Spell Pierce": 2,
+        "Consign to Memory": 2,
+        "Unholy Heat": 1
+      },
+      "note": "Snare and Consign both hit Isochron Scepter."
+    },
+    "Devoted Druid": {
+      "out": {
+        "Mutagenic Growth": 2,
+        "Assault Strobe": 1,
+        "Monstrous Rage": 1,
+        "Violent Urge": 1
+      },
+      "in": {
+        "Unholy Heat": 3,
+        "Spell Pierce": 2
+      },
+      "note": "Pierce hits Green Sun's Zenith and Nature's Rhythm."
+    }
+  }
+}

@@ -172,20 +172,7 @@ def save_sb_plan(deck_id: int, opponent_archetype: str,
     _ensure_tables()
     with get_connection() as conn:
         cur = conn.execute(
-            """
-            INSERT INTO saved_sb_plans
-                (deck_id, opponent_archetype, play_in, play_out,
-                 draw_in, draw_out, notes, difficulty, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(deck_id, opponent_archetype) DO UPDATE SET
-                play_in    = excluded.play_in,
-                play_out   = excluded.play_out,
-                draw_in    = excluded.draw_in,
-                draw_out   = excluded.draw_out,
-                notes      = excluded.notes,
-                difficulty = excluded.difficulty,
-                updated_at = excluded.updated_at
-            """,
+            _UPSERT_PLAN_SQL,
             (
                 deck_id,
                 opponent_archetype,
@@ -199,6 +186,59 @@ def save_sb_plan(deck_id: int, opponent_archetype: str,
             ),
         )
         return cur.lastrowid
+
+
+_UPSERT_PLAN_SQL = """
+    INSERT INTO saved_sb_plans
+        (deck_id, opponent_archetype, play_in, play_out,
+         draw_in, draw_out, notes, difficulty, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(deck_id, opponent_archetype) DO UPDATE SET
+        play_in    = excluded.play_in,
+        play_out   = excluded.play_out,
+        draw_in    = excluded.draw_in,
+        draw_out   = excluded.draw_out,
+        notes      = excluded.notes,
+        difficulty = excluded.difficulty,
+        updated_at = excluded.updated_at
+"""
+
+
+def save_sb_plans_atomic(deck_id: int, plans: list[dict]) -> int:
+    """Upsert several SB plans for one deck in ONE transaction.
+
+    Each plan is a dict with ``opponent_archetype`` and optionally
+    play_in/play_out/draw_in/draw_out (lists of repeated card names),
+    notes and difficulty (the same fields as save_sb_plan). Either every
+    plan is written or none is: any error rolls the whole batch back.
+    Raises ValueError if the deck does not exist. Returns the number of
+    plans written. Plans for opponents not in ``plans`` are left untouched.
+    Used by scripts/import_sb_matrix.py (analysis/sb_matrix.py).
+    """
+    _ensure_tables()
+    stamp = _now()
+    with get_connection() as conn:
+        if conn.execute("SELECT 1 FROM saved_decks WHERE id=?", (deck_id,)).fetchone() is None:
+            raise ValueError(f"saved deck id {deck_id} does not exist")
+        for p in plans:
+            opp = (p.get("opponent_archetype") or "").strip()
+            if not opp:
+                raise ValueError("plan without opponent_archetype")
+            conn.execute(
+                _UPSERT_PLAN_SQL,
+                (
+                    deck_id,
+                    opp,
+                    json.dumps(p.get("play_in")  or []),
+                    json.dumps(p.get("play_out") or []),
+                    json.dumps(p.get("draw_in")  or []),
+                    json.dumps(p.get("draw_out") or []),
+                    p.get("notes", ""),
+                    p.get("difficulty", "Medium"),
+                    stamp,
+                ),
+            )
+    return len(plans)
 
 
 def delete_sb_plan(deck_id: int, opponent_archetype: str) -> None:

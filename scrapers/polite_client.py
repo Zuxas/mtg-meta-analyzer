@@ -93,6 +93,9 @@ HOST_CONFIG = {
     "www.mtgtop8.com": dict(min_interval=1.5, cache_ttl=21600),
     "www.mtgo.com": dict(min_interval=1.5, cache_ttl=21600),      # NEW primary
     "magic.gg": dict(min_interval=1.5, cache_ttl=86400),          # NEW premier
+    # MyMTGO metagame pages (HTML only; robots.txt disallows /api/). Stats refresh
+    # ~hourly; a 6h cache keeps a re-run from re-fetching. scrapers/mymtgo.py
+    "mymtgo.com": dict(min_interval=2.0, cache_ttl=21600),
     "api.mtga.untapped.gg": dict(min_interval=0.5, cache_ttl=3600),
     "mtgajson.untapped.gg": dict(min_interval=1.0, cache_ttl=604800),
     "melee.gg": dict(min_interval=1.5, cache_ttl=0, needs_cloudscraper=True),
