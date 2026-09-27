@@ -359,9 +359,30 @@ def _lst(v) -> list:
     return []
 
 
+def _enum(v):
+    return v.get("value__") if isinstance(v, dict) else v
+
+
+def match_kind(m: dict, parent: dict | None) -> str:
+    """tournament | league | precon | casual | other.
+    precon = MTGO handed you a pre-built deck (DeckCreationStyle 1);
+    casual = a player-created room (PlayIntensity 2/4: practice / just for fun)."""
+    desc = (m.get("Description") or "").strip()
+    if _enum(m.get("DeckCreationStyle")) == 1:
+        return "precon"
+    if parent:
+        return "tournament"
+    if desc.startswith("Play up to 5 rounds"):
+        return "league"
+    if _enum(m.get("PlayIntensity")) in (2, 4):
+        return "casual"
+    return "other"
+
+
 def _hist_match(m: dict, parent: dict | None) -> dict:
     gs = m.get("GameStructure") or {}
     return {
+        "kind": match_kind(m, parent),
         "id": m.get("Id"),
         "start": m.get("StartTime"),
         "opponents": _lst(m.get("Opponents")),

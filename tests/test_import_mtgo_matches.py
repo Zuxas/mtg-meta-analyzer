@@ -75,3 +75,45 @@ def test_mtgo_rows_visible_to_personal_stats():
     from db.match_log import get_overall_stats
     stats = get_overall_stats(my_deck="Boros Energy")
     assert (stats["wins"], stats["losses"]) == (1, 1)
+
+
+def _h(hid, opp, start, game_ids=(), kind="league"):
+    return {"id": hid, "opponents": [opp], "start": start, "game_ids": list(game_ids), "kind": kind}
+
+
+def test_assign_history_is_one_to_one_nearest_first():
+    t = datetime(2026, 9, 26, 18)
+    from datetime import timedelta as td
+    matches = [{"token": "a", "opponent": "Bob", "started_at": t},
+               {"token": "b", "opponent": "Bob", "started_at": t + td(minutes=20)}]
+    hist = [_h(1, "Bob", t + td(minutes=1)), _h(2, "Bob", t + td(minutes=19))]
+    got = im.assign_history(matches, hist)
+    assert got["a"]["id"] == 1 and got["b"]["id"] == 2
+    # a rematch with only ONE history record: the closer match gets it, the other none
+    got = im.assign_history(matches, hist[:1])
+    assert got == {"a": hist[0]}
+
+
+def test_assign_history_game_id_beats_time():
+    t = datetime(2026, 9, 26, 18)
+    matches = [{"token": "555", "opponent": "Bob", "started_at": t}]
+    hist = [_h(1, "Bob", t), _h(2, "Carol", datetime(2020, 1, 1), game_ids=[555])]
+    assert im.assign_history(matches, hist)["555"]["id"] == 2
+
+
+def test_kinds_filter_excludes_precon_by_default():
+    con = _db()
+    recs = [dict(_rec("k1"), kind="league"), dict(_rec("k2"), kind="precon"),
+            dict(_rec("k3"), kind="casual")]
+    with con:
+        assert im.write_records(con, recs) == 2
+    with con:
+        assert im.write_records(con, recs, kinds=("precon",)) == 1
+
+
+def test_event_label():
+    base = {"format": "modern", "event": "", "kind": "league"}
+    assert im.event_label(base) == "MTGO Modern League"
+    assert im.event_label(dict(base, kind="tournament", event="Modern Challenge 32")) == "Modern Challenge 32"
+    assert im.event_label(dict(base, kind="casual")) == "MTGO Casual"
+    assert im.event_label(None) == "MTGO"

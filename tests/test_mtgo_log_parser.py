@@ -382,3 +382,13 @@ def test_link_history_by_opponent_and_time_and_by_game_id():
     assert p.link_history(old, hist)["id"] == 1
     far = dict(m, started_at=T0 + timedelta(days=1))
     assert p.link_history(far, hist) is None
+
+
+def test_match_kind():
+    base = _hmatch(1, "Bob", T0, 2, 0, "Alice", "Bob", [1])
+    assert p.match_kind(base, {"Id": 9}) == "tournament"
+    assert p.match_kind(dict(base, Description="Play up to 5 rounds with your Modern deck"), None) == "league"
+    assert p.match_kind(dict(base, PlayIntensity={"value__": 4}, Description="tier pls"), None) == "casual"
+    assert p.match_kind(dict(base, PlayIntensity={"value__": 4}), None) == "casual"
+    assert p.match_kind(dict(base, DeckCreationStyle={"value__": 1}), None) == "precon"
+    assert p.match_kind(base, None) == "other"
