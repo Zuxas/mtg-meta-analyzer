@@ -68,6 +68,14 @@
 - [ ] Trend analysis: personal WR over time, improving/declining matchups
 - [~] **Integration with SB advisor** — `analysis/matchup_advisor.py::get_advice` is WRITTEN (personal vs meta WR, severity, guide IN/OUT, saved-plan check) but has **zero callers**; it returned 'no match data' for every deck until the 2026-09-22 deck-linking fix. Remaining work is purely surfacing it in the GUI.
 
+## OPEN — MTGO Local Integration (spec `../harness/specs/2026-09-27-mtgo-match-import.md`)
+- [x] **Import local MTGO matches into match_log** (2026-09-27, branch `feat/mtgo-match-import`) — `scrapers/mtgo_log_parser.py` + `scrapers/nrbf.py` + `scripts/import_mtgo_matches.py` (dry-run default). Live `--commit` awaiting sign-off.
+- [ ] **Live-DB commit** — run `python -m scripts.import_mtgo_matches --commit` after sign-off (verified on a copy: 415 rows, idempotent, existing rows untouched)
+- [ ] **Auto-snapshot + live tail** — `mtgo.log` only holds the current session (exact 75s + board frames); snapshot it each session like `gui/mtga_log_watcher.py` does for Arena
+- [ ] **MTGO replay adapter** — `mtgo.log` "Game Play Status Update" frames -> `replay_board_at` shape -> existing replay viewer
+- [ ] **Puzzle real-opponent slice** — sample real opponent boards from those frames instead of the empty "Goldfish" side in `../mtg-sim/scripts/mine_lethal_puzzles.py`
+- [ ] **Archetype alias typos** — scraped labels like "Izzet Pheonix" split one deck across names; add aliases in `analysis/archetypes.py`
+
 ## OPEN — MTGA Live Integration (next: 5/16 chain)
 - [x] **Auto-import MTGA Player.log into match_log** (2026-05-14) — wired into M/W/F pipeline + auto-sync on GUI launch + 30s live-tail QThread
 - [x] **Per-match SB plan extraction** (2026-05-14) — `match_log_sb_plans` from SubmitDeckReq events, alt-art collapsed at name level
@@ -124,6 +132,9 @@
 ---
 
 ## COMPLETED
+
+### 2026-09-27 — MTGO local match import (dry-run + tested write path)
+- Three MTGO sources merged per match: `mtgo_game_history` (.NET BinaryFormatter, read by the new `scrapers/nrbf.py`) for result/format/event/round, `Match_GameLog_*.dat` for per-game winner/play-draw/mulligans/turns/cards seen, `mtgo.log` for exact 75s. Opponent + own archetype from cards seen via `analysis/observed_deck_classifier.py`. Gates on the 443-file corpus: parse 100%, score cross-check 378/378, .dat vs history 0 conflicts, 415 decided matches. Ideas from github.com/mymtgo, no code copied.
 
 ### 2026-09-21 — Puzzle Trainer T1.1 (spaced repetition + daily feed)
 - Spec + plan in `docs/superpowers/`. Schedule is a pure function of the attempt log; feed serves overdue reviews first, then new, up to the daily target, topping up outs drills deterministically. Solve tab: target spinbox, `Today n/N · due · new · streak`, done state + Keep going. Fixes: guarded slot (PyQt6 aborts on raising slots), board in a QScrollArea.

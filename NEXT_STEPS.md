@@ -1,8 +1,21 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-21 (date-normalization sweep #6 DONE, suite 783; FULL fill_database.py backfill RUNNING since ~07:05 -- see item 1)
+Last updated: 2026-09-27 (MTGO local match import built on `feat/mtgo-match-import`; live-DB commit awaiting sign-off)
 
 ---
+
+## 9/27 — MTGO local match import (branch `feat/mtgo-match-import`)
+
+- **Built + tested, NOT yet written to the live DB.** `python -m scripts.import_mtgo_matches` (dry-run) reads the
+  live MTGO install; `--raw data/raw/mtgo/2026-09-27` reads the snapshot taken first today (gitignored).
+  Verified on a COPY of the live DB: 415 rows, re-run inserts 0, the 109 existing rows byte-identical.
+- **Next:** after sign-off, `python -m scripts.import_mtgo_matches --commit`. 55 rows land as `orphan`
+  (own deck not inferable) -> Match Log 'Resolve...' dialog.
+- **Before the next MTGO launch if possible:** `mtgo.log` is per-session; it's the only source of exact 75s and
+  board frames (today's copy is in the snapshot). Follow-ups in ROADMAP "MTGO Local Integration".
+- Semantics worth knowing: a match counts only when finished (MTGO's `wins the match` line, a 2-game lead, or
+  the history file); logs that stop mid-match are `incomplete`, never draws. `.dat` card ids are MTGO texture
+  numbers, `mtgo.log` ids are catalog ids -- two maps from `CardDataSource`.
 
 ## 9/22 (while the full backfill runs)
 

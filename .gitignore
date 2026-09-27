@@ -115,3 +115,6 @@ data/http_cache/
 
 # MyMTGO dated snapshots (scrapers/mymtgo.py) -- regenerable, not source
 data/mymtgo/
+
+# raw MTGO captures (personal game data, never commit)
+data/raw/
