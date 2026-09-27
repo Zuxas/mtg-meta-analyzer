@@ -28,6 +28,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 from gui.worker_threads import DataLoadWorker
 
 
@@ -632,7 +633,7 @@ class LadderMetaTab(QWidget):
         from db.untapped_decklists import get_decklist
         dl = get_decklist(short_id) if short_id else None
         if dl is None:
-            QMessageBox.information(
+            toast_info(
                 self, "No decklist",
                 "No local decklist for this player yet. "
                 "Click '↻ Fetch decklists' first."

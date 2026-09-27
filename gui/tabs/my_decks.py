@@ -23,6 +23,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QFont
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 from gui.worker_threads import DataLoadWorker
 from gui.state import UIState
 from gui.state_keys import MY_DECKS_SELECTED_DECK_ID
@@ -1333,7 +1334,7 @@ class MyDecksTab(QWidget):
         def _done(suggestions):
             self._suggest_btn.setEnabled(True)
             if not suggestions:
-                QMessageBox.information(self, "No Suggestions",
+                toast_info(self, "No Suggestions",
                                         "No SB suggestions found. Add guides to Knowledge Base "
                                         "or the advisor needs more card data.")
                 return
@@ -1405,7 +1406,7 @@ class MyDecksTab(QWidget):
                     saved += 1
 
             self._load_sb_plans(deck_id)
-            QMessageBox.information(self, "Plans Saved",
+            toast_info(self, "Plans Saved",
                                     f"Created {saved} SB plans. Review and edit as needed.")
 
         w = DataLoadWorker(_do)
@@ -1501,7 +1502,7 @@ class MyDecksTab(QWidget):
             )
 
         self._load_decks()
-        QMessageBox.information(self, "Imported",
+        toast_info(self, "Imported",
                                 f"Imported '{name}' with {len(data.get('sb_plans', []))} SB plans.")
 
     def _export_sb_only(self):

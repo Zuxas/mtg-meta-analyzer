@@ -20,6 +20,7 @@ from PyQt6.QtCore import Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QColor, QFont, QAction
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 from gui.worker_threads import DataLoadWorker
 from gui.worker_utils import cancel_worker
 from db.event_hub_db import (
@@ -1220,7 +1221,7 @@ class MyEventsView(QWidget):
             QMessageBox.warning(self, "Spicerack", "Spicerack scraper not available.")
             return
 
-        QMessageBox.information(self, "Fetching...",
+        toast_info(self, "Fetching...",
             f"Fetching Spicerack {fmt.title()} results near {event_date}.\nThis may take a few seconds.")
 
         try:
@@ -1244,7 +1245,7 @@ class MyEventsView(QWidget):
                 continue
 
         if not nearby:
-            QMessageBox.information(self, "Spicerack",
+            toast_info(self, "Spicerack",
                 f"No {fmt.title()} events found near {event_date} on Spicerack.")
             return
 
@@ -1296,14 +1297,14 @@ class MyEventsView(QWidget):
         bookmarks = get_all_bookmarks()
         going = [b for b in bookmarks if b["status"] in ("going", "interested")]
         if not going:
-            QMessageBox.information(self, "No Events", "No Going or Interested events to export.")
+            toast_info(self, "No Events", "No Going or Interested events to export.")
             return
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Calendar", "mtg_events.ics", "iCalendar Files (*.ics)"
         )
         if path:
             n = write_ics(path, going)
-            QMessageBox.information(self, "Exported",
+            toast_info(self, "Exported",
                 f"Exported {n} event(s) to {path}\n\n"
                 "Open the file to import into Google Calendar, Outlook, or Apple Calendar.")
 

@@ -10,6 +10,7 @@ All file exports land in  <project_root>/exports/
 and the folder is opened in Explorer after a successful save.
 """
 import os
+from gui.widgets.kit import toast_info
 from datetime import datetime
 from urllib.parse import quote
 
@@ -161,7 +162,7 @@ def show_export_menu(btn_widget, mainboard, sideboard,
     def _save(export_fn, *args):
         try:
             path = export_fn(*args)
-            QMessageBox.information(
+            toast_info(
                 btn_widget, "Export Complete",
                 f"Saved to:\n{path}"
             )

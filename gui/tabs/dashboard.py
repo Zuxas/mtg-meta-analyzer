@@ -31,6 +31,7 @@ from gui.worker_utils import cancel_worker as _cancel_worker
 from gui.state import UIState
 from gui.state_keys import DASHBOARD_TIMEFRAME
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 
 
 # ---------------------------------------------------------------------------
@@ -1163,7 +1164,7 @@ class DashboardTab(QWidget):
         with open(path, "w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerows([headers] + rows)
 
-        QMessageBox.information(self, "Export Complete", f"Saved to:\n{path}")
+        toast_info(self, "Export Complete", f"Saved to:\n{path}")
         QDesktopServices.openUrl(QUrl.fromLocalFile(exports_dir))
 
     # Subtle row tint colors for rising / falling archetypes
@@ -1642,7 +1643,7 @@ class DashboardTab(QWidget):
 
         archs = result["archetypes"]
         if not archs:
-            QMessageBox.information(self, "Meta Shift", "No data for comparison.")
+            toast_info(self, "Meta Shift", "No data for comparison.")
             return
 
         dlg = QDialog(self)
@@ -1736,7 +1737,7 @@ class DashboardTab(QWidget):
         fmt = self._fmt.currentText()
         if fmt == "all":
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(
+            toast_info(
                 self, "Clusters",
                 "Pick a specific format — clustering needs one format's "
                 "average-deck data."
@@ -1760,7 +1761,7 @@ class DashboardTab(QWidget):
 
         recs = result.get("recommendations", [])
         if not recs:
-            QMessageBox.information(self, "Deck Recommendation", "Not enough data for recommendations.")
+            toast_info(self, "Deck Recommendation", "Not enough data for recommendations.")
             return
 
         dlg = QDialog(self)

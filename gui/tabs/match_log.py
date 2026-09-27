@@ -18,6 +18,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QFont
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 from gui.worker_threads import DataLoadWorker
 
 _FORMATS = ["standard", "pioneer", "modern", "legacy", "pauper"]
@@ -584,7 +585,7 @@ class MatchLogTab(QWidget):
     def _show_post_event(self):
         """Open the PostEventDialog with the currently-loaded matches."""
         if not getattr(self, "_matches", []):
-            QMessageBox.information(self, "No matches",
+            toast_info(self, "No matches",
                                      "Log some matches first.")
             return
         from gui.widgets.post_event_dialog import PostEventDialog

@@ -52,6 +52,35 @@ SPACE_MD = 12    # section-to-section inside a pane
 SPACE_LG = 20    # tab outer margins, major layout breaks
 SPACE_XL = 32    # dialog paddings, top-level hero gutters
 
+# ── Type scale (UI kit, 2026-09-27) ─────────────────────────────────────────
+# Five sizes cover every surface. New code picks one of these instead of a
+# raw px value (the style-debt ratchet test counts raw font-size literals).
+FONT_XS   = 10   # captions, table footnotes
+FONT_SM   = 11   # labels, secondary text
+FONT_MD   = 12   # body (the global default)
+FONT_LG   = 14   # section titles, card values in dense strips
+FONT_XL   = 20   # stat-card hero numbers
+FONT_HERO = 26   # page hero numbers (rare)
+
+# ── Radii (UI kit) ────────────────────────────────────────────────────────
+RADIUS_SM = 4    # chips, pills, small buttons
+RADIUS    = 6    # inputs, buttons
+RADIUS_LG = 10   # cards, panels, toasts
+
+# ── Result semantics (UI kit) ─────────────────────────────────────────────
+# Win/loss colors are the ONLY saturated colors besides ACCENT. Everything
+# else stays neutral -- that restraint is most of the "clean" feel.
+WIN       = OK
+LOSS      = ERR
+DRAW      = TEXT_DIM
+WIN_BG    = "rgba(52, 208, 88, 0.14)"
+LOSS_BG   = "rgba(240, 64, 64, 0.14)"
+ACCENT_BG = "rgba(94, 181, 207, 0.12)"
+
+# Sidebar navigation geometry (UI kit)
+SIDEBAR_W      = 196
+SIDEBAR_ITEM_H = 40
+
 # ── Dialog size tiers ─────────────────────────────────────────────────────
 # (width, height) minimums for QDialog.setMinimumSize(). Keep dialog
 # proportions consistent so they feel like part of one system.
@@ -536,9 +565,120 @@ def apply_theme(app: QApplication):
                  QPalette.ColorRole.ButtonText, QColor(TEXT_OFF))
 
     app.setPalette(pal)
-    app.setStyleSheet(_build_stylesheet(HEADING_FONT))
+    app.setStyleSheet(_build_stylesheet(HEADING_FONT) + kit_stylesheet(HEADING_FONT))
 
     return HEADING_FONT
+
+
+def kit_stylesheet(heading: str = "Segoe UI") -> str:
+    """Additive QSS for the UI kit (sidebar nav, cards, chips, toasts).
+
+    Appended after _build_stylesheet() by apply_theme(). Every rule is keyed
+    on an objectName or dynamic property, so nothing here restyles an
+    existing widget that has not opted in.
+    """
+    return f"""
+    /* ── Sidebar navigation (root QTabWidget, West) ───────────── */
+    QTabWidget#rootTabs {{
+        background: {PANEL};
+    }}
+    QTabWidget#rootTabs::pane {{
+        background: {BG};
+        border: none;
+        border-left: 1px solid {BORDER_LO};
+    }}
+    QTabWidget#rootTabs > QTabBar {{
+        background: {PANEL};
+    }}
+    QTabBar#sidebarTabBar {{
+        background: {PANEL};
+        border: none;
+    }}
+    QTabBar#sidebarTabBar::tab {{
+        background: transparent;
+        border: none;
+        margin: 0;
+        padding: 0;
+    }}
+
+    /* ── Cards ─────────────────────────────────────────────────── */
+    QFrame[kit="card"] {{
+        background: {PANEL};
+        border: 1px solid {BORDER};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QFrame[kit="card"] QLabel {{
+        background: transparent;
+    }}
+    QLabel[kit="card-label"] {{
+        color: {TEXT_DIM};
+        font-size: {FONT_SM}px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+    }}
+    QLabel[kit="card-value"] {{
+        color: {TEXT};
+        font-family: "{heading}", "Segoe UI", sans-serif;
+        font-size: {FONT_XL}px;
+        font-weight: 700;
+    }}
+    QLabel[kit="card-hint"] {{
+        color: {TEXT_DIM};
+        font-size: {FONT_XS}px;
+    }}
+
+    /* ── Chips (summary bar, filters) ─────────────────────────── */
+    QLabel[kit="chip"] {{
+        background: {INPUT};
+        color: {TEXT_DIM};
+        border: 1px solid {BORDER_LO};
+        border-radius: {RADIUS_SM}px;
+        padding: 2px 8px;
+        font-size: {FONT_SM}px;
+    }}
+    QLabel[kit="chip-accent"] {{
+        background: {ACCENT_BG};
+        color: {ACCENT};
+        border: 1px solid transparent;
+        border-radius: {RADIUS_SM}px;
+        padding: 2px 8px;
+        font-size: {FONT_SM}px;
+        font-weight: 600;
+    }}
+
+    /* ── Segmented control ─────────────────────────────────────── */
+    QFrame[kit="segmented"] {{
+        background: {INPUT};
+        border: 1px solid {BORDER};
+        border-radius: {RADIUS}px;
+    }}
+    QFrame[kit="segmented"] QPushButton {{
+        background: transparent;
+        color: {TEXT_DIM};
+        border: none;
+        border-radius: {RADIUS_SM}px;
+        padding: 4px 12px;
+        font-size: {FONT_SM}px;
+        font-weight: 600;
+    }}
+    QFrame[kit="segmented"] QPushButton:hover {{
+        color: {TEXT};
+    }}
+    QFrame[kit="segmented"] QPushButton:checked {{
+        background: {SURFACE};
+        color: {TEXT};
+    }}
+
+    /* ── Toasts ───────────────────────────────────────────────── */
+    QFrame[kit="toast"] {{
+        background: {SURFACE};
+        border: 1px solid {BORDER};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QFrame[kit="toast"] QLabel {{
+        background: transparent;
+    }}
+    """
 
 
 def btn_primary(text: str = "") -> str:

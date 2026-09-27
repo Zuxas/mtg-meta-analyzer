@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QColor
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 
 _PREFS_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -381,7 +382,7 @@ class SettingsTab(QWidget):
         if ok == QMessageBox.StandardButton.Yes:
             UIState.instance().reset()
             UIState.instance().flush()
-            QMessageBox.information(self, "Reset", "UI state cleared. Restart for full effect.")
+            toast_info(self, "Reset", "UI state cleared. Restart for full effect.")
 
     def _refresh_storage(self):
         try:
@@ -450,7 +451,7 @@ class SettingsTab(QWidget):
             return
 
         if not rows:
-            QMessageBox.information(self, "All Classified", "No unclassified archetypes with 20+ matches.")
+            toast_info(self, "All Classified", "No unclassified archetypes with 20+ matches.")
             return
 
         dlg = QDialog(self)
@@ -541,7 +542,7 @@ class SettingsTab(QWidget):
         from analysis.archetype_classifier import load_archetype_configs
         load_archetype_configs.cache_clear()
         self._refresh_arch_status()
-        QMessageBox.information(self, "Added",
+        toast_info(self, "Added",
                                 f"Added {name} to {fmt} config. Run classifier to apply.")
 
     def _run_sync(self):

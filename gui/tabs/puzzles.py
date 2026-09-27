@@ -22,6 +22,7 @@ from gui.widgets.puzzle_scene import PuzzleSceneWidget, is_boardless
 from gui.widgets.puzzle_author_dialog import PuzzleAuthorDialog
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 
 
 _CATEGORY_OPTIONS = [
@@ -483,7 +484,7 @@ class PuzzlesTab(QWidget):
     def _on_promote_selected(self) -> None:
         row = self._selected_inbox_row()
         if row is None:
-            QMessageBox.information(self, "No selection", "Pick a candidate row first.")
+            toast_info(self, "No selection", "Pick a candidate row first.")
             return
         # Synthetic candidates (e.g. sim-mined lethal puzzles) carry the full
         # scene + solution in evidence and have no cached replay. Prefer that;

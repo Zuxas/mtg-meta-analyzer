@@ -34,6 +34,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics
 
 import gui.theme as theme
+from gui.widgets.kit import toast_info
 from gui.state import UIState
 from gui.state_keys import MATCHUP_DATA_FORMAT, MATCHUP_DATA_TIMEFRAME
 from gui.widgets.flow_layout import FlowLayout
@@ -1716,7 +1717,7 @@ class HeatmapTab(QWidget):
 
         n = result["archetypes"]
         out = result.get("exported_to", export_dir)
-        QMessageBox.information(
+        toast_info(
             self, "Gauntlet Export",
             f"Exported {n} average decklists + field.csv to:\n{out}\n\n"
             f"Total lists analyzed: {result['total_decks_analyzed']:,}\n"
@@ -1734,7 +1735,7 @@ class HeatmapTab(QWidget):
 
         if not self._current_matrix:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "Export", "No matchup data loaded. Load data first.")
+            toast_info(self, "Export", "No matchup data loaded. Load data first.")
             return
 
         fmt = self._loaded_format or self._fmt.currentText()

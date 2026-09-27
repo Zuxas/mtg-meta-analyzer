@@ -526,7 +526,10 @@ class MainWindow(QMainWindow):
         central_layout.addWidget(header)
 
         self._tabs = QTabWidget()
-        self._tabs.setTabPosition(QTabWidget.TabPosition.North)
+        # UI kit: left sidebar nav (same QTabWidget API, so the palette,
+        # tab-path persistence and Basic/Pro disclosure are unchanged)
+        from gui.widgets.sidebar_tabbar import install_sidebar
+        install_sidebar(self._tabs)
         central_layout.addWidget(self._tabs, 1)
 
         # ── Cross-tab callbacks (defined early so downstream tabs can take them) ─
