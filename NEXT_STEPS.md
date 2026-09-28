@@ -4,6 +4,14 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
+## 9/27 — Branches waiting to land (NONE on GitHub yet -- push them)
+
+- Stack: `fix/data-pipeline-2026-09-20` -> `feat/session-assets-2026-09-26` -> `feat/mtgo-match-import` (40 commits over main;
+  merging the top one lands all three).
+- `ui/polish-kit` (other session, 1 commit 891a692, worktree `../_worktrees/analyzer-ui`): sidebar nav, UI kit, toasts, real
+  Inter font. Branches from current main. Land the stack FIRST, then rebase `ui/polish-kit`: dry-run shows one conflict,
+  `gui/tabs/event_hub_tab.py`. Its next step (KPI + matchup-spread cards on Dashboard/Match Log) can now use the MTGO rows.
+
 ## 9/27 — MTGO local match import (branch `feat/mtgo-match-import`)
 
 - **LIVE 2026-09-27 21:10:** 402 MTGO rows written after a backup (`E:\mtg-data\mtg_meta.backup-2026-09-27-pre-mtgo.db`).
