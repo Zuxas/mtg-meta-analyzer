@@ -1,18 +1,19 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-27 (MTGO local match import built on `feat/mtgo-match-import`; live-DB commit awaiting sign-off)
+Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-import`: 402 rows in the live match_log; branch not pushed)
 
 ---
 
 ## 9/27 — MTGO local match import (branch `feat/mtgo-match-import`)
 
-- **Built + tested, NOT yet written to the live DB.** `python -m scripts.import_mtgo_matches` (dry-run) reads the
+- **LIVE 2026-09-27 21:10:** 402 MTGO rows written after a backup (`E:\mtg-data\mtg_meta.backup-2026-09-27-pre-mtgo.db`).
+- **Built + tested.** `python -m scripts.import_mtgo_matches` (dry-run) reads the
   live MTGO install PLUS every `data/raw/mtgo/*` snapshot (gitignored). `--kinds` picks match kinds
   (default: tournament, league, casual, other -- precon excluded: MTGO handed you the deck).
   Verified on a COPY of the live DB: 402 rows, re-run inserts 0, the 109 existing rows byte-identical.
-- **Next:** after sign-off, `python -m scripts.import_mtgo_matches --commit` (decide on casual first:
-  334 of 415 decided MTGO matches are casual rooms). Rows whose own deck can't be named land as `orphan`
-  -> Match Log 'Resolve...' dialog.
+- **Next:** push the branch (hook blocks Claude); re-run `--commit` after new MTGO sessions (idempotent).
+  Casual rooms are included (user's call) and labeled `MTGO Casual`. Rows whose own deck can't be named are
+  `orphan` -> Match Log 'Resolve...' dialog.
 - Known gaps: Match Log lists the newest 200 rows (existing `get_matches` limit); My Decks > Match History
   filters by `my_deck_id`, which MTGO rows don't have.
 - **Before the next MTGO launch if possible:** `mtgo.log` is per-session; it's the only source of exact 75s and

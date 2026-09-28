@@ -70,7 +70,7 @@
 
 ## OPEN — MTGO Local Integration (spec `../harness/specs/2026-09-27-mtgo-match-import.md`)
 - [x] **Import local MTGO matches into match_log** (2026-09-27, branch `feat/mtgo-match-import`) — `scrapers/mtgo_log_parser.py` + `scrapers/nrbf.py` + `scripts/import_mtgo_matches.py` (dry-run default). Live `--commit` awaiting sign-off.
-- [ ] **Live-DB commit** — run `python -m scripts.import_mtgo_matches --commit` after sign-off (verified on a copy: 402 rows, idempotent, existing rows untouched; decide on casual matches first)
+- [x] **Live-DB commit** (2026-09-27) — 402 rows after a backup; casual included, labeled `MTGO Casual`. Re-run any time: `python -m scripts.import_mtgo_matches --commit` (idempotent)
 - [ ] **Auto-snapshot + live tail** — `mtgo.log` only holds the current session (exact 75s + board frames); snapshot it each session like `gui/mtga_log_watcher.py` does for Arena
 - [ ] **MTGO replay adapter** — `mtgo.log` "Game Play Status Update" frames -> `replay_board_at` shape -> existing replay viewer
 - [ ] **Puzzle real-opponent slice** — sample real opponent boards from those frames instead of the empty "Goldfish" side in `../mtg-sim/scripts/mine_lethal_puzzles.py`
