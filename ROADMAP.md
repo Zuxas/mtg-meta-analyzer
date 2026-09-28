@@ -67,7 +67,7 @@
 - [x] **Canonical vs Actual SB plan diff** (2026-05-14) — `analysis.sb_plan_diff.compare_match_to_canonical` shows IN-match % colored by reliability under each plan line in Match Detail panel
 - [ ] Trend analysis: personal WR over time, improving/declining matchups
 - [x] **Integration with SB advisor** (2026-09-28) — Match Log 'Matchup spread' card (`gui/widgets/matchup_spread_card.py` over `analysis/personal_spread.py`): KPIs + per-opponent record, advice only at 5+ games, Competitive/All, unknown opponents unrated
-- [ ] **Dashboard KPI strip** — personal record strip on the Dashboard (UI kit wave 2, second half)
+- [x] **Dashboard KPI strip** (2026-09-28) — 'your record' strip under the summary bar (`personal_kpis`), follows format + timeframe
 
 ## OPEN — MTGO Local Integration (spec `../harness/specs/2026-09-27-mtgo-match-import.md`)
 - [x] **Import local MTGO matches into match_log** (2026-09-27, branch `feat/mtgo-match-import`) — `scrapers/mtgo_log_parser.py` + `scrapers/nrbf.py` + `scripts/import_mtgo_matches.py` (dry-run default). Live `--commit` awaiting sign-off.

@@ -33,6 +33,40 @@ def deck_choices(con) -> list[tuple[str, int]]:
     return [(r[0], r[1]) for r in rows]
 
 
+def personal_kpis(con, format_name: str | None = None, since: str | None = None) -> dict:
+    """Your decided matches in a format ('all'/None = every format) since an
+    ISO date: record, win rate, on-the-play / on-the-draw, most-played deck."""
+    from db.helpers import SQL_NORM_DATE
+    sql = ("SELECT COALESCE(NULLIF(m.my_deck, ''), sd.archetype, sd.name), m.result, m.play_draw "
+           "FROM match_log m LEFT JOIN saved_decks sd ON sd.id = m.my_deck_id "
+           "WHERE m.result IN ('win', 'loss')")
+    params: list = []
+    if format_name and format_name != "all":
+        sql += " AND m.format = ?"
+        params.append(format_name)
+    if since:
+        sql += f" AND {SQL_NORM_DATE.format(col='m.event_date')} >= ?"
+        params.append(since)
+    w = n = pw = pn = dw = dn = 0
+    decks: dict[str, int] = {}
+    for deck, result, pd in con.execute(sql, params):
+        win = result == "win"
+        n += 1
+        w += win
+        if pd == "play":
+            pn += 1
+            pw += win
+        elif pd == "draw":
+            dn += 1
+            dw += win
+        if deck:
+            decks[deck] = decks.get(deck, 0) + 1
+    top = max(decks.items(), key=lambda kv: (kv[1], kv[0])) if decks else None
+    return {"wins": w, "losses": n - w, "matches": n, "wr": _wr(w, n),
+            "play_wr": _wr(pw, pn), "play_n": pn, "draw_wr": _wr(dw, dn), "draw_n": dn,
+            "top_deck": top}
+
+
 def _severity(wr: float, meta: float | None, n: int) -> tuple[str, str]:
     if meta is not None:
         delta = wr - meta

@@ -160,10 +160,23 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     except Exception:
         pass
 
+    # Your own record in this format + window (match_log); None on failure so
+    # the panels still load.
+    personal = None
+    try:
+        from analysis.personal_spread import personal_kpis
+        from db.database import get_connection
+        with get_connection() as pcon:
+            personal = personal_kpis(pcon, format_name,
+                                     since_dt.strftime("%Y-%m-%d") if since_dt else None)
+    except Exception:
+        personal = None
+
     return {"standings": standings, "prior_standings": prior_standings,
             "recent": recent, "real_wrs": real_wrs,
             "raw_standings": raw_standings, "ratings": ratings_map,
-            "freshness": freshness, "conversions": conversions}
+            "freshness": freshness, "conversions": conversions,
+            "personal": personal}
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +319,14 @@ class DashboardTab(QWidget):
         from gui.widgets.summary_bar import SummaryBar
         self._summary_bar = SummaryBar()
         root.addWidget(self._summary_bar)
+
+        # ── Your record in this format + timeframe (hidden when empty) ─
+        from gui.widgets.kit import KpiStrip
+        self._personal = KpiStrip([("rec", "Your record"), ("wr", "Your win rate"),
+                                   ("play", "On the play"), ("draw", "On the draw"),
+                                   ("deck", "Most played")])
+        self._personal.setVisible(False)
+        root.addWidget(self._personal)
 
         # ── Controls bar ──────────────────────────────────────────────
         # FlowLayout (not QHBoxLayout) so this row wraps onto additional
@@ -952,8 +973,26 @@ class DashboardTab(QWidget):
             lbl.setText(banner or "")
             lbl.setVisible(bool(banner))
 
+    def _apply_personal(self, k) -> None:
+        try:
+            if not k or not k["matches"]:
+                self._personal.setVisible(False)
+                return
+            pct = lambda v: "--" if v is None else f"{v * 100:.0f}%"  # noqa: E731
+            tone = "win" if k["wins"] > k["losses"] else "loss" if k["losses"] > k["wins"] else "neutral"
+            self._personal.set("rec", f"{k['wins']}-{k['losses']}", f"{k['matches']} matches", tone=tone)
+            self._personal.set("wr", pct(k["wr"]), "")
+            self._personal.set("play", pct(k["play_wr"]), f"n={k['play_n']}")
+            self._personal.set("draw", pct(k["draw_wr"]), f"n={k['draw_n']}")
+            deck, n = k["top_deck"] or ("--", 0)
+            self._personal.set("deck", deck, f"{n} matches" if n else "")
+            self._personal.setVisible(True)
+        except Exception:  # never raise inside a slot (PyQt6 aborts)
+            self._personal.setVisible(False)
+
     def _on_panel_data(self, data: dict):
         self._apply_freshness(data.get("freshness"))
+        self._apply_personal(data.get("personal"))
         self._standings = data["standings"]
         self._prior_standings = data.get("prior_standings", [])
         n = len(self._standings)

@@ -74,3 +74,14 @@ def test_all_formats_never_looks_up_meta(con, monkeypatch):
 
 def test_deck_choices_merge_text_and_saved_decks(con):
     assert ps.deck_choices(con) == [("Boros Energy", 12), ("5C Humans", 1)]
+
+
+def test_personal_kpis_window_format_and_top_deck(con):
+    con.execute("ALTER TABLE match_log ADD COLUMN event_date TEXT")
+    con.execute("UPDATE match_log SET event_date = '2026-09-26'")
+    con.execute("UPDATE match_log SET event_date = '15/01/26' WHERE opp_deck = 'Amulet Titan'")  # dd/mm/yy, old
+    k = ps.personal_kpis(con, "modern", since="2026-09-01")
+    assert (k["wins"], k["losses"], k["matches"]) == (3, 6, 9)     # Amulet rows out of window
+    assert k["top_deck"] == ("Boros Energy", 9)
+    assert ps.personal_kpis(con, "all")["matches"] == 13
+    assert ps.personal_kpis(con, "standard")["matches"] == 0
