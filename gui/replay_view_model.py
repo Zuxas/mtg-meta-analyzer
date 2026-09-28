@@ -121,7 +121,8 @@ def event_summary(event: dict, *, opp_name: str = "Opp") -> str:
                 "counter_ability", "draw_card", "zone_change",
                 "token_created"):
         label = kind_label(kind)
-        text = f"{label}: {card}" if card else label
+        text = f"{label}: {card}" if card else (
+            f"{label}: {details['text']}" if details.get("text") else label)
         if tgts:
             text += f" → {tgts}"
         return text
@@ -154,8 +155,8 @@ def event_summary(event: dict, *, opp_name: str = "Opp") -> str:
         return f"Game end ({details.get('reason') or '?'})"
     if kind in ("priority_grant", "priority_pass"):
         return kind_label(kind)
-    # raw + anything unmapped
-    return kind_label(kind)
+    # raw + anything unmapped: MTGO events carry the log line's own text
+    return details.get("text") or kind_label(kind)
 
 
 def format_event_row(event: dict, my_seat: Optional[int], opp_seat: Optional[int],

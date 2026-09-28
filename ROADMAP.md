@@ -74,7 +74,8 @@
 - [x] **Live-DB commit** (2026-09-27) — 402 rows after a backup; casual included, labeled `MTGO Casual`. Re-run any time: `python -m scripts.import_mtgo_matches --commit` (idempotent)
 - [x] **Auto-snapshot** (2026-09-27) — `scrapers/mtgo_snapshot.py` + `gui/mtgo_snapshot_watcher.py` (every 10 min while the GUI is open), captures in `E:\mtg-data\raw\mtgo`
 - [ ] **Auto-import** — run the importer after each snapshot (DB write path: needs sign-off)
-- [ ] **MTGO replay adapter** — `mtgo.log` "Game Play Status Update" frames -> `replay_board_at` shape -> existing replay viewer
+- [x] **MTGO replay viewer** (2026-09-28) — Match Log right-click -> Watch replay; play-by-play for every MTGO match, board for captured sessions (`analysis/mtgo_replay.py`)
+- [ ] **MTGO replay notes** — notes/marks keyed to mtgo_match_id (new write path: sign-off)
 - [ ] **Puzzle real-opponent slice** — sample real opponent boards from those frames instead of the empty "Goldfish" side in `../mtg-sim/scripts/mine_lethal_puzzles.py`
 - [ ] **Archetype alias typos** — scraped labels like "Izzet Pheonix" split one deck across names; add aliases in `analysis/archetypes.py`
 

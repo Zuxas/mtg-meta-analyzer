@@ -4,6 +4,13 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
+## 9/28 night — MTGO replay viewer SHIPPED
+
+- Match Log -> right-click an MTGO row -> Watch replay. Boards exist for the 9/27 session (16 matches) and every
+  session the GUI auto-saves from now on; older matches replay as play-by-play only.
+- Next candidates: puzzle real-opponent slice (sample real opponent boards from these frames -- the T2 gauntlet gap),
+  MTGO replay notes (sign-off), .dat parser phantom-game fix (70692a45).
+
 ## 9/28 later — archetype labels
 
 - Done: 46 spelling aliases; MTGO rows relabeled (60 renames, backup first); per-format umbrella folds in the MTGO classifier.

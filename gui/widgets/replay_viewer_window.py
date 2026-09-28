@@ -106,9 +106,15 @@ class ReplayViewerWindow(QMainWindow):
     """Top-level, non-modal full-depth replay viewer."""
 
     def __init__(self, arena_match_id: str, opp_name: str = "",
-                 my_deck_label: str = "", parent=None, *, defer_load: bool = False):
+                 my_deck_label: str = "", parent=None, *, defer_load: bool = False,
+                 loader=None, notes_enabled: bool = True):
+        """loader: optional callable(force: bool) -> stream dict, for non-Arena
+        sources (MTGO: analysis.mtgo_replay.build_mtgo_event_stream). Notes and
+        marks persist by arena_match_id, so other sources pass notes_enabled=False."""
         super().__init__(parent)
         self._arena_match_id = arena_match_id
+        self._loader = loader
+        self._notes_enabled = notes_enabled
         self._marked_seqs: set[int] = set()
         self._notes_loaded = False  # gate: don't persist before notes load
         self._opp_name = opp_name or "Opp"
@@ -326,6 +332,8 @@ class ReplayViewerWindow(QMainWindow):
         self._meta_lbl.setText("Loading replay…")
 
         def _do():
+            if self._loader is not None:
+                return self._loader(force)
             from analysis.replay_events import build_event_stream
             return build_event_stream(self._arena_match_id, force_refresh=force)
 
@@ -339,6 +347,7 @@ class ReplayViewerWindow(QMainWindow):
     def _on_data_ready(self, stream: Optional[dict]) -> None:
         if stream is None:
             self._meta_lbl.setText(
+                "Replay data not found (MTGO game log missing)." if self._loader else
                 "Match not found in Player.log / Player-prev.log "
                 "(log may have rotated)."
             )
@@ -581,7 +590,7 @@ class ReplayViewerWindow(QMainWindow):
         seq = self._current_seq
         visible = (seq is not None and self._model is not None
                    and self._model.row_for_seq(seq) is not None)
-        self._mark_btn.setEnabled(visible)
+        self._mark_btn.setEnabled(visible and self._notes_enabled)
         marked = bool(visible and seq in self._marked_seqs)
         self._mark_btn.setText("★ Marked" if marked else "☆ Mark")
         self._mark_btn.setToolTip(
@@ -589,6 +598,12 @@ class ReplayViewerWindow(QMainWindow):
         )
 
     def _load_replay_notes(self) -> None:
+        if not self._notes_enabled:
+            self._notes.setReadOnly(True)
+            self._notes.setPlaceholderText(
+                "Notes aren't saved for MTGO replays yet (they are keyed to Arena match ids).")
+            self._notes_save_btn.setEnabled(False)
+            return
         from db.match_log import get_replay_notes
         data = get_replay_notes(self._arena_match_id)
         self._notes.setPlainText(data.get("text", ""))

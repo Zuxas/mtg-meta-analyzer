@@ -697,9 +697,8 @@ class MatchLogTab(QWidget):
         self._add_match()
 
     def _on_matches_menu(self, pos):
-        """Right-click on a logged match row → 'Simulate this matchup'."""
-        if self._on_simulate_matchup is None:
-            return
+        """Right-click on a logged match row -> 'Watch replay' (MTGO rows) and
+        'Simulate this matchup'."""
         row = self._table.rowAt(pos.y())
         if row < 0 or row >= len(getattr(self, "_matches", [])):
             return
@@ -707,17 +706,46 @@ class MatchLogTab(QWidget):
         my_deck = (m.get("my_deck") or "").strip()
         opp_deck = (m.get("opp_deck") or "").strip()
         fmt = (m.get("format") or "modern").lower()
-        if not my_deck or not opp_deck:
-            return
         from PyQt6.QtWidgets import QMenu
         menu = QMenu(self._table)
-        act = menu.addAction(f"Simulate: {my_deck} vs {opp_deck}")
+        watch = act = None
+        token = m.get("mtgo_match_id") or ""
+        if m.get("source") == "mtgo_log" and token and not token.startswith("h:"):
+            watch = menu.addAction("Watch replay")
+        if self._on_simulate_matchup is not None and my_deck and opp_deck:
+            act = menu.addAction(f"Simulate: {my_deck} vs {opp_deck}")
+        if watch is None and act is None:
+            return
         chosen = menu.exec(self._table.viewport().mapToGlobal(pos))
-        if chosen is act:
+        if chosen is not None and chosen is watch:
+            self._open_mtgo_replay(m)
+            return
+        if chosen is not None and chosen is act:
             try:
                 self._on_simulate_matchup(my_deck, opp_deck, fmt)
             except Exception:
                 pass
+
+    def _open_mtgo_replay(self, m) -> None:
+        try:
+            from gui.widgets.replay_viewer_window import ReplayViewerWindow
+            from analysis.mtgo_replay import build_mtgo_event_stream
+            token = m["mtgo_match_id"]
+            win = ReplayViewerWindow(
+                token, opp_name=m.get("opp_name") or "", my_deck_label=m.get("my_deck") or "",
+                loader=lambda force, t=token: build_mtgo_event_stream(t, force_refresh=force),
+                notes_enabled=False)
+            win.setWindowTitle(f"MTGO Replay — {m.get('event_name', '')} vs {m.get('opp_name', '')}")
+            def _alive(w):
+                try:
+                    return w.isVisible()
+                except RuntimeError:  # closed windows delete themselves
+                    return False
+            self._replay_windows = [w for w in getattr(self, "_replay_windows", []) if _alive(w)]
+            self._replay_windows.append(win)
+            win.show()
+        except Exception as e:  # never raise in a slot
+            self._status_lbl.setText(f"Could not open replay: {e}")
 
     def _populate_table(self, matches):
         self._table.setRowCount(len(matches))

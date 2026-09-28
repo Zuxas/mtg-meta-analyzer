@@ -751,6 +751,7 @@ def replay_board_at(events: list, seq: int) -> dict:
     Requesting a seq beyond the last event is safe -- returns full final state.
     """
     instances: dict[int, dict] = {}
+    counts = None   # MTGO: hidden-zone COUNTS only (no cards) -- see analysis/mtgo_replay.py
     cur_game = None
     for ev in events:
         if ev.get("seq", 0) > seq:
@@ -760,7 +761,10 @@ def replay_board_at(events: list, seq: int) -> dict:
             cur_game = g
         elif g is not None and g != cur_game:
             instances = {}          # new game -> fresh board
+            counts = None
             cur_game = g
+        if ev.get("counts_after"):
+            counts = ev["counts_after"]
         for d in ev.get("board_diff") or []:
             iid = d.get("instance_id")
             if iid is None:
@@ -775,6 +779,7 @@ def replay_board_at(events: list, seq: int) -> dict:
                     "name": d.get("card"),
                     "controller": d.get("controller"),
                     "zone": to,
+                    "known": d.get("known", False),
                 }
 
     def _empty() -> dict:
@@ -802,11 +807,20 @@ def replay_board_at(events: list, seq: int) -> dict:
             bucket["exile"].append(card)
         elif z == "hand":
             bucket["hand_count"] += 1
-            if inst["grpid"]:           # known card (yours); opp hand grpid is None
+            # known card (yours); opp hand grpid is None. MTGO cards have no
+            # grpid but are flagged known -- MTGO never lists opp hand cards.
+            if inst["grpid"] or inst.get("known"):
                 bucket["hand"].append(card)
         elif z == "library":
             bucket["library_count"] += 1
     for b in (you, opp):
         b["graveyard_count"] = len(b["graveyard"])
         b["exile_count"] = len(b["exile"])
+    if counts:  # MTGO reports hand/library as counts; cards there are never listed
+        for side, b in (("you", you), ("opp", opp)):
+            c = counts.get(side) or {}
+            if c.get("hand") is not None:
+                b["hand_count"] = c["hand"]
+            if c.get("library") is not None:
+                b["library_count"] = c["library"]
     return {"seq": seq, "you": you, "opp": opp}
