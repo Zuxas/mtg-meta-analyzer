@@ -71,7 +71,8 @@
 ## OPEN — MTGO Local Integration (spec `../harness/specs/2026-09-27-mtgo-match-import.md`)
 - [x] **Import local MTGO matches into match_log** (2026-09-27, branch `feat/mtgo-match-import`) — `scrapers/mtgo_log_parser.py` + `scrapers/nrbf.py` + `scripts/import_mtgo_matches.py` (dry-run default). Live `--commit` awaiting sign-off.
 - [x] **Live-DB commit** (2026-09-27) — 402 rows after a backup; casual included, labeled `MTGO Casual`. Re-run any time: `python -m scripts.import_mtgo_matches --commit` (idempotent)
-- [ ] **Auto-snapshot + live tail** — `mtgo.log` only holds the current session (exact 75s + board frames); snapshot it each session like `gui/mtga_log_watcher.py` does for Arena
+- [x] **Auto-snapshot** (2026-09-27) — `scrapers/mtgo_snapshot.py` + `gui/mtgo_snapshot_watcher.py` (every 10 min while the GUI is open), captures in `E:\mtg-data\raw\mtgo`
+- [ ] **Auto-import** — run the importer after each snapshot (DB write path: needs sign-off)
 - [ ] **MTGO replay adapter** — `mtgo.log` "Game Play Status Update" frames -> `replay_board_at` shape -> existing replay viewer
 - [ ] **Puzzle real-opponent slice** — sample real opponent boards from those frames instead of the empty "Goldfish" side in `../mtg-sim/scripts/mine_lethal_puzzles.py`
 - [ ] **Archetype alias typos** — scraped labels like "Izzet Pheonix" split one deck across names; add aliases in `analysis/archetypes.py`

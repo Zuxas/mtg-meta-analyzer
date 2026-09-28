@@ -99,3 +99,13 @@ def test_watcher_tick_reports_and_survives_errors(monkeypatch):
         raise PermissionError("locked")
     monkeypatch.setattr(s, "snapshot", boom)
     assert w.tick() == 0 and "locked" in msgs[-1]
+
+
+def test_raw_root_lives_beside_the_db_not_the_checkout(monkeypatch, tmp_path):
+    from pathlib import Path
+    from db import database
+    monkeypatch.delenv("MTGO_RAW_DIR", raising=False)
+    monkeypatch.setattr(database, "DB_PATH", str(tmp_path / "mtg_meta.db"))
+    assert s.raw_root() == tmp_path / "raw" / "mtgo"
+    monkeypatch.setenv("MTGO_RAW_DIR", str(tmp_path / "elsewhere"))
+    assert s.raw_root() == Path(tmp_path / "elsewhere")

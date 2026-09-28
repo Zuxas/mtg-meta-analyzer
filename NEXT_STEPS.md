@@ -4,7 +4,17 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
-## 9/27 — Branches waiting to land (NONE on GitHub yet -- push them)
+## 9/27 late — PUSH `ui/polish-kit-rebased` (it contains everything)
+
+- `ui/polish-kit-rebased` (worktree `../_worktrees/analyzer-merge`) = the data-pipeline -> session-assets -> MTGO stack
+  + tonight's fixes (60 s lock wait, MTGO auto-save) + the UI kit, conflict resolved; suite 963 passed.
+  Push it, then fast-forward `main` to it. `ui/polish-kit` / `feat/mtgo-match-import` become redundant.
+- Backfill RE-RUN in progress (see CLAUDE.md top entry). When it exits: compare counts to
+  `logs/backfill_baseline_2026-09-27.txt`, grep the log for `BACKFILL INCOMPLETE`, then check melee recency (#7).
+- MTGO captures now live in `E:\mtg-data\raw\mtgo` (beside the DB), backed up weekly once the
+  DataMoat task is re-pointed (`C:\temp\fix-datamoat-task.ps1`, admin PowerShell).
+
+## 9/27 — Branches waiting to land (superseded by the section above)
 
 - Stack: `fix/data-pipeline-2026-09-20` -> `feat/session-assets-2026-09-26` -> `feat/mtgo-match-import` (40 commits over main;
   merging the top one lands all three).

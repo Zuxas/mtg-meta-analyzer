@@ -1,7 +1,7 @@
 """Import local MTGO matches into match_log.  DRY-RUN unless --commit.
 
   python -m scripts.import_mtgo_matches                      # live MTGO install
-  python -m scripts.import_mtgo_matches --raw data/raw/mtgo/2026-09-27
+  python -m scripts.import_mtgo_matches --raw E:/mtg-data/raw/mtgo/2026-09-27
   python -m scripts.import_mtgo_matches --commit --db <path> # write (idempotent)
 
 Merges three MTGO sources per match:
@@ -21,13 +21,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from db.helpers import utc_now  # noqa: E402
 from scrapers import mtgo_log_parser as p  # noqa: E402
+from scrapers.mtgo_snapshot import raw_root  # noqa: E402
 
 SOURCE = "mtgo_log"
 
 
 # ---------------------------------------------------------------- loading
 
-RAW_ROOT = Path(__file__).resolve().parents[1] / "data" / "raw" / "mtgo"
 DEFAULT_KINDS = ("tournament", "league", "casual", "other")  # precon = not your deck
 LINK_WINDOW_S = 1800
 
@@ -35,7 +35,7 @@ LINK_WINDOW_S = 1800
 def load_sources(raws: list[Path] | None = None, live: bool = True):
     """Union of the live MTGO install and saved snapshots. mtgo.log only covers
     the current session, so older sessions survive only in snapshots."""
-    dirs = list(raws) if raws is not None else sorted(d for d in RAW_ROOT.glob("*") if d.is_dir())
+    dirs = list(raws) if raws is not None else sorted(d for d in raw_root().glob("*") if d.is_dir())
     dat_dirs, hist_files, logs = list(dirs), [], []
     for d in dirs:
         hist_files += sorted(d.glob("*mtgo_game_history"))
@@ -320,7 +320,7 @@ def write_records(con, records, kinds=DEFAULT_KINDS) -> int:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--raw", type=Path, action="append",
-                    help="snapshot dir (repeatable; default: every data/raw/mtgo/* dir)")
+                    help="snapshot dir (repeatable; default: every snapshot dir beside the DB (raw/mtgo/*))")
     ap.add_argument("--no-live", action="store_true", help="skip the live MTGO install")
     ap.add_argument("--kinds", default=",".join(DEFAULT_KINDS),
                     help="match kinds to write: tournament,league,casual,other,precon")

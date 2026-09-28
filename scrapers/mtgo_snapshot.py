@@ -5,7 +5,7 @@ replaced when MTGO next launches, so it is saved under its session id.
 Game logs, match history and deck files are copied when new or changed.
 Chat files (Match_GameChat_*, PrivateChatChannel_*) are never read.
 
-  python -m scrapers.mtgo_snapshot          # copy into data/raw/mtgo/<today>/
+  python -m scrapers.mtgo_snapshot          # copy into <DB dir>/raw/mtgo/<today>/
 """
 from __future__ import annotations
 
@@ -17,8 +17,17 @@ import shutil
 from datetime import date
 from pathlib import Path
 
-DEFAULT_DEST = Path(__file__).resolve().parents[1] / "data" / "raw" / "mtgo"
 _SESSION_RE = re.compile(r"SessionStarted\) ID: ([0-9a-f]{8})")
+
+
+def raw_root() -> Path:
+    """Where MTGO captures live: beside the database, NOT in the code checkout,
+    so every worktree, the importer and the backup agree. MTGO_RAW_DIR overrides."""
+    env = os.environ.get("MTGO_RAW_DIR")
+    if env:
+        return Path(env)
+    from db import database
+    return Path(database.DB_PATH).parent / "raw" / "mtgo"
 
 
 def _install_id(path: Path) -> str:
@@ -81,10 +90,10 @@ def _known(dest_root: Path) -> tuple[dict[str, set], dict[str, Path]]:
 
 
 def snapshot(root: str | os.PathLike | None = None,
-             dest_root: str | os.PathLike = DEFAULT_DEST,
+             dest_root: str | os.PathLike | None = None,
              today: date | None = None) -> dict:
     root = Path(root or os.path.expandvars(r"%LOCALAPPDATA%\Apps\2.0"))
-    dest_root = Path(dest_root)
+    dest_root = Path(dest_root) if dest_root else raw_root()
     if not root.exists():
         return {"copied": 0, "dest": None}
     day = dest_root / (today or date.today()).isoformat()

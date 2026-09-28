@@ -294,7 +294,7 @@ def test_load_card_names_two_id_spaces(tmp_path):
 
 # ---------------------------------------------------------------- real corpus (local only)
 
-RAW = Path(__file__).resolve().parents[1] / "data" / "raw" / "mtgo"
+RAW = Path(r"E:/mtg-data/raw/mtgo")  # real captures live beside the live DB
 
 
 @pytest.mark.skipif(not any(RAW.glob("*/Match_GameLog_*.dat")), reason="no local MTGO snapshot")
