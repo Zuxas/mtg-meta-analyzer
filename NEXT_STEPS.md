@@ -4,6 +4,15 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
+## 9/28 later — archetype labels
+
+- Done: 46 spelling aliases; MTGO rows relabeled (60 renames, backup first); per-format umbrella folds in the MTGO classifier.
+- Queued: `scripts/migrate_spelling_aliases.py --commit` after the backfill (waiter `C:\temp\label-migration-after-backfill.ps1`).
+  Check `logs/label_migration_2026-09-28.log` shows 46 labels renamed and a backup path.
+- DO NOT run `python -m analysis.archetypes --apply`: it applies every old alias too (119 changes), some wrong --
+  'Rakdos Affinity'/'Jund Affinity' -> 'Grixis Affinity', 'UW Tempo' -> 'Azorius Control', 'Mono Green Stompy' ->
+  'Mono Green Aggro', a player name mangled. Audit those old aliases first (IMPERFECTIONS old-aliases-merge-distinct-decks).
+
 ## 9/28 — Standard + Legacy backfill re-run queued
 
 - Standard (2024 and older) and Legacy (2025 and older) never finished: a run of broken event pages was read as an

@@ -82,3 +82,50 @@ def test_profile_cache_classifies_and_skips_limited():
     seen = {"Guide of Souls", "Ocelot Pride", "Galvanic Discharge"}
     assert cache.classify(seen, "modern", date(2026, 9, 20))[0] == "Boros Energy"
     assert cache.classify(seen, "limited", date(2026, 9, 20)) is None
+
+
+def test_umbrella_label_folds_into_most_played_specific_label():
+    counts = {
+        "Boros": {"guide of souls": 3, "ocelot pride": 3, "galvanic discharge": 3},
+        "Boros Energy": {"guide of souls": 20, "ocelot pride": 20, "galvanic discharge": 19},
+        "Boros Aggro": {"guide of souls": 5, "ocelot pride": 5, "galvanic discharge": 5},
+        "Izzet Prowess": {"slickshot show-off": 10, "monastery swiftspear": 10},
+        "Prowess": {"monastery swiftspear": 4, "lava dart": 4},   # different profile: stays
+    }
+    totals = {"Boros": 3, "Boros Energy": 20, "Boros Aggro": 5, "Izzet Prowess": 10, "Prowess": 4}
+    c, t = odc.merge_umbrellas(counts, totals)
+    assert "Boros" not in c and t["Boros Energy"] == 23
+    assert c["Boros Energy"]["guide of souls"] == 23
+    assert "Boros Aggro" in c                       # not an umbrella of anything
+    assert "Prowess" in c                           # words match but decklists don't
+
+
+def test_umbrella_merge_never_crosses_unrelated_words():
+    counts = {"Tron": {"urza's tower": 5}, "Eldrazi Tron": {"urza's tower": 9}}
+    c, t = odc.merge_umbrellas(counts, {"Tron": 5, "Eldrazi Tron": 9})
+    assert "Tron" not in c                          # same profile + subset words -> merged
+    counts2 = {"Tron": {"urza's tower": 5}, "Mono Green Stompy": {"urza's tower": 9}}
+    c2, _ = odc.merge_umbrellas(counts2, {"Tron": 5, "Mono Green Stompy": 9})
+    assert set(c2) == {"Tron", "Mono Green Stompy"}
+
+
+def test_common_name_never_folds_into_a_rarer_label():
+    counts = {"Boros Energy": {"a": 40, "b": 40}, "Boros Energy Gingerkush": {"a": 2, "b": 2}}
+    c, t = odc.merge_umbrellas(counts, {"Boros Energy": 40, "Boros Energy Gingerkush": 2})
+    assert "Boros Energy" in c and t["Boros Energy"] == 40
+
+
+def test_merge_map_records_what_folded_where():
+    mapping = {}
+    odc.merge_umbrellas({"Boros": {"a": 3}, "Boros Energy": {"a": 20}},
+                        {"Boros": 3, "Boros Energy": 20}, mapping=mapping)
+    assert mapping == {"Boros": "Boros Energy"}
+
+
+def test_ties_between_equivalent_targets_go_to_the_all_time_name():
+    counts = {"Boros": {"a": 3}, "Boros Energy": {"a": 5}, "Boros Ocelot": {"a": 9}}
+    totals = {"Boros": 3, "Boros Energy": 5, "Boros Ocelot": 9}     # Ocelot hot this month
+    mapping = {}
+    odc.merge_umbrellas(counts, totals, mapping=mapping,
+                        popularity={"Boros Energy": 900, "Boros Ocelot": 40})
+    assert mapping["Boros"] == "Boros Energy"

@@ -117,3 +117,30 @@ def test_event_label():
     assert im.event_label(dict(base, kind="tournament", event="Modern Challenge 32")) == "Modern Challenge 32"
     assert im.event_label(dict(base, kind="casual")) == "MTGO Casual"
     assert im.event_label(None) == "MTGO"
+
+
+def test_relabel_changes_and_apply_touch_only_mtgo_rows():
+    con = _db()
+    with con:
+        im.write_records(con, [_rec("r1", my_deck="Boros"), _rec("r2", my_deck="")])
+        con.execute("INSERT INTO match_log (event_name, result, my_deck, created_at, source) "
+                    "VALUES ('manual', 'win', 'Boros', 'x', 'manual')")
+    recs = [_rec("r1"), _rec("r2"), _rec("zz")]                     # zz not imported: ignored
+    rename = lambda lbl, fmt, when: {"Boros": "Boros Energy"}.get(lbl, lbl)  # noqa: E731
+    ch = im.rename_changes(im.stored_labels(con), recs, rename)
+    assert ch == [("r1", "my_deck", "Boros", "Boros Energy")]       # blank r2 stays blank
+    with con:
+        im.apply_relabel(con, ch)
+    rows = dict(con.execute("SELECT mtgo_match_id, my_deck || '|' || backfill_status FROM match_log "
+                            "WHERE source='mtgo_log'").fetchall())
+    assert rows == {"r1": "Boros Energy|live", "r2": "|orphan"}
+    assert con.execute("SELECT COUNT(*) FROM match_log WHERE source='manual' AND my_deck='Boros'").fetchone()[0] == 1
+
+
+def test_rename_only_relabel_ignores_reclassification():
+    rename = lambda label, fmt, when: {"Boros": "Boros Energy", "Merfolks": "Merfolk"}.get(label, label)
+    recs = [dict(_rec("a", my_deck="Boros"), opp_deck="Merfolks"),
+            dict(_rec("b", my_deck="5C Humans"), opp_deck="")]
+    stored = {"a": ("Boros", "Merfolks"), "b": ("5C Humans", "")}
+    ch = im.rename_changes(stored, recs, rename)
+    assert sorted(ch) == [("a", "my_deck", "Boros", "Boros Energy"), ("a", "opp_deck", "Merfolks", "Merfolk")]

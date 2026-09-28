@@ -315,6 +315,39 @@ def write_records(con, records, kinds=DEFAULT_KINDS) -> int:
     return inserted
 
 
+def stored_labels(con) -> dict:
+    return {r[0]: (r[1] or "", r[2] or "") for r in con.execute(
+        "SELECT mtgo_match_id, my_deck, opp_deck FROM match_log WHERE source = ?", (SOURCE,))}
+
+
+def rename_changes(stored: dict, records, rename) -> list[tuple]:
+    """(mtgo_match_id, field, old, new) for imported rows whose STORED label
+    maps to a different name under rename(label, format, date) -- the approved
+    spelling aliases + per-format umbrella folds. Never re-classifies: a close
+    call that would flip on a fresh classification is left alone."""
+    out = []
+    for r in records:
+        old = stored.get(r["mtgo_match_id"])
+        if old is None:
+            continue
+        when = r["started"].date() if r.get("started") else None
+        for field, before in (("my_deck", old[0]), ("opp_deck", old[1])):
+            new = rename(before, r["format"], when) if before else before
+            if new and new != before:
+                out.append((r["mtgo_match_id"], field, before, new))
+    return out
+
+
+def apply_relabel(con, changes) -> int:
+    for mid, field, _old, new in changes:
+        assert field in ("my_deck", "opp_deck")
+        con.execute(f"UPDATE match_log SET {field} = ? WHERE source = ? AND mtgo_match_id = ?",
+                    (new, SOURCE, mid))
+    con.execute("UPDATE match_log SET backfill_status = 'live' WHERE source = ? "
+                "AND backfill_status = 'orphan' AND my_deck != ''", (SOURCE,))
+    return len(changes)
+
+
 # ---------------------------------------------------------------- main
 
 def main(argv=None):
@@ -326,6 +359,8 @@ def main(argv=None):
                     help="match kinds to write: tournament,league,casual,other,precon")
     ap.add_argument("--local", help="your MTGO username (default: from mtgo.log)")
     ap.add_argument("--commit", action="store_true", help="write to --db (default: dry-run)")
+    ap.add_argument("--relabel", action="store_true",
+                    help="re-classify archetypes of already-imported rows instead of importing")
     ap.add_argument("--db", type=Path, help="database path (default: the configured DB)")
     a = ap.parse_args(argv)
     kinds = tuple(k.strip() for k in a.kinds.split(",") if k.strip())
@@ -338,6 +373,27 @@ def main(argv=None):
     records, stats, local = build_records(dats, history, texts, names, a.local)
 
     ro = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    if a.relabel:
+        from analysis.observed_deck_classifier import ProfileCache
+        cache = ProfileCache(ro)
+        changes = rename_changes(stored_labels(ro), records,
+                                 lambda lbl, fmt, when: cache.rename(lbl, fmt, when) if when else lbl)
+        ro.close()
+        pairs = Counter((f, o or "(blank)", n) for _m, f, o, n in changes)
+        print(f"\n== relabel: {len(changes)} field change(s) on {len({c[0] for c in changes})} row(s) ==")
+        for (f, o, n), k in pairs.most_common():
+            print(f"  {k:4d}  {f:8s} {o!r} -> {n!r}")
+        if not a.commit:
+            print(f"\nDRY-RUN: nothing written. Target DB would be {db_path}")
+            return 0
+        con = sqlite3.connect(db_path, timeout=60)
+        try:
+            with con:
+                n = apply_relabel(con, changes)
+        finally:
+            con.close()
+        print(f"\nCOMMITTED: {n} label change(s) -> {db_path}")
+        return 0
     classify(records, ro)
     ro.close()
     report(records, stats, local, kinds, card_id_coverage(dats, names))
