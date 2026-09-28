@@ -258,6 +258,13 @@ class MainWindow(QMainWindow):
         self._mtga_watcher.status_changed.connect(self._on_watcher_status)
         self._mtga_watcher.start()
 
+        # MTGO overwrites mtgo.log each launch -- copy it (and new game logs)
+        # every 10 minutes into data/raw/mtgo/. File copies only.
+        from gui.mtgo_snapshot_watcher import MtgoSnapshotWatcher
+        self._mtgo_snapshot = MtgoSnapshotWatcher(self)
+        self._mtgo_snapshot.status_changed.connect(self._on_watcher_status)
+        self._mtgo_snapshot.start()
+
         # Ctrl+K opens palette
         self._palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         self._palette_shortcut.activated.connect(self._open_palette)
@@ -1325,6 +1332,11 @@ class MainWindow(QMainWindow):
         try:
             if hasattr(self, "_mtga_watcher"):
                 self._mtga_watcher.stop()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "_mtgo_snapshot"):
+                self._mtgo_snapshot.stop()
         except Exception:
             pass
         # Stop launch-time auto-sync worker if still running
