@@ -4,6 +4,14 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
+## 9/28 — Standard + Legacy backfill re-run queued
+
+- Standard (2024 and older) and Legacy (2025 and older) never finished: a run of broken event pages was read as an
+  outage. Fixed on `ui/polish-kit-rebased` (host probe + bad-event ledger `E:\mtg-data\backfill_bad_events.json`).
+  A waiter starts `scrapers.backfill --format standard` then `--format legacy` from `../_worktrees/analyzer-merge`
+  once the 09-27 fill_database run (PID 56492, still in Pauper) exits -> `logs/backfill_rerun_2026-09-28.log`.
+  Verify by counts vs `logs/backfill_baseline_2026-09-27.txt`.
+
 ## 9/27 late — PUSH `ui/polish-kit-rebased` (it contains everything)
 
 - `ui/polish-kit-rebased` (worktree `../_worktrees/analyzer-merge`) = the data-pipeline -> session-assets -> MTGO stack

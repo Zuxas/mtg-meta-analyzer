@@ -23,11 +23,12 @@ EMPTY_PAGE = _Resp("<html><body></body></html>")
 
 
 @pytest.fixture
-def quiet_backfill(monkeypatch):
+def quiet_backfill(monkeypatch, tmp_path):
     """No DB, no config, no sleeping; 30-day cutoff so only the current year runs."""
     monkeypatch.setattr(bf, "_get_existing_source_ids", lambda: set())
     monkeypatch.setattr(bf, "_load_cutoff", lambda fmt: datetime.now() - timedelta(days=30))
     monkeypatch.setattr(bf.time, "sleep", lambda s: None)
+    monkeypatch.setattr(bf, "_bad_events_path", lambda: tmp_path / "backfill_bad_events.json")
 
 
 def test_scrape_year_page_raises_on_fetch_failure(monkeypatch):
@@ -203,10 +204,51 @@ def test_run_backfill_aborts_after_consecutive_event_failures(monkeypatch, quiet
     listing = _Resp("".join(
         f'<tr class="hover_tr"><td class="S14"><a href="event?e=9{i:04d}&f=MO">Ev {i}</a></td>'
         f'<td>{(datetime.now() - timedelta(days=1)).strftime("%d/%m/%y")}</td></tr>' for i in range(10)))
-    monkeypatch.setattr(bf, "_get", lambda url, retries=3: listing if "&meta=" in url else EMPTY_PAGE)
+    # listing served, but the host probe (format page) is unreachable: a real outage
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: listing if "&meta=" in url else None)
     monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: (0, False))   # every event fails
     with pytest.raises(bf.BackfillFetchError):
         bf.run_backfill("modern")
+
+
+def test_broken_event_pages_with_the_host_up_do_not_abort(monkeypatch, quiet_backfill, capsys):
+    """Standard died twice (09-21, 09-27) on the SAME four adjacent events 73498-73501:
+    broken pages, not an outage. With the host answering, keep going."""
+    listing = _listing([f"7{i:04d}" for i in range(8)])
+    pages = iter([listing, EMPTY_PAGE])
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: next(pages) if "&meta=" in url else EMPTY_PAGE)
+    outcomes = iter([(0, False)] * 6 + [(3, True)] * 2)
+    monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: next(outcomes))
+    summary = bf.run_backfill("modern")
+    assert summary["events"] == 2 and summary["event_failures"] == 6
+    assert "host reachable" in capsys.readouterr().out
+
+
+def test_repeatedly_failing_events_are_skipped_after_three_runs(monkeypatch, quiet_backfill):
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: _listing(["111", "222"]) if "&meta=" in url else EMPTY_PAGE)
+    calls = []
+
+    def process(ev, fmt):
+        calls.append(ev["source_id"])
+        return (0, False) if ev["source_id"] == "111" else (2, True)
+    monkeypatch.setattr(bf, "_process_event", process)
+    for _ in range(3):
+        bf.run_backfill("modern")
+    assert bf._load_bad_events()["111"]["fails"] == 3 and "222" not in bf._load_bad_events()
+    calls.clear()
+    summary = bf.run_backfill("modern")
+    assert calls == ["222"]                      # 111 skipped without a fetch
+    assert summary["skipped_bad_events"] == 1
+
+
+def test_bad_event_that_later_succeeds_leaves_the_ledger(monkeypatch, quiet_backfill):
+    monkeypatch.setattr(bf, "_get", lambda url, retries=3: _listing(["333"]) if "&meta=" in url else EMPTY_PAGE)
+    results = iter([(0, False), (4, True)])
+    monkeypatch.setattr(bf, "_process_event", lambda ev, fmt: next(results))
+    bf.run_backfill("modern")
+    assert bf._load_bad_events()["333"]["fails"] == 1
+    bf.run_backfill("modern")
+    assert "333" not in bf._load_bad_events()
 
 
 def test_run_backfill_tolerates_isolated_event_failures(monkeypatch, quiet_backfill):

@@ -85,6 +85,41 @@ PAGE_FETCH_BACKOFF = (30, 60, 120)   # seconds between attempts
 # but this many IN A ROW means the network / host is gone: abort the format.
 MAX_CONSECUTIVE_EVENT_FAILURES = 5
 
+# An event whose page fails in this many separate runs is skipped (and logged)
+# instead of re-fetched forever: Standard 73498-73501 failed identically on
+# 2026-09-21 and 09-27 and, four in a row, used to abort the whole format.
+BAD_EVENT_SKIP_AFTER = 3
+
+
+def _bad_events_path():
+    """Beside the DB, so every checkout shares one ledger."""
+    from pathlib import Path
+    from db import database
+    return Path(database.DB_PATH).parent / "backfill_bad_events.json"
+
+
+def _load_bad_events():
+    import json
+    p = _bad_events_path()
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except (ValueError, OSError):
+        return {}
+
+
+def _save_bad_events(ledger):
+    import json
+    p = _bad_events_path()
+    tmp = p.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(ledger, indent=1, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, p)
+
+
+def _host_up(format_name):
+    """One request to tell a run of broken event pages from a real outage."""
+    return bool(_get(f"{BASE_URL}/format?f={FORMATS[format_name]}"))
+
+
 # Hard ceiling on listing pages per year (a year is ~30-70 pages at MTGTop8's
 # ~25 events per page); protects against a pathological pager.
 MAX_PAGES_PER_YEAR = 400
@@ -264,6 +299,9 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
     event_failures = 0
     consecutive_failures = 0
     total_decks = 0
+    skipped_bad = 0
+    bad_events = _load_bad_events()
+    ledger_run_marked = set()   # count each event at most once per run
 
     for year in years_to_cover:
         meta = year_metas[year]
@@ -299,24 +337,41 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
                 date_display = parsed.strftime('%Y-%m-%d') if parsed else ev['date']
                 print(f"    [{date_display}] {ev['name'][:45]}", end="")
 
+                sid = ev['source_id']
                 if dry_run:
                     print("  [DRY RUN — skipped]")
+                elif bad_events.get(sid, {}).get("fails", 0) >= BAD_EVENT_SKIP_AFTER:
+                    skipped_bad += 1
+                    print(f"  — [skip] failed in {bad_events[sid]['fails']} runs "
+                          f"(ledger: {_bad_events_path().name})")
                 else:
                     deck_count, ok = _process_event(ev, format_name)
                     if ok:
                         year_events += 1
                         year_decks += deck_count
-                        existing_ids.add(ev['source_id'])
+                        existing_ids.add(sid)
                         consecutive_failures = 0
+                        if bad_events.pop(sid, None) is not None:
+                            _save_bad_events(bad_events)
                         print(f"  — {deck_count} decks stored")
                     else:
                         event_failures += 1
                         consecutive_failures += 1
+                        if sid not in ledger_run_marked:
+                            ledger_run_marked.add(sid)
+                            entry = bad_events.setdefault(sid, {"fails": 0})
+                            entry.update(fails=entry["fails"] + 1, format=format_name,
+                                         url=ev["url"], last=datetime.now().strftime("%Y-%m-%d"))
+                            _save_bad_events(bad_events)
                         print("  — FETCH FAILED, rolled back (will retry next run)")
                         if consecutive_failures >= MAX_CONSECUTIVE_EVENT_FAILURES:
-                            raise BackfillFetchError(
-                                f"{consecutive_failures} consecutive event fetch failures "
-                                f"in {format_name} {year} -- host/network down, aborting format")
+                            if not _host_up(format_name):
+                                raise BackfillFetchError(
+                                    f"{consecutive_failures} consecutive event fetch failures "
+                                    f"in {format_name} {year} -- host/network down, aborting format")
+                            print(f"  [info] host reachable -- {consecutive_failures} broken event "
+                                  f"pages in a row, not an outage; continuing")
+                            consecutive_failures = 0
 
             if hit_cutoff:
                 print(f"  Reached cutoff ({cutoff_str}) — stopping year {year}.")
@@ -345,10 +400,13 @@ def run_backfill(format_name="standard", since=None, dry_run=False):
     print(f"  BACKFILL COMPLETE")
     print(f"  Total: {total_events} events, {total_decks} decks stored"
           + (f"  ({transient_failures} transient fetch failures recovered)" if transient_failures else ""))
+    if event_failures or skipped_bad:
+        print(f"  Broken event pages: {event_failures} failed this run, {skipped_bad} skipped "
+              f"(failed {BAD_EVENT_SKIP_AFTER}+ runs) -- see {_bad_events_path()}")
     print(f"{'='*60}\n")
     return {"format": format_name, "events": total_events, "decks": total_decks,
             "years": years_to_cover, "transient_failures": transient_failures,
-            "event_failures": event_failures}
+            "event_failures": event_failures, "skipped_bad_events": skipped_bad}
 
 
 if __name__ == "__main__":
