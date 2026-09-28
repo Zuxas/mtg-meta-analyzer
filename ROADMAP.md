@@ -66,7 +66,8 @@
 - [x] **Mulligan analysis from logged matches** (2026-05-14) — `db.match_games.keep_stats_for_deck` aggregates keep-7 / mull-to-6 / mull-to-5 / mull-to-4 buckets with per-bucket WR; surfaced in Match History sub-tab with reliability coloring + actionable warning
 - [x] **Canonical vs Actual SB plan diff** (2026-05-14) — `analysis.sb_plan_diff.compare_match_to_canonical` shows IN-match % colored by reliability under each plan line in Match Detail panel
 - [ ] Trend analysis: personal WR over time, improving/declining matchups
-- [~] **Integration with SB advisor** — `analysis/matchup_advisor.py::get_advice` is WRITTEN (personal vs meta WR, severity, guide IN/OUT, saved-plan check) but has **zero callers**; it returned 'no match data' for every deck until the 2026-09-22 deck-linking fix. Remaining work is purely surfacing it in the GUI.
+- [x] **Integration with SB advisor** (2026-09-28) — Match Log 'Matchup spread' card (`gui/widgets/matchup_spread_card.py` over `analysis/personal_spread.py`): KPIs + per-opponent record, advice only at 5+ games, Competitive/All, unknown opponents unrated
+- [ ] **Dashboard KPI strip** — personal record strip on the Dashboard (UI kit wave 2, second half)
 
 ## OPEN — MTGO Local Integration (spec `../harness/specs/2026-09-27-mtgo-match-import.md`)
 - [x] **Import local MTGO matches into match_log** (2026-09-27, branch `feat/mtgo-match-import`) — `scrapers/mtgo_log_parser.py` + `scrapers/nrbf.py` + `scripts/import_mtgo_matches.py` (dry-run default). Live `--commit` awaiting sign-off.

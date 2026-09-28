@@ -226,6 +226,8 @@ class MatchLogTab(QWidget):
         for w in self._workers:
             stop_worker(w)
         self._workers.clear()
+        if hasattr(self, "_spread"):
+            self._spread.cleanup()
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
@@ -390,10 +392,19 @@ class MatchLogTab(QWidget):
 
         # Right side: variant timeline panel (replaces previous matchup-stats
         # table + SB Advice + trend chart per design 2026-05-13 Option C)
+        # with the matchup-spread card (KPIs + per-opponent record) above it.
         from gui.widgets.variant_timeline import VariantTimelinePanel
+        from gui.widgets.matchup_spread_card import MatchupSpreadCard
+        self._spread = MatchupSpreadCard()
         self._timeline = VariantTimelinePanel()
-        splitter.addWidget(self._timeline)
-        splitter.setSizes([700, 300])
+        right = QSplitter(Qt.Orientation.Vertical)
+        right.addWidget(self._spread)
+        right.addWidget(self._timeline)
+        right.setSizes([520, 300])
+        right.setCollapsible(0, True)
+        right.setCollapsible(1, True)
+        splitter.addWidget(right)
+        splitter.setSizes([640, 520])
         splitter.setCollapsible(1, True)
         outer.addWidget(splitter, 1)
 
@@ -440,10 +451,21 @@ class MatchLogTab(QWidget):
         self._workers.append(w)
         self._refresh_orphan_banner()
 
+    def _sync_spread(self, active_deck, active_format):
+        try:
+            if self._spread.deck() is None:
+                self._spread._format = active_format
+                self._spread.load_decks(preferred=active_deck)
+            elif self._spread._format != active_format:
+                self._spread.set_format(active_format)
+        except Exception as e:  # a slot must never raise under PyQt6
+            print(f"[match_log] spread card: {e}")
+
     def _on_data(self, data):
         self._matches = data["matches"]
         self._active_deck = data.get("active_deck") or ""
         self._active_format = data.get("active_format") or "modern"
+        self._sync_spread(data.get("active_deck"), data.get("active_format"))
         self._populate_table(data["matches"])
         self._refresh_event_banner()
         ov = data["overall"]
