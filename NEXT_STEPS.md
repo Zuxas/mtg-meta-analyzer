@@ -4,6 +4,18 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
+## 9/29 evening — cleanup applied (user: "ye go")
+
+- Label cleanup DONE live: backup `E:\mtg-data\mtg_meta.backup-2026-09-29-pre-apply.db`, `esper affinity` alias
+  dropped, Pauper 'Mono U Fae'/'Mono Blue Fae' -> Mono Blue Faeries and 'Ww Heroics'/'Mono W Heroic' -> Mono White
+  Heroic, then `--apply`: 79 labels / 3,380 decks renamed, rerun 0, deck count unchanged (204,799).
+- 17 gauntlet puzzles IMPORTED into the live puzzle_inbox (Puzzles > Inbox > Promote). All 17 re-checked after the
+  mtg-sim keyword fix (12 replay, 5 by hand).
+- Match Log now loads up to 5000 rows (was 200 of 511).
+- MTGO restarted game -> "void" in the parser/importer. The one stored row (match_log id 288, 70692a45) still says
+  G2 blank / G3 win: the correcting DELETE was blocked by the permission classifier -- SQL in harness IMPERFECTIONS
+  `mtgo-restarted-game-row-288`, run it yourself if you want it fixed.
+
 ## 9/29 — Pending-rename (old alias) audit DONE -- your decisions
 
 - `docs/audits/2026-09-29-pending-renames.md` (tool: `python -m scripts.audit_pending_renames`, read-only):
