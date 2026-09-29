@@ -25,6 +25,9 @@ _FORMATS = ["standard", "pioneer", "modern", "legacy", "pauper"]
 _RESULTS = ["win", "loss", "draw"]
 _PLAY_DRAW = ["", "play", "draw"]
 _GAME_RESULTS = ["", "win", "loss"]
+# get_matches() defaults to 200 rows; with the MTGO import the log is 500+ and
+# older matches silently vanished. Loaded in a worker, so a high cap is cheap.
+MATCH_ROW_LIMIT = 5000
 
 
 class _MatchDialog(QDialog):
@@ -419,7 +422,8 @@ class MatchLogTab(QWidget):
 
         def _do():
             from db.match_log import get_matches, get_overall_stats
-            matches = get_matches(format_name=fmt_arg, my_deck_id=deck_id)
+            matches = get_matches(format_name=fmt_arg, my_deck_id=deck_id,
+                                  limit=MATCH_ROW_LIMIT)
             overall = {"wins": 0, "losses": 0, "draws": 0, "total": 0, "wr": 0}
 
             # Determine active_deck name for summary bar

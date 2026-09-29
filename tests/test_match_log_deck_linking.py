@@ -118,3 +118,15 @@ def test_get_matches_filters_by_either_link_with_a_format_filter(log_db):
     rows = get_matches(format_name="standard", my_deck="Izzet Prowess")
     assert len(rows) == 2 and {r["result"] for r in rows} == {"win", "loss"}
     assert len(get_matches(my_deck="Izzet Prowess")) == 3
+
+
+def test_match_log_tab_loads_more_than_the_200_row_default(log_db):
+    """The Match Log tab passes MATCH_ROW_LIMIT: with 500+ MTGO rows the old
+    200-row default silently hid older matches."""
+    from db.match_log import get_matches
+    from gui.tabs.match_log import MATCH_ROW_LIMIT
+    for i in range(230):
+        log_db["add"]("win", my_deck="Boros Energy", date=f"2026-0{1 + i % 9}-1{i % 10}")
+    assert len(get_matches()) == 200                     # data-layer default unchanged
+    assert len(get_matches(limit=MATCH_ROW_LIMIT)) == 230
+    assert MATCH_ROW_LIMIT >= 2000
