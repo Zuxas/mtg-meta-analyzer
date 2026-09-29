@@ -445,7 +445,8 @@ ALIASES = {
     "w-u-r-g beanstalk":       "Four-Color Beanstalk",
 
     # --- Pauper: Affinity (Grixis is canonical) ---
-    "esper affinity":          "Grixis Affinity",
+    # 'esper affinity' removed 2026-09-29: the one Esper list scores 0.45 vs
+    # Grixis Affinity (docs/audits/2026-09-29-pending-renames.md) -- a different deck.
     "dimir affinity":          "Grixis Affinity",
     "rakdos affinity":         "Grixis Affinity",
     "jund affinity":           "Grixis Affinity",
@@ -557,6 +558,15 @@ ALIASES = {
     'walls spy': 'Spy Walls',
     'weenie white': 'White Weenie',
     'welder-cam': 'Welder Cam',
+    # --- Pauper spellings merged 2026-09-29 (audit docs/audits/2026-09-29-pending-renames.md):
+    # title-casing left these split from their real group. Pauper mainboard cosine vs the
+    # target: Mono U Fae 0.989, Mono Blue Fae 0.959, Ww Heroics 0.980, Mono W Heroic 0.948.
+    # Bare 'Faeries' / 'Heroic' stay apart on purpose (Dimir Faeries / Boros Heroic elsewhere).
+    'mono u fae': 'Mono Blue Faeries',
+    'mono blue fae': 'Mono Blue Faeries',
+    'ww heroics': 'Mono White Heroic',
+    'ww heroic': 'Mono White Heroic',
+    'mono w heroic': 'Mono White Heroic',
 }
 
 # Reverse lookup: canonical -> canonical (so we don't change already-canonical names)

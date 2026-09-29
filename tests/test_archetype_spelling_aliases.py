@@ -22,3 +22,19 @@ def test_alias_targets_are_canonical():
                                   "Mono Black Aggro", "Mono Black Midrange"])
 def test_borderline_and_distinct_decks_stay_apart(name):
     assert normalize(name) == name
+
+
+@pytest.mark.parametrize("raw,canon", [
+    ("Mono-u Fae", "Mono Blue Faeries"), ("Mono U Fae", "Mono Blue Faeries"),
+    ("Mono Blue Fae", "Mono Blue Faeries"), ("WW Heroics", "Mono White Heroic"),
+    ("Ww Heroics", "Mono White Heroic"), ("Mono-w Heroic", "Mono White Heroic"),
+])
+def test_pauper_spellings_2026_09_29(raw, canon):
+    assert normalize(raw) == canon
+
+
+@pytest.mark.parametrize("name", ["Esper Affinity", "Faeries", "Heroic"])
+def test_distinct_or_ambiguous_names_stay_apart_2026_09_29(name):
+    # Esper Affinity is a different deck from Grixis Affinity (cosine 0.45);
+    # bare Faeries / Heroic mean different decks in different formats.
+    assert normalize(name) == name
