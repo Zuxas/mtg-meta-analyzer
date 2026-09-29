@@ -4,6 +4,15 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ---
 
+## 9/29 — Pending-rename (old alias) audit DONE -- your decisions
+
+- `docs/audits/2026-09-29-pending-renames.md` (tool: `python -m scripts.audit_pending_renames`, read-only):
+  `--apply` would rename 75 labels / 3,231 decks; 56 rows clearly the same deck; 6 flagged.
+- Recommend: drop the `esper affinity` alias (merges a different color pair); add proper aliases for
+  'Mono-u Fae' / 'Mono-w Heroic' (title-casing leaves them split). Death & Taxes alias is right -- 2 Modern
+  Orzhov Blink lists are mislabelled at the source.
+- After those two edits, `--apply` is safe to run (backup first).
+
 ## 9/29 — Gauntlet lethal puzzles (real opponent boards) BUILT
 
 - 17 clean puzzles (re-mined on the haste-fixed engine) in `../mtg-sim/data/gauntlet_candidates.jsonl` (+7 flagged in `_flagged.jsonl`: weak block or a real answer in the revealed hand) (regenerate: `PYTHONHASHSEED=0 python
