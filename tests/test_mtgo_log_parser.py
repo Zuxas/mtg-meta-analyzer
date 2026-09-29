@@ -392,3 +392,23 @@ def test_match_kind():
     assert p.match_kind(dict(base, PlayIntensity={"value__": 4}), None) == "casual"
     assert p.match_kind(dict(base, DeckCreationStyle={"value__": 1}), None) == "precon"
     assert p.match_kind(base, None) == "other"
+
+
+def test_restarted_game_is_void_not_a_game():
+    # 70692a45 shape: game 2 starts, both players re-join mid game (no result
+    # line), a new game 2 is played, then "wins the match 2-0".
+    restarted = ["@P@PBob joined the game.", "@P@PAlice joined the game.",
+                 "@PBob chooses to play first.", "@PTurn 1: Bob", "@PTurn 1: Alice"]
+    replay = ["@P@PBob joined the game.", "@P@PAlice joined the game.",
+              "@PBob chooses to play first.", "@PTurn 1: Bob",
+              "@PBob has conceded from the game.", "@PAlice wins the game.",
+              "@PAlice wins the match 2-0"]
+    m = p.parse_match(p.read_gamelog(build_dat(GAME1 + restarted + replay)), local_player="Alice")
+    assert [g["end_reason"] for g in m["games"]] == ["concede", "void", "concede"]
+    assert m["score_check"] == "ok" and m["result"] == "win"
+
+
+def test_undecided_last_game_is_not_void():
+    unfinished = GAME1 + GAME2 + GAME3[:5]
+    m = p.parse_match(p.read_gamelog(build_dat(unfinished)), local_player="Alice")
+    assert m["games"][2]["end_reason"] == "unknown"

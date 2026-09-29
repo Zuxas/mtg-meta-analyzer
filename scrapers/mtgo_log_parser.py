@@ -232,6 +232,14 @@ def parse_match(log: GameLog, local_player: str | None) -> dict:
             g["end_reason"] = "unknown"
 
     tally = Counter(g["winner"] for g in games if g["winner"])
+    # A game with no result that is followed by another game, when MTGO's own
+    # score already accounts for every decided game, was RESTARTED and does
+    # not count (70692a45: both players re-joined mid game 2, then "wins the
+    # match 2-0"). Marked "void" so importers skip it when numbering games.
+    if score is not None and sum(score.values()) == sum(tally.values()):
+        for g in games[:-1]:
+            if g["winner"] is None:
+                g["end_reason"] = "void"
     if score is None:
         score_check = "no_score_line"
     elif mismatch or any(tally.get(p, 0) != score.get(p, 0) for p in players):

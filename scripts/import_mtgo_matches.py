@@ -164,6 +164,9 @@ def _record(m, h, local, names, decks_by_game, formats_by_token, stats):
                 else _names(dict(my_seen), names["texture"], inline))
     opp_cards = _names(dict(opp_seen), names["texture"], inline)
 
+    # cards seen come from every game; results and per-game rows only from games
+    # that counted (a restarted game is "void": 70692a45 was G1, void, G2)
+    games = [g for g in games if g["end_reason"] != "void"]
     g_results = []
     for g in games[:3]:
         g_results.append("" if not g["winner"] else "win" if g["winner"] == local else "loss")

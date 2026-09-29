@@ -144,3 +144,20 @@ def test_rename_only_relabel_ignores_reclassification():
     stored = {"a": ("Boros", "Merfolks"), "b": ("5C Humans", "")}
     ch = im.rename_changes(stored, recs, rename)
     assert sorted(ch) == [("a", "my_deck", "Boros", "Boros Energy"), ("a", "opp_deck", "Merfolks", "Merfolk")]
+
+
+def test_void_game_does_not_shift_game_results():
+    """70692a45: G1 win, a restarted (void) game, G2 win -> g1/g2 = win, g3 blank."""
+    from collections import Counter
+    from scripts.import_mtgo_matches import _record
+
+    def game(winner, reason, turns):
+        return {"on_play": "Bob", "winner": winner, "end_reason": reason, "turns": turns,
+                "hand_size": {"Alice": 7, "Bob": 7}, "cards": {"Alice": {}, "Bob": {}}}
+    m = {"token": "t-void", "started_at": __import__("datetime").datetime(2024, 6, 5, 13, 20),
+         "players": ["Alice", "Bob"], "opponent": "Bob", "result": "win", "card_names": {},
+         "games": [game("Alice", "concede", 8), game(None, "void", 4), game("Alice", "concede", 5)]}
+    r = _record(m, None, "Alice", {"catalog": {}, "texture": {}}, {}, {}, Counter())
+    assert r["g"] == ["win", "win", ""]
+    assert sorted(r["per_game"]) == [1, 2]
+    assert r["per_game"][2]["n_turns"] == 5
