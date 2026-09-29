@@ -32,7 +32,8 @@ def _to_inbox_row(cand: dict) -> dict:
         "scene": cand.get("scene"),
     }
     # gauntlet-miner extras (real opponent board)
-    for key in ("our_deck", "opp_deck", "apl_found", "live_blockers", "opp_permanents"):
+    for key in ("our_deck", "opp_deck", "apl_found", "live_blockers", "opp_permanents",
+                "robust_vs_best_blocks", "hand_threats", "clean"):
         if key in cand:
             evidence[key] = cand[key]
     evidence = json.dumps(evidence)

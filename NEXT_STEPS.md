@@ -6,10 +6,10 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ## 9/29 — Gauntlet lethal puzzles (real opponent boards) BUILT
 
-- 23 candidates in `../mtg-sim/data/gauntlet_candidates.jsonl` (regenerate: `PYTHONHASHSEED=0 python
+- 16 clean puzzles in `../mtg-sim/data/gauntlet_candidates.jsonl` (+7 flagged in `_flagged.jsonl`: weak block or a real answer in the revealed hand) (regenerate: `PYTHONHASHSEED=0 python
   scripts/mine_gauntlet_puzzles.py --games-per-opp 300 --seed 42` in mtg-sim, ~100 s).
 - To play them: `python -m scripts.import_lethal_puzzles ../mtg-sim/data/gauntlet_candidates.jsonl --commit`
-  (dry-run first; writes 23 rows to the LIVE puzzle_inbox -- back up first), then Puzzles > Inbox > Promote.
+  (dry-run first; writes 16 rows to the LIVE puzzle_inbox -- back up first), then Puzzles > Inbox > Promote.
 - Engine bug to fix with sign-off (mtg-sim hot zone): haste tagged from reminder text (Ragavan) --
   IMPERFECTIONS `haste-tag-from-reminder-text`; likely inflates Boros goldfish/gauntlet numbers.
 - MTGO "decisive turn" puzzles (real boards, your line as the reference answer) remain an option.
