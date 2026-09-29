@@ -26,6 +26,7 @@ class CardInZone:
     toughness: Optional[int] = None
     counters: dict[str, int] = field(default_factory=dict)
     is_face_down: bool = False
+    summoning_sick: bool = False
 
 
 @dataclass
@@ -40,6 +41,9 @@ class PlayerState:
     graveyard_count: int = 0
     library_count: int = 60
     mana_available: dict[str, int] = field(default_factory=dict)
+    # Cards in hand when the list itself is hidden (sim/MTGO scenes carry the
+    # count, not the cards). None = len(hand) is the count.
+    hand_count: Optional[int] = None
 
 
 @dataclass
@@ -69,9 +73,14 @@ class Scene:
         )
 
 
+_CARD_FIELDS = set(CardInZone.__dataclass_fields__)
+
+
 def _player_from_dict(d: dict) -> PlayerState:
     def _cards(key):
-        return [CardInZone(**c) for c in d.get(key, [])]
+        # unknown keys (from a newer exporter) are ignored, never a crash
+        return [CardInZone(**{k: v for k, v in c.items() if k in _CARD_FIELDS})
+                for c in d.get(key, [])]
     return PlayerState(
         name=d["name"],
         archetype=d.get("archetype", "?"),
@@ -83,6 +92,7 @@ def _player_from_dict(d: dict) -> PlayerState:
         graveyard_count=d.get("graveyard_count", 0),
         library_count=d.get("library_count", 60),
         mana_available=d.get("mana_available", {}),
+        hand_count=d.get("hand_count"),
     )
 
 

@@ -580,12 +580,24 @@ def _prefill_from_evidence(row: dict):
     line = ev.get("solution_line") or []
     solution, cards = _format_line(line) if line else ("", [])
     remaining = scene.opp.life
+    if ev.get("source") == "gauntlet-miner":
+        # real opponent board: blockers + a revealed hand the kill was verified vs
+        opp = ev.get("opp_deck") or scene.opp.name
+        blockers = sum(1 for c in scene.opp.battlefield_creatures if not c.tapped)
+        question = (f"{opp} is at {remaining} with {blockers} untapped "
+                    f"creature(s) and their hand revealed. You have lethal "
+                    f"this turn. What's the line?")
+        # the deck's own pilot missing it = a harder find
+        difficulty = 4 if ev.get("apl_found") is False else 3
+    else:
+        question = (f"You have lethal this turn — opponent at "
+                    f"{remaining}. What's the line?")
+        difficulty = 4 if ev.get("greedy_misses") else 2
     kwargs = {
-        "suggested_question": f"You have lethal this turn — opponent at "
-                              f"{remaining}. What's the line?",
+        "suggested_question": question,
         "suggested_solution": solution,
         "suggested_keywords": cards,
-        "suggested_difficulty": 4 if ev.get("greedy_misses") else 2,
+        "suggested_difficulty": difficulty,
         "suggested_grading": "self",
     }
     return scene, kwargs

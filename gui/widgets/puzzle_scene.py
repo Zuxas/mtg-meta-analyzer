@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QTransform
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy,
 )
@@ -72,11 +72,18 @@ class PuzzleSceneWidget(QWidget):
         # Clear existing children (handles both widgets and nested layouts)
         self._clear_layout(self._outer)
         # Top → bottom
+        if scene.opp.hand:  # revealed (sim puzzles verify the kill vs this hand)
+            self._outer.addLayout(self._make_hand_row(
+                scene.opp.hand, label=f"opp hand ({len(scene.opp.hand)})<br>revealed"))
         self._outer.addLayout(self._make_opp_header(scene.opp))
         self._outer.addLayout(self._make_card_row(scene.opp.battlefield_lands, label="opp lands"))
+        if scene.opp.battlefield_other:
+            self._outer.addLayout(self._make_card_row(scene.opp.battlefield_other, label="opp other"))
         self._outer.addLayout(self._make_card_row(scene.opp.battlefield_creatures, label="opp creatures"))
         self._outer.addWidget(self._make_divider())
         self._outer.addLayout(self._make_card_row(scene.you.battlefield_creatures, label="your creatures"))
+        if scene.you.battlefield_other:
+            self._outer.addLayout(self._make_card_row(scene.you.battlefield_other, label="your other"))
         self._outer.addLayout(self._make_card_row(scene.you.battlefield_lands, label="your lands"))
         self._outer.addLayout(self._make_you_header(scene.you))
         self._outer.addLayout(self._make_hand_row(scene.you.hand, label=f"your hand ({len(scene.you.hand)})"))
@@ -88,7 +95,7 @@ class PuzzleSceneWidget(QWidget):
         h.addStretch(1)
         h.addWidget(self._make_life_circle(opp.life, is_opp=True))
         h.addStretch(1)
-        h.addWidget(QLabel(f"hand: {len(opp.hand)}"))
+        h.addWidget(QLabel(f"hand: {hand_size(opp)}"))
         return h
 
     def _make_you_header(self, you: PlayerState) -> QHBoxLayout:
@@ -98,7 +105,7 @@ class PuzzleSceneWidget(QWidget):
         low = you.life <= 5
         h.addWidget(self._make_life_circle(you.life, is_opp=False, low=low))
         h.addStretch(1)
-        h.addWidget(QLabel(f"mana: {_format_mana(you.mana_available)}"))
+        h.addWidget(QLabel(_mana_label(you)))
         return h
 
     def _make_player_label(self, player: PlayerState, *, is_opp: bool) -> QWidget:
@@ -162,12 +169,15 @@ class PuzzleSceneWidget(QWidget):
             px = load_pixmap(card_name=card.name, grpid=card.grpid)
         if px is not None:
             lbl = QLabel()
-            lbl.setPixmap(px.scaled(_CARD_W, _CARD_H,
-                                    Qt.AspectRatioMode.KeepAspectRatio,
-                                    Qt.TransformationMode.SmoothTransformation))
+            scaled = px.scaled(_CARD_W, _CARD_H,
+                               Qt.AspectRatioMode.KeepAspectRatio,
+                               Qt.TransformationMode.SmoothTransformation)
+            if card.tapped:
+                # turned sideways like the real card -- a tapped creature
+                # can't block, which is often the whole puzzle
+                scaled = scaled.transformed(QTransform().rotate(90))
+            lbl.setPixmap(scaled)
             lbl.setToolTip(self._tooltip_for(card))
-            # Tapped cards are flagged via tooltip "(tapped)" — Qt stylesheet
-            # doesn't support `transform: rotate()`, so no visual rotation.
             return lbl
         return self._make_placeholder(card)
 
@@ -180,12 +190,18 @@ class PuzzleSceneWidget(QWidget):
         return lbl
 
     def _make_placeholder(self, card: CardInZone) -> QLabel:
-        lbl = QLabel(f"<b>{card.name}</b>")
+        text = f"<b>{card.name}</b>"
+        if card.power is not None and card.toughness is not None:
+            text += f"<br>{card.power}/{card.toughness}"
+        if card.tapped:
+            text += f"<br><span style='color:{theme.WARN};'>TAPPED</span>"
+        lbl = QLabel(text)
         lbl.setFixedSize(_CARD_W, _CARD_H)
         lbl.setWordWrap(True)
         lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        edge = f"2px solid {theme.WARN}" if card.tapped else f"1px dashed {theme.ACCENT}"
         lbl.setStyleSheet(
-            f"QLabel {{ background: {theme.PANEL}; border: 1px dashed {theme.ACCENT}; "
+            f"QLabel {{ background: {theme.PANEL}; border: {edge}; "
             f"border-radius: 4px; padding: 4px; color: {theme.TEXT}; font-size: 9px; }}"
         )
         lbl.setToolTip(self._tooltip_for(card))
@@ -197,7 +213,17 @@ class PuzzleSceneWidget(QWidget):
             parts.append(f"{card.power}/{card.toughness}")
         if card.tapped:
             parts.append("(tapped)")
+        if card.summoning_sick:
+            parts.append("(summoning sick)")
         return " · ".join(parts)
+
+
+def hand_size(player: PlayerState) -> int:
+    """Cards in hand: the listed cards, or the exporter's count when the
+    cards themselves are hidden."""
+    if player.hand:
+        return len(player.hand)
+    return player.hand_count or 0
 
 
 def is_boardless(scene: Scene) -> bool:
@@ -213,6 +239,15 @@ def is_boardless(scene: Scene) -> bool:
                 or player.battlefield_creatures or player.battlefield_other):
             return False
     return True
+
+
+def _mana_label(you: PlayerState) -> str:
+    """'mana: UUR' when the scene recorded a pool; otherwise the land count
+    (sim scenes start your turn with every land untapped, and 'mana: 0' next
+    to four lands reads as 'you can't cast anything')."""
+    if you.mana_available:
+        return f"mana: {_format_mana(you.mana_available)}"
+    return f"lands: {len(you.battlefield_lands)}"
 
 
 def _format_mana(mana: dict[str, int]) -> str:

@@ -76,7 +76,8 @@
 - [ ] **Auto-import** — run the importer after each snapshot (DB write path: needs sign-off)
 - [x] **MTGO replay viewer** (2026-09-28) — Match Log right-click -> Watch replay; play-by-play for every MTGO match, board for captured sessions (`analysis/mtgo_replay.py`)
 - [ ] **MTGO replay notes** — notes/marks keyed to mtgo_match_id (new write path: sign-off)
-- [ ] **Puzzle real-opponent slice** — sample real opponent boards from those frames instead of the empty "Goldfish" side in `../mtg-sim/scripts/mine_lethal_puzzles.py`
+- [x] **Puzzle real-opponent slice** (2026-09-29) — NOT from MTGO frames (no MTGO game reaches 0 life; all concede) but from sim games vs the real field: `../mtg-sim/scripts/mine_gauntlet_puzzles.py`, 23 puzzles with real blockers + revealed hand
+- [ ] **MTGO "decisive turn" puzzles** — real boards at the turn the opponent conceded; your line as the (self-graded) reference answer
 - [ ] **Archetype alias typos** — scraped labels like "Izzet Pheonix" split one deck across names; add aliases in `analysis/archetypes.py`
 
 ## OPEN — MTGA Live Integration (next: 5/16 chain)
