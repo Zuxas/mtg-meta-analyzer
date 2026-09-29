@@ -6,12 +6,12 @@ Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-im
 
 ## 9/29 — Gauntlet lethal puzzles (real opponent boards) BUILT
 
-- 16 clean puzzles in `../mtg-sim/data/gauntlet_candidates.jsonl` (+7 flagged in `_flagged.jsonl`: weak block or a real answer in the revealed hand) (regenerate: `PYTHONHASHSEED=0 python
+- 17 clean puzzles (re-mined on the haste-fixed engine) in `../mtg-sim/data/gauntlet_candidates.jsonl` (+7 flagged in `_flagged.jsonl`: weak block or a real answer in the revealed hand) (regenerate: `PYTHONHASHSEED=0 python
   scripts/mine_gauntlet_puzzles.py --games-per-opp 300 --seed 42` in mtg-sim, ~100 s).
 - To play them: `python -m scripts.import_lethal_puzzles ../mtg-sim/data/gauntlet_candidates.jsonl --commit`
-  (dry-run first; writes 16 rows to the LIVE puzzle_inbox -- back up first), then Puzzles > Inbox > Promote.
-- Engine bug to fix with sign-off (mtg-sim hot zone): haste tagged from reminder text (Ragavan) --
-  IMPERFECTIONS `haste-tag-from-reminder-text`; likely inflates Boros goldfish/gauntlet numbers.
+  (dry-run first; writes 17 rows to the LIVE puzzle_inbox -- back up first), then Puzzles > Inbox > Promote.
+- Haste bug FIXED 2026-09-29 (mtg-sim c31f831): haste only from a printed keyword + Ragavan Dash {1}{R};
+  Boros goldfish T4.59 -> T4.83, field (run_match) 58.0% -> 57.3%. Other keywords: IMPERFECTIONS keyword-regex-mentions-not-printed.
 - MTGO "decisive turn" puzzles (real boards, your line as the reference answer) remain an option.
 
 ## 9/28 night — MTGO replay viewer SHIPPED
