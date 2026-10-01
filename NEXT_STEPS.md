@@ -1,8 +1,35 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-import`: 402 rows in the live match_log; branch not pushed)
+Last updated: 2026-10-01 (Melee match gap: discovery / log order / archive FK fixed on `fix/melee-match-gap-2026-10-01`; backfill BLOCKED on the fuzzy archetype-mapping finding)
 
 ---
+
+## 10/1 — Melee match gap (branch `fix/melee-match-gap-2026-10-01`, from ee392b6)
+
+Shipped (code + tests, NO DB writes yet):
+- **Discovery root cause:** TournamentSearch snaps `start` down to a multiple of `length` (verified live:
+  offset = start // length * length; paging itself is deterministic). The scraper asked for
+  start = total - 100*(page+1) and never saw the newest `total % 100` rows -- every Modern event after
+  09-13, the China RC (451148), both Dallas RCQ flights. Now page-aligned + dedup + newest first + one
+  re-check if the total moves. `tests/test_melee_discovery.py` (captured search fixture).
+- **SCG 442749 is a registration shell** (public page has no pairings section); play happened in
+  "FLIGHT A/B" tournaments 462365 / 462366 (normal markup), found by the discovery fix. Round parsing
+  scoped to `#pairings-round-selector-container`, explicit `no-pairings-section` reason.
+  Modern+ side events 442783 / 442838 / 445523 also publish no pairings.
+- **Background log order:** `run_fill_from_prefs.run()` flushes its heading before the child
+  (`tests/test_fill_runner_logging.py`).
+- **FOREIGN KEY failure** was `db/maintenance.py` archiving, not Melee: active card ids reused in the
+  archive (`Secrets of the Key` 8226397 vs archived 1565854) -> ids now resolved by natural key
+  (`tests/test_maintenance_archive_ids.py`).
+- Targeted backfill path: `python -m scrapers.mtgmelee_scraper --format modern --pages 3
+  --tournament-id <id> [--tournament-id ...] [--dry-run]` (exact per-event insert counts, idempotent).
+
+**BLOCKED -- decision needed before any backfill:** `_map_archetype` calls `normalize(deck_name, fmt)`,
+so the format string lands in the positional `fuzzy` parameter and every Melee scrape fuzzy-matches deck
+names, producing WRONG and UNSTABLE labels ('Mono-Green Broodscale' -> 'Mono Red Aggro';
+'Mono-Red Ruby Storm' -> 'Cycle Storm' / 'Poison Storm'). Live DB: 6,440 Modern melee rows labelled
+'Mono Red Aggro'. Backfilling 448946 / 451148 / the flights with the current mapping would add more.
+
 
 ## 9/27 — Branches waiting to land (NONE on GitHub yet -- push them)
 
