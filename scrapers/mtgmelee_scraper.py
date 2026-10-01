@@ -42,7 +42,7 @@ force_utf8_stdio()
 import cloudscraper
 from bs4 import BeautifulSoup
 
-from analysis.archetypes import normalize as normalize_arch
+from analysis.archetypes import ALIASES, pre_normalize, normalize as normalize_arch
 
 log = logging.getLogger(__name__)
 
@@ -448,14 +448,23 @@ def _parse_result(s: str) -> tuple[int, int, int]:
 
 def _map_archetype(deck_name: str, fmt: str) -> str:
     """
-    Map a registered deck name to a normalised archetype name.
-    Uses analysis.archetypes.normalize() which applies pre-normalisation,
-    alias lookup, and fuzzy matching.
+    Map a registered deck name to a normalised archetype name: exact canonical
+    name or alias (analysis.archetypes.normalize, fuzzy OFF), otherwise the
+    published name, pre-normalised.  Never invents a label:
+      * blank names, and names the alias table flags as junk ('' alias, e.g.
+        "Decklist"), are unlabelled ("") -- the caller skips those matches;
+      * no fuzzy matching.  Until 2026-10-01 this called normalize(deck_name, fmt),
+        so the format string landed in normalize's positional `fuzzy` parameter
+        and labels were fuzzy-guessed -- wrongly and unstably ('Mono-Green
+        Broodscale' -> 'Mono Red Aggro'; 'Mono-Red Ruby Storm' -> 'Cycle Storm'
+        or 'Poison Storm').  Rows stored before that date may carry such labels.
     """
-    if not deck_name:
+    if not deck_name or not deck_name.strip():
         return ""
+    if ALIASES.get(pre_normalize(deck_name.strip()).lower()) == "":
+        return ""                                       # explicitly junk, not an archetype
     try:
-        result = normalize_arch(deck_name, fmt)
+        result = normalize_arch(deck_name)               # exact canonical / alias only
         return result or deck_name
     except Exception:
         return deck_name
