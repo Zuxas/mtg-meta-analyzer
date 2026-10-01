@@ -1,0 +1,3171 @@
+{
+"captured": "2026-10-01",
+"filters": [
+"Modern",
+"MagicTheGathering",
+"Ended"
+],
+"recordsTotal": 1151,
+"first_position": 800,
+"rows": [
+{
+"id": 413554,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games III (2-slot Qualifier)",
+"startDate": "2026-04-11T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413555,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games III (2-slot Qualifier)",
+"startDate": "2026-05-23T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413557,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games II (2-slot Qualifier)",
+"startDate": "2026-05-09T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413560,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games II (2-slot Qualifier)",
+"startDate": "2026-06-13T17:00:00Z",
+"enrolledPlayerCount": 2,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413562,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games II (2-slot Qualifier)",
+"startDate": "2026-07-18T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413564,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games I (2-slot Qualifier)",
+"startDate": "2026-05-02T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413565,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games I (2-slot Qualifier) clone",
+"startDate": "2026-06-06T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 413566,
+"name": "SCG Regional Championship Qualifier - Modern @ The Castle Games I (2-slot Qualifier) clone clone",
+"startDate": "2026-07-11T17:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 414123,
+"name": "Settima Tappa Lega STR - Modern",
+"startDate": "2026-03-16T20:30:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 414325,
+"name": "Video Game Trader 2-SLOT Double RCQ Event #1 - 04/11",
+"startDate": "2026-04-11T14:00:00Z",
+"enrolledPlayerCount": 60,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 414329,
+"name": "Video Game Trader 2-SLOT Double RCQ Event #2 - 04/11",
+"startDate": "2026-04-11T17:00:00Z",
+"enrolledPlayerCount": 35,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 414336,
+"name": "Video Game Trader 2-SLOT RCQ - 04/18",
+"startDate": "2026-04-18T14:00:00Z",
+"enrolledPlayerCount": 32,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 414395,
+"name": "modern Fswue",
+"startDate": "2026-03-24T18:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 415609,
+"name": "Regional Championship Qualifier April 25 Modern 2026",
+"startDate": "2026-03-22T00:00:00Z",
+"enrolledPlayerCount": 1,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 415728,
+"name": "Paragon Gaming Modern RCQ",
+"startDate": "2026-05-30T16:00:00Z",
+"enrolledPlayerCount": 31,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 415739,
+"name": "Modern RCQ 5/3",
+"startDate": "2026-05-03T16:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416064,
+"name": "Tristate Team Trios - Standard, Modern, Premodern",
+"startDate": "2026-05-23T16:00:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Standard, Modern, Premodern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416125,
+"name": "3º Torneio Super Modern ",
+"startDate": "2026-03-28T13:35:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416313,
+"name": "Magic the Gathering - Modern",
+"startDate": "2026-03-24T16:15:00Z",
+"enrolledPlayerCount": 21,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416701,
+"name": "$1K Modern - SCG CON Cincinnati - Friday - 10:30 am",
+"startDate": "2026-05-15T14:30:00Z",
+"enrolledPlayerCount": 69,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416713,
+"name": "Modern - SCG CON Cincinnati - Friday - 12:00 pm",
+"startDate": "2026-05-15T16:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416716,
+"name": "Modern - SCG CON Cincinnati - Saturday - 10:00 am",
+"startDate": "2026-05-16T14:00:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416783,
+"name": "Modern+ - SCG CON Cincinnati - Friday - 5:00 pm",
+"startDate": "2026-05-15T21:00:00Z",
+"enrolledPlayerCount": 18,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416789,
+"name": "Modern+ - SCG CON Cincinnati - Saturday - 3:00 pm",
+"startDate": "2026-05-16T19:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416794,
+"name": "Modern+ - SCG CON Cincinnati - Sunday - 2:00 pm",
+"startDate": "2026-05-17T18:00:00Z",
+"enrolledPlayerCount": 16,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 416969,
+"name": "Mox Modern Extravaganza RCQ",
+"startDate": "2026-04-11T16:00:00Z",
+"enrolledPlayerCount": 27,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417012,
+"name": "ReCQ - Modern - SCG CON Cincinnati - Saturday - 12:00 pm",
+"startDate": "2026-05-16T16:00:00Z",
+"enrolledPlayerCount": 64,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417013,
+"name": "ReCQ - Modern - SCG CON Cincinnati - Saturday - 4:00 pm",
+"startDate": "2026-05-16T20:00:00Z",
+"enrolledPlayerCount": 78,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417014,
+"name": "ReCQ - Modern - SCG CON Cincinnati - Saturday - 2:00 pm",
+"startDate": "2026-05-16T18:00:00Z",
+"enrolledPlayerCount": 62,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417018,
+"name": "ReCQ - Modern - SCG CON Cincinnati - Sunday - 1:00 pm",
+"startDate": "2026-05-17T17:00:00Z",
+"enrolledPlayerCount": 53,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417036,
+"name": "Mont Weekly Modern",
+"startDate": "2026-04-01T23:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417197,
+"name": "LDXP SEA26 3/27 Modern Trial #1",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417198,
+"name": "LDXP SEA26 3/27 Modern Trial #2",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417199,
+"name": "LDXP SEA26 3/27 Modern Trial #3",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417200,
+"name": "LDXP SEA26 3/27 Modern Trial #4",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417201,
+"name": "LDXP SEA26 3/27 Modern Trial #5",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417202,
+"name": "LDXP SEA26 3/27 Modern Trial #6",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417203,
+"name": "LDXP SEA26 3/27 Modern Trial #7",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417204,
+"name": "LDXP SEA26 3/27 Modern Trial #8",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417205,
+"name": "LDXP SEA26 3/27 Modern Trial #9",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417206,
+"name": "LDXP SEA26 3/27 Modern Trial #10",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417207,
+"name": "LDXP SEA26 3/27 Modern Trial #11",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417208,
+"name": "LDXP SEA26 3/27 Modern Trial #12",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417209,
+"name": "LDXP SEA26 3/27 Modern Trial #13",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417210,
+"name": "LDXP SEA26 3/27 Modern Trial #14",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417211,
+"name": "LDXP SEA26 3/27 Modern Trial #15",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417212,
+"name": "LDXP SEA26 3/27 Modern Trial #16",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417213,
+"name": "LDXP SEA26 3/27 Modern Trial #17",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417214,
+"name": "LDXP SEA26 3/27 Modern Trial #18",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417215,
+"name": "LDXP SEA26 3/27 Modern Trial #19",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417216,
+"name": "LDXP SEA26 3/27 Modern Trial #20",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417217,
+"name": "LDXP SEA26 3/27 Modern Trial #21",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417218,
+"name": "LDXP SEA26 3/27 Modern Trial #22",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417219,
+"name": "LDXP SEA26 3/27 Modern Trial #23",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417220,
+"name": "LDXP SEA26 3/27 Modern Trial #24",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417221,
+"name": "LDXP SEA26 3/27 Modern Trial #25",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417222,
+"name": "LDXP SEA26 3/27 Modern Trial #26",
+"startDate": "2026-03-28T01:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417262,
+"name": "$uper $unday RCQ - Modern - SCG CON Cincinnati - Sunday - 10:00 am",
+"startDate": "2026-05-17T14:00:00Z",
+"enrolledPlayerCount": 166,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417430,
+"name": "Modern RCQ July 26th - Regional Championship Qualifier US RCQ | 2026-27 Round 1 | 1-slot at The Gaming Guild",
+"startDate": "2026-07-26T16:15:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417586,
+"name": "Modern 1K",
+"startDate": "2026-03-29T00:00:00Z",
+"enrolledPlayerCount": 22,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417652,
+"name": "Modern Season Kick-Off",
+"startDate": "2026-03-28T20:00:00Z",
+"enrolledPlayerCount": 22,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 417866,
+"name": "WCG Team Event ",
+"startDate": "2026-03-30T02:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern, FreeForm",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 418086,
+"name": "Kazan Modern Championship",
+"startDate": "2026-04-25T08:00:00Z",
+"enrolledPlayerCount": 34,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 418196,
+"name": "Saturday Modern RCQ - F2FTour Calgary",
+"startDate": "2026-04-11T17:00:00Z",
+"enrolledPlayerCount": 49,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 418197,
+"name": "Sunday Modern RCQ - F2FTour Calgary ",
+"startDate": "2026-04-12T17:00:00Z",
+"enrolledPlayerCount": 51,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 418561,
+"name": "Mont Weekly Modern",
+"startDate": "2026-04-15T23:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 418916,
+"name": "Advantage Games Saturday Modern RCQ Round 1 2026 Season",
+"startDate": "2026-04-11T17:00:00Z",
+"enrolledPlayerCount": 31,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 419570,
+"name": "Sørlandsmesterskap 2026 + RCQ",
+"startDate": "2026-06-06T09:00:00Z",
+"enrolledPlayerCount": 22,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 419572,
+"name": "1ª Liga Modern",
+"startDate": "2026-05-04T00:00:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 419575,
+"name": "Modern RCQ Kristiansand 2026",
+"startDate": "2026-06-07T09:15:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 419618,
+"name": "Dynasty Toys RCQ Qualifiers ",
+"startDate": "2026-07-18T18:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 419917,
+"name": "Chupacabra Games 10pm Niteowl Modern RCQ",
+"startDate": "2026-05-03T03:00:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 419929,
+"name": "Chupacabra Games 10pm Niteowl Modern RCQ",
+"startDate": "2026-07-12T03:00:00Z",
+"enrolledPlayerCount": 18,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420000,
+"name": "4º Black League - Modern",
+"startDate": "2026-04-12T12:30:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420040,
+"name": "Nona Tappa Lega STR - Modern",
+"startDate": "2026-04-07T19:45:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420118,
+"name": "RCQ Modern 11 abril",
+"startDate": "2026-04-11T07:30:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420210,
+"name": "US RCQ | 2026-27 Round 1 Modern",
+"startDate": "2026-04-26T21:00:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420211,
+"name": "US RCQ | 2026-27 Round 1 Modern",
+"startDate": "2026-05-31T21:00:00Z",
+"enrolledPlayerCount": 18,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420212,
+"name": "US RCQ | 2026-27 Round 1 Modern",
+"startDate": "2026-06-28T21:30:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 420935,
+"name": "Store Qualifier CAMS 13 | MODERN | The Raccoon House",
+"startDate": "2026-04-11T21:00:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421066,
+"name": "2º Open MML + Aberto CLM Modern",
+"startDate": "2026-05-09T17:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421078,
+"name": "RCQ #1 Ronda 1 2026-2027 | Armenia | 11 Abril",
+"startDate": "2026-04-11T23:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421081,
+"name": "RCQ #2 Ronda 1 2026-2027 | Armenia | 12 Abril",
+"startDate": "2026-04-12T18:00:00Z",
+"enrolledPlayerCount": 12,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421360,
+"name": "$uper $unday RCQ - Modern - SCG CON Washington DC - Sunday - 10:00 am",
+"startDate": "2026-05-31T14:00:00Z",
+"enrolledPlayerCount": 200,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421362,
+"name": "ReCQ - Modern - SCG CON Washington DC - Saturday - 12:00 pm",
+"startDate": "2026-05-30T16:00:00Z",
+"enrolledPlayerCount": 94,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421364,
+"name": "ReCQ - Modern - SCG CON Washington DC - Saturday - 2:00 pm",
+"startDate": "2026-05-30T18:00:00Z",
+"enrolledPlayerCount": 101,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421365,
+"name": "ReCQ - Modern - SCG CON Washington DC - Saturday - 4:00 pm",
+"startDate": "2026-05-30T20:00:00Z",
+"enrolledPlayerCount": 92,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421366,
+"name": "ReCQ - Modern - SCG CON Washington DC - Sunday - 1:00 pm",
+"startDate": "2026-05-31T17:00:00Z",
+"enrolledPlayerCount": 65,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421583,
+"name": "$1K Modern RCQ - SCG CON Washington DC - Friday - 10:00 am",
+"startDate": "2026-05-29T14:00:00Z",
+"enrolledPlayerCount": 76,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421659,
+"name": "Modern - SCG CON Washington DC - Saturday - 11:00 am",
+"startDate": "2026-05-30T15:00:00Z",
+"enrolledPlayerCount": 21,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421662,
+"name": "Modern - SCG CON Washington DC - Friday - 11:00 am",
+"startDate": "2026-05-29T15:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421663,
+"name": "Modern+ - SCG CON Washington DC - Saturday - 4:00 pm",
+"startDate": "2026-05-30T20:00:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421664,
+"name": "Modern+ - SCG CON Washington DC - Friday - 4:00 pm",
+"startDate": "2026-05-29T20:00:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421665,
+"name": "Modern+ - SCG CON Washington DC - Sunday - 12:00 pm",
+"startDate": "2026-05-31T16:00:00Z",
+"enrolledPlayerCount": 12,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421718,
+"name": "Game Knight May RCQ - Season 5 Round 1 Modern",
+"startDate": "2026-05-02T16:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 421983,
+"name": "Moderntisdag S24E04",
+"startDate": "2026-04-15T00:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 422033,
+"name": "Magic the Gathering July Regional Championship Qualifier",
+"startDate": "2026-07-25T19:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 422084,
+"name": "4º Torneio Super Modern ",
+"startDate": "2026-04-19T13:00:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 422873,
+"name": "\t2026-27 Round 1 Black Cat Gaming-Modern RCQ WIn-A-Box:Modern Horizons 3",
+"startDate": "2026-05-16T17:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423059,
+"name": "Mont Weekly Modern",
+"startDate": "2026-05-13T23:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423085,
+"name": "Майская битва за модерн",
+"startDate": "2026-05-10T12:00:00Z",
+"enrolledPlayerCount": 62,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423253,
+"name": "CAMS Season 13 - Modern",
+"startDate": "2026-04-27T00:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423363,
+"name": "Modern Fswue",
+"startDate": "2026-04-21T17:00:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423374,
+"name": "TEAM STARS INVITATIONAL",
+"startDate": "2026-04-26T00:55:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423603,
+"name": "F2FTour Quebec City - Modern RCQ",
+"startDate": "2026-04-25T14:15:00Z",
+"enrolledPlayerCount": 61,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423709,
+"name": "Mont Destination Event ",
+"startDate": "2026-06-13T14:00:00Z",
+"enrolledPlayerCount": 155,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423720,
+"name": "Modern RCQ",
+"startDate": "2026-05-30T17:30:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423954,
+"name": "Mont Weekly Modern",
+"startDate": "2026-04-29T23:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 423987,
+"name": "Star City Games Modern RCQ at Wooden Ogre Games",
+"startDate": "2026-05-30T15:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424043,
+"name": "2º Torneio - 15ª Liga Arena Guardians ",
+"startDate": "2026-04-27T17:00:00Z",
+"enrolledPlayerCount": 20,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424126,
+"name": "5º Torneio Super Modern ",
+"startDate": "2026-05-31T13:30:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424335,
+"name": "Modern Jornada 3",
+"startDate": "2026-04-25T08:30:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424427,
+"name": "SAF Modern 5ML (Abril 2026)",
+"startDate": "2026-04-26T17:00:00Z",
+"enrolledPlayerCount": 16,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424688,
+"name": "Advantage Games Saturday Modern RCQ Round 1 2026 Season",
+"startDate": "2026-05-09T17:00:00Z",
+"enrolledPlayerCount": 20,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424989,
+"name": "$1K Modern RCQ - SCG CON Las Vegas - Friday - 10:00 am",
+"startDate": "2026-06-26T17:00:00Z",
+"enrolledPlayerCount": 82,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424995,
+"name": "ReCQ - Modern - Las Vegas - Friday - 1:00 pm",
+"startDate": "2026-06-26T20:00:00Z",
+"enrolledPlayerCount": 20,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424997,
+"name": "ReCQ - Modern - Las Vegas - Friday - 4:00 pm",
+"startDate": "2026-06-26T23:00:00Z",
+"enrolledPlayerCount": 31,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424998,
+"name": "ReCQ - Modern - Las Vegas - Saturday - 12:00 pm",
+"startDate": "2026-06-27T19:00:00Z",
+"enrolledPlayerCount": 49,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 424999,
+"name": "ReCQ - Modern - Las Vegas - Saturday - 4:00 pm",
+"startDate": "2026-06-27T23:00:00Z",
+"enrolledPlayerCount": 64,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425000,
+"name": "ReCQ - Modern - Las Vegas - Sunday - 12:00 pm",
+"startDate": "2026-06-28T19:00:00Z",
+"enrolledPlayerCount": 38,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425068,
+"name": "$uper $unday RCQ - Modern - SCG CON Las Vegas - Sunday - 10:00 am",
+"startDate": "2026-06-28T17:00:00Z",
+"enrolledPlayerCount": 70,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425108,
+"name": "Modern - SCG CON Las Vegas - Friday - 12:00 pm",
+"startDate": "2026-06-26T19:00:00Z",
+"enrolledPlayerCount": 1,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425109,
+"name": "Modern - SCG CON Las Vegas - Saturday - 1:00 pm",
+"startDate": "2026-06-27T20:00:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425110,
+"name": "Modern - SCG CON Las Vegas - Sunday - 2:00 pm",
+"startDate": "2026-06-28T21:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425111,
+"name": "Modern+ - SCG CON Las Vegas - Friday - 5:00 pm",
+"startDate": "2026-06-27T00:00:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425112,
+"name": "Modern+ - SCG CON Las Vegas - Saturday - 6:00 pm",
+"startDate": "2026-06-28T01:00:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425248,
+"name": "Mox Modern Extravaganza RCQ Vol II",
+"startDate": "2026-05-09T16:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425261,
+"name": "CAM Series Qualifier S13 - NYX Game Arena",
+"startDate": "2026-05-01T17:00:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425795,
+"name": "[London Sun 09:30] Destination Qualifier: Modern",
+"startDate": "2026-05-10T08:30:00Z",
+"enrolledPlayerCount": 84,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425899,
+"name": "CMC Pauper Cup 9",
+"startDate": "2026-05-10T02:00:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425900,
+"name": "CMC Premodern Cup 3",
+"startDate": "2026-05-27T02:00:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 425945,
+"name": "RCQ TURNO EXTRA V",
+"startDate": "2026-05-02T10:00:00Z",
+"enrolledPlayerCount": 16,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 426202,
+"name": "Pennybridge Modern Open",
+"startDate": "2026-05-03T00:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 426515,
+"name": "US RCQ | 2026-27 Round 1 at LHC at Lake Hartwell Collectibles clone",
+"startDate": "2026-05-03T19:30:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 426537,
+"name": "Scry1 Cards and Collectibles",
+"startDate": "2026-05-04T00:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 426664,
+"name": "Modern Monday",
+"startDate": "2026-05-04T05:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 426906,
+"name": "Game Knight June RCQ - Season 5 round 1 Modern",
+"startDate": "2026-06-28T00:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 426917,
+"name": "Moderntisdag S24E07",
+"startDate": "2026-05-05T16:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 427113,
+"name": "Modern RCQ",
+"startDate": "2026-05-23T23:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 427114,
+"name": "US RCQ | 2026-27 Round 1 Modern - Win a Tundra + Store Credit",
+"startDate": "2026-06-14T16:30:00Z",
+"enrolledPlayerCount": 20,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 427266,
+"name": "Modern Land Run RCQ July 2026",
+"startDate": "2026-07-12T16:00:00Z",
+"enrolledPlayerCount": 28,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 427426,
+"name": "MTG SEA Championships Malaysia Open 2026-27 Round 1",
+"startDate": "2026-05-24T04:00:00Z",
+"enrolledPlayerCount": 69,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 427640,
+"name": "3º Torneio - 15ª Liga Arena Guardians ",
+"startDate": "2026-05-11T17:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 427882,
+"name": "Owl Central Modern RCQ 5/9",
+"startDate": "2026-05-09T15:10:00Z",
+"enrolledPlayerCount": 34,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428018,
+"name": "RCQ",
+"startDate": "2026-05-10T08:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428108,
+"name": "F2F Tour Weekend Ottawa - Friday Modern Q+",
+"startDate": "2026-05-15T18:30:00Z",
+"enrolledPlayerCount": 58,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428109,
+"name": "F2F Tour Weekend Ottawa - Saturday Modern Super Qualifier",
+"startDate": "2026-05-16T13:30:00Z",
+"enrolledPlayerCount": 52,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428111,
+"name": "F2F Tour Weekend Ottawa - Sunday Modern Q+ ",
+"startDate": "2026-05-17T14:30:00Z",
+"enrolledPlayerCount": 81,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428157,
+"name": "CAMS Season 13 - Modern",
+"startDate": "2026-05-17T18:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428281,
+"name": "Saturday 8.15 - LFG Con 2026 - MTG: Modern 5k RCQ (4-Slot)",
+"startDate": "2026-08-15T16:00:00Z",
+"enrolledPlayerCount": 61,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428285,
+"name": "Sunday 8.16 - LFG Con 2026 - MTG: Modern 5k RCQ (4-Slot)",
+"startDate": "2026-08-16T16:00:00Z",
+"enrolledPlayerCount": 51,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428487,
+"name": "US RCQ | 2026-27 Round 1 - Modern RCQ @ AFK Games",
+"startDate": "2026-06-06T14:00:00Z",
+"enrolledPlayerCount": 1,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428488,
+"name": "US RCQ | 2026-27 Round 1 - Modern @ AFK Games",
+"startDate": "2026-06-13T14:00:00Z",
+"enrolledPlayerCount": 3,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 428758,
+"name": "RCQ Modern 16 mayo",
+"startDate": "2026-05-16T08:30:00Z",
+"enrolledPlayerCount": 21,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 429044,
+"name": "Mont Weekly Modern",
+"startDate": "2026-06-03T23:00:00Z",
+"enrolledPlayerCount": 20,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 429111,
+"name": "Advantage Games Modern RCQ 2026-2027 Season Round 1",
+"startDate": "2026-07-11T17:00:00Z",
+"enrolledPlayerCount": 39,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 429239,
+"name": "Fellowship Modern RCQ | Secrets of Strixhaven",
+"startDate": "2026-06-13T16:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 429523,
+"name": "Team Trios Showdown",
+"startDate": "2026-06-13T16:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 429770,
+"name": "MO モダン対戦会#1 (第110回はでらCS",
+"startDate": "2026-05-24T11:00:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 430075,
+"name": "RCQ - Modern ",
+"startDate": "2026-05-23T17:00:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 430669,
+"name": "Monthly Magic: Modern",
+"startDate": "2026-06-27T16:00:00Z",
+"enrolledPlayerCount": 1,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 430795,
+"name": "Jornada Modern Mayo",
+"startDate": "2026-05-23T08:30:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 430906,
+"name": "Vault 509 Trading Card Shop Modern RCQ",
+"startDate": "2026-05-23T20:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 431101,
+"name": "Friendly Ghost Games RCQ Season Round 1 6/6",
+"startDate": "2026-06-06T17:30:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 431104,
+"name": "Friendly Ghost Games RCQ Season Round 1 7/25",
+"startDate": "2026-07-25T17:00:00Z",
+"enrolledPlayerCount": 2,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 431851,
+"name": "Modern Magic RCQ at The Den",
+"startDate": "2026-06-13T19:00:00Z",
+"enrolledPlayerCount": 1,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 431852,
+"name": "Modern Magic RCQ at The Den ",
+"startDate": "2026-06-27T19:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 431853,
+"name": "Modern Magic RCQ at The Den ",
+"startDate": "2026-07-11T00:00:00Z",
+"enrolledPlayerCount": 1,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 431957,
+"name": "HobbyGameMall 한일챔피언스컵 Season5 Round1 Modern 6/7 12 PM",
+"startDate": "2026-06-07T03:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 432302,
+"name": "2ª Liga de Modern",
+"startDate": "2026-05-29T00:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 432848,
+"name": "US RCQ | 2026-27 Round 1 at LHC at Lake Hartwell Collectibles",
+"startDate": "2026-06-14T19:30:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 432939,
+"name": "Modern RCQ",
+"startDate": "2026-06-27T17:00:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 432951,
+"name": "US RCQ | 2026-27 Round 1 - Kaskade Games",
+"startDate": "2026-05-31T20:00:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 433083,
+"name": "Rotemz RCQ Modern",
+"startDate": "2026-06-06T08:00:00Z",
+"enrolledPlayerCount": 28,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 433100,
+"name": "CAMS Season 13 - Modern",
+"startDate": "2026-06-28T17:00:00Z",
+"enrolledPlayerCount": 21,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 433493,
+"name": "Modern FSWue",
+"startDate": "2026-06-02T20:00:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 433590,
+"name": "Mox Modern Extravaganza RCQ Vol III",
+"startDate": "2026-07-18T15:00:00Z",
+"enrolledPlayerCount": 3,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 433945,
+"name": "Modern Qualifier - F2FTour Hamilton",
+"startDate": "2026-06-06T14:15:00Z",
+"enrolledPlayerCount": 100,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 434455,
+"name": "Pro Tour Magic: The Gathering | Marvel Super Heroes in Amsterdam, Netherlands",
+"startDate": "2026-07-17T07:00:00Z",
+"enrolledPlayerCount": 361,
+"formatString": "Draft, Modern, Draft2, Draft 3",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 434568,
+"name": "Mont Weekly Modern",
+"startDate": "2026-06-10T23:00:00Z",
+"enrolledPlayerCount": 16,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 434569,
+"name": "Mont Weekly Modern",
+"startDate": "2026-06-17T23:00:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 434571,
+"name": "Mont Weekly Modern ",
+"startDate": "2026-06-23T23:10:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 434709,
+"name": "MTG Modern RCQ June 13th - 11:30am",
+"startDate": "2026-06-13T15:30:00Z",
+"enrolledPlayerCount": 2,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 434713,
+"name": "Store Qualifier Modern - Temporada 13 3.0 - The Raccoon House",
+"startDate": "2026-06-06T22:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435239,
+"name": "Ilmoderninodelmartedì - Tappa 13",
+"startDate": "2026-09-06T18:30:00Z",
+"enrolledPlayerCount": 33,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435243,
+"name": "SPACT Open 2026",
+"startDate": "2026-07-11T09:00:00Z",
+"enrolledPlayerCount": 36,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435264,
+"name": "🔥 Spilltinget RCQ – Modern 🔥",
+"startDate": "2026-07-12T08:30:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435410,
+"name": "Modern Regional Championship Qualifier - F2FTour Langley",
+"startDate": "2026-06-13T17:15:00Z",
+"enrolledPlayerCount": 63,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435444,
+"name": "WildGames NM Bye - Lørdag",
+"startDate": "2026-06-13T09:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435447,
+"name": "WildGames NM Bye - Søndag",
+"startDate": "2026-06-14T09:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 435557,
+"name": "NYX Game Arena - Store Qualifier S13",
+"startDate": "2026-06-14T16:30:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436239,
+"name": "Modern RCQ +NM invite",
+"startDate": "2026-06-14T08:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436495,
+"name": "SideQuest Summer Open | Regional Championship Qualifier: 3-City Modern Challenge #25",
+"startDate": "2026-06-27T09:00:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436497,
+"name": "SideQuest Summer Open | Regional Championship Qualifier: 3-City Modern Challenge #26",
+"startDate": "2026-06-28T09:00:00Z",
+"enrolledPlayerCount": 25,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436536,
+"name": "RCQ Modern - June 20",
+"startDate": "2026-06-20T17:30:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436596,
+"name": "Modern RCQ",
+"startDate": "2026-06-13T21:30:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436856,
+"name": "In The Name OF Alexei - FREEZE!",
+"startDate": "2026-06-20T09:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436911,
+"name": "Blitz League",
+"startDate": "2026-06-15T22:30:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Draft, Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436918,
+"name": "Blitz League",
+"startDate": "2026-06-22T22:30:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern, Draft",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 436920,
+"name": "Blitz League",
+"startDate": "2026-07-06T22:30:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Draft, Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437134,
+"name": "FSW Series - Modern",
+"startDate": "2026-06-16T17:30:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437168,
+"name": "payment test stripe",
+"startDate": "2026-07-11T00:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437430,
+"name": "NRG Series: Magic $10k Team Trios Showdown",
+"startDate": "2026-08-23T14:30:00Z",
+"enrolledPlayerCount": 66,
+"formatString": "Modern, Standard, Pauper",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437444,
+"name": "NRG Series: Magic $2.5k Modern Trial",
+"startDate": "2026-08-22T15:00:00Z",
+"enrolledPlayerCount": 99,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437904,
+"name": "6º Torneio - 15ª Liga Arena Guardians ",
+"startDate": "2026-06-22T17:00:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437979,
+"name": "Modern ReCQ with up to 2 Invites and NRG Points",
+"startDate": "2026-08-22T21:00:00Z",
+"enrolledPlayerCount": 30,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 437995,
+"name": "Modern ReCQ with up to 2 Invites and NRG Points",
+"startDate": "2026-08-23T19:00:00Z",
+"enrolledPlayerCount": 12,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438284,
+"name": "THE PUB GAME STORE MODERNO GRAN SLAM",
+"startDate": "2026-06-22T02:30:00Z",
+"enrolledPlayerCount": 12,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438313,
+"name": "Sirolynia rcq 10/7",
+"startDate": "2026-07-10T07:00:00Z",
+"enrolledPlayerCount": 19,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438462,
+"name": "Freak TLV RCQ Q2 26",
+"startDate": "2026-06-25T14:15:00Z",
+"enrolledPlayerCount": 28,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438512,
+"name": "The Dark Side Modern RCQ",
+"startDate": "2026-06-27T16:00:00Z",
+"enrolledPlayerCount": 21,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438588,
+"name": "MML - 2-2 NT",
+"startDate": "2026-06-25T23:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438973,
+"name": "Sat Modern RCQ - F2FTour Edmonton",
+"startDate": "2026-06-27T16:15:00Z",
+"enrolledPlayerCount": 68,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 438976,
+"name": "Sun Modern RCQ - F2FTour Edmonton",
+"startDate": "2026-06-28T16:15:00Z",
+"enrolledPlayerCount": 39,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 439149,
+"name": "2026.06.27 Test Event",
+"startDate": "2026-06-27T03:00:00Z",
+"enrolledPlayerCount": 12,
+"formatString": "Draft, Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 439248,
+"name": "3º Open MML + LCQ CLM Modern",
+"startDate": "2026-07-04T17:00:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 439354,
+"name": "Modern RCQ @ Tapped Out Gaming",
+"startDate": "2026-07-18T19:00:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 439645,
+"name": "No ban list modern",
+"startDate": "2026-06-27T00:00:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 440069,
+"name": "European Magic Series RCQ | 2026-27 Round 1 Modern @rinascita",
+"startDate": "2026-07-16T17:00:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 440192,
+"name": "Mont Weekly Modern",
+"startDate": "2026-07-01T23:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 440319,
+"name": "한일챔피언스컵 시즌5 라운드1 매장 예선",
+"startDate": "2026-07-04T03:00:00Z",
+"enrolledPlayerCount": 22,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 440469,
+"name": "Modern RCQ - F2FTour Truro",
+"startDate": "2026-07-04T13:30:00Z",
+"enrolledPlayerCount": 32,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441140,
+"name": "Modern Store Championship",
+"startDate": "2026-07-19T10:15:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441288,
+"name": "Mont Weekly Modern",
+"startDate": "2026-07-08T23:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441336,
+"name": "First summer RCQ",
+"startDate": "2026-07-19T17:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441441,
+"name": "Magic Spotlight: The Hobbit™ Main Event",
+"startDate": "2026-08-28T23:30:00Z",
+"enrolledPlayerCount": 570,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441665,
+"name": "Modern US RCQ Round 1",
+"startDate": "2026-08-01T16:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441740,
+"name": "CDF 2026 Destination qualifier ",
+"startDate": "2026-07-05T06:30:00Z",
+"enrolledPlayerCount": 53,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 441825,
+"name": "RCQ #3 Ronda 1 2026-2027 | Armenia | 5 Julio",
+"startDate": "2026-07-05T16:00:00Z",
+"enrolledPlayerCount": 9,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442216,
+"name": "第4回 S-Trad ARENA フォーマット：モダン",
+"startDate": "2026-07-26T03:00:00Z",
+"enrolledPlayerCount": 38,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442480,
+"name": "Modern Fswue",
+"startDate": "2026-07-07T17:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442516,
+"name": "Modern RCQ - F2FTour Montreal",
+"startDate": "2026-07-11T14:15:00Z",
+"enrolledPlayerCount": 79,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442528,
+"name": "Mont Weekly Modern",
+"startDate": "2026-07-22T23:00:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442749,
+"name": "$1K Modern RCQ - SCG CON Dallas - Friday - 10:00 am",
+"startDate": "2026-09-04T15:00:00Z",
+"enrolledPlayerCount": 197,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442754,
+"name": "ReCQ - Modern - Dallas - Friday - 1:00 pm",
+"startDate": "2026-09-04T18:00:00Z",
+"enrolledPlayerCount": 115,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442763,
+"name": "Modern - SCG CON Dallas - Friday - 12:00 pm ",
+"startDate": "2026-09-04T17:00:00Z",
+"enrolledPlayerCount": 19,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442783,
+"name": "Modern+ - SCG CON Dallas  -Friday - 4:00 pm",
+"startDate": "2026-09-04T21:00:00Z",
+"enrolledPlayerCount": 62,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442801,
+"name": "Top8 - 15ª Liga Arena Guardians",
+"startDate": "2026-07-10T12:15:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442809,
+"name": "ReCQ - Modern - Dallas - Saturday - 12:00 pm",
+"startDate": "2026-09-05T17:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442812,
+"name": "ReCQ - Modern - Dallas - Saturday - 3:00 pm",
+"startDate": "2026-09-05T20:00:00Z",
+"enrolledPlayerCount": 40,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442830,
+"name": "Modern - SCG CON Dallas - Saturday - 1:00 pm",
+"startDate": "2026-09-05T18:00:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442835,
+"name": "RCQ Modern Mont Shop",
+"startDate": "2026-08-01T14:00:00Z",
+"enrolledPlayerCount": 35,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442838,
+"name": "Modern+ - SCG CON Dallas  -Saturday - 6:00 pm",
+"startDate": "2026-09-05T23:00:00Z",
+"enrolledPlayerCount": 34,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442877,
+"name": "$uper $unday RCQ - Modern - SCG CON Dallas - Sunday - 10:00 am",
+"startDate": "2026-09-06T15:00:00Z",
+"enrolledPlayerCount": 148,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442881,
+"name": "ReCQ - Modern - Dallas - Sunday - 12:30 pm",
+"startDate": "2026-09-06T17:30:00Z",
+"enrolledPlayerCount": 40,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 442887,
+"name": "Modern - SCG CON Dallas - Sunday - 1:00 pm",
+"startDate": "2026-09-06T18:00:00Z",
+"enrolledPlayerCount": 19,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 443190,
+"name": "Showcase Games Super Store Championship",
+"startDate": "2026-08-01T15:00:00Z",
+"enrolledPlayerCount": 31,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 443248,
+"name": "MAGIC THE GATHERING RCQ IN THE KERN RIVER VALLEY (PHRANXZ TCG)",
+"startDate": "2026-07-16T21:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 443260,
+"name": "2nd Chance PTQ (PT MSH)",
+"startDate": "2026-07-19T07:30:00Z",
+"enrolledPlayerCount": 194,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 443374,
+"name": "test matching r1 prod",
+"startDate": "2026-07-11T00:00:00Z",
+"enrolledPlayerCount": 36,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444357,
+"name": "HobbyGameMall 한일챔피언스컵 Season5 Round1 Modern 7/25 12 PM",
+"startDate": "2026-07-25T03:10:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444423,
+"name": "[Brussels Sun 09:30] Destination Qualifier: Modern",
+"startDate": "2026-07-26T07:30:00Z",
+"enrolledPlayerCount": 134,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444443,
+"name": "MO モダン対戦会#2 【1週間カードレンタル代負担します！】 (第121回はでらCS",
+"startDate": "2026-07-22T11:00:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444446,
+"name": "MO モダン対戦会#3 【1週間カードレンタル代負担します！】 (第122回はでらCS",
+"startDate": "2026-07-23T11:00:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444554,
+"name": "RCQ Modern - July 18",
+"startDate": "2026-07-18T17:30:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444795,
+"name": "US RCQ | 2026-27 Round 1 Modern RCQ",
+"startDate": "2026-08-01T18:00:00Z",
+"enrolledPlayerCount": 18,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 444883,
+"name": "The Dark Side Modern RCQ July 18th",
+"startDate": "2026-07-18T16:00:00Z",
+"enrolledPlayerCount": 3,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445315,
+"name": "ANZ RCQ Cycle 13 - Modern",
+"startDate": "2026-07-18T00:30:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445383,
+"name": "$5K RCQ - Modern - SCG CON Baltimore - Saturday - 9:30 am",
+"startDate": "2026-09-12T13:30:00Z",
+"enrolledPlayerCount": 128,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445385,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 9:30 am (Online Registration Only)",
+"startDate": "2026-09-11T13:30:00Z",
+"enrolledPlayerCount": 134,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445389,
+"name": "ReCQ - Modern - Baltimore - Saturday - 12:00 pm",
+"startDate": "2026-09-12T16:00:00Z",
+"enrolledPlayerCount": 32,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445394,
+"name": "ReCQ - Modern - Baltimore - Saturday - 2:00 pm",
+"startDate": "2026-09-12T18:00:00Z",
+"enrolledPlayerCount": 64,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445396,
+"name": "ReCQ - Modern - Baltimore - Saturday - 4:00 pm",
+"startDate": "2026-09-12T20:00:00Z",
+"enrolledPlayerCount": 79,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445399,
+"name": "Modern - SCG CON Baltimore - Saturday - 11:00 am ",
+"startDate": "2026-09-12T15:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445400,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 10:00 am",
+"startDate": "2026-09-11T14:00:00Z",
+"enrolledPlayerCount": 79,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445405,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 10:30 am",
+"startDate": "2026-09-11T14:30:00Z",
+"enrolledPlayerCount": 81,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445412,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 11:00 am",
+"startDate": "2026-09-11T15:00:00Z",
+"enrolledPlayerCount": 70,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445414,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 12:00 pm",
+"startDate": "2026-09-11T16:00:00Z",
+"enrolledPlayerCount": 86,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445415,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 1:00 pm",
+"startDate": "2026-09-11T17:00:00Z",
+"enrolledPlayerCount": 89,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445416,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 2:00 pm",
+"startDate": "2026-09-11T18:00:00Z",
+"enrolledPlayerCount": 65,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445417,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 3:00 pm",
+"startDate": "2026-09-11T19:00:00Z",
+"enrolledPlayerCount": 65,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445418,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 4:00 pm",
+"startDate": "2026-09-11T20:00:00Z",
+"enrolledPlayerCount": 52,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445419,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 5:00 pm",
+"startDate": "2026-09-11T21:00:00Z",
+"enrolledPlayerCount": 56,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445420,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 11:30 am",
+"startDate": "2026-09-11T15:30:00Z",
+"enrolledPlayerCount": 66,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445421,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 12:30 pm",
+"startDate": "2026-09-11T16:30:00Z",
+"enrolledPlayerCount": 61,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445422,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 1:30 pm",
+"startDate": "2026-09-11T17:30:00Z",
+"enrolledPlayerCount": 89,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445423,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 2:30 pm",
+"startDate": "2026-09-11T18:30:00Z",
+"enrolledPlayerCount": 80,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445424,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 3:30 pm",
+"startDate": "2026-09-11T19:30:00Z",
+"enrolledPlayerCount": 81,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445425,
+"name": "LCQ - Modern - SCG CON Baltimore - Friday - 4:30 pm",
+"startDate": "2026-09-11T20:30:00Z",
+"enrolledPlayerCount": 56,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445432,
+"name": "Modern+ - SCG CON Baltimore  -Saturday - 6:00 pm",
+"startDate": "2026-09-12T22:00:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445437,
+"name": "$1K Modern RCQ - SCG CON Baltimore - Friday - 10:00 am",
+"startDate": "2026-09-11T14:00:00Z",
+"enrolledPlayerCount": 132,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445476,
+"name": "ReCQ - Modern - SCG CON Baltimore - Sunday - 1:00 pm",
+"startDate": "2026-09-13T17:00:00Z",
+"enrolledPlayerCount": 78,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445494,
+"name": "Modern+ - SCG CON Baltimore - Sunday - 12:00 pm",
+"startDate": "2026-09-13T16:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445517,
+"name": "Modern - SCG CON Baltimore - Friday - 11:00 am",
+"startDate": "2026-09-11T15:00:00Z",
+"enrolledPlayerCount": 23,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445523,
+"name": "Modern+ - SCG CON Baltimore - Friday - 3:00 pm",
+"startDate": "2026-09-11T19:00:00Z",
+"enrolledPlayerCount": 45,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445556,
+"name": "$uper $unday RCQ - Modern - SCG CON Baltimore - Sunday - 10:00 am",
+"startDate": "2026-09-13T14:00:00Z",
+"enrolledPlayerCount": 344,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445557,
+"name": "Mont Weekly Modern",
+"startDate": "2026-08-11T23:00:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445558,
+"name": "1ª Etapa CLM Modern",
+"startDate": "2026-08-19T23:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 445559,
+"name": "Mont Weekly Modern",
+"startDate": "2026-08-26T23:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 446303,
+"name": "Vault 509 Trading Card Shop Modern RCQ",
+"startDate": "2026-07-18T22:45:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 446665,
+"name": "Summer Modern",
+"startDate": "2026-07-29T22:45:00Z",
+"enrolledPlayerCount": 4,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447125,
+"name": "Spilltinget Modern RCQ",
+"startDate": "2026-07-29T15:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447163,
+"name": "THE LAST SUN 2026予選（モダン）",
+"startDate": "2026-08-08T02:00:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447206,
+"name": "Baltimore:RCQ Modern Constructed 11am",
+"startDate": "2026-08-01T15:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447218,
+"name": "Baltimore:RCQ Modern Constructed 11am",
+"startDate": "2026-08-02T15:00:00Z",
+"enrolledPlayerCount": 0,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447220,
+"name": "European Magic Series RCQ | 2026-27 Round 1 Modern Monsters Edition",
+"startDate": "2026-02-08T10:15:00Z",
+"enrolledPlayerCount": 45,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447342,
+"name": "Sat Modern RCQ - F2FTour Toronto",
+"startDate": "2026-07-25T14:15:00Z",
+"enrolledPlayerCount": 91,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447348,
+"name": "Sun Modern RCQ - F2FTour Toronto ",
+"startDate": "2026-07-26T14:15:00Z",
+"enrolledPlayerCount": 74,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447684,
+"name": "CAM Series Qualifier S13 - NYX Game Arena",
+"startDate": "2026-07-26T17:00:00Z",
+"enrolledPlayerCount": 23,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 447882,
+"name": "Öcher Modern Series Vol. 1",
+"startDate": "2026-08-09T10:00:00Z",
+"enrolledPlayerCount": 16,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 448015,
+"name": "NM2026 - Last Chance Bye - Fredag 16:00",
+"startDate": "2026-08-07T14:00:00Z",
+"enrolledPlayerCount": 25,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 448021,
+"name": "NM2026 - Norgesmesterskapet i Magic: the Gathering - Lørdag 09:00",
+"startDate": "2026-08-08T07:00:00Z",
+"enrolledPlayerCount": 88,
+"formatString": "Modern, Draft",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 448206,
+"name": "RCQ Modern ",
+"startDate": "2026-07-29T15:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 448459,
+"name": "Streaming Testing Tournament",
+"startDate": "2026-07-28T00:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern, Draft",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 448872,
+"name": "RCQ Modern Saturday",
+"startDate": "2026-08-01T09:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 448946,
+"name": "MODERN APOCALYPSE 2026 Sabato 19 settembre 14.00",
+"startDate": "2026-09-19T12:00:00Z",
+"enrolledPlayerCount": 34,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 449115,
+"name": "Modern RCQ - F2FTour Winnipeg",
+"startDate": "2026-08-01T15:15:00Z",
+"enrolledPlayerCount": 39,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 449289,
+"name": "Öcher Modern Series Vol. 2",
+"startDate": "2026-09-12T10:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 449750,
+"name": "Regional Championship Qualifier: 3-City Modern Challenge #27",
+"startDate": "2026-08-01T09:30:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 449990,
+"name": "RCQ PinkySingles",
+"startDate": "2026-08-02T18:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 450101,
+"name": "Модерн. Летняя Лига (6/*)",
+"startDate": "2026-08-02T10:15:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 450186,
+"name": "MODERN 50K CHALLENGE",
+"startDate": "2026-08-21T03:00:00Z",
+"enrolledPlayerCount": 41,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 450341,
+"name": "Modern Proxy Event \"Cirque du Zock\" #2",
+"startDate": "2026-09-19T10:00:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 450582,
+"name": "decklist x 3 test",
+"startDate": "2026-09-04T00:00:00Z",
+"enrolledPlayerCount": 3,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 450681,
+"name": "FSW-Series - Modern",
+"startDate": "2026-08-04T17:15:00Z",
+"enrolledPlayerCount": 7,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451065,
+"name": "Liga Arcane keep Modern 05/08",
+"startDate": "2026-08-06T00:00:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451148,
+"name": "龙盾杯 MTG China Open S13 Regional Championship ",
+"startDate": "2026-09-12T01:00:00Z",
+"enrolledPlayerCount": 403,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451375,
+"name": "2ª Etapa CLM Modern",
+"startDate": "2026-09-02T23:00:00Z",
+"enrolledPlayerCount": 18,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451376,
+"name": "Mont Weekly Modern",
+"startDate": "2026-09-09T23:00:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451377,
+"name": "3ª Etapa CLM Modern",
+"startDate": "2026-09-16T23:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451378,
+"name": "Mont Weekly Modern",
+"startDate": "2026-09-23T23:00:00Z",
+"enrolledPlayerCount": 5,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451379,
+"name": "4ª Etapa CLM Modern",
+"startDate": "2026-09-30T23:00:00Z",
+"enrolledPlayerCount": 17,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 451461,
+"name": "1º Torneio - 16ª Liga Arena Guardians ",
+"startDate": "2026-08-10T20:00:00Z",
+"enrolledPlayerCount": 14,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 452285,
+"name": "8º BLACK LEAGUE - MODERN",
+"startDate": "2026-08-16T11:30:00Z",
+"enrolledPlayerCount": 13,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 452656,
+"name": "Saturday Modern RCQ - F2FTour Calgary",
+"startDate": "2026-08-15T16:30:00Z",
+"enrolledPlayerCount": 46,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 452657,
+"name": "Sunday Modern RCQ - F2FTour Calgary ",
+"startDate": "2026-08-16T16:30:00Z",
+"enrolledPlayerCount": 35,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 453517,
+"name": "Saturday 8.15 - LFG Con 2026 - MTG: Runback Qualifer (2-Slot)",
+"startDate": "2026-08-15T20:00:00Z",
+"enrolledPlayerCount": 31,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 453561,
+"name": "Sunday 8.16 - LFG Con 2026 - MTG: Runback Qualifer (2-Slot) ",
+"startDate": "2026-08-16T20:00:00Z",
+"enrolledPlayerCount": 19,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 453668,
+"name": "Friday Modern Double Qualifier+ - F2FTour CommandFest Toronto",
+"startDate": "2026-08-21T16:00:00Z",
+"enrolledPlayerCount": 37,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 453671,
+"name": "Saturday Modern Double Qualifier+ - F2FTour CommandFest Toronto",
+"startDate": "2026-08-22T16:00:00Z",
+"enrolledPlayerCount": 37,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 453673,
+"name": "Sun Modern Super Qualifier - F2FTour CommandFest Toronto",
+"startDate": "2026-08-24T00:00:00Z",
+"enrolledPlayerCount": 32,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 454051,
+"name": "Autumn Modern Championship",
+"startDate": "2026-09-12T10:00:00Z",
+"enrolledPlayerCount": 65,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 456096,
+"name": "6º Torneio Super Modern ",
+"startDate": "2026-08-30T13:15:00Z",
+"enrolledPlayerCount": 15,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 456709,
+"name": "Modern Monsters",
+"startDate": "2026-09-27T09:15:00Z",
+"enrolledPlayerCount": 29,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 456814,
+"name": "Modern RCQ - F2FTour St. John's",
+"startDate": "2026-08-29T12:30:00Z",
+"enrolledPlayerCount": 33,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 457128,
+"name": "3-City Modern Challenge #28",
+"startDate": "2026-09-06T08:00:00Z",
+"enrolledPlayerCount": 19,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 459774,
+"name": "Модерн (06.09.26)",
+"startDate": "2026-09-06T10:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 460208,
+"name": "Fortnightly Modern",
+"startDate": "2026-09-08T17:30:00Z",
+"enrolledPlayerCount": 12,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 461960,
+"name": "Modern RCQ - F2FTour Regina",
+"startDate": "2026-09-12T16:30:00Z",
+"enrolledPlayerCount": 22,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 461961,
+"name": "Modern RCQ - F2FTour Moncton",
+"startDate": "2026-09-12T13:30:00Z",
+"enrolledPlayerCount": 20,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 462365,
+"name": "FLIGHT A - $1K Modern RCQ - SCG CON Dallas",
+"startDate": "2026-09-04T15:00:00Z",
+"enrolledPlayerCount": 103,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 462366,
+"name": "FLIGHT B - $1K Modern RCQ - SCG CON Dallas",
+"startDate": "2026-09-04T15:00:00Z",
+"enrolledPlayerCount": 102,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 463140,
+"name": "Torneo Magic the Gathering Modern Femanca 2026",
+"startDate": "2026-09-06T09:30:00Z",
+"enrolledPlayerCount": 11,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 465214,
+"name": "Il modernino del martedì - tappa 3 lega winter 2026",
+"startDate": "2026-09-15T18:30:00Z",
+"enrolledPlayerCount": 27,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 465638,
+"name": "Torneo Zamora 12 Septiembre",
+"startDate": "2026-09-13T08:30:00Z",
+"enrolledPlayerCount": 26,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 465639,
+"name": "Fortnightly Modern",
+"startDate": "2026-09-22T17:30:00Z",
+"enrolledPlayerCount": 10,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 467239,
+"name": "ACUP Clasificatorio Arcanis 2026",
+"startDate": "2026-09-20T08:30:00Z",
+"enrolledPlayerCount": 24,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 467590,
+"name": "Saturday Modern RCQ - F2FTour Vancouver",
+"startDate": "2026-09-19T17:30:00Z",
+"enrolledPlayerCount": 47,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 467594,
+"name": "Sunday Modern RCQ - F2FTour Vancouver",
+"startDate": "2026-09-20T17:30:00Z",
+"enrolledPlayerCount": 39,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 469220,
+"name": "LEAGUE HOB - WEEK 1",
+"startDate": "2026-09-26T09:00:00Z",
+"enrolledPlayerCount": 8,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+},
+{
+"id": 474904,
+"name": "Modern Fswue",
+"startDate": "2026-09-30T00:00:00Z",
+"enrolledPlayerCount": 6,
+"formatString": "Modern",
+"gameDescription": "Magic: The Gathering",
+"status": "Ended"
+}
+]
+}

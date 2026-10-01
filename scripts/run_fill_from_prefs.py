@@ -47,15 +47,20 @@ def load_formats():
 
 
 def run(cmd, label) -> int:
-    """Run one pipeline step in a subprocess; returns its exit code."""
-    print(f"\n-- {label} " + "-" * max(0, 55 - len(label)))
+    """Run one pipeline step in a subprocess; returns its exit code.
+
+    The heading is flushed BEFORE the child starts: background_fill.bat
+    redirects stdout to logs/background_fill.log, where print() is
+    block-buffered while the child writes straight to the shared file, so
+    every step's output used to land above every heading (2026-10-01)."""
+    print(f"\n-- {label} " + "-" * max(0, 55 - len(label)), flush=True)
     result = subprocess.run(
         [sys.executable] + cmd.split(),
         cwd=_ROOT,
         env={**os.environ, "PYTHONIOENCODING": "utf-8"},
     )
     if result.returncode != 0:
-        print(f"  [warn] exited with code {result.returncode}")
+        print(f"  [warn] exited with code {result.returncode}", flush=True)
     return result.returncode
 
 
