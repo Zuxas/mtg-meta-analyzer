@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-10-01 (Melee match gap: discovery / log order / archive FK fixed on `fix/melee-match-gap-2026-10-01`; backfill BLOCKED on the fuzzy archetype-mapping finding)
+Last updated: 2026-10-01 (Melee match gap: discovery / log order / archive FK fixed on `fix/melee-match-gap-2026-10-01`; fuzzy archetype mapping fixed; targeted backfill)
 
 ---
 
@@ -24,11 +24,14 @@ Shipped (code + tests, NO DB writes yet):
 - Targeted backfill path: `python -m scrapers.mtgmelee_scraper --format modern --pages 3
   --tournament-id <id> [--tournament-id ...] [--dry-run]` (exact per-event insert counts, idempotent).
 
-**BLOCKED -- decision needed before any backfill:** `_map_archetype` calls `normalize(deck_name, fmt)`,
-so the format string lands in the positional `fuzzy` parameter and every Melee scrape fuzzy-matches deck
-names, producing WRONG and UNSTABLE labels ('Mono-Green Broodscale' -> 'Mono Red Aggro';
-'Mono-Red Ruby Storm' -> 'Cycle Storm' / 'Poison Storm'). Live DB: 6,440 Modern melee rows labelled
-'Mono Red Aggro'. Backfilling 448946 / 451148 / the flights with the current mapping would add more.
+**Archetype mapping FIXED (user decision 2026-10-01):** `_map_archetype` called `normalize(deck_name, fmt)`,
+so the format string landed in the positional `fuzzy` parameter and every Melee scrape fuzzy-matched deck
+names -> WRONG and UNSTABLE labels ('Mono-Green Broodscale' -> 'Mono Red Aggro'; 'Mono-Red Ruby Storm' ->
+'Cycle Storm' / 'Poison Storm'). Now exact canonical / alias only, else the published name; junk aliases
+('Decklist') unlabelled (`tests/test_melee_archetype_mapping.py`). **Open follow-up (separate task):** rows
+stored BEFORE 2026-10-01 keep their fuzzy labels -- live DB has 6,440 Modern melee rows labelled
+'Mono Red Aggro' and 315 labelled 'Decklist'; a relabel needs the raw published names (not stored) ->
+re-scrape and rewrite, behind a backup.
 
 
 ## 9/27 — Branches waiting to land (NONE on GitHub yet -- push them)
