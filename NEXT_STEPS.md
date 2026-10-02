@@ -53,6 +53,15 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   labelled with Decklists[0] = the Modern captain's deck); 391510 = rounds 1-3 Standard, 4-6 Pauper, top 8 Draft
   (deck names per round confirm) -> correct fix is by round (47 rows standard->pauper, 3 pauper->standard).
   Awaiting user decision; branch not yet pushed (hook blocks `git push` for Claude).
+- 2026-10-02 later: branch pushed (360552d). 391510 format fix APPLIED (`scripts/fix_melee_event_format.py`):
+  50 rows (47 standard->pauper, 3 pauper->standard), only `format`, backup
+  `mtg_meta.backup-2026-10-02-pre-melee-format-fix.db`, integrity ok, re-run 0.
+- 437430 exclusion BLOCKED pending user choice: no central read path -- 24 direct `FROM matches` reads in 9 files.
+  Proposed A = quarantine table `matches_excluded` + registry `excluded_events` + guard in `save_matches`.
+- Survey (`scripts/survey_melee_event_formats.py`, read-only; report `event-format-survey-20261002-163328.md`):
+  21 flagged of 912; 5 TEAM events (437 rows) and 147 draft/sealed-round rows stored as constructed in 10 PT/Worlds
+  events. Candidates for the same exclusion.
+- STILL HELD: regenerated manifests, pre-apply suite, fuzzy_fix + alias_drift apply.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;
