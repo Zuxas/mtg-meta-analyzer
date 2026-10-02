@@ -6,7 +6,7 @@ Last updated: 2026-10-01 (Melee match gap: discovery / log order / archive FK fi
 
 ## 10/1 — Melee match gap (branch `fix/melee-match-gap-2026-10-01`, from ee392b6)
 
-Shipped (code + tests, NO DB writes yet):
+Shipped (code + tests + targeted live backfill complete):
 - **Discovery root cause:** TournamentSearch snaps `start` down to a multiple of `length` (verified live:
   offset = start // length * length; paging itself is deterministic). The scraper asked for
   start = total - 100*(page+1) and never saw the newest `total % 100` rows -- every Modern event after
@@ -23,6 +23,11 @@ Shipped (code + tests, NO DB writes yet):
   (`tests/test_maintenance_archive_ids.py`).
 - Targeted backfill path: `python -m scrapers.mtgmelee_scraper --format modern --pages 3
   --tournament-id <id> [--tournament-id ...] [--dry-run]` (exact per-event insert counts, idempotent).
+- **Live backfill complete:** online backup
+  `E:\mtg-data\mtg_meta.backup-2026-10-01-pre-melee-backfill.db` passed integrity checking; 1,468 rows
+  were added (448946: 78, 462365: 19, 462366: 7, 451148: 1,364), a repeated run inserted zero,
+  and the live database passed integrity checking. Full evidence is in
+  `docs/reports/2026-10-01-melee-match-gap.md`.
 
 **Archetype mapping FIXED (user decision 2026-10-01):** `_map_archetype` called `normalize(deck_name, fmt)`,
 so the format string landed in the positional `fuzzy` parameter and every Melee scrape fuzzy-matched deck
