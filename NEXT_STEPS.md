@@ -4,6 +4,11 @@ Last updated: 2026-10-01 (Melee match gap merged into `ui/polish-kit-rebased`; t
 
 ---
 
+## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
+- Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;
+  duplicate legend dropped on the Dashboard; hover box / line highlight / selector-row highlight. `tests/test_dashboard_status_and_chart.py` (8).
+- Open: daily granularity still shows real 0%/100% windows at n>=3 -- Weekly is the default and reads cleanly.
+
 ## 10/1 - Melee match gap
 
 - Tournament discovery now uses aligned offsets, so the newest partial page is no longer skipped.

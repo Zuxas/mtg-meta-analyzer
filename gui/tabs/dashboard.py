@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QSplitter, QFrame, QTableWidget, QTableWidgetItem,
     QHeaderView, QScrollArea, QCheckBox, QSizePolicy, QDialog, QMessageBox,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 
 from gui.widgets.chart_canvas import ChartCanvas, fetch_chart_data
@@ -246,6 +246,9 @@ def _fmt_date(raw: str) -> str:
 # ---------------------------------------------------------------------------
 
 class DashboardTab(QWidget):
+    # the selected format (the main window's status bar shows its event count)
+    format_changed = pyqtSignal(str)
+
 
     _TIMEFRAME_OPTIONS = theme.TIMEFRAME_OPTIONS
 
@@ -343,6 +346,7 @@ class DashboardTab(QWidget):
             "the format in their label so collisions stay distinguishable."
         )
         self._fmt.currentIndexChanged.connect(lambda _: self._schedule_refresh())
+        self._fmt.currentTextChanged.connect(self.format_changed.emit)
         ctrl.addWidget(self._fmt)
 
         # Data-freshness chip (green / amber / red) for the selected format --
@@ -1093,7 +1097,7 @@ class DashboardTab(QWidget):
         self._rebuild_checkboxes(data if data else None)
         show_ev = self._show_events_cb.isChecked()
         visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
-        self._canvas.draw_from_data(data, visible, mode=self._chart_mode, show_events=show_ev)
+        self._canvas.draw_from_data(data, visible, mode=self._chart_mode, show_events=show_ev, legend=False)
 
     def _on_error(self, msg: str):
         # Show user-friendly error instead of raw exception
@@ -1581,10 +1585,12 @@ class DashboardTab(QWidget):
         total_apps = {arch: sum(sample.get(arch, {}).values()) for arch in archetypes}
         top8 = set(sorted(archetypes, key=lambda a: -total_apps.get(a, 0))[:8])
 
-        palette = __import__("gui.theme", fromlist=["CHART_PALETTE"]).CHART_PALETTE
+        from gui.widgets.chart_canvas import archetype_color
         for i, arch in enumerate(archetypes):
-            color_hex = palette[i % len(palette)]
+            color_hex = archetype_color(i)            # the line's colour, whatever is toggled
             row_widget = QWidget()
+            row_widget.setProperty("chart_arch", arch)
+            row_widget.installEventFilter(self)
             row_widget.setStyleSheet("background: transparent;")
             row_hl = QHBoxLayout(row_widget)
             row_hl.setContentsMargins(2, 0, 2, 0)
@@ -1604,12 +1610,26 @@ class DashboardTab(QWidget):
             self._check_layout.insertWidget(self._check_layout.count() - 1, row_widget)
             self._chart_checks[arch] = cb
 
+    def current_format(self) -> str:
+        return self._fmt.currentText()
+
+    def eventFilter(self, obj, event):
+        """Hovering an archetype row in the chart selector highlights its line."""
+        from PyQt6.QtCore import QEvent
+        arch = obj.property("chart_arch") if hasattr(obj, "property") else None
+        if arch:
+            if event.type() == QEvent.Type.Enter:
+                self._canvas.highlight_archetype(arch)
+            elif event.type() == QEvent.Type.Leave:
+                self._canvas.highlight_archetype(None)
+        return super().eventFilter(obj, event)
+
     def _on_checkbox_changed(self):
         if self._chart_data:
             visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
             show_ev = self._show_events_cb.isChecked()
             self._canvas.draw_from_data(self._chart_data, visible,
-                                        mode=self._chart_mode, show_events=show_ev)
+                                        mode=self._chart_mode, show_events=show_ev, legend=False)
 
     def _select_all_archetypes(self):
         for cb in self._chart_checks.values():
@@ -1637,14 +1657,14 @@ class DashboardTab(QWidget):
             visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
             show_ev = self._show_events_cb.isChecked()
             self._canvas.draw_from_data(self._chart_data, visible, mode=mode,
-                                        show_events=show_ev)
+                                        show_events=show_ev, legend=False)
 
     def _on_events_toggled(self):
         if self._chart_data:
             visible = {a for a, cb in self._chart_checks.items() if cb.isChecked()}
             show_ev = self._show_events_cb.isChecked()
             self._canvas.draw_from_data(self._chart_data, visible,
-                                        mode=self._chart_mode, show_events=show_ev)
+                                        mode=self._chart_mode, show_events=show_ev, legend=False)
 
     def _set_granularity(self, gran: str):
         self._chart_granularity = gran

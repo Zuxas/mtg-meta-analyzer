@@ -19,6 +19,8 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont
 
 import gui.theme as theme
+import matplotlib.colors as _mcolors
+import matplotlib.dates as _mdates
 from gui.theme import CHART_PALETTE as _PALETTE, CHART_BG as _BG, CHART_PANEL as _MID, CHART_GRID as _GRID
 from db.database import DB_PATH as CENTRAL_DB_PATH
 
@@ -351,6 +353,40 @@ class _HeatmapLoader(QThread):
 # Chart canvas widget
 # ---------------------------------------------------------------------------
 
+# Win-rate smoothing: a point is drawn only when its 3-bucket window holds at
+# least MIN_WINDOW_N appearances; points under FULL_ALPHA_N are faded.
+MIN_WINDOW_N = 3
+FULL_ALPHA_N = 10
+
+
+def archetype_color(index: int) -> str:
+    """The colour of the archetype at `index` in the chart data's FULL archetype
+    list -- the same index the Dashboard selector uses for its dot, so a line
+    keeps its colour however many archetypes are toggled off (2026-10-01:
+    colouring by position among the CHECKED archetypes shifted every colour on
+    each toggle and made the selector dots disagree with the lines)."""
+    return _PALETTE[index % len(_PALETTE)]
+
+
+def smooth_win_rate(values, samples, min_window_n=MIN_WINDOW_N):
+    """Sample-weighted 3-bucket rolling win rate.
+
+    values: per-bucket win % (None = no data); samples: per-bucket appearances.
+    Returns (smoothed, window_n): smoothed[j] is the appearance-weighted mean of
+    buckets j-1..j+1, or None when that window holds fewer than `min_window_n`
+    appearances (a 1-game 0% or 100% bucket no longer swings the line)."""
+    out, ns = [], []
+    for j in range(len(values)):
+        tot = wsum = 0.0
+        for k in range(max(0, j - 1), min(len(values), j + 2)):
+            if values[k] is not None and samples[k] > 0:
+                tot += samples[k]
+                wsum += values[k] * samples[k]
+        ns.append(int(tot))
+        out.append(wsum / tot if tot >= min_window_n else None)
+    return out, ns
+
+
 class ChartCanvas(QWidget):
     """
     Embeds a matplotlib Figure with an interactive navigation toolbar.
@@ -411,6 +447,22 @@ class ChartCanvas(QWidget):
         # Keep worker references alive until they finish
         self._worker = None
 
+        # Hover read-out for draw_from_data charts: a guide line at the nearest
+        # date, a box listing every visible series there (nearest point
+        # emphasised), and a highlight of the series under the cursor.
+        self._hover = None
+        self._highlighted = None
+        self._hover_box = QLabel(self._canvas)
+        self._hover_box.setTextFormat(Qt.TextFormat.RichText)
+        self._hover_box.setStyleSheet(
+            f"background: {theme.SURFACE}; color: {theme.TEXT};"
+            " border: 1px solid #3a3f55; border-radius: 6px; padding: 6px 8px; font-size: 11px;")
+        self._hover_box.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._hover_box.setVisible(False)
+        self._canvas.mpl_connect("motion_notify_event", self._on_hover_move)
+        self._canvas.mpl_connect("axes_leave_event", lambda _e: self._end_hover())
+        self._canvas.mpl_connect("figure_leave_event", lambda _e: self._end_hover())
+
     def _start_worker(self, worker):
         """Block signals on any running worker, then start the new one."""
         if self._worker is not None:
@@ -465,14 +517,19 @@ class ChartCanvas(QWidget):
     # ------------------------------------------------------------------
 
     def draw_from_data(self, data, visible_archetypes=None, mode="meta_share",
-                       show_events=True):
+                       show_events=True, legend=True):
         """
         Draw the meta-share or win-pct chart from a pre-loaded data dict
         (returned by fetch_chart_data). No DB query — instant redraw.
         visible_archetypes: set/list of archetype names to include (None = all).
         mode: 'meta_share' or 'win_pct'
         show_events: overlay format event markers (set releases, B&R, rotations)
+        legend: draw the chart legend (the Dashboard passes False: its archetype
+                selector shows the same colours and is the legend there)
         """
+        self._hover = None
+        self._highlighted = None
+        self._hover_box.setVisible(False)
         if data is None:
             self.show_message("No data to display.")
             return
@@ -500,15 +557,10 @@ class ChartCanvas(QWidget):
             series    = data["winpct_data"]
             y_label   = "Est Win %"
             title_sfx = "Win Rate Over Time"
-            # n>=3 was too aggressive on short windows where most archetypes
-            # have 1-2 appearances per bucket. Drop to n>=1 -- the 3-point
-            # rolling average below still smooths singletons.
-            min_n = 1
         else:
             series    = data["meta_data"]
             y_label   = "Meta Share %"
             title_sfx = "Popularity Over Time"
-            min_n = 0
 
         self._fig.clear()
         self._overlay.setVisible(False)
@@ -516,38 +568,38 @@ class ChartCanvas(QWidget):
         _style_ax(ax, self._fig)
 
         sample = data.get("sample_data", {})
+        index_of = {a: i for i, a in enumerate(data["archetypes"])}
+        hover_series = []
 
-        for i, arch in enumerate(archetypes):
-            color = _PALETTE[i % len(_PALETTE)]
+        for arch in archetypes:
+            color = archetype_color(index_of[arch])
             row = series.get(arch, {})
             arch_samples = sample.get(arch, {})
+            ns_raw = [arch_samples.get(w, 0) for w in sorted_weeks]
 
             if mode == "win_pct":
-                raw = []
-                for w in sorted_weeks:
-                    val = row.get(w)
-                    n   = arch_samples.get(w, 0)
-                    if val is not None and n >= min_n:
-                        raw.append(val * 100)
-                    else:
-                        raw.append(None)
-                # 3-point rolling average (skip Nones)
-                y = []
-                for j in range(len(raw)):
-                    window = [raw[k] for k in range(max(0, j - 1), min(len(raw), j + 2))
-                              if raw[k] is not None]
-                    y.append(sum(window) / len(window) if window else None)
-                # Plot only non-None segments; use datetime x-values so the
-                # axis is shared chronologically across all archetypes.
-                xs = [sorted_dates[j] for j in range(len(y)) if y[j] is not None]
-                ys = [y[j] for j in range(len(y)) if y[j] is not None]
-                if ys:
-                    ax.plot(xs, ys, marker="o", markersize=3, linewidth=2,
-                            color=color, label=_shorten(arch), alpha=0.9)
+                raw = [(row[w] * 100 if row.get(w) is not None else None) for w in sorted_weeks]
+                y, ns = smooth_win_rate(raw, ns_raw)
             else:
                 y = [(row.get(w) or 0) * 100 for w in sorted_weeks]
-                ax.plot(sorted_dates, y, marker="o", markersize=4, linewidth=2,
-                        color=color, label=_shorten(arch), alpha=0.9)
+                ns = ns_raw
+            idx = [j for j in range(len(y)) if y[j] is not None]
+            if not idx:
+                continue
+            xs = [sorted_dates[j] for j in idx]
+            ys = [y[j] for j in idx]
+            pn = [ns[j] for j in idx]
+            line, = ax.plot(xs, ys, linewidth=2, color=color, label=_shorten(arch), alpha=0.9, zorder=2)
+            # markers: full colour when well sampled, faded when thin
+            rgba = [(*_mcolors.to_rgb(color), max(0.25, min(1.0, n / FULL_ALPHA_N))) for n in pn]
+            dots = ax.scatter(xs, ys, s=12, c=rgba, zorder=3, linewidths=0)
+            hover_series.append({"arch": arch, "label": _shorten(arch), "color": color, "line": line,
+                                 "dots": dots, "rgba": rgba, "x": [_mdates.date2num(d) for d in xs],
+                                 "y": ys, "n": pn})
+
+        if hover_series:
+            self._hover = {"ax": ax, "series": hover_series, "mode": mode,
+                           "dates": [_mdates.date2num(d) for d in sorted_dates]}
 
         fmt = data.get("format_name", "standard").upper()
         ax.set_title(f"{title_sfx} \u2014 {fmt}",
@@ -572,7 +624,8 @@ class ChartCanvas(QWidget):
         ax.yaxis.set_major_formatter(
             mticker.FuncFormatter(lambda v, _: f"{v:.0f}%")
         )
-        _place_legend(self._fig, ax)
+        if legend:
+            _place_legend(self._fig, ax)
         if show_events:
             # Event markers helper still consumes (x_labels, sorted_weeks) for
             # legacy compatibility -- regenerate x_labels matching the new
@@ -581,6 +634,84 @@ class ChartCanvas(QWidget):
             _draw_event_markers(ax, x_labels, sorted_weeks,
                                 data.get("format_name", "standard"))
         self._canvas.draw()
+
+    # ------------------------------------------------------------------
+    # Hover (draw_from_data charts only)
+    # ------------------------------------------------------------------
+    _NEAR_PX = 12
+
+    def highlight_archetype(self, arch):
+        """Emphasise one archetype's line (others dimmed); None restores all."""
+        h = self._hover
+        if h is None or h["ax"] not in self._fig.axes or arch == self._highlighted:
+            return
+        self._highlighted = arch
+        for sr in h["series"]:
+            on = arch is None or sr["arch"] == arch
+            sr["line"].set_alpha(0.9 if on else 0.15)
+            sr["line"].set_linewidth(3.2 if (arch is not None and on) else 2)
+            sr["line"].set_zorder(4 if (arch is not None and on) else 2)
+            sr["dots"].set_alpha(None if on else 0.12)
+        self._canvas.draw_idle()
+
+    def _end_hover(self):
+        self._hover_box.setVisible(False)
+        h = self._hover
+        if h is not None and h.get("guide") is not None:
+            h["guide"].set_visible(False)
+        self.highlight_archetype(None)
+
+    def _on_hover_move(self, event):
+        h = self._hover
+        if h is None or h["ax"] not in self._fig.axes or event.inaxes is not h["ax"] or event.xdata is None:
+            if h is not None:
+                self._end_hover()
+            return
+        ax = h["ax"]
+        # nearest date bucket
+        dates = h["dates"]
+        dx = min(dates, key=lambda d: abs(d - event.xdata))
+        # nearest plotted point (pixels) for the emphasised row + highlight
+        near, best = None, self._NEAR_PX
+        rows = []
+        for sr in h["series"]:
+            if dx in sr["x"]:
+                k = sr["x"].index(dx)
+                rows.append((sr, sr["y"][k], sr["n"][k]))
+            for xv, yv in zip(sr["x"], sr["y"]):
+                px, py = ax.transData.transform((xv, yv))
+                dist = ((px - event.x) ** 2 + (py - event.y) ** 2) ** 0.5
+                if dist < best:
+                    best, near = dist, sr
+        if h.get("guide") is None:
+            h["guide"] = ax.axvline(dx, color="#8890a8", linewidth=1, linestyle="--", alpha=0.6, zorder=1)
+        h["guide"].set_xdata([dx, dx])
+        h["guide"].set_visible(True)
+        self.highlight_archetype(near["arch"] if near else None)
+        if not rows:
+            self._hover_box.setVisible(False)
+            self._canvas.draw_idle()
+            return
+        import matplotlib.dates as _md
+        lines = [f"<b>{_md.num2date(dx).strftime('%Y-%m-%d')}</b>"]
+        for sr, yv, n in sorted(rows, key=lambda r: -r[1]):
+            name = sr["label"]
+            text = f"<span style='color:{sr['color']}'>&#9679;</span> {name}: {yv:.1f}%" \
+                   f" <span style='color:#8890a8'>(n={n})</span>"
+            lines.append(f"<b>{text}</b>" if near is not None and sr is near else text)
+        self._hover_box.setText("<br>".join(lines))
+        self._hover_box.adjustSize()
+        # place beside the cursor, kept inside the canvas
+        cw, ch = self._canvas.width(), self._canvas.height()
+        ratio = self._canvas.devicePixelRatioF() or 1.0
+        qx, qy = event.x / ratio, ch - event.y / ratio
+        bw, bh = self._hover_box.width(), self._hover_box.height()
+        x = qx + 16 if qx + 16 + bw < cw else qx - 16 - bw
+        y = min(max(4, qy - bh / 2), ch - bh - 4)
+        self._hover_box.move(int(x), int(y))
+        self._hover_box.setVisible(True)
+        self._hover_box.raise_()
+        self._canvas.draw_idle()
 
     def plot_meta_share(self, format_name="standard", top=10, weeks=12,
                         since=None, until=None, standings=None):

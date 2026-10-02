@@ -196,6 +196,16 @@ def _is_existing_user() -> bool:
 # Main Window
 # ---------------------------------------------------------------------------
 
+_FORMATS_FOR_ALL = ("standard", "pioneer", "modern", "legacy", "pauper", "vintage")
+
+
+def _event_count_text(fmt: str) -> str:
+    """Status-bar text: events in the active DB for `fmt` ("all" sums the formats)."""
+    if fmt == "all":
+        return f"All formats: {sum(_count_events(f) for f in _FORMATS_FOR_ALL):,} events"
+    return f"{fmt.title()}: {_count_events(fmt):,} events"
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -559,6 +569,7 @@ class MainWindow(QMainWindow):
 
         # ── Create all tab widgets ────────────────────────────────
         self._dash      = DashboardTab(on_simulate=_send_to_simulate)
+        self._dash.format_changed.connect(self._update_event_count)   # status bar follows the format
         self._deck      = DeckAnalyzerTab(on_simulate=_send_to_simulate)
         self._search    = SearchTab(on_simulate=_send_to_simulate)
         self._charts    = ChartsTab()
@@ -1278,9 +1289,16 @@ class MainWindow(QMainWindow):
         except Exception:
             pass  # psutil not installed or write failed — skip silently
 
-    def _update_event_count(self):
-        count = _count_events("standard")
-        self._event_count_lbl.setText(f"Standard: {count:,} events")
+    def _update_event_count(self, fmt=None):
+        """Event count for the Dashboard's format (was hard-coded to Standard).
+        Also a slot: the Dashboard can change format while hydrating, before the
+        status bar exists -- and an exception in a PyQt6 slot aborts the app."""
+        if not hasattr(self, "_event_count_lbl"):
+            return
+        if fmt is None:
+            dash = getattr(self, "_dash", None)
+            fmt = dash.current_format() if dash is not None else "standard"
+        self._event_count_lbl.setText(_event_count_text(fmt))
 
     # ------------------------------------------------------------------
     # Tray integration
