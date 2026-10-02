@@ -1,8 +1,23 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-10-01 (Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
 
 ---
+
+## 10/2 — Historical Melee relabel (branch `fix/melee-relabel-2026-10-02`) -- IN PROGRESS, NO LIVE WRITE YET
+- `scripts/relabel_melee_history.py` fetch -> plan -> apply. Scope `source='mtgmelee' AND id <= 7812278`
+  (max id in the pre-backfill backup): 320,291 rows / 912 events, all 5 formats (fuzzy bug since 98dd83c, 2026-03-21).
+- Cache of re-scraped pairings: `E:\mtg-dataaw\melee_relabel\<tid>.json` (player names -> never in git), each
+  stamped with the code commit. Manifests/reports: `E:\mtg-dataeports\melee_relabel\`.
+- Manifest sha256 covers cutoff, code commit, alias-table hash, every in-scope DB row, every cache file, every
+  old/new value and the held row ids. Apply: integrity_check -> BEGIN IMMEDIATE -> backup via a 2nd read connection
+  (exact pre-image) -> re-plan + hash compare -> guarded UPDATEs -> counts / winner-result checks -> COMMIT ->
+  integrity_check -> re-plan must show 0 changes in the applied buckets.
+- Held, never applied: unlabelled (Decklist / blank), unmatched, ambiguous, unrecovered. Applyable only by explicit
+  `--buckets`: fuzzy_fix, fuzzy_guess, alias_drift, other.
+- Found: `normalize(fuzzy=True)` breaks score ties in set order (PYTHONHASHSEED) -- 'Mono-Green Broodscale' ->
+  'Mono Red Aggro' OR 'Green Post' run to run. Bug reproduction therefore uses the whole tie set.
+- NEXT: full fetch (~7 h, resumable) -> Modern report -> all-format manifest -> user approval per bucket -> apply.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;
