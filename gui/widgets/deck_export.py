@@ -2,6 +2,7 @@
 Deck export utilities.
 
 Supported formats:
+  - Clipboard     — the MTGA or MTGO text below, ready to paste into Arena / MTGO / a chat
   - MTGO          — "4 Lightning Bolt" + "Sideboard" separator (.txt)
   - MTGA          — "Deck" header + "4 Lightning Bolt" + "Sideboard" (.txt)
   - decklist.org  — opens the official tournament registration sheet in browser
@@ -51,24 +52,37 @@ def _normalise(entries) -> dict:
     return {e["name"]: max(1, round(e["avg_qty"])) for e in entries}
 
 
+def deck_text(mainboard, sideboard, style: str = "mtgo") -> str:
+    """The decklist as text: "mtgo" = "4 Card" lines + "Sideboard" block;
+    "mtga" = the same with a leading "Deck" header (what Arena's Import reads).
+    Shared by the .txt exports and the clipboard copy."""
+    main = _normalise(mainboard)
+    side = _normalise(sideboard)
+    lines = ["Deck"] if style == "mtga" else []
+    lines += [f"{qty} {name}" for name, qty in sorted(main.items())]
+    if side:
+        lines += ["", "Sideboard"]
+        lines += [f"{qty} {name}" for name, qty in sorted(side.items())]
+    return "\n".join(lines)
+
+
+def copy_decklist(mainboard, sideboard, style: str = "mtga") -> int:
+    """Put the decklist on the system clipboard; returns the number of cards copied."""
+    from PyQt6.QtWidgets import QApplication
+    QApplication.clipboard().setText(deck_text(mainboard, sideboard, style))
+    return sum(_normalise(mainboard).values()) + sum(_normalise(sideboard).values())
+
+
 # ---------------------------------------------------------------------------
 # MTGO export
 # ---------------------------------------------------------------------------
 
 def export_mtgo(mainboard, sideboard, archetype: str, format_name: str) -> str:
     """Export in MTGO format and return the saved file path."""
-    main = _normalise(mainboard)
-    side = _normalise(sideboard)
-
-    lines = [f"{qty} {name}" for name, qty in sorted(main.items())]
-    if side:
-        lines += ["", "Sideboard"]
-        lines += [f"{qty} {name}" for name, qty in sorted(side.items())]
-
     path = os.path.join(_exports_dir(),
                         f"{_safe_name(archetype)}_{_stamp()}_MTGO.txt")
     with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+        f.write(deck_text(mainboard, sideboard, "mtgo"))
     return path
 
 
@@ -78,19 +92,10 @@ def export_mtgo(mainboard, sideboard, archetype: str, format_name: str) -> str:
 
 def export_mtga(mainboard, sideboard, archetype: str, format_name: str) -> str:
     """Export in MTG Arena format and return the saved file path."""
-    main = _normalise(mainboard)
-    side = _normalise(sideboard)
-
-    lines = ["Deck"]
-    lines += [f"{qty} {name}" for name, qty in sorted(main.items())]
-    if side:
-        lines += ["", "Sideboard"]
-        lines += [f"{qty} {name}" for name, qty in sorted(side.items())]
-
     path = os.path.join(_exports_dir(),
                         f"{_safe_name(archetype)}_{_stamp()}_MTGA.txt")
     with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+        f.write(deck_text(mainboard, sideboard, "mtga"))
     return path
 
 
@@ -150,10 +155,15 @@ def show_export_menu(btn_widget, mainboard, sideboard,
         f"QMenu::item:selected {{ background: {theme.ACCENT_DK}; }}"
     )
 
+    act_copy_a = QAction("Copy to clipboard  (Arena)", menu)
+    act_copy_o = QAction("Copy to clipboard  (MTGO)", menu)
     act_mtgo  = QAction("MTGO Format  (.txt)", menu)
     act_mtga  = QAction("MTGA Format  (.txt)", menu)
     act_sheet = QAction("Tournament Sheet  (decklist.org)", menu)
 
+    menu.addAction(act_copy_a)
+    menu.addAction(act_copy_o)
+    menu.addSeparator()
     menu.addAction(act_mtgo)
     menu.addAction(act_mtga)
     menu.addSeparator()
@@ -170,6 +180,15 @@ def show_export_menu(btn_widget, mainboard, sideboard,
         except Exception as exc:
             QMessageBox.critical(btn_widget, "Export Error", str(exc))
 
+    def _copy(style, label):
+        try:
+            n = copy_decklist(mainboard, sideboard, style)
+            toast_info(btn_widget, "Copied", f"{archetype or 'Decklist'} ({n} cards) copied in {label} format.")
+        except Exception as exc:
+            QMessageBox.critical(btn_widget, "Copy Error", str(exc))
+
+    act_copy_a.triggered.connect(lambda: _copy("mtga", "Arena"))
+    act_copy_o.triggered.connect(lambda: _copy("mtgo", "MTGO"))
     act_mtgo.triggered.connect(
         lambda: _save(export_mtgo, mainboard, sideboard, archetype, format_name))
     act_mtga.triggered.connect(
