@@ -36,7 +36,17 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   event (Goryo's / Devoted Druid / Broodscale / Belcher / Ruby Storm) whose 183 rows were stored `format='standard'`
   (+6 tagged modern). Reverse case: mtgmelee_391510 = Standard event with 6 rows tagged pauper. Format tags NOT
   fixed (separate DB write, needs sign-off). No format-scoped alias mechanism exists in `normalize` yet.
-- NEXT: regenerate the Modern report + full manifest once; user review; still NO live apply.
+- Classification fix 4026721: classes judged against the bug-era table (ALIASES minus ALIASES_ADDED_IN_CLEANUP) --
+  the new aliases had pushed 2,692 fuzzy-stored Domain Zoo rows into `other`. Pre-fix manifests moved to
+  `E:\mtg-data\reports\melee_relabel\superseded\`.
+- FOR REVIEW: `dryrun-modern-20261002-150016` (manifest cc899cde...) and `dryrun-all-20261002-150024` (ecc211d7...),
+  320,291 rows, 912/912 events. All formats: fuzzy_fix 32,909 / fuzzy_guess 9,828 / vague 15,331 / alias_drift 162 /
+  held: other 10,786, unlabelled 2,895, unmatched 12,344.
+- Known limit: `other` is over-inclusive -- the bug-era table approximation is "today minus this cleanup's aliases",
+  so aliases added between a row's scrape and 2026-10-02 (e.g. the 09-28 batch: 'Mono Green Landfall', 3,700 Standard
+  slots) also land rows in `other`. Safe direction (held, never applied); refine later with per-date alias tables
+  from git history if those rows matter.
+- NEXT: user reviews both manifests and picks buckets; still NO live apply.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;
