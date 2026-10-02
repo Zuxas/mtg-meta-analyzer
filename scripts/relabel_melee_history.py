@@ -7,6 +7,7 @@ The raw published deck names were never stored, so they are recovered by re-read
 
   python -m scripts.relabel_melee_history fetch  [--format modern]   # resumable, read-only on the DB
   python -m scripts.relabel_melee_history plan   [--format modern]   # dry-run manifest + report
+  python -m scripts.relabel_melee_history aliases [--min-slots 20]   # cross-format published-name review
   python -m scripts.relabel_melee_history apply  --manifest M --buckets fuzzy_fix,...   # one transaction
 
 Every command refuses to run from a checkout with uncommitted changes to the code it depends on,
@@ -22,7 +23,9 @@ published name, pre-normalized) -- no fuzzy, no inventing.
 Row buckets (a matched row takes its worst slot, in BUCKET_ORDER):
   unlabelled   a recovered deck name maps to "" (blank / junk such as 'Decklist'); the fixed scraper
                would not have stored the row -- left unchanged, reported for a later decision
-  other        any other difference (e.g. an alias target changed)
+  other        any other difference (e.g. an alias target changed) -- held, never applyable
+  vague        the change would land on a colour-only name ('Izzet', 'Jeskai', 'Mono Green',
+               'W-U-R-G') -- reviewed separately, whatever the bug class
   fuzzy_guess  raw name has no exact alias and the stored label differs: a fuzzy guess that today's
                fuzzy normalize does not reproduce
   fuzzy_fix    stored label is one of the best-scoring fuzzy matches for the raw name today (the bug
@@ -55,9 +58,23 @@ CUTOFF_ID = 7812278
 CACHE_DIR = Path(r"E:\mtg-data\raw\melee_relabel")
 OUT_DIR = Path(r"E:\mtg-data\reports\melee_relabel")
 SCOPE_SQL = "source = 'mtgmelee' AND id <= ?"
-BUCKET_ORDER = ("unlabelled", "other", "fuzzy_guess", "fuzzy_fix", "alias_drift", "unchanged")
+# A row takes the FIRST of its two slot buckets in this order, so a held or review side always
+# wins over an applyable one (fuzzy_fix + other -> other; fuzzy_fix + vague -> vague).
+BUCKET_ORDER = ("unlabelled", "other", "vague", "fuzzy_guess", "fuzzy_fix", "alias_drift", "unchanged")
 UNRESOLVED = ("unmatched", "ambiguous", "unrecovered")
-APPLYABLE = ("fuzzy_fix", "fuzzy_guess", "alias_drift", "other")
+APPLYABLE = ("fuzzy_fix", "fuzzy_guess", "alias_drift", "vague")
+# Words that only name colours. A label made of nothing else says which colours, not which deck.
+_COLOUR_WORDS = frozenset("""
+    mono white blue black red green colorless colourless w u b r g
+    azorius dimir rakdos gruul selesnya orzhov izzet golgari boros simic
+    esper grixis jund naya bant abzan jeskai sultai mardu temur
+    4c 5c four-color five-color 4-color 5-color domain""".split())
+
+
+def is_colour_only(label: str) -> bool:
+    """'Izzet', 'Mono Green', 'W-U-R-G', '4C' -> True; 'Izzet Prowess', 'Domain Zoo' -> False."""
+    words = [w for w in label.lower().replace("-", " ").replace("/", " ").split() if w]
+    return bool(words) and all(w in _COLOUR_WORDS for w in words)
 CODE_FILES = ("scripts/relabel_melee_history.py", "scrapers/mtgmelee_scraper.py",
               "analysis/archetypes.py", "scrapers/constants.py")
 SAMPLES_PER_BUCKET = 15
@@ -195,6 +212,13 @@ def _fuzzy_candidates(stripped: str) -> frozenset:
 @lru_cache(maxsize=None)
 def _slot(stored: str, raw: str) -> tuple[str, str]:
     """(new label, bucket) for one deck slot."""
+    new, bucket = _slot_class(stored, raw)
+    if bucket in ("fuzzy_fix", "fuzzy_guess", "alias_drift") and is_colour_only(new):
+        return new, "vague"
+    return new, bucket
+
+
+def _slot_class(stored: str, raw: str) -> tuple[str, str]:
     from analysis.archetypes import ALIASES, _CANONICAL_NAMES, pre_normalize
     from scrapers.mtgmelee_scraper import _map_archetype
     new = _map_archetype(raw, "")
@@ -227,6 +251,7 @@ def build_plan(con: sqlite3.Connection, fmt: str | None = None, code_commit: str
     changes, held = [], defaultdict(list)          # held: unlabelled + unresolved rows
     per_event = defaultdict(Counter)
     transitions = Counter()
+    slot_pairs = Counter()                         # (slot bucket, slot bucket) -> matched rows
     for row in rows:
         (rid, eid, rnd, p1, p2, a1, a2, win, result, f, _date, _src) = row
         db_hash.update(json.dumps(row, ensure_ascii=False).encode())
@@ -255,6 +280,7 @@ def build_plan(con: sqlite3.Connection, fmt: str | None = None, code_commit: str
         m = hits[0]
         (n1, b1), (n2, b2) = _slot(a1, m["player1_deck"]), _slot(a2, m["player2_deck"])
         bucket = min((b1, b2), key=BUCKET_ORDER.index)
+        slot_pairs[tuple(sorted((b1, b2), key=BUCKET_ORDER.index))] += 1
         per_event[eid][bucket] += 1
         if bucket == "unchanged":
             continue
@@ -283,6 +309,8 @@ def build_plan(con: sqlite3.Connection, fmt: str | None = None, code_commit: str
               "held_sha256": _sha({b: [h["id"] for h in v] for b, v in sorted(held.items())})}
     return {"generated_at": _now(), **inputs, "manifest_sha256": _sha(inputs),
             "rows_in_scope": len(rows), "totals": dict(totals), "coverage": coverage,
+            "slot_pairs": [{"slots": list(k), "row_bucket": k[0], "rows": n}
+                           for k, n in sorted(slot_pairs.items(), key=lambda kv: -kv[1])],
             "per_event": events,
             "transitions": [{"format": f, "bucket": b, "old": o, "new": n, "slots": k}
                             for (f, b, o, n), k in transitions.most_common()],
@@ -307,9 +335,16 @@ def _report_md(p: dict, applied: dict | None = None) -> str:
          f"- **Manifest sha256 `{p['manifest_sha256']}`**", "",
          "| bucket | rows | applied? |", "|---|---:|---|"]
     for b in (*BUCKET_ORDER, *UNRESOLVED):
-        note = ("never (left unchanged)" if b in ("unlabelled", *UNRESOLVED)
-                else "-" if b == "unchanged" else "only if approved")
+        note = ("never (left unchanged)" if b not in APPLYABLE and b != "unchanged"
+                else "-" if b == "unchanged" else "only if approved by name")
         L.append(f"| {b} | {p['totals'].get(b, 0):,} | {note} |")
+    L += ["", "## How rows with two different slot buckets are classified", "",
+          "A row is applied or held as a WHOLE and takes the first of its two slot buckets in the order "
+          f"{' > '.join(BUCKET_ORDER)}; so one held or review side holds the whole row.", "",
+          "| slot A | slot B | row bucket | rows |", "|---|---|---|---:|"]
+    for sp in p["slot_pairs"]:
+        if sp["slots"][0] != sp["slots"][1]:
+            L.append(f"| {sp['slots'][0]} | {sp['slots'][1]} | **{sp['row_bucket']}** | {sp['rows']:,} |")
     matched = sum(p["totals"].get(b, 0) for b in BUCKET_ORDER)
     L += ["", f"Matched {matched:,} / unmatched {p['totals'].get('unmatched', 0):,} / "
           f"ambiguous {p['totals'].get('ambiguous', 0):,} / unrecovered "
@@ -322,7 +357,7 @@ def _report_md(p: dict, applied: dict | None = None) -> str:
     for t in p["transitions"][:60]:
         L.append(f"| {t['format']} | {t['bucket']} | {t['old']} | {t['new']} | {t['slots']:,} |")
     L += ["", f"## Samples ({SAMPLES_PER_BUCKET} per bucket; row id, event, published names, old -> new)"]
-    for b in APPLYABLE:
+    for b in (*APPLYABLE, "other"):
         recs = [c for c in p["changes"] if c["bucket"] == b]
         if recs:
             L += ["", f"### {b} ({len(recs):,} rows)", "", "| id | event | published | old | new |",
@@ -330,6 +365,16 @@ def _report_md(p: dict, applied: dict | None = None) -> str:
             for c in _samples(recs):
                 L.append(f"| {c['id']} | {c['event_id']} | {c['raw'][0]} / {c['raw'][1]} | "
                          f"{c['old'][0]} / {c['old'][1]} | {c['new'][0]} / {c['new'][1]} |")
+    mixed = [c for c in p["changes"] + p["held"].get("unlabelled", [])
+             if c["slot_buckets"][0] != c["slot_buckets"][1] and c["bucket"] not in APPLYABLE
+             and any(s in APPLYABLE for s in c["slot_buckets"])]
+    if mixed:
+        L += ["", f"### mixed rows held by their other side ({len(mixed):,} rows, left unchanged)", "",
+              "| id | event | published | slot buckets | stored | row bucket |", "|---:|---|---|---|---|---|"]
+        for c in _samples(mixed):
+            L.append(f"| {c['id']} | {c['event_id']} | {c['raw'][0]} / {c['raw'][1]} | "
+                     f"{c['slot_buckets'][0]} / {c['slot_buckets'][1]} | {c['old'][0]} / {c['old'][1]} | "
+                     f"{c['bucket']} |")
     for b, recs in sorted(p["held"].items()):
         L += ["", f"### {b} ({len(recs):,} rows, left unchanged)", "",
               "| id | event | published | stored |", "|---:|---|---|---|"]
@@ -356,6 +401,80 @@ def cmd_plan(a) -> int:
     stem.with_suffix(".md").write_text(_report_md(p), encoding="utf-8")
     print(json.dumps(p["totals"]), f"changes={len(p['changes'])}", f"manifest={p['manifest_sha256'][:16]}")
     print(f"manifest: {stem.with_suffix('.json')}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# aliases: cross-format review of the published names (read-only; input to a human alias decision)
+# ---------------------------------------------------------------------------
+
+def alias_review(con: sqlite3.Connection) -> list[dict]:
+    """One entry per published name (pre-normalized) over every matched in-scope deck slot:
+    slots per format, what the fixed mapper gives it today (exact canonical / alias / itself),
+    whether that result is colour-only, and the labels stored for it per format (the fuzzy
+    history -- evidence of what the name was taken to mean, not ground truth)."""
+    from analysis.archetypes import ALIASES, _CANONICAL_NAMES, pre_normalize
+    from scrapers.mtgmelee_scraper import _map_archetype
+    stats = defaultdict(lambda: {"by_format": Counter(), "stored": defaultdict(Counter)})
+    caches = {}
+    for eid, rnd, p1, p2, a1, a2, fmt in con.execute(
+            f"SELECT event_id, round, player1, player2, player1_arch, player2_arch, format "
+            f"FROM matches WHERE {SCOPE_SQL}", (CUTOFF_ID,)):
+        tid = eid.removeprefix("mtgmelee_")
+        if tid not in caches:
+            d = _load_cache(tid)
+            index = defaultdict(list)
+            if _complete(d):
+                for m in d["pairings"]:
+                    index[(m["round"], m["player1"], m["player2"])].append(m)
+            caches[tid] = index
+        hits = caches[tid].get((rnd, p1, p2), [])
+        if len(hits) != 1:
+            continue
+        for raw, stored in ((hits[0]["player1_deck"], a1), (hits[0]["player2_deck"], a2)):
+            name = pre_normalize((raw or "").strip())
+            s = stats[name]
+            s["by_format"][fmt] += 1
+            s["stored"][fmt][stored] += 1
+    out = []
+    for name, s in stats.items():
+        mapped = _map_archetype(name, "") if name else ""
+        kind = ("junk" if mapped == "" else "canonical" if name in _CANONICAL_NAMES
+                else "alias" if ALIASES.get(name.lower()) else "itself")
+        out.append({"name": name, "slots": sum(s["by_format"].values()),
+                    "formats": dict(sorted(s["by_format"].items())), "maps_to": mapped, "kind": kind,
+                    "colour_only": is_colour_only(mapped or name),
+                    "stored_by_format": {f: dict(c.most_common(3)) for f, c in sorted(s["stored"].items())}})
+    return sorted(out, key=lambda r: (-r["slots"], r["name"]))
+
+
+def cmd_aliases(a) -> int:
+    commit = _code_commit()
+    rows = alias_review(_ro(_db_path(a.db)))
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    stem = OUT_DIR / f"alias-review-{datetime.now():%Y%m%d-%H%M%S}"
+    stem.with_suffix(".json").write_text(json.dumps({"code_commit": commit, "mapping_version":
+                                                     _mapping_version(), "names": rows},
+                                                    ensure_ascii=False, indent=1), encoding="utf-8")
+    L = [f"# Melee published-name review (all formats) -- {_now()}", "",
+         f"Code `{commit[:10]}`, mapping `{_mapping_version()[:12]}`. {len(rows):,} distinct published "
+         f"names over {sum(r['slots'] for r in rows):,} matched deck slots. Names with >= {a.min_slots} "
+         "slots below; everything in the .json.", "",
+         "`kind`: canonical = already a canonical name; alias = an exact alias exists; itself = no alias "
+         "(stored as published); junk = maps to nothing. Stored labels = what the fuzzy bug stored, per "
+         "format (top 3).", "",
+         "| published name | slots | by format | maps to (kind) | colour-only | stored labels by format |",
+         "|---|---:|---|---|---|---|"]
+    for r in rows:
+        if r["slots"] < a.min_slots:
+            break
+        fm = ", ".join(f"{f} {n:,}" for f, n in r["formats"].items())
+        st = "; ".join(f"{f}: " + ", ".join(f"{k} {v}" for k, v in c.items())
+                       for f, c in r["stored_by_format"].items())
+        L.append(f"| {r['name'] or '(blank)'} | {r['slots']:,} | {fm} | {r['maps_to'] or '-'} ({r['kind']}) | "
+                 f"{'yes' if r['colour_only'] else ''} | {st} |")
+    stem.with_suffix(".md").write_text("\n".join(L) + "\n", encoding="utf-8")
+    print(f"{len(rows)} names; review: {stem.with_suffix('.md')}")
     return 0
 
 
@@ -444,18 +563,20 @@ def cmd_apply(a) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("fetch", "plan", "apply"):
+    for name in ("fetch", "plan", "aliases", "apply"):
         s = sub.add_parser(name)
         s.add_argument("--db", type=Path)
-        if name != "apply":
+        if name in ("fetch", "plan"):
             s.add_argument("--format")
         if name == "fetch":
             s.add_argument("--refetch", action="store_true")
+        if name == "aliases":
+            s.add_argument("--min-slots", type=int, default=20)
         if name == "apply":
             s.add_argument("--manifest", required=True)
             s.add_argument("--buckets", required=True)
     a = ap.parse_args(argv)
-    return {"fetch": cmd_fetch, "plan": cmd_plan, "apply": cmd_apply}[a.cmd](a)
+    return {"fetch": cmd_fetch, "plan": cmd_plan, "aliases": cmd_aliases, "apply": cmd_apply}[a.cmd](a)
 
 
 if __name__ == "__main__":

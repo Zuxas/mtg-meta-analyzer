@@ -17,7 +17,15 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   `--buckets`: fuzzy_fix, fuzzy_guess, alias_drift, other.
 - Found: `normalize(fuzzy=True)` breaks score ties in set order (PYTHONHASHSEED) -- 'Mono-Green Broodscale' ->
   'Mono Red Aggro' OR 'Green Post' run to run. Bug reproduction therefore uses the whole tie set.
-- NEXT: full fetch (~7 h, resumable) -> Modern report -> all-format manifest -> user approval per bucket -> apply.
+- Modern dry run (2026-10-02, manifest 1942f24e...): 113,616 rows, 330/330 events re-scraped; fuzzy_fix 15,742,
+  fuzzy_guess 7,369, other 2,855 (almost all 'Boros Aggro'->stored 'Boros Energy' and 'Izzet Aggro'->'Izzet
+  Prowess' -- an older alias, probably right in Modern), unlabelled 779, unmatched 3,761 (205 events, cause unknown).
+- User policy (2026-10-02): no live apply yet; `other` + all held buckets stay held; fuzzy_fix NOT blanket-approved --
+  colour-only results ('Izzet', 'Jeskai', 'Mono Green') are their own `vague` bucket; never add global aliases for
+  ambiguous names (Izzet, Jeskai, Boros Aggro). Alias table is GLOBAL -> decide aliases only from the cross-format
+  review (`aliases` command), after all five formats are fetched; then regenerate the Modern report + the full
+  manifest ONCE. A row takes the first of its slot buckets (held/review side wins); the report tabulates mixed rows.
+- NEXT: finish the fetch (2-h chunks) -> `aliases` review -> user alias decision -> Modern + all-format manifests.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;

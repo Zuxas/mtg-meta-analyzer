@@ -51,6 +51,9 @@ def env(tmp_path, monkeypatch):
     _row(con, 6, "p1", "p2", "Mono Red Aggro", "Boros Energy", "player1", eid="mtgmelee_2")  # no cache
     _row(con, 8, "p1", "p2", "Mono Red Aggro", "Boros Energy", "player1", rnd=3)   # key twice in scrape
     _row(con, 9, "p1", "p2", "Mono Red Aggro", "Boros Energy", "player1", eid="mtgmelee_3")  # failed round
+    _row(con, 10, "q1", "q2", "Mono Red Aggro", "Boros Energy", "player1", rnd=4)  # fuzzy_fix + other
+    _row(con, 11, "q3", "q4", "Mono Red Aggro", "Izzet Prowess", "player2", rnd=4)  # fuzzy_fix + vague
+    _row(con, 12, "q5", "q6", "Mono Red Aggro", "Decklist", "player1", rnd=4)      # fuzzy_fix + junk
     _row(con, 99, "p1", "p2", "Mono Red Aggro", "Boros Energy", "player1", rnd=2)  # above the cutoff
     _row(con, 7, "x", "y", "Mono Red Aggro", "Boros Energy", "player1", src="mtgtop8")  # not melee
     con.commit()
@@ -65,6 +68,9 @@ def env(tmp_path, monkeypatch):
         _pairing(2, "p1", "p2", "Boros Energy", "Boros Energy"),
         _pairing(3, "p1", "p2", BROOD, "Boros Energy"),
         _pairing(3, "p1", "p2", "Boros Energy", "Boros Energy"),
+        _pairing(4, "q1", "q2", BROOD, "Boros Aggro"),
+        _pairing(4, "q3", "q4", BROOD, "Izzet"),
+        _pairing(4, "q5", "q6", BROOD, "Decklist"),
     ]
     _cache(cache, "1", pairings)
     _cache(cache, "3", [_pairing(1, "p1", "p2", BROOD, "Boros Energy")],
@@ -94,17 +100,46 @@ def test_preconditions_of_the_fixture():
 
 def test_plan_buckets_and_scope(env):
     p = _plan(env)
-    assert p["rows_in_scope"] == 8                          # id 99 (after cutoff) and mtgtop8 excluded
-    assert p["totals"] == {"fuzzy_guess": 1, "fuzzy_fix": 1, "unchanged": 1, "unlabelled": 1,
-                           "unmatched": 1, "ambiguous": 1, "unrecovered": 2}
+    assert p["rows_in_scope"] == 11                         # id 99 (after cutoff) and mtgtop8 excluded
+    assert p["totals"] == {"fuzzy_guess": 1, "fuzzy_fix": 1, "unchanged": 1, "unlabelled": 2,
+                           "other": 1, "vague": 1, "unmatched": 1, "ambiguous": 1, "unrecovered": 2}
     assert p["coverage"]["events_unrecovered"] == ["mtgmelee_2", "mtgmelee_3"]   # no cache / failed round
     assert {b: [h["id"] for h in v] for b, v in p["held"].items()} == {
-        "unlabelled": [4], "unmatched": [5], "ambiguous": [8], "unrecovered": [6, 9]}
+        "unlabelled": [4, 12], "unmatched": [5], "ambiguous": [8], "unrecovered": [6, 9]}
     by_id = {c["id"]: c for c in p["changes"]}
-    assert set(by_id) == {1, 2}
+    assert set(by_id) == {1, 2, 10, 11}
     assert by_id[1]["new"] == [_map_archetype(BROOD, ""), "Boros Energy", _map_archetype(BROOD, "")]
     assert by_id[2]["new"][2] is None                       # draw keeps winner_arch NULL
     assert len(p["manifest_sha256"]) == 64
+
+
+def test_mixed_rows_take_the_held_or_review_side(env):
+    """A row is applied or held as a whole: one approved-class side never carries the other."""
+    p = _plan(env)
+    by_id = {c["id"]: c for c in p["changes"] + p["held"]["unlabelled"]}
+    assert (by_id[10]["slot_buckets"], by_id[10]["bucket"]) == (["fuzzy_fix", "other"], "other")
+    assert (by_id[11]["slot_buckets"], by_id[11]["bucket"]) == (["fuzzy_fix", "vague"], "vague")
+    assert (by_id[12]["slot_buckets"], by_id[12]["bucket"]) == (["fuzzy_fix", "unlabelled"], "unlabelled")
+    pairs = {tuple(sp["slots"]): sp["row_bucket"] for sp in p["slot_pairs"]}
+    assert pairs[("other", "fuzzy_fix")] == "other"
+    assert pairs[("vague", "fuzzy_fix")] == "vague"
+    assert pairs[("unlabelled", "fuzzy_fix")] == "unlabelled"
+
+
+def test_colour_only_names_are_vague():
+    for label in ("Izzet", "Jeskai", "Mono Green", "W-U-R-G", "4C", "Domain"):
+        assert r.is_colour_only(label), label
+    for label in ("Izzet Prowess", "Domain Zoo", "W-U-R-G Domain Zoo", "Boros Aggro", "Amulet Titan"):
+        assert not r.is_colour_only(label), label
+
+
+def test_alias_review_lists_each_published_name_by_format(env):
+    rows = {x["name"]: x for x in r.alias_review(sqlite3.connect(env))}
+    izzet = rows["Izzet"]
+    assert izzet["formats"] == {"modern": 1} and izzet["colour_only"] and izzet["kind"] in ("itself", "canonical")
+    assert izzet["stored_by_format"] == {"modern": {"Izzet Prowess": 1}}
+    assert rows["Decklist"]["kind"] == "junk"
+    assert rows[pre_normalize(BROOD)]["slots"] == 4          # rows 1, 10, 11, 12 (ambiguous 8 skipped)
 
 
 def test_plan_is_deterministic(env):
@@ -139,13 +174,13 @@ def test_apply_updates_only_reviewed_rows_then_reruns_clean(env, tmp_path):
     assert rc == 0
     after = {row[0]: row for row in sqlite3.connect(env).execute("SELECT * FROM matches")}
     assert set(before) == set(after)                         # nothing inserted or deleted
-    assert {i for i in before if before[i] != after[i]} == {1, 2}   # held rows untouched
+    assert {i for i in before if before[i] != after[i]} == {1, 2}   # mixed/held rows 10-12 untouched
     assert after[1][5:8] == (_map_archetype(BROOD, ""), "Boros Energy", _map_archetype(BROOD, ""))
     assert after[1][8] == before[1][8]                       # result untouched
     backup = next(tmp_path.glob("mtg_meta.backup-*-pre-melee-relabel.db"))
     assert {row[0]: row for row in sqlite3.connect(backup).execute("SELECT * FROM matches")} == before
     again = _plan(env)
-    assert not again["changes"]                              # second run: nothing left to change
+    assert {c["id"] for c in again["changes"]} == {10, 11}   # second run: only the unapproved rows remain
     assert list((tmp_path / "out").glob("applied-*.md"))
 
 
@@ -169,7 +204,7 @@ def test_apply_refuses_a_manifest_from_other_code(env, tmp_path, monkeypatch):
 
 def test_apply_never_takes_held_buckets(env, tmp_path):
     manifest = _manifest(env, tmp_path)
-    for b in ("unlabelled", "unmatched", "ambiguous", "unrecovered"):
+    for b in ("other", "unlabelled", "unmatched", "ambiguous", "unrecovered"):
         with pytest.raises(SystemExit):
             r.cmd_apply(Namespace(db=env, manifest=manifest, buckets=b))
 
