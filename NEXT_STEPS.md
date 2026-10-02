@@ -46,7 +46,13 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   so aliases added between a row's scrape and 2026-10-02 (e.g. the 09-28 batch: 'Mono Green Landfall', 3,700 Standard
   slots) also land rows in `other`. Safe direction (held, never applied); refine later with per-date alias tables
   from git history if those rows matter.
-- NEXT: user reviews both manifests and picks buckets; still NO live apply.
+- User approved 2026-10-02: push branch; fix the two format tags; alias Mono Green Amulet Titan -> Amulet Titan
+  (DONE, in ALIASES_ADDED_IN_CLEANUP); regenerate manifests; apply ONLY fuzzy_fix + alias_drift.
+- STOPPED at the format fix -- event pages (saved `E:\mtg-data\raw\melee_relabel\event_meta\`) conflict:
+  437430 = "NRG Series: Magic $10k Team Trios Showdown" (Modern + Standard + Pauper seats; rows are TEAM results
+  labelled with Decklists[0] = the Modern captain's deck); 391510 = rounds 1-3 Standard, 4-6 Pauper, top 8 Draft
+  (deck names per round confirm) -> correct fix is by round (47 rows standard->pauper, 3 pauper->standard).
+  Awaiting user decision; branch not yet pushed (hook blocks `git push` for Claude).
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;

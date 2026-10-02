@@ -242,6 +242,8 @@ ALIASES = {
     "temur living end":          "Living End",
     "w-u-r-g domain zoo":        "Domain Zoo",
     "w-u-b-r-g domain zoo":      "Domain Zoo",
+    "mono green amulet titan":   "Amulet Titan",   # Modern-only in the data (the 21 'Standard'
+                                                   # slots were a mis-tagged Modern event)
 
     # --- Modern: Amulet Titan (splash variants → canonical) ---
     "simic amulet titan":      "Amulet Titan",

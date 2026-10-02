@@ -228,3 +228,12 @@ def test_cleanup_aliases_do_not_reclassify_how_a_label_was_stored():
     assert r._slot("Merfolks", "Merfolks") == ("Merfolk", "alias_drift")           # stored as published
     assert r.ALIASES_ADDED_IN_CLEANUP <= {k for k in __import__("analysis.archetypes",
                                                                fromlist=["ALIASES"]).ALIASES}
+
+
+def test_amulet_titan_alias_is_a_cleanup_alias():
+    """Mono Green Amulet Titan -> Amulet Titan (approved 2026-10-02) is judged as NEW for provenance:
+    a fuzzy-stored 'Mono Red Aggro' stays a fuzzy class, an already-'Amulet Titan' row is unchanged."""
+    assert "mono green amulet titan" in r.ALIASES_ADDED_IN_CLEANUP
+    assert _map_archetype("Mono-Green Amulet Titan", "") == "Amulet Titan"
+    assert r._slot("Mono Red Aggro", "Mono-Green Amulet Titan")[1] in ("fuzzy_fix", "fuzzy_guess")
+    assert r._slot("Amulet Titan", "Mono-Green Amulet Titan") == ("Amulet Titan", "unchanged")

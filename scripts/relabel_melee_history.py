@@ -207,7 +207,7 @@ def cmd_fetch(a) -> int:
 # changes the fuzzy tie sets.
 ALIASES_ADDED_IN_CLEANUP = frozenset({
     "azorius control (kaheera)", "jeskai control (kaheera)", "temur living end",
-    "w-u-r-g domain zoo", "w-u-b-r-g domain zoo",
+    "w-u-r-g domain zoo", "w-u-b-r-g domain zoo", "mono green amulet titan",
 })
 
 
