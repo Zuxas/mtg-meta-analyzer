@@ -7,8 +7,8 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
 ## 10/2 — Historical Melee relabel (branch `fix/melee-relabel-2026-10-02`) -- IN PROGRESS, NO LIVE WRITE YET
 - `scripts/relabel_melee_history.py` fetch -> plan -> apply. Scope `source='mtgmelee' AND id <= 7812278`
   (max id in the pre-backfill backup): 320,291 rows / 912 events, all 5 formats (fuzzy bug since 98dd83c, 2026-03-21).
-- Cache of re-scraped pairings: `E:\mtg-dataaw\melee_relabel\<tid>.json` (player names -> never in git), each
-  stamped with the code commit. Manifests/reports: `E:\mtg-dataeports\melee_relabel\`.
+- Cache of re-scraped pairings: `E:\mtg-data\raw\melee_relabel\<tid>.json` (player names -> never in git), each
+  stamped with the code commit. Manifests/reports: `E:\mtg-data\reports\melee_relabel\`.
 - Manifest sha256 covers cutoff, code commit, alias-table hash, every in-scope DB row, every cache file, every
   old/new value and the held row ids. Apply: integrity_check -> BEGIN IMMEDIATE -> backup via a 2nd read connection
   (exact pre-image) -> re-plan + hash compare -> guarded UPDATEs -> counts / winner-result checks -> COMMIT ->
