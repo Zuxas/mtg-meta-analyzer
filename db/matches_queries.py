@@ -119,6 +119,13 @@ def get_stored_event_ids(format_name: str, source: str = "mtgmelee") -> set:
     return {r["event_id"] for r in rows}
 
 
+def count_event_matches(event_id: str) -> int:
+    """Stored match rows of one event (exact insert accounting for backfills)."""
+    _ensure_table()
+    with get_connection() as conn:
+        return conn.execute("SELECT COUNT(*) FROM matches WHERE event_id = ?", (event_id,)).fetchone()[0]
+
+
 def get_match_counts(format_name: str) -> dict:
     """Return {source: count} for a format."""
     _ensure_table()

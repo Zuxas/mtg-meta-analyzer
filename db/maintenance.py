@@ -129,33 +129,59 @@ def _copy_events_to_archive(active_conn, archive_conn, event_ids):
             f"SELECT * FROM cards WHERE id IN ({cp})", list(card_ids)
         ).fetchall()
 
-    # Insert into archive (ignore conflicts — already archived)
+    # Insert into archive.  Ids are allocated independently in each DB, so an
+    # active id is NOT an archive id: every row is resolved by its natural key
+    # (cards: name; events: (source, source_id); decks: (event_id, source_id)).
+    # Until 2026-10-01 the copy reused active ids under INSERT OR IGNORE: a card
+    # whose name was already archived under another id was silently ignored and
+    # its deck_cards row then referenced a missing card -> FOREIGN KEY constraint
+    # failed (Pioneer archiving aborted every run); an active id taken in the
+    # archive by a different card would have re-pointed decks to the wrong card.
+    card_map = {}
     for row in card_rows:
-        archive_conn.execute(
-            "INSERT OR IGNORE INTO cards (id, name) VALUES (?, ?)",
-            (row['id'], row['name'])
-        )
+        card_map[row['id']] = _archive_id(
+            archive_conn, "cards", "name = ?", (row['name'],),
+            ("name",), (row['name'],), row['id'])
+    event_map = {}
     for row in events:
-        archive_conn.execute("""
-            INSERT OR IGNORE INTO events
-                (id, source_id, source, name, date, format, event_type, url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (row['id'], row['source_id'], row['source'], row['name'],
-              row['date'], row['format'], row['event_type'], row['url']))
+        event_map[row['id']] = _archive_id(
+            archive_conn, "events", "source = ? AND source_id = ?", (row['source'], row['source_id']),
+            ("source_id", "source", "name", "date", "format", "event_type", "url"),
+            (row['source_id'], row['source'], row['name'], row['date'], row['format'],
+             row['event_type'], row['url']), row['id'])
+    deck_map = {}
     for row in deck_rows:
-        archive_conn.execute("""
-            INSERT OR IGNORE INTO decks
-                (id, event_id, source_id, player, archetype, placement, url)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (row['id'], row['event_id'], row['source_id'], row['player'],
-              row['archetype'], row['placement'], row['url']))
+        ev_id = event_map[row['event_id']]
+        deck_map[row['id']] = _archive_id(
+            archive_conn, "decks", "event_id = ? AND source_id = ?", (ev_id, row['source_id']),
+            ("event_id", "source_id", "player", "archetype", "placement", "url"),
+            (ev_id, row['source_id'], row['player'], row['archetype'], row['placement'], row['url']),
+            row['id'])
     for row in deck_card_rows:
         archive_conn.execute("""
             INSERT OR IGNORE INTO deck_cards (deck_id, card_id, quantity, is_sideboard)
             VALUES (?, ?, ?, ?)
-        """, (row['deck_id'], row['card_id'], row['quantity'], row['is_sideboard']))
+        """, (deck_map[row['deck_id']], card_map[row['card_id']], row['quantity'], row['is_sideboard']))
 
     return len(events), len(deck_rows), len(deck_card_rows)
+
+
+def _archive_id(archive_conn, table, key_sql, key_params, cols, values, preferred_id):
+    """The archive id of the row with this natural key, inserting it when absent.
+    The active id is kept when it is free in the archive (as before), otherwise
+    the archive allocates one."""
+    got = archive_conn.execute(f"SELECT id FROM {table} WHERE {key_sql}", key_params).fetchone()
+    if got is not None:
+        return got[0]
+    taken = archive_conn.execute(f"SELECT 1 FROM {table} WHERE id = ?", (preferred_id,)).fetchone()
+    names = ", ".join(cols)
+    marks = ", ".join("?" * len(cols))
+    if taken is None:
+        cur = archive_conn.execute(f"INSERT INTO {table} (id, {names}) VALUES (?, {marks})",
+                                   (preferred_id, *values))
+    else:
+        cur = archive_conn.execute(f"INSERT INTO {table} ({names}) VALUES ({marks})", values)
+    return cur.lastrowid
 
 
 def _delete_from_active(conn, event_ids, deck_ids):

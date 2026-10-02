@@ -1,8 +1,21 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-09-27 (MTGO local match import SHIPPED on `feat/mtgo-match-import`: 402 rows in the live match_log; branch not pushed)
+Last updated: 2026-10-01 (Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete)
 
 ---
+
+## 10/1 - Melee match gap
+
+- Tournament discovery now uses aligned offsets, so the newest partial page is no longer skipped.
+- SCG 442749 is a registration shell; its actual flights are 462365 and 462366.
+- Background-fill headings flush before child output, and archive maintenance maps IDs by natural key.
+- Melee labels now use exact canonical names and aliases only; otherwise the published label is kept. Junk labels
+  such as `Decklist` are skipped instead of fuzzy-matched.
+- Live backfill completed after verified online backup
+  `E:\mtg-data\mtg_meta.backup-2026-10-01-pre-melee-backfill.db`: 1,468 rows inserted, repeat inserted 0,
+  and database integrity passed. Evidence: `docs/reports/2026-10-01-melee-match-gap.md`.
+- Separate follow-up: historically fuzzy-labelled rows require a backed-up re-scrape because raw labels were not
+  stored. Monitor future `Decklist` counts and suspicious `Mono Red Aggro` mappings after the next scheduled run.
 
 ## 9/29 evening — cleanup applied (user: "ye go")
 

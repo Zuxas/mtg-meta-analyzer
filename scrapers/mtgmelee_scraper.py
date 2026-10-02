@@ -10,7 +10,9 @@ POSTs to a new REST-ish API in late 2024/early 2025.  Current endpoints:
                               startDate, enrolledPlayerCount, gameDescription, ...}]}
 
   Round IDs       : GET https://melee.gg/Tournament/View/{tid}
-                    Parse <button class="round-selector" data-id="{roundId}" ...>
+                    Parse <button class="round-selector" data-id="{roundId}"
+                    data-is-started="True"> inside #pairings-round-selector-container
+                    (the standings container repeats the rounds with data-is-completed only)
 
   Round pairings  : POST https://melee.gg/Match/GetRoundMatches/{roundId}
                     Body: standard DataTables server-side payload with exact column names
@@ -40,7 +42,7 @@ force_utf8_stdio()
 import cloudscraper
 from bs4 import BeautifulSoup
 
-from analysis.archetypes import normalize as normalize_arch
+from analysis.archetypes import ALIASES, pre_normalize, normalize as normalize_arch
 
 log = logging.getLogger(__name__)
 
@@ -99,17 +101,20 @@ def _pairing_dt_payload(start: int = 0, length: int = 500) -> dict:
 # Tournament list
 # ---------------------------------------------------------------------------
 
+_SEARCH_PAGE = 100       # rows per TournamentSearch request (the server caps length at 500)
+
+
 def fetch_tournament_list(format_name: str, min_players: int = 32,
                           pages: int = 5) -> list[dict]:
     """
-    Return a list of completed tournament dicts:
+    Return a list of completed tournament dicts, newest first:
         {id, name, format, date, player_count}
 
-    Uses the TournamentSearch endpoint with filters[] array.
+    Uses the TournamentSearch endpoint with filters[] array.  At most
+    `pages` + 2 requests (a recordsTotal probe, `pages` pages, one re-check).
     """
     fmt_display = _FORMAT_MAP.get(format_name.lower(), format_name.title())
     session = _session()
-    results = []
 
     def _body(start: int, length: int) -> dict:
         return {
@@ -123,54 +128,73 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
             "variables[search][regex]": "false",
         }
 
-    # NOTE (2026-07-02): TournamentSearch ignores the "ordering" field (both
-    # "StartDate" and "-StartDate" return the same order) and always returns
-    # rows ascending by id — i.e. OLDEST tournaments first.  Paging from
-    # start=0 therefore never got past 2023-era events, which is why the
-    # matches table went dry after 2026-03-21.  Fix: probe recordsTotal, then
-    # read the LAST `pages` pages so the newest tournaments are always covered.
-    try:
+    def _total() -> int:
         resp = session.post(_SEARCH_URL, data=_body(0, 1), timeout=30)
         resp.raise_for_status()
-        total = int(resp.json().get("recordsTotal") or 0)
+        return int(resp.json().get("recordsTotal") or 0)
+
+    # NOTE (2026-07-02): TournamentSearch ignores the "ordering" field and
+    # always returns rows ascending by id -- OLDEST first -- so the newest
+    # tournaments are on the LAST pages.
+    # NOTE (2026-10-01): the server also SNAPS the offset to a multiple of the
+    # page length: it serves rows (start // length) * length onwards.  The old
+    # code asked for start = total - 100*(page+1) (e.g. 1051 of 1,151), was
+    # served rows 1000-1099, and never saw the newest `total % 100` rows -- every
+    # Modern event after 2026-09-13 (and the China RC, the Dallas RCQ flights).
+    # Paging itself is deterministic (verified by repeated identical requests).
+    # Fix: request page-ALIGNED offsets, walking back from the last page.
+    try:
+        total = _total()
     except Exception as exc:
         log.error("Tournament search probe failed: %s", exc)
-        return results
+        return []
     if total <= 0:
         log.warning("Tournament search returned recordsTotal=0 (%s)", fmt_display)
-        return results
+        return []
     time.sleep(_SLEEP)
 
-    seen_ids = set()
-    for page in range(pages):
-        start = max(0, total - (page + 1) * 100)
-        try:
-            resp = session.post(_SEARCH_URL, data=_body(start, 100), timeout=30)
-            resp.raise_for_status()
-            payload = resp.json()
-        except Exception as exc:
-            log.error("Tournament search page %d (start=%d) failed: %s",
-                      page, start, exc)
-            break
+    found: dict[str, dict] = {}            # id -> tournament (pages may overlap / repeat rows)
 
-        rows = payload.get("data", [])
-        if not rows:
-            break
-
+    def _read_page(page_no: int) -> int:
+        start = page_no * _SEARCH_PAGE
+        resp = session.post(_SEARCH_URL, data=_body(start, _SEARCH_PAGE), timeout=30)
+        resp.raise_for_status()
+        rows = resp.json().get("data", []) or []
         for row in rows:
             t = _parse_tournament_row(row, fmt_display)
-            if t and t["id"] not in seen_ids and t["player_count"] >= min_players:
-                seen_ids.add(t["id"])
-                results.append(t)
+            if t and t["player_count"] >= min_players:
+                found.setdefault(t["id"], t)
+        log.info("Page start=%d: %d rows, %d cumulative qualifying tournaments (%s)",
+                 start, len(rows), len(found), fmt_display)
+        return len(rows)
 
-        log.info("Page %d (start=%d): %d cumulative qualifying tournaments (%s)",
-                 page + 1, start, len(results), fmt_display)
-        if start == 0:
-            break   # reached the front of the result set
+    last_page = (total - 1) // _SEARCH_PAGE
+    for i in range(max(0, pages)):
+        page_no = last_page - i
+        if page_no < 0:
+            break                          # reached the front of the result set
+        try:
+            n = _read_page(page_no)
+        except Exception as exc:
+            log.error("Tournament search page start=%d failed: %s",
+                      page_no * _SEARCH_PAGE, exc)
+            break
+        if n == 0 and i > 0:
+            break
         time.sleep(_SLEEP)
 
-    # API returns newest last — hand the caller newest first.
-    results.sort(key=lambda t: t.get("date") or "", reverse=True)
+    # A tournament that ended during the walk shifts every row by one; re-read
+    # the newest page once if the total moved, so the newest rows are not lost.
+    try:
+        new_total = _total()
+        if new_total != total and new_total > 0:
+            _read_page((new_total - 1) // _SEARCH_PAGE)
+    except Exception as exc:
+        log.warning("Tournament search re-check failed: %s", exc)
+
+    # Newest first (date, then id -- ids grow with creation time).
+    results = sorted(found.values(),
+                     key=lambda t: (t.get("date") or "", _parse_int(t["id"])), reverse=True)
     log.info("Total: %d %s tournaments found", len(results), format_name)
     return results
 
@@ -209,11 +233,43 @@ def _parse_tournament_row(row, expected_format: str) -> dict | None:
 # Round pairings
 # ---------------------------------------------------------------------------
 
+def _parse_round_ids(html: str) -> tuple[list[tuple[int, str]], str]:
+    """
+    Parse a Tournament/View page into ([(round_id, round_name), ...], reason).
+
+    Rounds are the <button class="round-selector" data-id=... data-is-started="True">
+    buttons of the PAIRINGS selector (#pairings-round-selector-container); the
+    standings selector repeats every round with data-is-completed only.  Pages
+    without that container (older markup) fall back to every round-selector
+    button.  Unstarted rounds (data-is-started="False") are never admitted.
+
+    reason: "ok" | "no-started-rounds" | "no-round-selectors" |
+            "no-pairings-section" -- the public page shows no pairings at all
+            (seen 2026-10-01 on SCG's "$1K Modern RCQ - SCG CON Dallas" (442749),
+            a registration shell whose play happened in separate
+            "FLIGHT A/B" tournaments that discovery finds on their own).
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    scope = soup.find(id="pairings-round-selector-container") or soup
+    buttons = scope.find_all("button", class_="round-selector")
+    if not buttons:
+        has_section = soup.find(id="pairings") is not None
+        return [], ("no-round-selectors" if has_section else "no-pairings-section")
+    rounds, seen = [], set()
+    for btn in buttons:
+        rid = btn.get("data-id")
+        started = (btn.get("data-is-started") or "").strip().lower()
+        if not rid or started != "true" or not rid.isdigit() or int(rid) in seen:
+            continue
+        seen.add(int(rid))
+        rounds.append((int(rid), btn.get("data-name", "")))
+    return rounds, ("ok" if rounds else "no-started-rounds")
+
+
 def _get_round_ids(session, tournament_id: str) -> list[tuple[int, str]]:
     """
-    GET the tournament view page and parse round selector buttons.
+    GET the tournament view page and parse its started pairing rounds.
     Returns [(round_id, round_name), ...] ordered as they appear on the page.
-    Only includes rounds where data-is-started="True".
     """
     url = _VIEW_URL.format(tid=tournament_id)
     try:
@@ -223,15 +279,12 @@ def _get_round_ids(session, tournament_id: str) -> list[tuple[int, str]]:
         log.warning("GET %s failed: %s", url, exc)
         return []
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    rounds = []
-    for btn in soup.find_all("button", class_="round-selector"):
-        rid  = btn.get("data-id")
-        name = btn.get("data-name", "")
-        # Only scrape started rounds (in-progress or finished)
-        started = btn.get("data-is-started", "").lower()
-        if rid and started == "true":
-            rounds.append((int(rid), name))
+    rounds, reason = _parse_round_ids(resp.text)
+    if reason == "no-pairings-section":
+        log.warning("Tournament %s: the public page has no pairings section (pairings hidden, "
+                    "or the event was split into separate flight tournaments)", tournament_id)
+    elif reason != "ok":
+        log.warning("Tournament %s: %s", tournament_id, reason)
     return rounds
 
 
@@ -395,14 +448,23 @@ def _parse_result(s: str) -> tuple[int, int, int]:
 
 def _map_archetype(deck_name: str, fmt: str) -> str:
     """
-    Map a registered deck name to a normalised archetype name.
-    Uses analysis.archetypes.normalize() which applies pre-normalisation,
-    alias lookup, and fuzzy matching.
+    Map a registered deck name to a normalised archetype name: exact canonical
+    name or alias (analysis.archetypes.normalize, fuzzy OFF), otherwise the
+    published name, pre-normalised.  Never invents a label:
+      * blank names, and names the alias table flags as junk ('' alias, e.g.
+        "Decklist"), are unlabelled ("") -- the caller skips those matches;
+      * no fuzzy matching.  Until 2026-10-01 this called normalize(deck_name, fmt),
+        so the format string landed in normalize's positional `fuzzy` parameter
+        and labels were fuzzy-guessed -- wrongly and unstably ('Mono-Green
+        Broodscale' -> 'Mono Red Aggro'; 'Mono-Red Ruby Storm' -> 'Cycle Storm'
+        or 'Poison Storm').  Rows stored before that date may carry such labels.
     """
-    if not deck_name:
+    if not deck_name or not deck_name.strip():
         return ""
+    if ALIASES.get(pre_normalize(deck_name.strip()).lower()) == "":
+        return ""                                       # explicitly junk, not an archetype
     try:
-        result = normalize_arch(deck_name, fmt)
+        result = normalize_arch(deck_name)               # exact canonical / alias only
         return result or deck_name
     except Exception:
         return deck_name
@@ -411,6 +473,72 @@ def _map_archetype(deck_name: str, fmt: str) -> str:
 # ---------------------------------------------------------------------------
 # Main scrape-and-store pipeline
 # ---------------------------------------------------------------------------
+
+def _match_rows(t: dict, pairings: list[dict], format_name: str) -> list[dict]:
+    """Storable match rows of one tournament: decided matches whose BOTH deck
+    names map to an archetype (unlabelled decks are skipped, never guessed)."""
+    rows = []
+    for p in pairings:
+        if not p["result"]:
+            continue  # skip byes / incomplete
+        arch1 = _map_archetype(p["player1_deck"], format_name)
+        arch2 = _map_archetype(p["player2_deck"], format_name)
+        if not arch1 or not arch2:
+            continue  # skip if we can't determine archetypes
+
+        winner = (arch1 if p["result"] == "player1" else
+                  arch2 if p["result"] == "player2" else None)
+        rows.append({
+            "event_id":    f"mtgmelee_{t['id']}",
+            "round":       p["round"],
+            "player1":     p["player1"],
+            "player2":     p["player2"],
+            "player1_arch": arch1,
+            "player2_arch": arch2,
+            "winner_arch": winner,
+            "result":      p["result"],
+            "format":      format_name,
+            "event_date":  t["date"],
+            "source":      "mtgmelee",
+        })
+    return rows
+
+
+def scrape_tournaments(tournament_ids: list[str], format_name: str, pages: int = 5,
+                       dry_run: bool = False) -> dict:
+    """
+    Targeted, idempotent (re)scrape of specific tournaments -- the backfill path.
+
+    Metadata (date, name) comes from TournamentSearch (never guessed); an id the
+    search does not list is reported, not scraped.  Rows go through the same
+    `save_matches` (INSERT OR IGNORE on UNIQUE(event_id, round, player1, player2)),
+    so re-running inserts nothing new.  Returns {tid: stats}; `inserted` is the
+    exact change in stored rows for that event.
+    """
+    from db.matches_queries import save_matches, count_event_matches
+
+    listed = {t["id"]: t for t in fetch_tournament_list(format_name, 0, pages)}
+    out = {}
+    for tid in [str(x) for x in tournament_ids]:
+        t = listed.get(tid)
+        if t is None:
+            log.error("Tournament %s is not in the %s TournamentSearch window (pages=%d)",
+                      tid, format_name, pages)
+            out[tid] = {"error": "not-listed"}
+            continue
+        pairings = fetch_tournament_pairings(tid)
+        rows = _match_rows(t, pairings, format_name)
+        stats = {"name": t["name"], "date": t["date"], "players": t["player_count"],
+                 "pairings": len(pairings), "decided": sum(1 for p in pairings if p["result"]),
+                 "storable": len(rows)}
+        if not dry_run and rows:
+            before = count_event_matches(f"mtgmelee_{tid}")
+            save_matches(rows)
+            stats["inserted"] = count_event_matches(f"mtgmelee_{tid}") - before
+        out[tid] = stats
+        print(f"  {tid} {t['name']} ({t['date']}): {stats}")
+    return out
+
 
 def scrape_and_store(format_name: str, pages: int = 5,
                      min_players: int = 32, dry_run: bool = False) -> int:
@@ -440,30 +568,7 @@ def scrape_and_store(format_name: str, pages: int = 5,
             log.warning("  No pairings found for tournament %s", tid)
             continue
 
-        match_rows = []
-        for p in pairings:
-            if not p["result"]:
-                continue  # skip byes / incomplete
-            arch1 = _map_archetype(p["player1_deck"], format_name)
-            arch2 = _map_archetype(p["player2_deck"], format_name)
-            if not arch1 or not arch2:
-                continue  # skip if we can't determine archetypes
-
-            winner = (arch1 if p["result"] == "player1" else
-                      arch2 if p["result"] == "player2" else None)
-            match_rows.append({
-                "event_id":    f"mtgmelee_{tid}",
-                "round":       p["round"],
-                "player1":     p["player1"],
-                "player2":     p["player2"],
-                "player1_arch": arch1,
-                "player2_arch": arch2,
-                "winner_arch": winner,
-                "result":      p["result"],
-                "format":      format_name,
-                "event_date":  t["date"],
-                "source":      "mtgmelee",
-            })
+        match_rows = _match_rows(t, pairings, format_name)
 
         if dry_run:
             print(f"  {t['name']}: {len(match_rows)} matches (dry run — not saved)")
@@ -699,6 +804,9 @@ def main(argv=None):
                         help="Infer finals/SF matches from existing top-8 DB placements")
     parser.add_argument("--counts",  action="store_true",
                         help="Show stored match counts per format and exit")
+    parser.add_argument("--tournament-id", action="append", default=[],
+                        help="Scrape only this tournament id (repeatable; targeted backfill, "
+                             "idempotent); must appear in the --pages search window")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args(argv)
 
@@ -723,6 +831,10 @@ def main(argv=None):
 
     if args.infer_brackets:
         infer_bracket_matches(args.format, dry_run=args.dry_run)
+        return
+
+    if args.tournament_id:
+        scrape_tournaments(args.tournament_id, args.format, pages=args.pages, dry_run=args.dry_run)
         return
 
     scrape_and_store(
