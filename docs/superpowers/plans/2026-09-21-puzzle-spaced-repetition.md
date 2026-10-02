@@ -114,7 +114,7 @@ def test_attempts_are_sorted_by_date_before_scoring():
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: FAIL / ERROR with `ModuleNotFoundError: No module named 'analysis.puzzles.spaced_repetition'`
 
 - [ ] **Step 3: Write the minimal implementation**
@@ -166,13 +166,13 @@ def schedule_for(attempts: Sequence[tuple[date, str]], today: date) -> Schedule:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: `6 passed`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add analysis/puzzles/spaced_repetition.py tests/test_spaced_repetition.py && rtk git commit -q -m "feat(puzzles): spaced-repetition ladder derived from the attempt log
+rtk git add analysis/puzzles/spaced_repetition.py tests/test_spaced_repetition.py && rtk git commit -q -m "feat(puzzles): spaced-repetition ladder derived from the attempt log
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -228,7 +228,7 @@ def test_streak_zero_when_neither_today_nor_yesterday_met_target():
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: 5 new tests FAIL with `ImportError: cannot import name 'build_session'` / `'streak'`
 
 - [ ] **Step 3: Write the minimal implementation** (append to `analysis/puzzles/spaced_repetition.py`)
@@ -260,13 +260,13 @@ def streak(counts_by_day: Mapping[date, int], target: int, today: date) -> int:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: `11 passed`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add analysis/puzzles/spaced_repetition.py tests/test_spaced_repetition.py && rtk git commit -q -m "feat(puzzles): session composition (due first) and daily streak
+rtk git add analysis/puzzles/spaced_repetition.py tests/test_spaced_repetition.py && rtk git commit -q -m "feat(puzzles): session composition (due first) and daily streak
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -359,7 +359,7 @@ def test_count_puzzles_created_since(puzzle_db):
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider`
 Expected: 2 FAIL with `AttributeError: module 'db.puzzles' has no attribute 'get_attempt_log'` / `'count_puzzles_created_since'`
 
 - [ ] **Step 3: Write the minimal implementation** (insert in `db/puzzles.py` right after `get_attempts`)
@@ -392,13 +392,13 @@ def count_puzzles_created_since(*, author: str, category: str, since_iso: str) -
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider`
 Expected: `2 passed`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add db/puzzles.py tests/test_puzzle_feed.py && rtk git commit -q -m "feat(puzzles): attempt-log and created-since query helpers for the daily feed
+rtk git add db/puzzles.py tests/test_puzzle_feed.py && rtk git commit -q -m "feat(puzzles): attempt-log and created-since query helpers for the daily feed
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -492,7 +492,7 @@ def test_daily_stats_streak_uses_attempt_counts_per_local_day(puzzle_db):
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider`
 Expected: 5 new tests FAIL with `ModuleNotFoundError: No module named 'analysis.puzzles.feed'`
 
 - [ ] **Step 3: Write the minimal implementation**
@@ -611,13 +611,13 @@ def _top_up(shortfall: int, today: date) -> int:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: `18 passed`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add analysis/puzzles/feed.py tests/test_puzzle_feed.py && rtk git commit -q -m "feat(puzzles): daily feed -- due reviews first, never twice a day, daily stats + streak
+rtk git add analysis/puzzles/feed.py tests/test_puzzle_feed.py && rtk git commit -q -m "feat(puzzles): daily feed -- due reviews first, never twice a day, daily stats + streak
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -700,7 +700,7 @@ def test_top_up_is_silent_when_no_decklists_are_sampleable(puzzle_db):
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider -k top_up`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py -q -p no:cacheprovider -k top_up`
 Expected: `test_top_up_generates_exactly_the_shortfall_for_drills` and `..._idempotent...` FAIL (`generated == 0`); the two "never fires"/"silent" tests PASS already (that is expected — they pin the guard rails).
 
 - [ ] **Step 3: Write the implementation** (replace the `_top_up` stub in `analysis/puzzles/feed.py`)
@@ -743,13 +743,13 @@ def _top_up(shortfall: int, today: date) -> int:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzle_feed.py tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: `22 passed`. If the idempotency test fails on `len(set(questions)) == 5`, the seeds collided: confirm `count_puzzles_created_since` sees the first batch (created_at is UTC `Z`, `since_iso` is local midnight in UTC) — that is the only moving part.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add analysis/puzzles/feed.py tests/test_puzzle_feed.py && rtk git commit -q -m "feat(puzzles): auto top-up outs drills when the daily feed runs short (deterministic per day)
+rtk git add analysis/puzzles/feed.py tests/test_puzzle_feed.py && rtk git commit -q -m "feat(puzzles): auto top-up outs drills when the daily feed runs short (deterministic per day)
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -827,7 +827,7 @@ def test_solve_reaches_done_state_and_keep_going_serves_more(tmp_path, monkeypat
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzles_tab.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzles_tab.py -q -p no:cacheprovider`
 Expected: the 2 new tests FAIL with `AttributeError: 'PuzzlesTab' object has no attribute '_target_spin'`; the 3 existing tests still PASS.
 
 - [ ] **Step 3: Add the state key** (`gui/state_keys.py`, after the Scout block)
@@ -985,13 +985,13 @@ Replace `_refresh_stats`:
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzles_tab.py tests/test_puzzle_feed.py tests/test_spaced_repetition.py -q -p no:cacheprovider`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests/test_puzzles_tab.py tests/test_puzzle_feed.py tests/test_spaced_repetition.py -q -p no:cacheprovider`
 Expected: all pass (5 tab tests + 22). `test_puzzles_tab_constructs_with_empty_db` (existing) constructs the tab on a DB that has ONLY the puzzle tables — the feed's top-up hits `no such table: decks`, which `_top_up` swallows (Task 5); if it does not, that catch is what broke. `test_puzzles_tab_renders_first_puzzle` seeds one never-attempted `stabilize` puzzle — `new`, so the feed serves it and the test must still pass; investigate before touching it.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add gui/state_keys.py gui/tabs/puzzles.py tests/test_puzzles_tab.py && rtk git commit -q -m "feat(puzzles): Solve tab runs on the daily feed -- target, Today n/N header, streak, done state + Keep going
+rtk git add gui/state_keys.py gui/tabs/puzzles.py tests/test_puzzles_tab.py && rtk git commit -q -m "feat(puzzles): Solve tab runs on the daily feed -- target, Today n/N header, streak, done state + Keep going
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
@@ -1006,7 +1006,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - [ ] **Step 1: Live check (read-only)** — the real DB has 49 puzzles and 6 attempts on 4 puzzles (all `correct`, 3+ days old), so the spec predicts 4 due + 6 new, 0 generated for target 10:
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -c "
+PYTHONIOENCODING=utf-8 python -c "
 from datetime import date
 from analysis.puzzles.feed import todays_feed, daily_stats
 f = todays_feed(None, 10, date.today(), top_up=False)
@@ -1019,7 +1019,7 @@ Expected: 10 puzzles listed, the 4 previously-solved ids first, `generated 0`, `
 
 - [ ] **Step 2: Full suite**
 
-Run: `cd "E:/vscode ai project/mtg-meta-analyzer" && PYTHONIOENCODING=utf-8 python -m pytest tests -q -p no:cacheprovider --ignore=tests/test_strategy_search_live.py 2>&1 | tail -2`
+Run: `PYTHONIOENCODING=utf-8 python -m pytest tests -q -p no:cacheprovider --ignore=tests/test_strategy_search_live.py 2>&1 | tail -2`
 Expected: `NNN passed` (790 + 11 + 11 + 2 = 814), 0 failed, 0 skipped.
 
 - [ ] **Step 3: Docs**
@@ -1031,7 +1031,7 @@ ROADMAP.md — `- [x] **T1.1 — spaced repetition + daily feed** (2026-09-21) �
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "E:/vscode ai project/mtg-meta-analyzer" && rtk git add CLAUDE.md NEXT_STEPS.md ROADMAP.md && rtk git commit -q -m "docs: puzzle trainer T1.1 shipped -- spaced repetition + daily feed
+rtk git add CLAUDE.md NEXT_STEPS.md ROADMAP.md && rtk git commit -q -m "docs: puzzle trainer T1.1 shipped -- spaced repetition + daily feed
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```

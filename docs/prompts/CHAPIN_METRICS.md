@@ -8,7 +8,7 @@ Trap / Underplayed / Fringe), `analysis/deck_ev.py` and
 either a refinement to an existing module or a genuinely absent piece.
 
 Source for the strategy claims: Patrick Chapin, *Next Level Magic Forever*
-(2026). Extracted rule set at `E:\vscode ai project\NLMF_Notes\nlmf_heuristics.json`; rule
+(2026). Extracted rule set at `NLMF_Notes/nlmf_heuristics.json` (in the workspace root, outside this repo); rule
 ids are cited inline below.
 
 Work the tasks in order. Task 1 is unrelated to Chapin and is the urgent one.

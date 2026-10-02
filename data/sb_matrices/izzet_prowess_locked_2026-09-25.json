@@ -1,8 +1,8 @@
 {
   "schema": "sb-matrix/1",
-  "source": "Claude+Tom session 2026-09 (Cowork); adapted from the Metafy Izzet Prowess guide to Jermey's locked 75; Scepter Chant and Devoted Druid plans are original (not in the guide). Locked 2026-09-25 for MTGO Modern Challenge 64.",
+  "source": "Claude+Tom session 2026-09 (Cowork); adapted from the Metafy Izzet Prowess guide to the owner's locked 75; Scepter Chant and Devoted Druid plans are original (not in the guide). Locked 2026-09-25 for MTGO Modern Challenge 64.",
   "deck": {
-    "name": "Izzet Prowess (Zuxas, locked 2026-09-25)",
+    "name": "Izzet Prowess (locked 2026-09-25)",
     "format": "modern",
     "archetype": "Izzet Prowess"
   },

@@ -1,5 +1,5 @@
-// Izzet Prowess - Zuxas (locked 2026-09-25, MTGO Modern Challenge 64)
-// Source: Claude+Tom Cowork session 2026-09; pairs with izzet_prowess_zuxas_2026-09-25.json
+// Izzet Prowess (locked 2026-09-25, MTGO Modern Challenge 64)
+// Source: Claude+Tom Cowork session 2026-09; pairs with izzet_prowess_locked_2026-09-25.json
 4 Bloodstained Mire
 3 Steam Vents
 4 Mishra's Bauble

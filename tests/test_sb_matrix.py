@@ -12,8 +12,8 @@ import pytest
 from analysis import sb_matrix as sbm
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIX_JSON = os.path.join(ROOT, "data", "sb_matrices", "izzet_prowess_zuxas_2026-09-25.json")
-FIX_TXT = os.path.join(ROOT, "data", "sb_matrices", "izzet_prowess_zuxas_2026-09-25.txt")
+FIX_JSON = os.path.join(ROOT, "data", "sb_matrices", "izzet_prowess_locked_2026-09-25.json")
+FIX_TXT = os.path.join(ROOT, "data", "sb_matrices", "izzet_prowess_locked_2026-09-25.txt")
 
 MAIN = {"Lightning Bolt": 4, "Expressive Iteration": 3, "Witch Enchanter // Witch-Blessed Meadow": 2,
         "Mutagenic Growth": 4, "Island": 47}

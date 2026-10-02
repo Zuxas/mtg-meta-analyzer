@@ -1,9 +1,9 @@
 # UI kit + sidebar nav: design (2026-09-27)
 
-Branch: `ui/polish-kit`. The worktree is `E:\vscode ai project\_worktrees\analyzer-ui`, cut from `main` @ f4de5ed.
+Branch: `ui/polish-kit`. The worktree is `../_worktrees/analyzer-ui`, cut from `main` @ f4de5ed.
 
 ## Why
-Jermey wants the analyzer to feel as clean and friendly as the MyMTGO desktop app. We studied that app's source; its licence allows reading and studying but not copying code. These are the UI principles we took from it:
+The owner wants the analyzer to feel as clean and friendly as the MyMTGO desktop app. We studied that app's source; its licence allows reading and studying but not copying code. These are the UI principles we took from it:
 
 - **Colour:** neutral surfaces plus one accent. Win and loss green/red are the only other saturated colours.
 - **Consistency:** a small set of size, radius and type tokens, applied everywhere.

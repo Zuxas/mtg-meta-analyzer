@@ -12,7 +12,7 @@ DRY-RUN BY DEFAULT. Nothing is written unless --commit is given.
     python scripts/import_sb_matrix.py --matrix X.json --deck-id 12 --commit
 
   Save the .txt 75 as a new saved deck AND import its plans (needs --commit):
-    python scripts/import_sb_matrix.py --matrix X.json --decklist X.txt --save-deck "Izzet Prowess (Zuxas)" --commit
+    python scripts/import_sb_matrix.py --matrix X.json --decklist X.txt --save-deck "Izzet Prowess (locked)" --commit
 
   Render a saved deck's plans (or the matrix itself) as an HTML matrix:
     python scripts/import_sb_matrix.py --deck-id 12 --html out.html

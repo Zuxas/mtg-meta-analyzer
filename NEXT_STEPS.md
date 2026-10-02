@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-10-01 (Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete)
+Last updated: 2026-10-01 (Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
 
 ---
 
