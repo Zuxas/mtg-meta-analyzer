@@ -25,7 +25,18 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   ambiguous names (Izzet, Jeskai, Boros Aggro). Alias table is GLOBAL -> decide aliases only from the cross-format
   review (`aliases` command), after all five formats are fetched; then regenerate the Modern report + the full
   manifest ONCE. A row takes the first of its slot buckets (held/review side wins); the report tabulates mixed rows.
-- NEXT: finish the fetch (2-h chunks) -> `aliases` review -> user alias decision -> Modern + all-format manifests.
+- Fetch COMPLETE 2026-10-02: 912/912 events, 0 failed rounds. Cross-format review
+  `E:\mtg-data\reports\melee_relabel\alias-review-20261002-144519.md` (2,952 names / 615,894 slots) +
+  `alias-candidates-20261002.md` (111 names).
+- Aliases APPROVED + added 2026-10-02 (explicit keys, no suffix-stripping rule): Azorius Control (Kaheera) ->
+  Azorius Control, Jeskai Control (Kaheera) -> Jeskai Control, Temur Living End -> Living End, W-U-R-G Domain Zoo
+  and W-U-B-R-G Domain Zoo -> Domain Zoo. Kinds 2 (name means different decks per format) + 3 (distinct deck)
+  stay unaliased; colour-only names stay `vague`.
+- HELD: `Mono Green Amulet Titan` -> Amulet Titan. Its 21 "Standard" slots are all in mtgmelee_437430, a Modern
+  event (Goryo's / Devoted Druid / Broodscale / Belcher / Ruby Storm) whose 183 rows were stored `format='standard'`
+  (+6 tagged modern). Reverse case: mtgmelee_391510 = Standard event with 6 rows tagged pauper. Format tags NOT
+  fixed (separate DB write, needs sign-off). No format-scoped alias mechanism exists in `normalize` yet.
+- NEXT: regenerate the Modern report + full manifest once; user review; still NO live apply.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;

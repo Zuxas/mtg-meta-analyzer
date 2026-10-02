@@ -233,6 +233,16 @@ ALIASES = {
     "azorius aggro":           "Azorius Aggro",
     "uw aggro":                "Azorius Aggro",
 
+    # --- Melee published names, approved one by one 2026-10-02 from the cross-format review
+    #     (alias-review-20261002-144519); the same deck in every format where each appears.
+    #     Explicit keys only -- no general companion-suffix rule ('(Kaheera)' stays meaningful
+    #     elsewhere). Colour-only names ('Izzet', 'Jeskai') and 'Boros Aggro' are never aliased. ---
+    "azorius control (kaheera)": "Azorius Control",
+    "jeskai control (kaheera)":  "Jeskai Control",
+    "temur living end":          "Living End",
+    "w-u-r-g domain zoo":        "Domain Zoo",
+    "w-u-b-r-g domain zoo":      "Domain Zoo",
+
     # --- Modern: Amulet Titan (splash variants → canonical) ---
     "simic amulet titan":      "Amulet Titan",
     "selesnya amulet titan":   "Amulet Titan",

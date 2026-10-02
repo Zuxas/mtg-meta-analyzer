@@ -18,7 +18,7 @@ SCHEMA = """CREATE TABLE matches (id INTEGER PRIMARY KEY AUTOINCREMENT, event_id
     source TEXT NOT NULL DEFAULT 'mtgmelee', UNIQUE(event_id, round, player1, player2))"""
 
 BROOD = "Mono-Green Broodscale"          # stored 'Mono Red Aggro' by the fuzzy bug
-KAHEERA = "Azorius Control (Kaheera)"    # fuzzy today folds it into 'Azorius Control'
+KAHEERA = "Rakdos Midrange (Kaheera)"    # no alias; fuzzy today folds it into 'Rakdos Midrange'
 
 
 def _row(con, rid, p1, p2, a1, a2, result, rnd=1, eid="mtgmelee_1", src="mtgmelee"):
