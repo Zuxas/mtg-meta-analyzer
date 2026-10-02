@@ -1250,8 +1250,9 @@ class MainWindow(QMainWindow):
         self._scrape_worker = QuickScrapeWorker("standard")
         self._scrape_worker.status.connect(self._status_lbl.setText)
         self._scrape_worker.finished.connect(self._on_scrape_done)
-        # Clean up the C++ QThread object after the worker finishes
-        self._scrape_worker.finished.connect(lambda _n: self._scrape_worker.deleteLater())
+        # No deleteLater here: `finished` is the worker's OWN signal, emitted from
+        # inside run() before the thread has ended, so deleting on it could destroy
+        # a still-running QThread (fatal in Qt 6.10). The reference is kept instead.
         self._scrape_worker.start()
 
     def _on_scrape_done(self, new_events):
@@ -1390,6 +1391,13 @@ class MainWindow(QMainWindow):
                     tab.cleanup()
                 except Exception:
                     pass
+        # Workers cancelled mid-run are parked until their thread ends
+        # (gui.worker_utils._RETIRED); wait for them before teardown.
+        try:
+            from gui.worker_utils import stop_retired
+            stop_retired()
+        except Exception:
+            pass
         # Everything above (geometry, overlay geometry/lock, and anything
         # else set() during this method) only *scheduled* a 250ms debounced
         # disk save. cleanup() is called from the force-quit path

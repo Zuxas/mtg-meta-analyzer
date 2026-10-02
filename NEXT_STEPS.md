@@ -8,6 +8,7 @@ Last updated: 2026-10-01 (Melee match gap merged into `ui/polish-kit-rebased`; t
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;
   duplicate legend dropped on the Dashboard; hover box / line highlight / selector-row highlight. `tests/test_dashboard_status_and_chart.py` (8).
 - Open: daily granularity still shows real 0%/100% windows at n>=3 -- Weekly is the default and reads cleanly.
+- **Crash fixed:** app aborted 10-30 s after launch (`QThread: Destroyed while thread '' is still running`, logs/qt_msgs_*): `cancel_worker` blocked signals and callers dropped the last reference to a RUNNING worker. Running cancelled workers are now parked in `worker_utils._RETIRED` until their thread ends; app exit calls `stop_retired()`; the startup scrape no longer deleteLater()s on its own in-run `finished` signal. `tests/test_worker_cancel_lifetime.py` (3; the first one aborted pytest with exit 127 before the fix).
 
 ## 10/1 - Melee match gap
 

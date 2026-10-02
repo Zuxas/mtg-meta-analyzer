@@ -16,6 +16,34 @@ stop_worker()    — app-exit teardown: block signals, ask the thread to quit
 """
 
 
+# Cancelled workers whose thread is still running. Callers drop their own
+# reference right after cancel_worker (`self._x_worker = None`); if that was
+# the last one, Python destroyed the QThread mid-run and Qt 6.10 aborts the
+# whole app ("QThread: Destroyed while thread is still running" -- the
+# 2026-10-01 Dashboard crash on cold starts). Holding them here until their
+# thread ends makes dropping the caller's reference safe.
+_RETIRED: list = []
+
+
+def prune_retired():
+    """Release parked workers whose thread has ended (safe to destroy now)."""
+    alive = []
+    for w in _RETIRED:
+        try:
+            if w.isRunning():
+                alive.append(w)
+        except RuntimeError:
+            pass
+    _RETIRED[:] = alive
+
+
+def stop_retired(timeout_ms: int = 2000):
+    """App exit: wait for (or stop) every parked worker before teardown."""
+    for w in list(_RETIRED):
+        stop_worker(w, timeout_ms)
+    prune_retired()
+
+
 def cancel_worker(worker):
     """
     Safely cancel a running QThread worker by blocking its signals.
@@ -26,10 +54,15 @@ def cancel_worker(worker):
 
     Does NOT call wait() — workers with no event loop would block the GUI.
     Signal-blocking + generation counters are sufficient to discard stale results.
+    A still-running worker is parked in _RETIRED until its thread ends, so the
+    caller may drop its own reference immediately.
     """
+    prune_retired()
     if worker is not None:
         try:
             worker.blockSignals(True)
+            if worker.isRunning():
+                _RETIRED.append(worker)
         except RuntimeError:
             pass
 
