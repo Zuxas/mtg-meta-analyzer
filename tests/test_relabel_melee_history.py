@@ -216,3 +216,15 @@ def test_fuzzy_reproduction_is_the_whole_tie_set():
     tie = r._fuzzy_candidates(pre_normalize(BROOD))
     assert {"Mono Red Aggro", "Green Post"} <= tie
     assert r._slot("Mono Red Aggro", BROOD)[1] == r._slot("Green Post", BROOD)[1] == "fuzzy_fix"
+
+
+def test_cleanup_aliases_do_not_reclassify_how_a_label_was_stored():
+    """Aliases added during this cleanup change the NEW label, not the judgement of how the stored
+    label arose: before the fix, the new 'W-U-R-G Domain Zoo' alias made the 1,913 fuzzy-stored
+    'Domain Ramp' slots look like an alias whose target changed (`other`, held)."""
+    assert r._slot("Domain Ramp", "W-U-R-G Domain Zoo") == ("Domain Zoo", "fuzzy_fix")
+    assert r._slot("Four-Color Domain", "Domain Zoo") == ("Domain Zoo", "fuzzy_fix")
+    assert r._slot("Boros Energy", "Boros Aggro") == ("Boros Aggro", "other")      # a real old alias
+    assert r._slot("Merfolks", "Merfolks") == ("Merfolk", "alias_drift")           # stored as published
+    assert r.ALIASES_ADDED_IN_CLEANUP <= {k for k in __import__("analysis.archetypes",
+                                                               fromlist=["ALIASES"]).ALIASES}

@@ -23,14 +23,17 @@ published name, pre-normalized) -- no fuzzy, no inventing.
 Row buckets (a matched row takes its worst slot, in BUCKET_ORDER):
   unlabelled   a recovered deck name maps to "" (blank / junk such as 'Decklist'); the fixed scraper
                would not have stored the row -- left unchanged, reported for a later decision
-  other        any other difference (e.g. an alias target changed) -- held, never applyable
+  other        the raw name had an exact alias/canonical in the BUG-ERA table and the stored label
+               differs (an old alias whose target has since changed) -- held, never applyable.
+               Classes are judged against the bug-era table (current ALIASES minus
+               ALIASES_ADDED_IN_CLEANUP); the NEW label always uses the current table.
   vague        the change would land on a colour-only name ('Izzet', 'Jeskai', 'Mono Green',
                'W-U-R-G') -- reviewed separately, whatever the bug class
   fuzzy_guess  raw name has no exact alias and the stored label differs: a fuzzy guess that today's
                fuzzy normalize does not reproduce
   fuzzy_fix    stored label is one of the best-scoring fuzzy matches for the raw name today (the bug
                reproduced; the whole tie set counts, normalize() picks among ties by hash order)
-  alias_drift  raw name has an exact alias (added later); stored label == the pre-normalized raw name
+  alias_drift  stored label == the pre-normalized published name; an alias added since now applies
   unchanged
 Unresolved (never applied):
   unmatched    no pairing with the row's key in a complete re-scrape (cause unknown -- not presumed)
@@ -197,14 +200,31 @@ def cmd_fetch(a) -> int:
 # plan: pure, deterministic -- the same function runs inside apply
 # ---------------------------------------------------------------------------
 
+# Alias keys added AFTER the bug era, as part of this cleanup (user-approved 2026-10-02). The NEW
+# label uses the current table, but how a STORED label arose must be judged against the table the
+# buggy scraper ran with -- otherwise a new alias turns a fuzzy-stored row into an "exact hit"
+# ('W-U-R-G Domain Zoo' stored 'Domain Ramp' became `other`) and makes its target canonical, which
+# changes the fuzzy tie sets.
+ALIASES_ADDED_IN_CLEANUP = frozenset({
+    "azorius control (kaheera)", "jeskai control (kaheera)", "temur living end",
+    "w-u-r-g domain zoo", "w-u-b-r-g domain zoo",
+})
+
+
+@lru_cache(maxsize=1)
+def _bug_era_tables() -> tuple[dict, frozenset]:
+    from analysis.archetypes import ALIASES
+    aliases = {k: v for k, v in ALIASES.items() if k not in ALIASES_ADDED_IN_CLEANUP}
+    return aliases, frozenset(v for v in aliases.values() if v)
+
+
 @lru_cache(maxsize=None)
 def _fuzzy_candidates(stripped: str) -> frozenset:
-    """Every label the buggy fuzzy step could have returned for this name today: all canonical
+    """Every label the buggy fuzzy step could have returned for this name: all bug-era canonical
     names tied at the best score >= 85. normalize() takes the first of a tie in set order, which
     varies with PYTHONHASHSEED -- so 'the' fuzzy answer is not reproducible, the tie set is."""
     from thefuzz import process as fuzz_process
-    from analysis.archetypes import _CANONICAL_NAMES
-    scored = fuzz_process.extract(stripped, sorted(_CANONICAL_NAMES), limit=None)
+    scored = fuzz_process.extract(stripped, sorted(_bug_era_tables()[1]), limit=None)
     best = max((s for _, s in scored), default=0)
     return frozenset(n for n, s in scored if s == best) if best >= 85 else frozenset()
 
@@ -219,7 +239,11 @@ def _slot(stored: str, raw: str) -> tuple[str, str]:
 
 
 def _slot_class(stored: str, raw: str) -> tuple[str, str]:
-    from analysis.archetypes import ALIASES, _CANONICAL_NAMES, pre_normalize
+    """New label from the CURRENT mapping; class from how the stored label arose under the
+    bug-era table: stored == published name -> a later alias now applies (alias_drift); exact
+    hit then -> stored through an alias whose target changed (`other`); otherwise fuzzy
+    (reproduced -> fuzzy_fix, else fuzzy_guess)."""
+    from analysis.archetypes import pre_normalize
     from scrapers.mtgmelee_scraper import _map_archetype
     new = _map_archetype(raw, "")
     if new == "":
@@ -227,14 +251,14 @@ def _slot_class(stored: str, raw: str) -> tuple[str, str]:
     if new == stored:
         return new, "unchanged"
     stripped = pre_normalize(raw.strip())
-    exact_hit = stripped in _CANONICAL_NAMES or bool(ALIASES.get(stripped.lower()))
-    if not exact_hit and stored in _fuzzy_candidates(stripped):
-        return new, "fuzzy_fix"
-    if not exact_hit:
-        return new, "fuzzy_guess"
-    if stored == stripped:
+    aliases, canonical = _bug_era_tables()
+    if stored == stripped:                  # stored as published; an alias added since now applies
         return new, "alias_drift"
-    return new, "other"
+    if stripped in canonical or bool(aliases.get(stripped.lower())):
+        return new, "other"                 # stored through an alias whose target has since changed
+    if stored in _fuzzy_candidates(stripped):
+        return new, "fuzzy_fix"
+    return new, "fuzzy_guess"
 
 
 def _winner(result: str, a1: str, a2: str):
