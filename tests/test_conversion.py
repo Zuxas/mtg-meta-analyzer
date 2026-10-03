@@ -111,7 +111,9 @@ def test_classify_status_unchanged_without_conversion():
     assert classify_status(0.10, 0.55)[0] == "Pillar"
     assert classify_status(0.10, 0.45)[0] == "Trap"
     assert classify_status(0.01, 0.55)[0] == "Underplayed"
-    assert classify_status(0.05, 0.50)[0] == "Fringe"
+    # >= 5% share with an ordinary WR is "Established" (PR #7): Fringe means LOW share
+    assert classify_status(0.05, 0.50)[0] == "Established"
+    assert classify_status(0.04, 0.50)[0] == "Fringe"
 
 
 def test_classify_status_cascade_when_presence_is_explained_by_popularity():
@@ -127,7 +129,7 @@ def test_classify_status_cascade_when_presence_is_explained_by_popularity():
     # a real Pillar stays a Pillar even if conversion is supplied
     assert classify_status(0.10, 0.55, conversion=1.30)[0] == "Pillar"
     # conversion=None behaves exactly like the two-arg call
-    assert classify_status(0.08, 0.50, conversion=None)[0] == "Fringe"
+    assert classify_status(0.08, 0.50, conversion=None)[0] == "Established"
 
 
 def test_score_standings_uses_conversions_when_supplied():
@@ -141,9 +143,9 @@ def test_score_standings_uses_conversions_when_supplied():
     assert by["Jeskai Blink"]["status"] == "Cascade"
     assert by["Jeskai Blink"]["conversion"] == pytest.approx(0.71)
     assert by["Boros Energy"]["status"] == "Pillar"
-    # old call signature still works and never yields Cascade
+    # old call signature still works and never yields Cascade (50% share -> Established)
     score_standings(standings, {})
-    assert by["Jeskai Blink"]["status"] == "Fringe"
+    assert by["Jeskai Blink"]["status"] == "Established"
 
 
 # ---------------------------------------------------------------------------

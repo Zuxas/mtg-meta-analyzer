@@ -552,6 +552,7 @@ class DashboardTab(QWidget):
             "Trap         (red)    Popular but losing — avoid or exploit\n"
             "Underplayed  (gold)   Low share + high win rate — sleeper pick\n"
             "Established  (blue)   High share, ordinary win rate — a fixture\n"
+            "Cascade      (orange) ~50% win rate; top-cut share explained by popularity\n"
             "Fringe       (grey)   Low share, middling win rate"
         )
         self._winrate_tbl.horizontalHeaderItem(7).setToolTip(
@@ -986,6 +987,7 @@ class DashboardTab(QWidget):
             "Cascade": "Played a lot, ~50% win rate, and its top-cut share is "
                        "explained by its field share alone (Chapin IC-02): "
                        "popular because it is popular.",
+            "Established": "High share, ordinary win rate -- a fixture of the format.",
             "Fringe": "Low share, middling win rate.",
         }.get(status, "")
         if conversion is None:
