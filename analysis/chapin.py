@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from scrapers.scryfall import get_cards_data
+from analysis.card_text import is_damage_removal
 
 
 # ---------------------------------------------------------------------------
@@ -112,9 +113,13 @@ def _classify_cards(main_dict, card_data):
     ramp_spells   = set()
     other_spells  = set()
 
+    # "deals damage to target" removed: real oracle text reads "deals 3
+    # damage to any target", so the literal substring never matched and burn
+    # spells were classified as non-interaction (Answers scored 0.0 for a
+    # deck full of removal). Damage is handled by is_damage_removal below.
     INTERACTION_KW = [
         "destroy", "exile target", "counter target", "return target",
-        "deals damage to target", "-1/-1", "-2/-2", "sacrifice a",
+        "-1/-1", "-2/-2", "sacrifice a",
     ]
     DRAW_KW = [
         "draw a card", "draw two", "draw three", "draw cards",
@@ -136,13 +141,15 @@ def _classify_cards(main_dict, card_data):
         elif "Creature" in type_line:
             creatures.add(name)
             # Creatures can also be interaction (ETB removal, etc.)
-            if any(kw in oracle for kw in INTERACTION_KW):
+            if (any(kw in oracle for kw in INTERACTION_KW)
+                    or is_damage_removal(oracle)):
                 interaction.add(name)
         elif "Planeswalker" in type_line:
             planeswalkers.add(name)
         else:
             other_spells.add(name)
-            if any(kw in oracle for kw in INTERACTION_KW):
+            if (any(kw in oracle for kw in INTERACTION_KW)
+                    or is_damage_removal(oracle)):
                 interaction.add(name)
             if any(kw in oracle for kw in DRAW_KW):
                 draw_spells.add(name)

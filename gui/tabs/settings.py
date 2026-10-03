@@ -168,6 +168,7 @@ class SettingsTab(QWidget):
         self._backfill_status.setWordWrap(True)
         store_btns.addWidget(self._backfill_status)
         sv.addLayout(store_btns)
+        outer.addWidget(store_box)
 
         # Wire the Storage groupbox into the scroll content, between
         # Auto-Update and ML Models (data-management neighbourhood). It was

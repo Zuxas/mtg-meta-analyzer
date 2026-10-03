@@ -386,6 +386,35 @@ def smooth_win_rate(values, samples, min_window_n=MIN_WINDOW_N):
         out.append(wsum / tot if tot >= min_window_n else None)
     return out, ns
 
+def _no_data_hint() -> str:
+    """A second line telling the user what would actually fix an empty chart.
+
+    Branches on whether the database has ANY events, because the two cases
+    have opposite fixes and the old copy ("No data to display.",
+    "No meta data available for this selection.") covered both without
+    distinguishing them:
+
+      * nothing scraped at all -> go get data. On a fresh install this is the
+        real answer, and "for this selection" actively misleads by implying
+        the selection is at fault.
+      * data exists, this slice is empty -> widen the timeframe or change
+        format/archetype.
+
+    Best-effort: any failure returns "" so a hint can never break a chart.
+    The wording matches the Dashboard panel empty states, which point at the
+    same Settings -> Collect More Data button.
+    """
+    try:
+        from db.database import get_connection
+        with get_connection() as con:
+            has_any = con.execute("SELECT 1 FROM events LIMIT 1").fetchone()
+    except Exception:
+        return ""
+    if has_any is None:
+        return ("\nNothing has been scraped yet \u2014 use Settings \u2192 "
+                "Collect More Data, or run fill_database.bat.")
+    return "\nTry a wider timeframe, another format, or scrape more events."
+
 
 class ChartCanvas(QWidget):
     """
@@ -434,6 +463,7 @@ class ChartCanvas(QWidget):
         # Overlay label shown while loading or when no data available
         self._overlay = QLabel("Select a chart type and click Generate", self._canvas)
         self._overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._overlay.setWordWrap(True)   # empty-state hints run to two lines
         self._overlay.setFont(QFont("Arial", 13))
         self._overlay.setStyleSheet("color: #555555; background: transparent;")
         self._overlay.setVisible(True)
@@ -506,7 +536,7 @@ class ChartCanvas(QWidget):
         self._canvas.draw()
 
     def clear(self):
-        self.show_message("No data loaded")
+        self.show_message("No data loaded." + _no_data_hint())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -531,7 +561,7 @@ class ChartCanvas(QWidget):
         self._highlighted = None
         self._hover_box.setVisible(False)
         if data is None:
-            self.show_message("No data to display.")
+            self.show_message("No data to display." + _no_data_hint())
             return
 
         archetypes = data["archetypes"]
@@ -724,7 +754,7 @@ class ChartCanvas(QWidget):
 
     def _draw_meta_share(self, data):
         if data is None:
-            self.show_message("No meta data available for this selection.")
+            self.show_message("No meta data available." + _no_data_hint())
             return
 
         archetypes   = data["archetypes"]
@@ -773,7 +803,8 @@ class ChartCanvas(QWidget):
 
     def _draw_trend(self, weekly, archetype, format_name):
         if not weekly:
-            self.show_message(f"No trend data for \u2018{archetype}\u2019.")
+            self.show_message(f"No trend data for \u2018{archetype}\u2019."
+                          + _no_data_hint())
             return
 
         weekly      = list(reversed(weekly))
@@ -1010,7 +1041,8 @@ class ChartCanvas(QWidget):
 
     def _draw_compare(self, data):
         if data is None:
-            self.show_message("No trend data available for these archetypes.")
+            self.show_message("No trend data available for these archetypes."
+                          + _no_data_hint())
             return
 
         archetypes   = data["archetypes"]
@@ -1114,7 +1146,7 @@ class ChartCanvas(QWidget):
 
     def _draw_scatter(self, result, format_name):
         if not result:
-            self.show_message("No meta data available.")
+            self.show_message("No meta data available." + _no_data_hint())
             return
 
         standings = result if isinstance(result, list) else result.get("standings", [])

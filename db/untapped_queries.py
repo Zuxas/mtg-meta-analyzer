@@ -12,6 +12,7 @@ filtered to the Bo3 'Traditional_*' formats below.
 """
 
 from pathlib import Path
+import functools
 import json
 import sqlite3
 from typing import Dict, List
@@ -20,6 +21,38 @@ from db.database import DB_PATH as CENTRAL_DB_PATH
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = Path(CENTRAL_DB_PATH)
+
+
+def _empty_if_untapped_tables_missing(default_factory):
+    """Return an empty result instead of raising when the untapped_* tables
+    do not exist yet.
+
+    Every table and view this module reads (untapped_entries,
+    untapped_snapshots, untapped_replays, untapped_sideboard_plans,
+    v_untapped_* ...) is created by the Untapped scrapers
+    (scrapers/untapped_mythic_scraper.py), NOT by db.database.init_db -- so on
+    any database where that pipeline has never run they are simply absent.
+
+    Before this guard, that made the app UNLAUNCHABLE: LadderMetaTab.__init__
+    calls refresh() eagerly -> get_mythic_archetype_rollup() -> sqlite3
+    "no such table: untapped_entries", which propagated out of
+    MainWindow._build_ui and killed startup for anyone who had built a DB but
+    not yet run the Untapped pipeline (e.g. a fresh clone).
+
+    Deliberately narrow: ONLY "no such table" is swallowed. A corrupt or
+    unreadable database still raises, so real problems stay loud.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except sqlite3.OperationalError as exc:
+                if "no such table" in str(exc).lower():
+                    return default_factory()
+                raise
+        return wrapper
+    return decorator
 
 # Archetype-name prefix -> color identity (longest match wins).
 # Ordered roughly by specificity so longer names match before shorter ones.
@@ -75,6 +108,7 @@ _FORMAT_MAP = {
 }
 
 
+@_empty_if_untapped_tables_missing(dict)
 def get_untapped_matchup_matrix(
     format_name: str,
     last_7_days: bool = False,
@@ -132,6 +166,7 @@ def get_untapped_matchup_matrix(
     return matrix
 
 
+@_empty_if_untapped_tables_missing(list)
 def get_sideboard_plans_for_archetype(
     archetype: str,
     opponent_archetype: str = None,
@@ -244,6 +279,7 @@ def get_sideboard_plans_for_archetype(
     return out
 
 
+@_empty_if_untapped_tables_missing(dict)
 def get_mythic_card_inclusion(archetype: str) -> dict:
     """For each card seen in mythic-tier replays of this archetype, return
     inclusion rate + avg quantity.
@@ -286,6 +322,7 @@ def get_mythic_card_inclusion(archetype: str) -> dict:
     return out
 
 
+@_empty_if_untapped_tables_missing(list)
 def get_known_sb_opponents(archetype: str) -> List[str]:
     """Return distinct opponent archetypes that exist in SB plans for the
     given (color-matched) archetype, sorted by frequency. Used to populate
@@ -321,6 +358,7 @@ _SKILL_CURVE_FORMAT_MAP = {
 }
 
 
+@_empty_if_untapped_tables_missing(list)
 def get_skill_curve(
     format_name: str,
     min_plat_matches: int = 100,
@@ -361,6 +399,7 @@ def get_skill_curve(
     return [dict(r) for r in rows]
 
 
+@_empty_if_untapped_tables_missing(dict)
 def get_bo3_tier_wrs(format_name: str = "standard") -> dict:
     """Per-archetype Bo3 WR aggregated across opponents at each high tier.
 
@@ -418,6 +457,7 @@ def get_bo3_tier_wrs(format_name: str = "standard") -> dict:
     return out
 
 
+@_empty_if_untapped_tables_missing(list)
 def get_mythic_leaderboard(limit: int = 30, format_name: str = "standard") -> List[dict]:
     """
     Top-N entries from the latest Bo3 mythic ladder snapshot for the
@@ -467,6 +507,7 @@ def untapped_deck_url(user_id: str | None, short_id: str | None) -> str | None:
     return f"https://mtga.untapped.gg/decks/{short_id}"
 
 
+@_empty_if_untapped_tables_missing(list)
 def get_mythic_archetype_rollup(limit: int = 12, format_name: str = "standard") -> List[dict]:
     """
     Aggregated archetype data from the latest Bo3 mythic snapshot for

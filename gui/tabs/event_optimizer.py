@@ -3,6 +3,7 @@ Event Optimizer sub-tab — equity analysis for a given expected field.
 
 Split from tournament_prep.py for maintainability.
 """
+import functools
 import re
 
 from PyQt6.QtWidgets import (
@@ -16,6 +17,32 @@ from PyQt6.QtGui import QColor, QFont
 
 from gui.worker_threads import DataLoadWorker
 import gui.theme as theme
+
+
+def _skip_if_widgets_deleted(fn):
+    """Drop a worker result that arrives after its widgets are gone.
+
+    Every _done callback below runs when a DataLoadWorker finishes, which can
+    be after the tab was torn down (fast tab-switching, app exit, a test that
+    calls cleanup() while a load is in flight). Touching a widget whose C++
+    side is already destroyed raises
+    "RuntimeError: wrapped C/C++ object of type Q... has been deleted" out of
+    the Qt callback, where nothing catches it -- observed crashing a probe
+    harness at _refresh_deck_combo's self._deck_combo.blockSignals(True).
+
+    Same shape as the existing guards in deck_analyzer.py / heatmap_tab.py,
+    and deliberately narrow: ONLY the "has been deleted" RuntimeError is
+    dropped, so genuine RuntimeErrors from the callback body still surface.
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except RuntimeError as exc:
+            if "has been deleted" in str(exc):
+                return None
+            raise
+    return wrapper
 
 
 # ---------------------------------------------------------------------------
@@ -312,6 +339,7 @@ class EventWidget(QWidget):
             from db.saved_decks import get_decks
             return get_decks(fmt)
 
+        @_skip_if_widgets_deleted
         def _done(decks):
             self._deck_combo.blockSignals(True)
             self._deck_combo.clear()
@@ -372,6 +400,7 @@ class EventWidget(QWidget):
             rows = get_meta_standings(fmt, top=30, since=since)
             return [r["archetype"] for r in rows]
 
+        @_skip_if_widgets_deleted
         def _done(archs):
             self._my_arch.blockSignals(True)
             self._my_arch.clear()
@@ -424,6 +453,7 @@ class EventWidget(QWidget):
 
         tf_label = theme.TIMEFRAME_OPTIONS[self._tf.currentIndex()][0]
 
+        @_skip_if_widgets_deleted
         def _done(text):
             self._field_input.setPlainText(text)
             self._status.setText(f"Field loaded from {tf_label} meta standings.")
@@ -490,6 +520,7 @@ class EventWidget(QWidget):
                 })
             return rows
 
+        @_skip_if_widgets_deleted
         def _done(rows):
             import csv, os
             from datetime import datetime
@@ -558,6 +589,7 @@ class EventWidget(QWidget):
                 "deck": loaded_deck, "fmt": fmt, "tf_label": tf_label,
             }
 
+        @_skip_if_widgets_deleted
         def _done(pkg):
             self._prep_btn.setEnabled(True)
             if "error" in pkg["result"]:
@@ -609,6 +641,7 @@ class EventWidget(QWidget):
             from analysis.tournament import rcq_equity
             return rcq_equity(archetype, field, fmt, since=since)
 
+        @_skip_if_widgets_deleted
         def _done(result):
             self._analyze_btn.setEnabled(True)
             if "error" in result:

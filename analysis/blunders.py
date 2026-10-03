@@ -23,6 +23,8 @@ Feeds into the Chapin Principles Evaluation (analysis/chapin.py).
 
 from dataclasses import dataclass, field
 from typing import Optional
+
+from analysis.card_text import is_damage_removal
 import json
 
 from scrapers.scryfall import get_cards_data, is_legal
@@ -269,9 +271,13 @@ def _check_color_consistency(main_dict, card_data, land_names, issues):
 
 def _check_interaction(main_dict, card_data, land_names, norms, issues):
     """Count interactive spells (removal, counters, bounce)."""
+    # "deals damage to target" is NOT in this list: real oracle text puts the
+    # amount in between ("deals 3 damage to any target"), so the literal
+    # substring never matched and every burn spell read as non-interactive.
+    # Damage is handled by the shared predicate below instead.
     interaction_keywords = [
         "destroy", "exile target", "counter target", "return target",
-        "deals damage to target", "-1/-1", "-2/-2", "-3/-3",
+        "-1/-1", "-2/-2", "-3/-3",
         "sacrifice a", "each opponent loses",
     ]
     interaction_names = []
@@ -279,7 +285,8 @@ def _check_interaction(main_dict, card_data, land_names, norms, issues):
         if name in land_names or not data:
             continue
         oracle = (data.get("oracle_text") or "").lower()
-        if any(kw in oracle for kw in interaction_keywords):
+        if any(kw in oracle for kw in interaction_keywords) \
+                or is_damage_removal(oracle):
             interaction_names.append(name)
 
     interaction_count = sum(main_dict.get(n, 0) for n in interaction_names

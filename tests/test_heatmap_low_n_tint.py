@@ -22,9 +22,10 @@ This file gates four things:
      setBackground() is fragile under the app's global stylesheet, so
      confirming actual rendered pixels differ (not just the stored QColor)
      is the literal "screenshot-verifiable" half of the gate. A saved PNG
-     of this exact render is written to
-     C:/temp/gr8_lowN_render_check.png (same convention as the handoff's
-     own Verification runbook screenshots) for visual inspection.
+     of this exact render is written to gr8_lowN_render_check.png in
+     C:/temp on Windows (same convention as the handoff's own Verification
+     runbook screenshots) or the platform temp dir elsewhere, for visual
+     inspection. Never inside the repo -- see _debug_png_dir().
 
 No pytest-qt plugin is installed in this environment -- these tests follow
 the established offscreen-Qt pattern (QT_QPA_PLATFORM=offscreen env
@@ -34,12 +35,28 @@ _draw_grid() call pattern is lifted from
 tests/test_heatmap_header_elide.py::_make_loaded_tab.
 """
 import os
+import tempfile
 import time
 
 import pytest
 
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QWidget
+
+
+def _debug_png_dir() -> str:
+    """Directory for the best-effort debug PNG -- always OUTSIDE the repo.
+
+    On Windows this stays C:/temp, matching the handoff's own Verification
+    runbook screenshots (C:/temp/mta_0*.png). Everywhere else "C:/temp" is a
+    RELATIVE path, so the original hardcoded string created a literal `C:/`
+    directory inside the repo working tree on Linux/CI -- the exact opposite
+    of the "NOT into the repo working tree" intent, and visible to git as an
+    untracked dir. The platform temp dir is the portable equivalent.
+    """
+    if os.name == "nt":
+        return "C:/temp"
+    return tempfile.gettempdir()
 
 
 @pytest.fixture(autouse=True)
@@ -353,13 +370,12 @@ def test_matchup_cells_render_as_different_pixels(app):
             f"(green={low_rgb[1]}) does"
         )
 
-        # Save a copy of this exact render for visual/screenshot review --
-        # written to C:/temp (same convention as the handoff's own
-        # Verification runbook screenshots, e.g. C:/temp/mta_0*.png), NOT
-        # into the repo working tree, so it never needs a git add.
+        # Save a copy of this exact render for visual/screenshot review,
+        # outside the repo working tree so it never needs a git add.
         try:
-            os.makedirs("C:/temp", exist_ok=True)
-            img.save("C:/temp/gr8_lowN_render_check.png")
+            out_dir = _debug_png_dir()
+            os.makedirs(out_dir, exist_ok=True)
+            img.save(os.path.join(out_dir, "gr8_lowN_render_check.png"))
         except Exception:
             pass  # best-effort -- saving a debug PNG must never fail the test
     finally:

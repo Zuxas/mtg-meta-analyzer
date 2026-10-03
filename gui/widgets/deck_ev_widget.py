@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont
 
+from gui.icons_util import btn_icon
 import gui.theme as theme
 
 
@@ -69,7 +70,8 @@ class DeckEvWidget(QWidget):
         header_row.addWidget(self._head_lbl)
         header_row.addStretch()
 
-        self._recalc_btn = QPushButton("Recalc (pull latest 14d field)")
+        self._recalc_btn = QPushButton(
+            btn_icon("refresh"), "Recalc (pull latest 14d field)")
         self._recalc_btn.setStyleSheet(theme.btn_secondary())
         self._recalc_btn.clicked.connect(self._recompute)
         header_row.addWidget(self._recalc_btn)
