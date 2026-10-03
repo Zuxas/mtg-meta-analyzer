@@ -163,6 +163,12 @@ def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     with get_connection() as conn:
         _apply_schema(conn)
+    # `matches` and its live-data guard (exclusion registry + quarantine table, see
+    # db/match_exclusions.py) are created here too, so every entry point that calls init_db()
+    # -- the app, main.py, the scheduled scraper -- has the guard before its first write, on a
+    # fresh DB and on a pre-cleanup one. Active DB only; IF NOT EXISTS, so idempotent.
+    from db.matches_queries import _ensure_table as _ensure_matches_and_guard
+    _ensure_matches_and_guard()
     print(f"Active DB : {os.path.abspath(DB_PATH)}")
 
     os.makedirs(os.path.dirname(ARCHIVE_PATH), exist_ok=True)

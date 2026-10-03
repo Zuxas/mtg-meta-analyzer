@@ -80,3 +80,44 @@ def test_save_matches_on_a_db_without_exclusion_tables_does_not_fail():
     assert mq.save_matches([_row(1), _row(2)]) == 2
     assert mq.LAST_SAVE_SKIPPED == []
     assert sqlite3.connect(database.DB_PATH).execute("SELECT COUNT(*) FROM matches").fetchone()[0] == 2
+
+
+_GUARD_OBJECTS = {"matches", "excluded_events", "matches_excluded", "ux_excluded_events",
+                  "idx_matches_excluded_event"}
+
+
+def _names():
+    return {n for (n,) in sqlite3.connect(database.DB_PATH).execute("SELECT name FROM sqlite_master")}
+
+
+def test_init_db_alone_creates_the_guard_on_a_fresh_db():
+    """main.py / fill_database.py (the scheduled scraper) call init_db() and nothing else before
+    scraping -- the guard must exist from that call, not from a later first use of `matches`."""
+    database.init_db()
+    assert _GUARD_OBJECTS <= _names()
+
+
+def test_init_db_alone_upgrades_a_pre_cleanup_db_and_is_idempotent():
+    con = sqlite3.connect(database.DB_PATH)
+    con.execute(PRE_CLEANUP_MATCHES)
+    con.execute("INSERT INTO matches (event_id, round, player1, player2, player1_arch, player2_arch, "
+                "winner_arch, result, format, event_date, source) VALUES "
+                "('mtgmelee_9',1,'p','q','A','B','A','player1','modern','2026-01-01','mtgmelee')")
+    con.commit()
+    rows_before = sorted(con.execute("SELECT * FROM matches"))
+    database.init_db()
+    assert _GUARD_OBJECTS <= _names()
+    con = sqlite3.connect(database.DB_PATH)
+    assert sorted(con.execute("SELECT * FROM matches")) == rows_before
+    schema, data = _schema(con), _data(con)
+    database.init_db()
+    con = sqlite3.connect(database.DB_PATH)
+    assert _schema(con) == schema and _data(con) == data
+
+
+def test_init_db_does_not_put_the_guard_in_the_archive_db():
+    """matches and its quarantine live in the active DB only."""
+    database.init_db()
+    archive = {n for (n,) in sqlite3.connect(database.ARCHIVE_PATH).execute(
+        "SELECT name FROM sqlite_master")}
+    assert not ({"matches_excluded", "excluded_events"} & archive)
