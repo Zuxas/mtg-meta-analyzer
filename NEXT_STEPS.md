@@ -49,8 +49,9 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
 - User approved 2026-10-02: push branch; fix the two format tags; alias Mono Green Amulet Titan -> Amulet Titan
   (DONE, in ALIASES_ADDED_IN_CLEANUP); regenerate manifests; apply ONLY fuzzy_fix + alias_drift.
 - STOPPED at the format fix -- event pages (saved `E:\mtg-data\raw\melee_relabel\event_meta\`) conflict:
-  437430 = "NRG Series: Magic $10k Team Trios Showdown" (Modern + Standard + Pauper seats; rows are TEAM results
-  labelled with Decklists[0] = the Modern captain's deck); 391510 = rounds 1-3 Standard, 4-6 Pauper, top 8 Draft
+  437430 = "NRG Series: Magic $10k Team Trios Showdown" (Modern + Standard + Pauper seats; first read as team
+  results -- WRONG: pairing-level data shows individual 1v1 seat matches, later format-corrected per pairing,
+  not quarantined); 391510 = rounds 1-3 Standard, 4-6 Pauper, top 8 Draft
   (deck names per round confirm) -> correct fix is by round (47 rows standard->pauper, 3 pauper->standard).
   Awaiting user decision; branch not yet pushed (hook blocks `git push` for Claude).
 - 2026-10-02 later: branch pushed (360552d). 391510 format fix APPLIED (`scripts/fix_melee_event_format.py`):
