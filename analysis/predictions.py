@@ -248,10 +248,10 @@ def validate_predictions(format_name=None):
     try:
         where = "WHERE correct IS NULL AND target_week <= ?"
         params = [today]
-        from analysis.win_rates import is_all_formats
-        if not is_all_formats(format_name):
-            where += " AND format = ?"
-            params.append(format_name)
+        from db.formats import format_clause
+        _fc, _fp = format_clause(format_name)
+        where += _fc
+        params += _fp
 
         pending = conn.execute(
             f"SELECT * FROM predictions {where}", params
@@ -345,10 +345,10 @@ def accuracy_report(format_name=None, limit=90):
     try:
         where = "WHERE correct IS NOT NULL AND created_at >= ?"
         params = [cutoff]
-        from analysis.win_rates import is_all_formats
-        if not is_all_formats(format_name):
-            where += " AND format = ?"
-            params.append(format_name)
+        from db.formats import format_clause
+        _fc, _fp = format_clause(format_name)
+        where += _fc
+        params += _fp
 
         rows = conn.execute(
             f"SELECT prediction_type, correct, COUNT(*) as cnt "
@@ -401,10 +401,10 @@ def recent_predictions(format_name=None, limit=20, pending_only=False):
     try:
         where_parts = []
         params = []
-        from analysis.win_rates import is_all_formats
-        if not is_all_formats(format_name):
-            where_parts.append("format = ?")
-            params.append(format_name)
+        from db.formats import format_clause
+        _fc, _fp = format_clause(format_name)
+        where_parts.append(_fc.removeprefix(" AND "))
+        params += _fp
         if pending_only:
             where_parts.append("correct IS NULL")
 

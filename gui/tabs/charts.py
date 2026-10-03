@@ -413,9 +413,10 @@ class ChartsTab(QWidget):
                     WHERE d.archetype != ''
                 """
                 params = []
-                if not is_all_formats(fmt):
-                    q += " AND lower(e.format) = lower(?)"
-                    params.append(fmt)
+                from db.formats import format_clause
+                _fc, _fp = format_clause(fmt, "e.format")
+                q += _fc
+                params += _fp
                 q += " GROUP BY d.archetype ORDER BY cnt DESC LIMIT 100"
                 rows = conn.execute(q, params).fetchall()
             finally:

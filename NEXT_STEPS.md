@@ -72,6 +72,13 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   tables from git history would separate post-scrape aliases (e.g. 'Mono Green Landfall' 3,700 Standard slots);
   12,342 unmatched rows (cause unknown); 6 unjoined 437430 rows still tagged standard; decide whether "All
   formats" views should exclude vintage.
+- DEPLOY prep 2026-10-02 (user: stop all further historical relabeling): exclusion tables now created on first use
+  of `matches` (`matches_queries._ensure_table`), so fresh and pre-cleanup DBs upgrade idempotently
+  (tests/test_match_exclusions_schema.py). "All formats" = `db/formats.py::SUPPORTED_FORMATS`
+  (standard, pioneer, modern, legacy, pauper); every all-formats query uses `format_clause()` (never 'no filter');
+  Dashboard selector + status bar use the same list (Pauper now selectable on the Dashboard); vintage stays
+  stored but out of combined stats (tests/test_supported_formats.py). test_conversion reference re-pinned for
+  Mono Red Aggro / Domain Ramp / Domain Zoo (relabel moved fuzzy rows; still passes on the pre-relabel backup).
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;

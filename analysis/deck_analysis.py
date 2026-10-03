@@ -32,10 +32,10 @@ def _fetch_archetype_decks(conn, archetype, format_name=None, include_archive=Fa
     """
     params = [f"%{archetype}%"]
 
-    from analysis.win_rates import is_all_formats
-    if not is_all_formats(format_name):
-        base_query += " AND lower(e.format) = lower(?)"
-        params.append(format_name)
+    from db.formats import format_clause
+    _fc, _fp = format_clause(format_name, "e.format")
+    base_query += _fc
+    params += _fp
 
     if include_archive:
         # UNION with archive DB (must be ATTACHed)
@@ -420,10 +420,10 @@ def search_decks(archetype=None, format_name=None, limit=20):
         if archetype:
             q += " AND lower(d.archetype) LIKE lower(?)"
             params.append(f"%{archetype}%")
-        from analysis.win_rates import is_all_formats
-        if not is_all_formats(format_name):
-            q += " AND lower(e.format) = lower(?)"
-            params.append(format_name)
+        from db.formats import format_clause
+        _fc, _fp = format_clause(format_name, "e.format")
+        q += _fc
+        params += _fp
         q += f" ORDER BY {SQL_NORM_DATE.format(col='e.date')} DESC, d.placement ASC LIMIT ?"
         params.append(limit)
         rows = conn.execute(q, params).fetchall()

@@ -841,10 +841,10 @@ def classify_unknown_decks(format_name: str = None, dry_run: bool = True,
               AND dc.is_sideboard = 0
         """
         params = []
-        from analysis.win_rates import is_all_formats
-        if not is_all_formats(format_name):
-            q += " AND lower(e.format) = lower(?)"
-            params.append(format_name)
+        from db.formats import format_clause
+        _fc, _fp = format_clause(format_name, "e.format")
+        q += _fc
+        params += _fp
         q += " ORDER BY d.id LIMIT ?"
         params.append(limit * 60)  # ~60 cards per deck
 

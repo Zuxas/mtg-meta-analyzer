@@ -14,7 +14,7 @@ import logging
 
 from db.database import get_connection
 from db.helpers import ensure_table as _do_ensure
-from db.match_exclusions import load_registry, split_rows
+from db.match_exclusions import CREATE_SQL as EXCLUSIONS_CREATE_SQL, load_registry, split_rows
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,9 @@ _CREATE_SQL = """
 
 
 def _ensure_table():
-    _do_ensure(_CREATE_SQL)
+    """`matches` plus the exclusion registry / quarantine tables (db/match_exclusions.py), so a
+    fresh DB and a pre-2026-10-02 DB both get them on first use. Idempotent (IF NOT EXISTS)."""
+    _do_ensure(_CREATE_SQL + EXCLUSIONS_CREATE_SQL)
 
 
 # ---------------------------------------------------------------------------

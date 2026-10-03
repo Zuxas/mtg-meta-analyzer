@@ -171,10 +171,14 @@ def test_reference_output_modern_2025_10_to_2026_06():
         "Jeskai Blink":      (8.27,  5.90, 0.71, 50.5, 6746),
         "Izzet Prowess":     (8.04,  7.90, 0.98, 49.3, 6125),
         "Izzet Affinity":    (7.00,  9.20, 1.31, 52.6, 5631),
-        "Mono Red Aggro":    (5.30,  7.19, 1.36, 52.3, 3511),
+        # Re-pinned 2026-10-02 after the Melee historical relabel (docs/reports/2026-10-02-melee-relabel.md):
+        # fuzzy-guessed rows left these two labels ('Mono-Green Broodscale' was stored as Mono Red Aggro,
+        # 'W-U-R-G Domain Zoo' as Domain Ramp). Pre-relabel values: (5.30, 7.19, 1.36, 52.3, 3511) and
+        # (3.06, 4.48, 1.47, 49.7, 2110); the test still passes on the pre-relabel backup.
+        "Mono Red Aggro":    (4.37,  5.69, 1.30, 52.2, 2855),
         "Goryo's Vengeance": (5.09,  3.42, 0.67, 49.0, 3999),
         "Amulet Titan":      (4.02,  2.36, 0.59, 51.6, 3871),
-        "Domain Ramp":       (3.06,  4.48, 1.47, 49.7, 2110),
+        "Domain Ramp":       (0.70,  1.12, 1.59, 48.3,  484),
     }
     for arch, (fs, ts, conv, wr, n) in expected.items():
         r = out[arch]
@@ -189,7 +193,8 @@ def test_reference_output_modern_2025_10_to_2026_06():
     from analysis.meta_scoring import classify_status
     flagged = {a for a, r in out.items()
                if classify_status(r["field_share"], r["match_wr"], conversion=r["conversion"])[0] == "Cascade"}
-    assert flagged == {"Jeskai Blink", "Izzet Prowess", "Goryo's Vengeance", "Amulet Titan"}
+    # 'Domain Zoo' joined after the 2026-10-02 relabel moved the fuzzy 'Domain Ramp' rows to it.
+    assert flagged == {"Jeskai Blink", "Izzet Prowess", "Goryo's Vengeance", "Amulet Titan", "Domain Zoo"}
 
 
 # ---------------------------------------------------------------------------

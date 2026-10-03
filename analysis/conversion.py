@@ -58,10 +58,9 @@ def conversion_by_archetype(format_name: str, since: str, until: str | None = No
         from db.database import get_connection
         con = get_connection()
     try:
-        fmt_clause = "" if is_all_formats(format_name) else "AND lower(format) = ?"
-        params = [since, until or "9999-12-31"]
-        if fmt_clause:
-            params.append(format_name.lower())
+        from db.formats import format_clause
+        fmt_clause, fmt_params = format_clause(format_name)   # 'all' = the supported formats
+        params = [since, until or "9999-12-31"] + fmt_params
         rows = con.execute(f"""
             SELECT event_id, player1, player2, player1_arch, player2_arch, result
               FROM matches

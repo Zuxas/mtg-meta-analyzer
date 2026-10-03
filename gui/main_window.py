@@ -196,7 +196,7 @@ def _is_existing_user() -> bool:
 # Main Window
 # ---------------------------------------------------------------------------
 
-_FORMATS_FOR_ALL = ("standard", "pioneer", "modern", "legacy", "pauper", "vintage")
+from db.formats import SUPPORTED_FORMATS as _FORMATS_FOR_ALL  # 'All formats' = supported
 
 
 def _event_count_text(fmt: str) -> str:

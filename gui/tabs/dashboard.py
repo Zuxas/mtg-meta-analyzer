@@ -119,9 +119,10 @@ def _load_panel_data(format_name: str, since_dt, top: int,
             WHERE d.placement <= 4
         """
         params = []
-        if not is_all_formats(format_name):
-            q += " AND lower(e.format) = lower(?)"
-            params.append(format_name)
+        from db.formats import format_clause
+        _fc, _fp = format_clause(format_name, "e.format")
+        q += _fc
+        params += _fp
         if since_dt:
             q += f" AND ({_date_key}) >= ?"
             params.append(since_dt.strftime("%Y-%m-%d"))
@@ -145,7 +146,8 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     try:
         from analysis.data_health import format_freshness
         from analysis.win_rates import is_all_formats
-        freshness = format_freshness(None if is_all_formats(format_name) else [format_name])
+        from db.formats import formats_for
+        freshness = format_freshness(formats_for(format_name))   # 'all' = the supported formats
     except Exception:
         pass
 
@@ -339,7 +341,8 @@ class DashboardTab(QWidget):
 
         ctrl.addWidget(QLabel("Format:"))
         self._fmt = QComboBox()
-        self._fmt.addItems(["standard", "pioneer", "modern", "legacy", "all"])
+        from db.formats import SUPPORTED_FORMATS
+        self._fmt.addItems([*SUPPORTED_FORMATS, "all"])
         self._fmt.setFixedWidth(110)
         self._fmt.setToolTip(
             "'all' merges every scraped format — archetype rows include "

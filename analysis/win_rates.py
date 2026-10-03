@@ -34,19 +34,13 @@ EXCLUDE_ARCHETYPES = frozenset({
     "Other",
 })
 
-_ALL_FORMAT_SENTINELS = frozenset({"", "all", "all formats", "(any)", "any"})
+from db.formats import format_clause, is_all_formats as _is_all_formats  # noqa: E402
 
 
 def is_all_formats(fmt) -> bool:
-    """True if `fmt` represents the cross-format sentinel.
-
-    Accepts None, empty string, "all", "All Formats", "(any)", "any"
-    (case-insensitive, whitespace-trimmed). Used at every SQL-filter gate
-    so callers can pass a UI value through without per-site normalization.
-    """
-    if fmt is None:
-        return True
-    return str(fmt).strip().lower() in _ALL_FORMAT_SENTINELS
+    """True if `fmt` represents the cross-format sentinel (see db.formats.is_all_formats).
+    For SQL filtering use db.formats.format_clause -- "all" means the SUPPORTED formats."""
+    return _is_all_formats(fmt)
 
 
 # Simple TTL cache for expensive queries (60-second expiry)
@@ -210,9 +204,9 @@ def _fetch_appearances(conn, archetype, format_name=None, event_type=None,
     """
     params = [f"%{archetype}%"]
 
-    if not is_all_formats(format_name):
-        q += " AND lower(e.format) = lower(?)"
-        params.append(format_name)
+    _fc, _fp = format_clause(format_name, "e.format")
+    q += _fc
+    params += _fp
     if event_type:
         q += " AND e.event_type = ?"
         params.append(event_type)
@@ -407,9 +401,9 @@ def get_meta_standings(format_name="standard", event_type=None,
         """
         params = []
         _all_fmts = is_all_formats(format_name)
-        if not _all_fmts:
-            q += " AND lower(e.format) = lower(?)"
-            params.append(format_name)
+        _fc, _fp = format_clause(format_name, "e.format")
+        q += _fc
+        params += _fp
         if event_type:
             q += " AND e.event_type = ?"
             params.append(event_type)
@@ -532,8 +526,7 @@ def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
     # 'all' / None must span every format here too -- this fallback used to
     # filter `format = 'all'` literally, so once the decks table thinned out
     # (Standard, 2026-09) fmt='all' returned nothing while 'standard' worked.
-    fmt_clause = "" if is_all_formats(format_name) else "AND lower(format) = lower(?)"
-    fmt_params = [] if is_all_formats(format_name) else [format_name]
+    fmt_clause, fmt_params = format_clause(format_name)   # 'all' = the supported formats
     q = f"""
         SELECT event_date, result, player1_arch, player2_arch
         FROM matches
