@@ -1,0 +1,4 @@
+{
+  "_comment": "Tables that MUST exist after the normal startup path (init_db + save_matches) on a fresh or older DB. A branch that adds tables (e.g. matches_excluded, excluded_events) lists them here; CI never creates them itself.",
+  "required_tables": ["events", "decks", "cards", "deck_cards", "matches"]
+}
