@@ -30,8 +30,10 @@ force_utf8_stdio()
 _PREFS = os.path.join(_ROOT, "data", "preferences.json")
 
 # Formats that get MTGMelee scrapes regardless of user preference
-# (real match data is format-agnostic and always useful)
-_MELEE_ALWAYS = ["legacy", "pauper"]
+# (real match data is format-agnostic and always useful). Defined once in
+# db.scrape_sources; kept here as a name for existing importers.
+from db.scrape_sources import MELEE_ALWAYS as _MELEE_ALWAYS_T  # noqa: E402
+_MELEE_ALWAYS = list(_MELEE_ALWAYS_T)
 
 
 def load_formats():
@@ -52,16 +54,25 @@ def run(cmd, label) -> int:
     The heading is flushed BEFORE the child starts: background_fill.bat
     redirects stdout to logs/background_fill.log, where print() is
     block-buffered while the child writes straight to the shared file, so
-    every step's output used to land above every heading (2026-10-01)."""
-    print(f"\n-- {label} " + "-" * max(0, 55 - len(label)), flush=True)
-    result = subprocess.run(
-        [sys.executable] + cmd.split(),
-        cwd=_ROOT,
-        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-    )
-    if result.returncode != 0:
-        print(f"  [warn] exited with code {result.returncode}", flush=True)
-    return result.returncode
+    every step's output used to land above every heading (2026-10-01).
+    Delegates to db.scrape_sources.run_step (also keeps the error class)."""
+    from db.scrape_sources import run_step
+    return run_step(cmd, label, cwd=_ROOT).rc
+
+
+def run_source_step(source, fmt, outcomes, *, state_path=None):
+    """Run one scheduled source for one format and record its outcome IMMEDIATELY
+    (per source, with error class), so a run killed later still leaves evidence."""
+    from db.scrape_sources import run_step, step_command, step_label
+    from db.scrape_state import mark_run, write_source_outcome
+    label = step_label(source, fmt)
+    mark_run("step", step=label, path=state_path)
+    res = run_step(step_command(source, fmt), label, cwd=_ROOT)
+    write_source_outcome(fmt, source, "ok" if res.ok else "error",
+                         error=None if res.ok else f"{label}: exit {res.rc}",
+                         error_class=res.error_class, path=state_path)
+    outcomes.setdefault(fmt, []).append((label, res.rc))
+    return res
 
 
 def record_format_outcomes(outcomes: dict, path=None) -> None:
@@ -86,16 +97,17 @@ def record_format_outcomes(outcomes: dict, path=None) -> None:
 
 
 def main():
+    from db.scrape_sources import MELEE_ALWAYS
+    from db.scrape_state import mark_run
     formats = load_formats()
     print(f"[prefs] Active formats: {', '.join(formats)}")
+    mark_run("started")
 
     outcomes: dict = {}   # {format: [(label, exit code), ...]} -> scrape_state.json
 
     # MTGTop8 — selected formats only
     for fmt in formats:
-        label = f"MTGTop8 — {fmt}"
-        rc = run(f"main.py --format {fmt} --pages 2 --max-events 50", label)
-        outcomes.setdefault(fmt, []).append((label, rc))
+        run_source_step("mtgtop8", fmt, outcomes)
 
     # MTGDecks — auto-pull DISABLED 2026-06-04 per user request.
     # Manual paths still available: fill_database.bat (full rebuild), Settings
@@ -105,11 +117,9 @@ def main():
     print("\n-- MTGDecks SKIPPED (auto-pull disabled) --")
 
     # MTGMelee — selected formats + always-on extras
-    melee_formats = list(dict.fromkeys(formats + _MELEE_ALWAYS))
+    melee_formats = list(dict.fromkeys(formats + list(MELEE_ALWAYS)))
     for fmt in melee_formats:
-        label = f"MTGMelee — {fmt}"
-        rc = run(f"-m scrapers.mtgmelee_scraper --format {fmt} --pages 3", label)
-        outcomes.setdefault(fmt, []).append((label, rc))
+        run_source_step("mtgmelee", fmt, outcomes)
     record_format_outcomes(outcomes)
 
     # Spicerack — RCQs, Store Championships, large paper events
@@ -210,6 +220,7 @@ def main():
     # Archive maintenance (always)
     run("-m db.maintenance", "Archive maintenance")
 
+    mark_run("finished")
     print("\n[done] Background fill complete.")
 
 

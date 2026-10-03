@@ -95,3 +95,87 @@ def write_scrape_state(status="ok", error=None, fmt=None, path=None) -> None:
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(payload)
         os.replace(tmp, target)
+
+
+# --- per-source outcomes + run markers (2026-10-03, issue #8) -----------------
+#
+#   "formats": {"pioneer": {..., "sources": {"mtgmelee": {
+#         "last_attempt": "...", "last_status": "error", "last_success": "...",
+#         "last_error": "...", "error_class": "requests.exceptions.ConnectTimeout"}}}}
+#   "runs": {"pipeline": {"last_started": "...", "last_finished": "...",
+#                         "last_step": "MTGMelee — modern"}}
+#
+# Written after EACH step, not at the end of the run: the 2026-10-03 06:00 run was
+# killed mid-pipeline and, because outcomes were only written at the end, left no
+# trace at all.
+
+def _mutate(path, fn) -> None:
+    target = str(path or STATE_PATH)
+    with _LOCK:
+        os.makedirs(os.path.dirname(target) or ".", exist_ok=True)
+        state = read_scrape_state(target)
+        fn(state)
+        payload = json.dumps(state, indent=2)
+        tmp = f"{target}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(payload)
+        os.replace(tmp, target)
+
+
+def write_source_outcome(fmt: str, source: str, status: str, *, error=None,
+                         error_class=None, path=None) -> None:
+    """Record one source's outcome for one format. `last_success` survives failures,
+    so 'failing since <last_success>' is always answerable."""
+    now = datetime.now().isoformat(timespec="seconds")
+
+    def fn(state):
+        formats = state.setdefault("formats", {})
+        if not isinstance(formats, dict):
+            formats = state["formats"] = {}
+        entry = formats.setdefault(fmt.lower(), {})
+        sources = entry.setdefault("sources", {})
+        s = sources.setdefault(source, {})
+        s["last_attempt"] = now
+        s["last_status"] = status
+        if status == "ok":
+            s["last_success"] = now
+            s.pop("last_error", None)
+            s.pop("error_class", None)
+        else:
+            if error:
+                s["last_error"] = str(error)[:500]
+            s["error_class"] = error_class or "unknown"
+    _mutate(path, fn)
+
+
+def mark_run(event: str, *, step=None, run="pipeline", path=None) -> None:
+    """event: 'started' | 'step' | 'finished'. A run whose last_started is newer than
+    its last_finished was interrupted (or is still running)."""
+    now = datetime.now().isoformat(timespec="seconds")
+
+    def fn(state):
+        r = state.setdefault("runs", {}).setdefault(run, {})
+        if event == "started":
+            r["last_started"] = now
+            r.pop("last_step", None)
+        elif event == "step":
+            r["last_step"] = step
+            r["last_step_at"] = now
+        elif event == "finished":
+            r["last_finished"] = now
+        else:
+            raise ValueError(f"unknown run event {event!r}")
+    _mutate(path, fn)
+
+
+def run_status(run="pipeline", path=None) -> dict:
+    """{'state': 'finished'|'interrupted_or_running'|'never', ...markers}."""
+    r = (read_scrape_state(path).get("runs") or {}).get(run) or {}
+    started, finished = r.get("last_started"), r.get("last_finished")
+    if not started:
+        state = "never"
+    elif finished and finished >= started:
+        state = "finished"
+    else:
+        state = "interrupted_or_running"
+    return {**r, "state": state}

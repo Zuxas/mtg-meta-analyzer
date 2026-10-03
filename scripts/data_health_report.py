@@ -133,6 +133,32 @@ def conversion(con, fmt: str, lo: str, hi: str,
     print("  of event size. Treat conversion as a signal, not a standing.")
 
 
+def sources(con) -> None:
+    """Per-source recency + diagnosis (analysis/source_recency.py, issue #8):
+    which source stopped, what its last scrape said, how to recover it, and
+    whether the last scheduled pipeline run finished."""
+    from analysis.source_recency import describe_recency, source_recency
+    from db.scrape_state import run_status
+    print("=" * 78)
+    print("SOURCES -- which source is behind, and why")
+    print("=" * 78)
+    rs = run_status()
+    if rs["state"] == "interrupted_or_running":
+        print(f"!! last scheduled run started {rs.get('last_started')} and has NOT finished "
+              f"(last step: {rs.get('last_step')}). Interrupted, or still running.")
+    elif rs["state"] == "never":
+        print("(no scheduled-run markers recorded yet)")
+    else:
+        print(f"last scheduled run finished {rs.get('last_finished')}")
+    rec = source_recency(list(FORMATS), con=con)
+    for fmt in FORMATS:
+        if fmt in rec:
+            print()
+            for line in describe_recency(fmt, rec[fmt]):
+                print(line)
+    print()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--format", default="modern")
@@ -152,6 +178,7 @@ def main() -> None:
     con = sqlite3.connect(str(DB_PATH))
     print(f"DB: {DB_PATH}\n")
     freshness(con)
+    sources(con)
     if not args.freshness_only:
         conversion(con, args.format.lower(), args.since, args.until,
                    args.min_players, args.cut)
