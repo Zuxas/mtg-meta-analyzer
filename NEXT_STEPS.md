@@ -65,6 +65,13 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
   results -> re-tag per pairing (443 rows, 159 -> vintage, 6 unjoined held), not quarantine. Limited rows proven
   per round = 150 (147 + 3 in PT Marvel's Draft top 8) -> quarantine. "All formats" views apply no format filter,
   so vintage rows appear there; the five per-format views exclude them.
+- APPLIED 2026-10-02 evening (report `docs/reports/2026-10-02-melee-relabel.md`): trios retag 443 rows
+  (backup pre-team-format-fix), Limited quarantine 150 rows / 58 round entries (backup pre-quarantine),
+  relabel fuzzy_fix 32,423 + alias_drift 162 = 32,585 rows (backup pre-melee-relabel). All checks green.
+- OPEN: review fuzzy_guess (9,828) + vague (15,277) per name; `other` (10,786) is over-inclusive -- per-date alias
+  tables from git history would separate post-scrape aliases (e.g. 'Mono Green Landfall' 3,700 Standard slots);
+  12,342 unmatched rows (cause unknown); 6 unjoined 437430 rows still tagged standard; decide whether "All
+  formats" views should exclude vintage.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;
