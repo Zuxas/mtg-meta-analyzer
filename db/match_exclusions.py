@@ -9,8 +9,10 @@ put them back.
 
 Registry entries are either a whole event (`round` NULL, scope 'event') or one round of an event
 (scope 'round'). Moves and restores go through scripts/quarantine_matches.py (backup + one
-transaction). Added 2026-10-02: Melee team events (team results labelled with one seat's deck) and
-Draft/Sealed rounds of mixed-format events.
+transaction). Added 2026-10-02 for Draft/Sealed rounds of mixed-format Melee events (150 rows,
+58 event+round entries), proven by each round's pairing-level match Format. Team-format events
+were NOT quarantined: their public pairings are valid individual 1v1 seat matches, so those rows
+stayed in `matches` and only their `format` was corrected from pairing-level evidence.
 """
 from __future__ import annotations
 
