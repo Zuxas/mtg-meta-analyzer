@@ -56,12 +56,15 @@ Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live a
 - 2026-10-02 later: branch pushed (360552d). 391510 format fix APPLIED (`scripts/fix_melee_event_format.py`):
   50 rows (47 standard->pauper, 3 pauper->standard), only `format`, backup
   `mtg_meta.backup-2026-10-02-pre-melee-format-fix.db`, integrity ok, re-run 0.
-- 437430 exclusion BLOCKED pending user choice: no central read path -- 24 direct `FROM matches` reads in 9 files.
-  Proposed A = quarantine table `matches_excluded` + registry `excluded_events` + guard in `save_matches`.
-- Survey (`scripts/survey_melee_event_formats.py`, read-only; report `event-format-survey-20261002-163328.md`):
-  21 flagged of 912; 5 TEAM events (437 rows) and 147 draft/sealed-round rows stored as constructed in 10 PT/Worlds
-  events. Candidates for the same exclusion.
-- STILL HELD: regenerated manifests, pre-apply suite, fuzzy_fix + alias_drift apply.
+- No central read path for `matches` (24 direct reads in 9 files) -> user approved option A: rows proven invalid
+  are MOVED unchanged to `matches_excluded`, registered in `excluded_events` (whole event or event+round),
+  and `save_matches` (the only writer) refuses registered rows (counted in `LAST_SAVE_SKIPPED`, warned).
+  Code: `db/match_exclusions.py`, `scripts/quarantine_matches.py` (prove / commit / retag / restore).
+- Survey (`scripts/survey_melee_event_formats.py`, read-only; report `event-format-survey-20261002-163328.md`,
+  CORRECTED banner at top): the 5 "team" events (542 rows) are 1v1 seat pairings with per-match Format, NOT team
+  results -> re-tag per pairing (443 rows, 159 -> vintage, 6 unjoined held), not quarantine. Limited rows proven
+  per round = 150 (147 + 3 in PT Marvel's Draft top 8) -> quarantine. "All formats" views apply no format filter,
+  so vintage rows appear there; the five per-format views exclude them.
 
 ## 10/1 late — Dashboard review fixes (branch `fix/dashboard-status-chart-2026-10-01`)
 - Status bar follows the Dashboard format; chart colours stable per archetype; weighted smoothing + thin points faded;

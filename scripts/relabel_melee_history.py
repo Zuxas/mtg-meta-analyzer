@@ -321,6 +321,12 @@ def build_plan(con: sqlite3.Connection, fmt: str | None = None, code_commit: str
     totals = Counter()
     for c in per_event.values():
         totals.update(c)
+    excluded = {}                                  # quarantined rows (db/match_exclusions.py), audit only
+    if con.execute("SELECT 1 FROM sqlite_master WHERE name='matches_excluded'").fetchone():
+        excluded = dict(con.execute(
+            f"SELECT excluded_reason, COUNT(*) FROM matches_excluded WHERE {SCOPE_SQL}"
+            + (" AND format = ?" if fmt else "") + " GROUP BY excluded_reason",
+            (CUTOFF_ID, fmt) if fmt else (CUTOFF_ID,)).fetchall())
     events = {e: dict(c) for e, c in sorted(per_event.items())}
     coverage = {"events": len(events),
                 "events_complete": sum(1 for t in caches.values() if t is not None),
@@ -333,6 +339,7 @@ def build_plan(con: sqlite3.Connection, fmt: str | None = None, code_commit: str
               "held_sha256": _sha({b: [h["id"] for h in v] for b, v in sorted(held.items())})}
     return {"generated_at": _now(), **inputs, "manifest_sha256": _sha(inputs),
             "rows_in_scope": len(rows), "totals": dict(totals), "coverage": coverage,
+            "excluded_rows_not_planned": excluded,
             "slot_pairs": [{"slots": list(k), "row_bucket": k[0], "rows": n}
                            for k, n in sorted(slot_pairs.items(), key=lambda kv: -kv[1])],
             "per_event": events,
@@ -354,6 +361,9 @@ def _report_md(p: dict, applied: dict | None = None) -> str:
          f"{cov['events']} events",
          f"- Event coverage: {cov['events_complete']} of {cov['events']} events fully re-scraped; "
          f"{len(cov['events_unrecovered'])} unrecovered",
+         f"- Quarantined rows in scope, NOT planned (matches_excluded): "
+         f"{sum(p.get('excluded_rows_not_planned', {}).values()):,} "
+         f"{p.get('excluded_rows_not_planned') or ''}",
          f"- Code `{p['code_commit'][:10]}`, mapping `{p['mapping_version'][:12]}`, "
          f"DB rows `{p['db_rows_sha256'][:12]}`, cache `{p['cache_sha256'][:12]}`",
          f"- **Manifest sha256 `{p['manifest_sha256']}`**", "",

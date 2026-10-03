@@ -535,6 +535,8 @@ def scrape_tournaments(tournament_ids: list[str], format_name: str, pages: int =
             before = count_event_matches(f"mtgmelee_{tid}")
             save_matches(rows)
             stats["inserted"] = count_event_matches(f"mtgmelee_{tid}") - before
+            from db.matches_queries import LAST_SAVE_SKIPPED
+            stats["excluded_skipped"] = len(LAST_SAVE_SKIPPED)
         out[tid] = stats
         print(f"  {tid} {t['name']} ({t['date']}): {stats}")
     return out
@@ -576,7 +578,9 @@ def scrape_and_store(format_name: str, pages: int = 5,
 
         saved = save_matches(match_rows)
         total_saved += saved
-        log.info("  Saved %d matches from %s", saved, t["name"])
+        from db.matches_queries import LAST_SAVE_SKIPPED
+        log.info("  Saved %d matches from %s%s", saved, t["name"],
+                 f" ({len(LAST_SAVE_SKIPPED)} refused: excluded event/round)" if LAST_SAVE_SKIPPED else "")
 
     log.info("Done. Total matches saved: %d", total_saved)
     return total_saved

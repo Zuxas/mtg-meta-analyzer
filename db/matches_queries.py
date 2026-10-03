@@ -10,8 +10,17 @@ result values: 'player1' | 'player2' | 'draw'
 source values: 'mtgmelee' | 'bracket_finals' | 'bracket_sf' | 'bracket_qf'
 """
 
+import logging
+
 from db.database import get_connection
 from db.helpers import ensure_table as _do_ensure
+from db.match_exclusions import load_registry, split_rows
+
+log = logging.getLogger(__name__)
+
+# Rows the last save_matches() call refused because their event or round is in the exclusion
+# registry (db/match_exclusions.py) -- reported by callers, never silently dropped.
+LAST_SAVE_SKIPPED: list[dict] = []
 
 
 _CREATE_SQL = """
@@ -53,11 +62,23 @@ def save_matches(match_rows: list[dict]) -> int:
         event_id, round, player1, player2,
         player1_arch, player2_arch, winner_arch,
         result, format, event_date, source
-    Returns the number of rows inserted/replaced.
+    Returns the number of rows offered for insert (INSERT OR IGNORE).
+    Rows of an excluded event or round (db/match_exclusions.py registry) are refused: they are
+    counted in LAST_SAVE_SKIPPED and logged as a warning, never written.
     """
+    LAST_SAVE_SKIPPED.clear()
     if not match_rows:
         return 0
     _ensure_table()
+    with get_connection() as conn:
+        registry = load_registry(conn)
+    match_rows, skipped = split_rows(match_rows, registry)
+    if skipped:
+        LAST_SAVE_SKIPPED.extend(skipped)
+        events = sorted({(m["event_id"], m.get("round")) for m in skipped}, key=str)
+        log.warning("save_matches: refused %d row(s) of excluded events/rounds %s", len(skipped), events)
+    if not match_rows:
+        return 0
     rows = [
         (
             m["event_id"],
@@ -116,7 +137,10 @@ def get_stored_event_ids(format_name: str, source: str = "mtgmelee") -> set:
             "SELECT DISTINCT event_id FROM matches WHERE lower(format)=lower(?) AND source=?",
             (format_name, source),
         ).fetchall()
-    return {r["event_id"] for r in rows}
+        whole_events, _ = load_registry(conn)
+    # A wholly excluded event counts as handled, so the scraper does not re-fetch it every run
+    # (save_matches would refuse its rows anyway).
+    return {r["event_id"] for r in rows} | {e for s, e in whole_events if s == source}
 
 
 def count_event_matches(event_id: str) -> int:

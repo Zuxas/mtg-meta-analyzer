@@ -237,3 +237,24 @@ def test_amulet_titan_alias_is_a_cleanup_alias():
     assert _map_archetype("Mono-Green Amulet Titan", "") == "Amulet Titan"
     assert r._slot("Mono Red Aggro", "Mono-Green Amulet Titan")[1] in ("fuzzy_fix", "fuzzy_guess")
     assert r._slot("Amulet Titan", "Mono-Green Amulet Titan") == ("Amulet Titan", "unchanged")
+
+
+def test_quarantined_rows_never_enter_relabel_totals_but_are_reported(env, tmp_path):
+    """Rows moved to matches_excluded are out of `matches`, so the plan cannot count them; the
+    report still states how many were left out."""
+    from scripts import quarantine_matches as qm
+    con = sqlite3.connect(env)
+    ids = [r[0] for r in con.execute("SELECT id FROM matches WHERE id IN (1, 2) ORDER BY id")]
+    plan = {"entries": [{"source": "mtgmelee", "event_id": "mtgmelee_1", "round": 1, "scope": "round",
+                         "reason": "limited-round", "rows": 5}],
+            "row_ids": {"mtgmelee_1|1": [r[0] for r in con.execute(
+                "SELECT id FROM matches WHERE event_id='mtgmelee_1' AND round=1 AND source='mtgmelee' "
+                "ORDER BY id")]}}
+    plan["plan_sha256"] = qm._sha(plan)
+    qm.quarantine(sqlite3.connect(env), plan, backup=None)
+    p = _plan(env)
+    assert not ({c["id"] for c in p["changes"]} & set(ids))
+    assert p["excluded_rows_not_planned"] == {"limited-round": 5}   # ids 1-5; mtgtop8 row 7 stays
+    r.cmd_plan(Namespace(db=env, format=None))
+    md = next((tmp_path / "out").glob("dryrun-*.md")).read_text(encoding="utf-8")
+    assert "Quarantined rows in scope, NOT planned (matches_excluded): 5" in md
