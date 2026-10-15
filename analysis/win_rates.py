@@ -49,8 +49,15 @@ _CACHE_TTL = 60  # seconds
 
 
 def _cached(key, fn):
-    """Return cached result if <60s old, otherwise call fn() and cache."""
+    """Return cached result if <60s old, otherwise call fn() and cache.
+
+    Keyed on the database paths too, so a result computed against one
+    database is never served for another (e.g. a test's tmp DB getting the
+    real DB's numbers from an earlier call in the same process, #12).
+    """
     import time
+    import db.database as _dbm
+    key = (_dbm.DB_PATH, _dbm.ARCHIVE_PATH, key)
     now = time.time()
     if key in _query_cache:
         ts, result = _query_cache[key]
