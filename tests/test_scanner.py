@@ -178,17 +178,17 @@ def test_scan_all_returns_empty_for_missing_cache_dir(tmp_path, monkeypatch):
 
 
 def test_find_lethal_with_real_transcript_format():
-    """Real format: 'ViewtifulYosh life: 8 → 0 (-8)' with opp_name passed."""
+    """Real format: 'Opponent A life: 8 → 0 (-8)' with opp_name passed."""
     from analysis.puzzles import scanner
     transcript = {
         "match_id": "real-fmt",
-        "opp_name": "ViewtifulYosh",
+        "opp_name": "Opponent A",
         "games": [{"game_num": 1, "turns": [
             _turn(7, [
                 "You cast Burst Lightning",
                 "You cast Boomerang Basics",
                 "You cast Slickshot Show-Off",
-                "ViewtifulYosh life: 8 → 0 (-8)",
+                "Opponent A life: 8 → 0 (-8)",
             ]),
         ]}],
     }
@@ -203,11 +203,11 @@ def test_stabilize_with_real_transcript_format():
     from analysis.puzzles import scanner
     transcript = {
         "match_id": "real-stab",
-        "opp_name": "ViewtifulYosh",
+        "opp_name": "Opponent A",
         "games": [{"game_num": 1, "turns": [
             _turn(6, ["You life: 7 → 4 (-3)"]),
             _turn(7, ["You life: 4 → 6 (+2)"]),
-            _turn(8, ["ViewtifulYosh life: 5 → 0 (-5)"]),
+            _turn(8, ["Opponent A life: 5 → 0 (-5)"]),
         ]}],
     }
     out = scanner.scan_match("real-stab", transcript)

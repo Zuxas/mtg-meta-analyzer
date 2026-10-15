@@ -12,10 +12,21 @@ set -u
 
 # ── Patterns ────────────────────────────────────────────────────────
 
-# Personal identifiers — CUSTOMIZE for your project
-# Include: real name(s), handles, teammate names you mention in notes,
-# family-member first names, pet names used in examples
-PERSONAL='jermey|zuxas|jerme|caleb|troubleshot|tien|garrison|urbae|foxy|rehgar'
+# Personal identifiers and machine paths are PRIVATE, so they are not in
+# this file. They live in an untracked file next to the installed hook:
+#   $(git rev-parse --git-common-dir)/hooks/pre-push.local
+# (copy scripts/pre-push.local.example there and fill it in). CI supplies
+# the same file from the PRE_PUSH_LOCAL secret. PRE_PUSH_LOCAL_FILE
+# overrides the location. Without it, only the generic patterns run.
+PERSONAL=''
+PATHS='/home/[a-z]+/\.ssh/id_'
+LOCAL_FILE="${PRE_PUSH_LOCAL_FILE:-$(git rev-parse --git-common-dir 2>/dev/null)/hooks/pre-push.local}"
+if [ -f "$LOCAL_FILE" ]; then
+    # shellcheck source=/dev/null
+    . "$LOCAL_FILE"
+else
+    echo "pre-push: no $LOCAL_FILE; scanning for secrets only, not personal names or paths." >&2
+fi
 
 # Secrets & credentials — generic, don't edit
 SECRETS='sk-[a-zA-Z0-9]{20,}'
@@ -32,17 +43,9 @@ SECRETS="${SECRETS}|-----BEGIN (RSA|OPENSSH|EC|DSA|PRIVATE) "
 # Session cookies / browser session artifacts
 COOKIES='cookies\.txt|__Secure-1PSID|__Secure-3PSID|SAPISID|APISID|SSID|HSID'
 
-# User-specific paths — CUSTOMIZE
-# Your machine-specific paths that shouldn't leak into public code.
-# Use [\\/] to match either backslash or forward slash — Python string
-# literals on Windows often store paths with forward slashes, and
-# backslash-only patterns let those through.
-PATHS='C:[\\/]Users[\\/]jerme'
-PATHS="${PATHS}|E:[\\/]vscode ai project"
-PATHS="${PATHS}|/home/[a-z]+/\.ssh/id_"
-
 # Combined
-PATTERN="${PERSONAL}|${SECRETS}|${COOKIES}|${PATHS}"
+PATTERN="${SECRETS}|${COOKIES}|${PATHS}"
+[ -n "$PERSONAL" ] && PATTERN="${PERSONAL}|${PATTERN}"
 
 # ── Push-range detection ────────────────────────────────────────────
 
@@ -91,7 +94,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
                 exit_code=1
                 flagged_files="${flagged_files}${f}\n"
                 printf '\n❌  %s\n' "$f"
-                printf '%s\n' "$matches" | head -5 | sed 's/^/    /'
+                # PRE_PUSH_QUIET (set in CI, whose logs are public): line
+                # numbers only, so a hit doesn't publish what it caught.
+                if [ -n "${PRE_PUSH_QUIET:-}" ]; then
+                    printf '%s\n' "$matches" | head -5 | cut -d: -f1 | sed 's/^/    line /'
+                else
+                    printf '%s\n' "$matches" | head -5 | sed 's/^/    /'
+                fi
                 count=$(printf '%s\n' "$matches" | wc -l | tr -d ' ')
                 if [ "$count" -gt 5 ]; then
                     printf '    ... and %d more matches\n' "$((count - 5))"

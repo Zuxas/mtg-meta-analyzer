@@ -1,0 +1,11 @@
+# Private patterns for scripts/pre-push. Copy to
+#   $(git rev-parse --git-common-dir)/hooks/pre-push.local
+# and fill in. That file is untracked; never commit the real one.
+# Values are extended regexes (grep -E), case-insensitive.
+
+# Real names, handles, family/teammate/pet names used in notes.
+PERSONAL='yourname|yourhandle'
+
+# Machine-specific paths. [\\/] matches either slash. Keep the generic
+# ssh-key pattern from the hook by appending to PATHS.
+PATHS="${PATHS}|C:[\\/]Users[\\/]yourname"
