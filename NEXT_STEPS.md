@@ -804,7 +804,7 @@ Launch app → Tournament → Event Finder. Enter zipcode, try 300 mi RCQ. Confi
 
 - **Single-instance enforcement** — `gui/single_instance.py` + `QLockFile` (30s stale TTL). 2nd-launch attempts show a modal + exit. Crash-test verified end-to-end. 6 unit tests.
 - **Crash handler BaseException fix** — wrappers in `gui/crash_handler.py` now catch `BaseException` so KeyboardInterrupt/SystemExit raised inside Python 3.13's traceback formatter don't propagate. 3 regression tests.
-- **5 real-data puzzles** — `scripts/seed_real_puzzles.py` seeds puzzles from cached replays (ViewtifulYosh + Drosme), all `grading_mode='keyword'`. `scripts/enrich_puzzle_notes.py` patches GY state + card abilities into notes (until Scene gets a graveyard field).
+- **5 real-data puzzles** — `scripts/seed_real_puzzles.py` seeds puzzles from cached replays (Opponent A + Opponent B), all `grading_mode='keyword'`. `scripts/enrich_puzzle_notes.py` patches GY state + card abilities into notes (until Scene gets a graveyard field).
 - **Puzzle Phase 3 graders** — `analysis/puzzles/graders.py` (5 days early vs 5/22 plan). 16 tests. Keyword grader uses rapidfuzz (typo-tolerant). LLM grader uses claude-haiku-4-5 inline (~$0.001). Dispatcher fallback chain: llm → keyword → self. Verdict chip rendered below author's solution.
 - **Maps deeplink in Event Hub** — right-click event row → "Open store in Google Maps". URL built from `store + lat,lng` (already in event dict). No API key.
 - **Solve mode ordering fix** — newest puzzle first (was oldest first due to `candidates[-1]` instead of `[0]`).
