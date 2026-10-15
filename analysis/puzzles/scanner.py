@@ -54,7 +54,7 @@ def _parse_life_from_actions(
     """Return (your_life, opp_life) parsed from a turn's actions list,
     or (None, None) if neither was logged that turn.
 
-    Supports both the real transcript form  ("ViewtifulYosh life: 8 → 0 (-8)")
+    Supports both the real transcript form  ("Opponent A life: 8 → 0 (-8)")
     and the legacy/test form ("Opp life: 12").  When opp_name is provided, the
     actual display name is matched against it; "Opp" is always accepted as a
     legacy fallback.  When the X → Y form is present the AFTER value is used;

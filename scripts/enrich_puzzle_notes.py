@@ -44,7 +44,7 @@ _ENRICHED_NOTES = {
         "Stormchaser's Talent is {U} (single blue), Enchantment — Class. "
         "ETB makes a 1/1 Otter with prowess. L2 = {3}{U}, L3 = {5}{U}."
     ),
-    "vs ViewtifulYosh G1 T10 — close from 3": (
+    "vs Opponent A G1 T10 — close from 3": (
         "GY STATE: Yours has ~6-8 cards by T10 (Sleight, Boomerang, Burst x2, "
         "Slickshot Show-Off [exiled], etc. — exact list not tracked). Opp GY "
         "similar volume. Talent L2 return target available (any instant/sorcery "
@@ -58,11 +58,11 @@ _ENRICHED_NOTES = {
         "(1/3 Class L1, with prowess attached). Opp has Sage of the Skies "
         "(2/2 NO flying in this deck — Dimir Roomba) so Slickshot is "
         "UNBLOCKABLE here.\n\n"
-        "OPP STATE: ViewtifulYosh, Dimir Roomba (Insatiable Avarice). 3 life. "
+        "OPP STATE: Opponent A, Dimir Roomba (Insatiable Avarice). 3 life. "
         "4 cards in hand (unknown — could be removal, could be more discard).\n\n"
         "The Slickshot Show-Off + Burst Lightning line is clean lethal."
     ),
-    "vs ViewtifulYosh G1 T8 — pump and push (opp at 13)": (
+    "vs Opponent A G1 T8 — pump and push (opp at 13)": (
         "GY STATE: Yours ~4-5 cards (Stormchaser's Talent, Boomerang, Burst). "
         "Opp GY ~2-3. L2 Talent return available (Burst Lightning would be "
         "highest-value to return).\n\n"
@@ -80,7 +80,7 @@ _ENRICHED_NOTES = {
         "Prowess pump is +2/+0 PER noncreature spell on Slickshot, +1/+1 PER "
         "noncreature on the Otter. Sequence matters: pump THEN combat damage."
     ),
-    "vs Drosme G1 T6 — sequence the prowess": (
+    "vs Opponent B G1 T6 — sequence the prowess": (
         "GY STATE: Yours has Sleight of Hand (cast T2). Opp GY has Flow State "
         "(in play, not GY). L2 Talent return = Sleight back to hand (low value).\n\n"
         "CARDS IN HAND:\n"
@@ -91,13 +91,13 @@ _ENRICHED_NOTES = {
         "BOARD: Slickshot Show-Off just resolved this turn (1/2 flying haste). "
         "Opp has NO creatures, but DOES have Flow State (your noncreature "
         "spells make them lose 1 life each).\n\n"
-        "OPP STATE: Drosme, Dimir Reanimator. 18 life. 4 cards in hand "
+        "OPP STATE: Opponent B, Dimir Reanimator. 18 life. 4 cards in hand "
         "(unknown — assume reactive given the Flow State play pattern).\n\n"
         "Key insight: Slickshot has flying + haste + nothing blocks it. Attack "
         "FIRST while it's alive (2 toughness = fragile). Pump only matters "
         "for surviving blocks."
     ),
-    "vs Drosme G2 T7 — bounce the Crab, swing for 5": (
+    "vs Opponent B G2 T7 — bounce the Crab, swing for 5": (
         "GY STATE: Yours has 2x Stormchaser's Talent (cast T3 + T5 per the "
         "real replay — both flipped Otters generated). L2 Talent flip would "
         "return one Talent from GY (recursion loop possible).\n\n"
@@ -109,13 +109,13 @@ _ENRICHED_NOTES = {
         "BOARD: Stormchaser's Talent (1/3 Class L1) + Slickshot Show-Off "
         "(1/2 flying haste). Both attacking. Two Otter tokens implied from "
         "the prior Talent flips (1/1 each with prowess).\n\n"
-        "OPP STATE: Drosme, 5 life, Eddymurk Crab on board (4/5). Crab is a "
+        "OPP STATE: Opponent B, 5 life, Eddymurk Crab on board (4/5). Crab is a "
         "hard wall — can block any ground creature and survive. 2 cards in "
         "hand (likely reactive given the board state).\n\n"
         "Bounce > burn here because Crab is a 5-toughness wall. Removing it "
         "unlocks 6+ damage of creature combat."
     ),
-    "vs ViewtifulYosh G3 T11 — secure the win or overkill?": (
+    "vs Opponent A G3 T11 — secure the win or overkill?": (
         "GY STATE: Both GYs deep by T11 (10+ cards each side). Specific "
         "contents not load-bearing for this decision.\n\n"
         "CARDS IN HAND:\n"
@@ -126,7 +126,7 @@ _ENRICHED_NOTES = {
         "MANA AVAILABLE: UUURRR (6 mana, 6 lands).\n\n"
         "BOARD: Eddymurk Crab (4/5) + Slickshot Show-Off (1/2 flying haste). "
         "Opp has NO creatures on board — both attackers are unblocked.\n\n"
-        "OPP STATE: ViewtifulYosh, 5 life, 5 cards in hand (could be anything). "
+        "OPP STATE: Opponent A, 5 life, 5 cards in hand (could be anything). "
         "If they have removal in hand: bouncing or burning the Crab loses you "
         "4 dmg of clock, but Slickshot still gets through for 1.\n\n"
         "Pro discipline: don't burn resources when combat alone is lethal. "

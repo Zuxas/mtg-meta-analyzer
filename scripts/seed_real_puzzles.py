@@ -1,5 +1,5 @@
 """Seed puzzles authored from REAL match data: opponents from cached
-replays (ViewtifulYosh, Drosme), cards from saved Tokyo Prowess
+replays (Opponent A, Opponent B), cards from saved Tokyo Prowess
 (saved_decks.id=17). Every card name verified against card_data before
 the scene is built — fails loud if any card is missing.
 
@@ -54,7 +54,7 @@ def _face_down(count: int) -> list[dict]:
 # ── Scenes built from real match data ──
 
 def _viewtiful_g1_t10_scene() -> dict:
-    """ViewtifulYosh G1 T10 — opp at 3, you have Slickshot + Flow State
+    """Opponent A G1 T10 — opp at 3, you have Slickshot + Flow State
     on board. Real arena_match_id from cached replay."""
     return {
         "arena_match_id": "8ce83d19-02aa-4576-9ff6-56631a164a7c",
@@ -81,7 +81,7 @@ def _viewtiful_g1_t10_scene() -> dict:
             "mana_available": {"U": 3, "R": 2},
         },
         "opp": {
-            "name": "ViewtifulYosh",
+            "name": "Opponent A",
             "archetype": "Dimir Roomba (Insatiable Avarice)",
             "life": 3,
             "hand": _face_down(4),
@@ -97,7 +97,7 @@ def _viewtiful_g1_t10_scene() -> dict:
             ],
         },
         "notes": (
-            "Real match vs ViewtifulYosh — G1 T10. Opp at 3 life with a "
+            "Real match vs Opponent A — G1 T10. Opp at 3 life with a "
             "Sage of the Skies blocker. Slickshot Show-Off (1/2 flying haste) "
             "already in play. Burst Lightning + Opt + Sleight in hand. "
             "5 lands available for UUURR."
@@ -106,7 +106,7 @@ def _viewtiful_g1_t10_scene() -> dict:
 
 
 def _viewtiful_g1_t8_scene() -> dict:
-    """ViewtifulYosh G1 T8 — push opp from ~13 toward lethal range.
+    """Opponent A G1 T8 — push opp from ~13 toward lethal range.
     Big triple-spell turn (Impractical Joke + Sleight + Opt). Teaches
     Slickshot pump sequencing."""
     return {
@@ -134,7 +134,7 @@ def _viewtiful_g1_t8_scene() -> dict:
             "mana_available": {"U": 2, "R": 2},
         },
         "opp": {
-            "name": "ViewtifulYosh", "archetype": "Dimir Roomba", "life": 13,
+            "name": "Opponent A", "archetype": "Dimir Roomba", "life": 13,
             "hand": _face_down(3),
             "battlefield_lands": [
                 _basic_land("Watery Grave"),
@@ -146,7 +146,7 @@ def _viewtiful_g1_t8_scene() -> dict:
             ],
         },
         "notes": (
-            "Real match vs ViewtifulYosh — G1 T8. UURR available (4 mana). "
+            "Real match vs Opponent A — G1 T8. UURR available (4 mana). "
             "Slickshot already in play. Stacking noncreature casts pumps it +2/+0 "
             "PER spell. Sage of the Skies (opp's blocker) doesn't have flying so "
             "Slickshot is unblockable here."
@@ -154,8 +154,8 @@ def _viewtiful_g1_t8_scene() -> dict:
     }
 
 
-def _drosme_g1_t6_scene() -> dict:
-    """Drosme G1 T6 — your big push turn. Slickshot just hit; need to
+def _opp_b_g1_t6_scene() -> dict:
+    """Opponent B G1 T6 — your big push turn. Slickshot just hit; need to
     sequence Burst + Opt + Opt for max prowess."""
     return {
         "arena_match_id": "bfa19abb-35da-4785-a8a9-dd317a0e1e31",
@@ -181,7 +181,7 @@ def _drosme_g1_t6_scene() -> dict:
             "mana_available": {"U": 3, "R": 2},
         },
         "opp": {
-            "name": "Drosme", "archetype": "Dimir Reanimator", "life": 18,
+            "name": "Opponent B", "archetype": "Dimir Reanimator", "life": 18,
             "hand": _face_down(4),
             "battlefield_lands": [
                 _basic_land("Watery Grave"),
@@ -191,15 +191,15 @@ def _drosme_g1_t6_scene() -> dict:
             "battlefield_creatures": [],
         },
         "notes": (
-            "Real match vs Drosme — G1 T6. Slickshot just resolved. "
-            "UURR available (4 mana). Drosme has Flow State on board "
+            "Real match vs Opponent B — G1 T6. Slickshot just resolved. "
+            "UURR available (4 mana). Opponent B has Flow State on board "
             "(your noncreature spells make them lose 1 life each)."
         ),
     }
 
 
-def _drosme_g2_t7_scene() -> dict:
-    """Drosme G2 T7 — opp at 5, you need to close before they stabilize.
+def _opp_b_g2_t7_scene() -> dict:
+    """Opponent B G2 T7 — opp at 5, you need to close before they stabilize.
     Real archetypal close-it-out moment."""
     return {
         "arena_match_id": "bfa19abb-35da-4785-a8a9-dd317a0e1e31",
@@ -226,7 +226,7 @@ def _drosme_g2_t7_scene() -> dict:
             "mana_available": {"U": 3, "R": 2},
         },
         "opp": {
-            "name": "Drosme", "archetype": "Dimir Reanimator", "life": 5,
+            "name": "Opponent B", "archetype": "Dimir Reanimator", "life": 5,
             "hand": _face_down(2),
             "battlefield_lands": [
                 _basic_land("Watery Grave"),
@@ -240,7 +240,7 @@ def _drosme_g2_t7_scene() -> dict:
             ],
         },
         "notes": (
-            "Real match vs Drosme — G2 T7. Opp at 5 life with a Crab "
+            "Real match vs Opponent B — G2 T7. Opp at 5 life with a Crab "
             "(5/5) blocker. You have Slickshot (with prowess stacks) and "
             "Talent attacker. UUURR available. Need 5 damage past one blocker."
         ),
@@ -248,7 +248,7 @@ def _drosme_g2_t7_scene() -> dict:
 
 
 def _viewtiful_g3_t11_scene() -> dict:
-    """ViewtifulYosh G3 T11 — closed out at -7. Massive overkill turn,
+    """Opponent A G3 T11 — closed out at -7. Massive overkill turn,
     teaches when to NOT waste burn (save for game 2 of a series). Or
     when to dump everything for safety."""
     return {
@@ -278,7 +278,7 @@ def _viewtiful_g3_t11_scene() -> dict:
             "mana_available": {"U": 3, "R": 3},
         },
         "opp": {
-            "name": "ViewtifulYosh", "archetype": "Dimir Roomba", "life": 5,
+            "name": "Opponent A", "archetype": "Dimir Roomba", "life": 5,
             "hand": _face_down(5),
             "battlefield_lands": [
                 _basic_land("Watery Grave"),
@@ -289,7 +289,7 @@ def _viewtiful_g3_t11_scene() -> dict:
             "battlefield_creatures": [],
         },
         "notes": (
-            "Real match vs ViewtifulYosh — G3 T11. Crab + Slickshot both "
+            "Real match vs Opponent A — G3 T11. Crab + Slickshot both "
             "attacking unblocked is 6 damage = opp -1. But sequencing matters: "
             "if they have one unknown card that's a removal spell for the "
             "Crab, you lose 5 dmg of clock. UUURRR available."
@@ -303,7 +303,7 @@ _SEED_PUZZLES = [
     {
         "category": "find_lethal",
         "difficulty": 4,
-        "question": "vs ViewtifulYosh G1 T10 — close from 3",
+        "question": "vs Opponent A G1 T10 — close from 3",
         "solution_text": (
             "Slickshot (1/2 flying haste) attacks unblocked (Sage of the Skies "
             "has no flying) — opp 3 → 1.\n\n"
@@ -325,7 +325,7 @@ _SEED_PUZZLES = [
     {
         "category": "find_lethal",
         "difficulty": 3,
-        "question": "vs ViewtifulYosh G1 T8 — pump and push (opp at 13)",
+        "question": "vs Opponent A G1 T8 — pump and push (opp at 13)",
         "solution_text": (
             "Attack first with Slickshot + Talent. Slickshot starts at 1/2 "
             "(flying haste). Talent's Otter is 1/1 prowess.\n\n"
@@ -355,14 +355,14 @@ _SEED_PUZZLES = [
     {
         "category": "tempo",
         "difficulty": 3,
-        "question": "vs Drosme G1 T6 — sequence the prowess",
+        "question": "vs Opponent B G1 T6 — sequence the prowess",
         "solution_text": (
             "Order matters because Slickshot stacks +2/+0 per noncreature cast.\n\n"
             "Optimal sequence:\n"
             "1. Attack with Slickshot FIRST (it's haste-flying, currently 1/2).\n"
             "2. Mid-combat or after: cast Burst Lightning {R} face for 2 dmg.\n"
-            "3. Cast Opt {U} (draw 1, Drosme also loses 1 from Flow State).\n"
-            "4. Cast Opt {U} (draw 1, Drosme another 1).\n\n"
+            "3. Cast Opt {U} (draw 1, Opponent B also loses 1 from Flow State).\n"
+            "4. Cast Opt {U} (draw 1, Opponent B another 1).\n\n"
             "Damage tally: Slickshot 1 + Burst 2 + Flow State 1×2 = 5 damage. "
             "Opp 18 → 13.\n\n"
             "Why not pump Slickshot before attacking?\n"
@@ -377,14 +377,14 @@ _SEED_PUZZLES = [
             "Combined with Slickshot already on board, this is a passive "
             "damage faucet."
         ),
-        "scene": _drosme_g1_t6_scene(),
+        "scene": _opp_b_g1_t6_scene(),
         "solution_keywords": ["attack first", "burst lightning", "opt", "flow state"],
         "grading_mode": "keyword",
     },
     {
         "category": "find_lethal",
         "difficulty": 4,
-        "question": "vs Drosme G2 T7 — bounce the Crab, swing for 5",
+        "question": "vs Opponent B G2 T7 — bounce the Crab, swing for 5",
         "solution_text": (
             "Cast Boomerang Basics {U} bouncing Eddymurk Crab back to hand. "
             "Noncreature spell → Slickshot prowess +2/+0 (3/2), Talent's Otter "
@@ -406,14 +406,14 @@ _SEED_PUZZLES = [
             "Bounce is better than burn here because Crab is a hard wall (5/5). "
             "Removing the blocker unlocks 6+ damage of creature combat."
         ),
-        "scene": _drosme_g2_t7_scene(),
+        "scene": _opp_b_g2_t7_scene(),
         "solution_keywords": ["boomerang", "bounce", "crab", "attack"],
         "grading_mode": "keyword",
     },
     {
         "category": "tempo",
         "difficulty": 2,
-        "question": "vs ViewtifulYosh G3 T11 — secure the win or overkill?",
+        "question": "vs Opponent A G3 T11 — secure the win or overkill?",
         "solution_text": (
             "Don't overcommit. Eddymurk Crab (5/5) + Slickshot (1/2 flying haste) "
             "both attack — opp has no blockers so 6 damage through. Opp 5 → -1 "

@@ -1,0 +1,40 @@
+name: Sensitive-content scan
+
+# Runs scripts/pre-push on every push and PR, so the scan no longer depends
+# on each clone having installed the hook (#15). The private name and path
+# patterns come from the PRE_PUSH_LOCAL repository secret (same format as
+# scripts/pre-push.local.example). Without it, only the generic secret
+# patterns run. Output is line numbers only: these logs are public.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Scan changed files
+        env:
+          PRE_PUSH_LOCAL: ${{ secrets.PRE_PUSH_LOCAL }}
+          PRE_PUSH_QUIET: '1'
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$PRE_PUSH_LOCAL" ]; then
+            printf '%s\n' "$PRE_PUSH_LOCAL" > "$RUNNER_TEMP/pre-push.local"
+            export PRE_PUSH_LOCAL_FILE="$RUNNER_TEMP/pre-push.local"
+          else
+            echo "::warning::PRE_PUSH_LOCAL secret is not set; scanning for secrets only."
+          fi
+          # A new branch has no "before"; scan everything since it left main.
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE=$(git merge-base origin/main HEAD)
+          fi
+          echo "refs/heads/ci $(git rev-parse HEAD) refs/heads/ci $BASE" | bash scripts/pre-push
