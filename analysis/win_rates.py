@@ -207,9 +207,11 @@ def _fetch_appearances(conn, archetype, format_name=None, event_type=None,
                               AS max_placement
         FROM decks d
         JOIN events e ON e.id = d.event_id
-        WHERE lower(d.archetype) LIKE lower(?)
+        WHERE lower(d.archetype) = lower(?)
     """
-    params = [f"%{archetype}%"]
+    # Exact (case-insensitive): a substring match folded "Eldrazi Tron" into
+    # "Tron" and "Domain Zoo" into "Zoo" (#29). Callers pass canonical names.
+    params = [archetype]
 
     _fc, _fp = format_clause(format_name, "e.format")
     q += _fc
@@ -924,8 +926,8 @@ def get_archetype_matchups(archetype, format_name="standard",
                     WHERE d.event_id IN ({ph})
                       AND lower(e.format) = lower(?)
                       AND d.archetype != ''
-                      AND lower(d.archetype) NOT LIKE lower(?)""",
-                list(self_event_ids) + [format_name, f"%{archetype}%"]
+                      AND lower(d.archetype) != lower(?)""",
+                list(self_event_ids) + [format_name, archetype]
             ).fetchall()
         ]
 

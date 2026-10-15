@@ -225,6 +225,27 @@ def print_meta_standings(results, format_name, date_label):
     print()
 
 
+def resolve_archetype_name(name, known=None):
+    """Exact (case-insensitive) name wins; else a unique substring match.
+
+    Unknown names pass through unchanged so the command reports "no decks".
+    Several substring matches exit with the candidates rather than silently
+    merging archetypes, which is what the old LIKE '%name%' queries did.
+    """
+    known = build_canonical_list() if known is None else known
+    low = name.lower()
+    for k in known:
+        if k.lower() == low:
+            return k
+    hits = [k for k in known if low in k.lower()]
+    if len(hits) == 1:
+        return hits[0]
+    if hits:
+        raise SystemExit(f"'{name}' matches several archetypes: "
+                         + ", ".join(hits) + ". Use the full name.")
+    return name
+
+
 def print_trend(weekly, archetype, date_label):
     print(f"\n=== Trend: {archetype} | {date_label} ===\n")
     print(f"  {'Week Start':<12} {'Apps':>5} {'MetaShr':>8} {'Top8%':>6} {'AvgPts':>7} {'EstW%':>6}")
@@ -545,6 +566,14 @@ def main():
     _add_date_args(p_ch)
 
     args = parser.parse_args()
+
+    # Archetype lookups match whole names (#29), so expand a partial CLI name
+    # ("prowess") to the one archetype it names first. `search` keeps its own
+    # substring matching.
+    if args.cmd != "search":
+        for attr in ("archetype", "archetype_a", "archetype_b"):
+            if getattr(args, attr, None):
+                setattr(args, attr, resolve_archetype_name(getattr(args, attr)))
 
     # -----------------------------------------------------------------------
 
