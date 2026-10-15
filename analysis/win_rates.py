@@ -753,9 +753,12 @@ def get_archetype_trend(archetype, format_name="standard", weeks=8,
         total_q = f"""
             SELECT e.date, {count_expr}
             FROM decks d JOIN events e ON e.id = d.event_id
-            WHERE lower(e.format) = lower(?)
+            WHERE 1=1
         """
-        total_params = [format_name]
+        # format_clause, like the numerator: a literal compare made "all"
+        # match nothing, so every bucket's share was 0 (#27).
+        _fc, total_params = format_clause(format_name, "e.format")
+        total_q += _fc
         if since:
             total_q += f" AND {_DATE_KEY} >= ?"
             total_params.append(_dt_to_db_str(since))
@@ -918,16 +921,16 @@ def get_archetype_matchups(archetype, format_name="standard",
 
         self_event_ids = {r["event_id"] for r in rows_self}
         ph = ",".join("?" * len(self_event_ids))
+        _opp_fc, _opp_fp = format_clause(format_name, "e.format")
         opponents = [
             r["archetype"]
             for r in conn.execute(
                 f"""SELECT DISTINCT d.archetype
                     FROM decks d JOIN events e ON e.id = d.event_id
-                    WHERE d.event_id IN ({ph})
-                      AND lower(e.format) = lower(?)
+                    WHERE d.event_id IN ({ph}){_opp_fc}
                       AND d.archetype != ''
                       AND lower(d.archetype) != lower(?)""",
-                list(self_event_ids) + [format_name, archetype]
+                list(self_event_ids) + _opp_fp + [archetype]
             ).fetchall()
         ]
 
@@ -1062,15 +1065,19 @@ def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_ap
             SUM(CASE WHEN result = 'draw' THEN 1 ELSE 0 END) AS draws,
             COUNT(*)                                      AS total
         FROM matches
-        WHERE lower(format) = lower(?)
+        WHERE 1=1{fc}
           AND player1_arch != ''
           AND player2_arch != ''
           AND player1_arch NOT IN ({excl_ph})
           AND player2_arch NOT IN ({excl_ph})
           AND player1_arch != player2_arch
           AND result IS NOT NULL
-    """.format(excl_ph=",".join("?" * len(EXCLUDE_ARCHETYPES)))
-    params = [format_name] + list(EXCLUDE_ARCHETYPES) + list(EXCLUDE_ARCHETYPES)
+    """
+    # format_clause, not a literal format compare: "all" means the supported
+    # formats, and the literal compare matched nothing (#27).
+    _fc, _fp = format_clause(format_name)
+    q = q.format(fc=_fc, excl_ph=",".join("?" * len(EXCLUDE_ARCHETYPES)))
+    params = _fp + list(EXCLUDE_ARCHETYPES) + list(EXCLUDE_ARCHETYPES)
     if since:
         # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
         q += f" AND ({_MATCH_DATE_KEY}) >= ?"
@@ -1086,18 +1093,18 @@ def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_ap
             freq_q = f"""
                 SELECT arch, SUM(n) AS total FROM (
                     SELECT player1_arch AS arch, COUNT(*) AS n
-                    FROM matches WHERE lower(format)=lower(?) AND player1_arch != ''
+                    FROM matches WHERE 1=1{_fc} AND player1_arch != ''
                       AND player1_arch NOT IN ({",".join("?" * len(EXCLUDE_ARCHETYPES))})
                     GROUP BY player1_arch
                     UNION ALL
                     SELECT player2_arch, COUNT(*)
-                    FROM matches WHERE lower(format)=lower(?) AND player2_arch != ''
+                    FROM matches WHERE 1=1{_fc} AND player2_arch != ''
                       AND player2_arch NOT IN ({",".join("?" * len(EXCLUDE_ARCHETYPES))})
                     GROUP BY player2_arch
                 ) GROUP BY arch HAVING total >= ?
             """
             freq_rows = conn.execute(
-                freq_q, [format_name] + excl_params + [format_name] + excl_params + [min_arch_appearances]
+                freq_q, _fp + excl_params + _fp + excl_params + [min_arch_appearances]
             ).fetchall()
             valid_archs = {r["arch"] for r in freq_rows}
 
@@ -1144,7 +1151,8 @@ def _mirror_counts(format_name, since=None) -> dict:
     """{archetype: number of A-vs-A matches} for the format/window (#26)."""
     from db.database import get_connection
     excl = ",".join("?" * len(EXCLUDE_ARCHETYPES))
-    params = [format_name]
+    fc, params = format_clause(format_name)
+    params = list(params)
     since_clause = ""
     if since:
         since_clause = f" AND ({_MATCH_DATE_KEY}) >= ?"
@@ -1152,7 +1160,7 @@ def _mirror_counts(format_name, since=None) -> dict:
     q = f"""
         SELECT player1_arch AS archetype, COUNT(*) AS mirrors
         FROM matches
-        WHERE lower(format)=lower(?){since_clause}
+        WHERE 1=1{fc}{since_clause}
           AND player1_arch = player2_arch
           AND player1_arch != '' AND player1_arch NOT IN ({excl})
           AND result IS NOT NULL
@@ -1175,7 +1183,8 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     excl_list = list(EXCLUDE_ARCHETYPES)
 
     since_clause = ""
-    params_base  = [format_name]
+    # format_clause: "all" means the supported formats, not a literal (#27).
+    fc, params_base = format_clause(format_name)
     if since:
         # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
         since_str    = _dt_to_db_str(since)   # ISO string
@@ -1195,7 +1204,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
                    SUM(CASE WHEN result='draw'    THEN 1 ELSE 0 END) AS draws,
                    COUNT(*)                                           AS matches
             FROM matches
-            WHERE lower(format)=lower(?){since_clause}
+            WHERE 1=1{fc}{since_clause}
               AND player1_arch != '' AND player1_arch NOT IN ({excl})
               AND player1_arch != player2_arch
               AND result IS NOT NULL
@@ -1207,7 +1216,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
                    SUM(CASE WHEN result='draw'    THEN 1 ELSE 0 END),
                    COUNT(*)
             FROM matches
-            WHERE lower(format)=lower(?){since_clause}
+            WHERE 1=1{fc}{since_clause}
               AND player2_arch != '' AND player2_arch NOT IN ({excl})
               AND player1_arch != player2_arch
               AND result IS NOT NULL
