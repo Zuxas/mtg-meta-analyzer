@@ -365,10 +365,17 @@ def get_archetype_stats(archetype, format_name="standard", event_type=None,
 def get_meta_standings(format_name="standard", event_type=None,
                        min_appearances=3, top=20, include_archive=False,
                        since=None, until=None,
-                       dedup_cross_source=True, unique_player_decks=False):
+                       dedup_cross_source=True, unique_player_decks=False,
+                       sort_by="avg_points"):
     """
     Ranked performance table for all archetypes in a format.
-    Returns list of stats dicts sorted by avg_points descending.
+    Returns list of stats dicts sorted by ``sort_by`` descending:
+    "avg_points" (default, placement performance) or "appearances"
+    (popularity, for "top N decks in the field").
+
+    Each dict's ``meta_share`` is the archetype's fraction of the whole
+    filtered field (``total_field`` decks, after dedup), so it does not
+    change with ``top`` or ``min_appearances`` (#23).
 
     Uses a single bulk query (instead of one query per archetype) to avoid
     the N+1 performance problem on large databases.
@@ -464,10 +471,15 @@ def get_meta_standings(format_name="standard", event_type=None,
     # exactly when two archetypes share an avg_points -- common, since it is a
     # rounded average. Unmeasurable sorts last: an unknown rate must not
     # outrank a measured one.
-    results.sort(key=lambda s: (s["avg_points"],
-                                s["top8_rate"] if s["top8_rate"] is not None
-                                else -1.0),
-                 reverse=True)
+    if sort_by == "appearances":
+        results.sort(key=lambda s: s["appearances"], reverse=True)
+    elif sort_by == "avg_points":
+        results.sort(key=lambda s: (s["avg_points"],
+                                    s["top8_rate"] if s["top8_rate"] is not None
+                                    else -1.0),
+                     reverse=True)
+    else:
+        raise ValueError(f"sort_by must be 'avg_points' or 'appearances', not {sort_by!r}")
 
     trimmed = results[:top]
 
@@ -479,16 +491,22 @@ def get_meta_standings(format_name="standard", event_type=None,
     # every time: the Prep Checklist showed 0.0% for every opponent and, worse,
     # its readiness rule (>= 5% share -> "GAP") could never fire, so a missing
     # sideboard plan against a 25%-of-the-field deck read "LOW PRIO".
-    # Computed over the trimmed list so it matches what the caller is shown.
-    _share_total = sum(s["appearances"] for s in trimmed)
+    # The denominator is the whole filtered field, not the trimmed list:
+    # dividing by the returned rows made the share depend on `top` and on
+    # which archetypes placed well, so a popular deck with mediocre finishes
+    # could vanish while small high-placing decks were inflated (#23).
+    total_field = len(all_rows)
     for _s in trimmed:
-        _s["meta_share"] = (round(_s["appearances"] / _share_total, 4)
-                            if _share_total else 0.0)
+        _s["meta_share"] = (round(_s["appearances"] / total_field, 4)
+                            if total_field else 0.0)
+        _s["total_field"] = total_field
 
-    # Fallback: if decks data is too sparse (top archetype < 20 appearances,
-    # or total appearances across all results < 100), use matches table instead
-    top_apps = trimmed[0]["appearances"] if trimmed else 0
-    total_apps = sum(s["appearances"] for s in trimmed)
+    # Fallback: if decks data is too sparse (most-played archetype < 20
+    # appearances, or the whole field < 100 decks), use the matches table.
+    # Judged on the field, not the trimmed list, so a small `top` alone
+    # doesn't switch data sources.
+    top_apps = max((s["appearances"] for s in results), default=0)
+    total_apps = total_field
     if top_apps < 20 or total_apps < 100:
         fallback = _meta_standings_from_matches(format_name, since, until, top,
                                                 min_appearances)

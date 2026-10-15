@@ -25,8 +25,9 @@ Two consumers were affected:
     latent rather than visible.
 
 Fixed at the root, in get_meta_standings, so both paths agree and every
-present and future caller gets a real number. Computed over the TRIMMED list,
-so the share is a fraction of the field the caller was actually handed.
+present and future caller gets a real number. The share is a fraction of the
+whole filtered field, not of the trimmed list (#23); see
+test_meta_share_whole_field.py.
 """
 import pytest
 

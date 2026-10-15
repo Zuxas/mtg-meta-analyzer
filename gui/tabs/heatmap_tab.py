@@ -876,7 +876,8 @@ class HeatmapTab(QWidget):
             from analysis.archetypes import normalize as norm_arch
 
             # Get top 12 by appearances
-            standings = get_meta_standings(fmt, top=12, since=since)
+            standings = get_meta_standings(fmt, top=12, since=since,
+                                           sort_by="appearances")
             if not standings:
                 return None, {}
 
