@@ -150,7 +150,8 @@ class PrepChecklistTab(QWidget):
             from db.match_log import get_matchup_stats
             from db.saved_decks import get_sb_plans
 
-            standings = get_meta_standings(fmt, top=12, min_appearances=2)
+            standings = get_meta_standings(fmt, top=12, min_appearances=2,
+                                           sort_by="appearances")
             real = get_real_matchup_winrates(fmt, min_matches=5)
             personal = get_matchup_stats(archetype, format_name=fmt) if archetype else {}
             plans = get_sb_plans(deck_id) if deck_id else []

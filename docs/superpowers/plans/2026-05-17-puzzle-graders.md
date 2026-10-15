@@ -651,7 +651,7 @@ User runs:
 python run_gui.py
 ```
 
-Then: PUZZLES tab → Solve → cycle to one of the new ViewtifulYosh/Drosme puzzles (ids 4-8, all `grading_mode='keyword'`) → type an answer that includes the right keywords (e.g., "attack with Slickshot, then Burst Lightning face") → click Reveal solution.
+Then: PUZZLES tab → Solve → cycle to one of the new Opponent A/Opponent B puzzles (ids 4-8, all `grading_mode='keyword'`) → type an answer that includes the right keywords (e.g., "attack with Slickshot, then Burst Lightning face") → click Reveal solution.
 
 **Expected:** Author solution appears AS BEFORE, and below it a green "CORRECT — Matched 2/3 keywords..." chip appears. ✓ "I had it" / ✗ "Missed it" buttons still show below as override.
 
