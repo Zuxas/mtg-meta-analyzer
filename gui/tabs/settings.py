@@ -1014,10 +1014,11 @@ class _BackfillWorker(QThread):
         self._pages   = pages
 
     def run(self):
-        import sys, io
-        if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
-            sys.stdout = io.TextIOWrapper(
-                sys.stdout.buffer, encoding="utf-8", errors="replace")
+        # In place: a new TextIOWrapper per run orphaned the previous one,
+        # whose finalizer closed the shared buffer, so the second Backfill
+        # click failed every step with "I/O operation on closed file" (#31).
+        from db.helpers import force_utf8_stdio
+        force_utf8_stdio()
 
         total_steps = len(self._formats) * len(self._sources)
         step = 0
