@@ -74,7 +74,7 @@ def populated_standings(tmp_path, monkeypatch):
 
     from analysis.win_rates import get_meta_standings
     import analysis.win_rates as wr
-    wr._CACHE.clear() if hasattr(wr, "_CACHE") else None
+    wr._query_cache.clear()  # was `_CACHE`, which doesn't exist (#12)
     return get_meta_standings("standard", top=20, min_appearances=1)
 
 
