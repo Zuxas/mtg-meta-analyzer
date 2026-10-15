@@ -506,24 +506,42 @@ def _meta_standings_from_matches(format_name, since=None, until=None,
 
     Returns a list of dicts compatible with get_meta_standings() output.
     """
-    real_wrs = get_real_archetype_winrates(format_name, since=since, min_matches=5)
-    if not real_wrs:
-        return []
+    real_wrs = get_real_archetype_winrates(format_name, since=since, min_matches=0)
+    try:
+        mirrors = _mirror_counts(format_name, since)
+    except Exception:
+        mirrors = {}
 
-    # Total match appearances across all archetypes
-    total = sum(v["total"] for v in real_wrs.values())
+    # Seats: each non-mirror match puts the archetype in one seat, a mirror
+    # in two. #26 took mirrors out of the win rate, so they are added back
+    # here -- including archetypes that ONLY played mirrors, which have no
+    # real-WR row at all. The >= 5 seat cut is the old min_matches=5 (which
+    # counted both mirror seats), so the same archetypes qualify as before.
+    seats = {a: v["total"] for a, v in real_wrs.items()}
+    for a, m in mirrors.items():
+        seats[a] = seats.get(a, 0) + 2 * m
+    seats = {a: n for a, n in seats.items() if n >= 5}
+    if not seats:
+        return []
+    total = sum(seats.values())
 
     results = []
-    for arch, stats in real_wrs.items():
+    for arch, n in seats.items():
         if arch in EXCLUDE_ARCHETYPES:
             continue
-        if stats["total"] < min_appearances:
+        if n < min_appearances:
             continue
+        # Mirror-only: every match it played was a mirror, which is exactly
+        # 50% (and what this path reported before #26). That describes the
+        # mirrors, not how it does against the field; non_mirror_matches == 0
+        # is how a caller tells the two apart.
+        wr = real_wrs[arch]["win_rate"] if arch in real_wrs else 0.5
         results.append({
             "archetype":         arch,
-            "appearances":       stats["total"],
-            "meta_share":        round(stats["total"] / total, 4) if total else 0,
-            "est_match_winpct":  stats["win_rate"],
+            "appearances":       n,
+            "meta_share":        round(n / total, 4) if total else 0,
+            "est_match_winpct":  wr,
+            "non_mirror_matches": real_wrs.get(arch, {}).get("total", 0),
             "avg_points":        0,
             "top8_rate":         None,
             "event_wins":        0,
@@ -1022,6 +1040,7 @@ def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_ap
           AND player2_arch != ''
           AND player1_arch NOT IN ({excl_ph})
           AND player2_arch NOT IN ({excl_ph})
+          AND player1_arch != player2_arch
           AND result IS NOT NULL
     """.format(excl_ph=",".join("?" * len(EXCLUDE_ARCHETYPES)))
     params = [format_name] + list(EXCLUDE_ARCHETYPES) + list(EXCLUDE_ARCHETYPES)
@@ -1094,6 +1113,29 @@ def get_real_archetype_winrates(format_name: str = "standard",
         format_name, since, min_matches))
 
 
+def _mirror_counts(format_name, since=None) -> dict:
+    """{archetype: number of A-vs-A matches} for the format/window (#26)."""
+    from db.database import get_connection
+    excl = ",".join("?" * len(EXCLUDE_ARCHETYPES))
+    params = [format_name]
+    since_clause = ""
+    if since:
+        since_clause = f" AND ({_MATCH_DATE_KEY}) >= ?"
+        params.append(_dt_to_db_str(since))
+    q = f"""
+        SELECT player1_arch AS archetype, COUNT(*) AS mirrors
+        FROM matches
+        WHERE lower(format)=lower(?){since_clause}
+          AND player1_arch = player2_arch
+          AND player1_arch != '' AND player1_arch NOT IN ({excl})
+          AND result IS NOT NULL
+        GROUP BY player1_arch
+    """
+    with get_connection() as conn:
+        return {r["archetype"]: r["mirrors"]
+                for r in conn.execute(q, params + list(EXCLUDE_ARCHETYPES))}
+
+
 def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     try:
         from db.matches_queries import _ensure_table
@@ -1128,6 +1170,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
             FROM matches
             WHERE lower(format)=lower(?){since_clause}
               AND player1_arch != '' AND player1_arch NOT IN ({excl})
+              AND player1_arch != player2_arch
               AND result IS NOT NULL
             GROUP BY player1_arch
             UNION ALL
@@ -1139,6 +1182,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
             FROM matches
             WHERE lower(format)=lower(?){since_clause}
               AND player2_arch != '' AND player2_arch NOT IN ({excl})
+              AND player1_arch != player2_arch
               AND result IS NOT NULL
             GROUP BY player2_arch
         )
@@ -1149,8 +1193,12 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     # params: two copies of [format, (since?), excl...] for the two subqueries + min_matches
     params = (params_base + excl_list) + (params_base + excl_list) + [min_matches]
 
+    # Mirrors (A vs A) are one win and one loss for A, which drags its win
+    # rate toward 50% in proportion to how often it plays itself (#26). They
+    # are left out of wins/losses/total and reported separately.
     result = {}
     try:
+        mirrors = _mirror_counts(format_name, since)
         with get_connection() as conn:
             rows = conn.execute(q, params).fetchall()
         for r in rows:
@@ -1165,6 +1213,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
                 "losses":   l,
                 "draws":    d,
                 "total":    n,
+                "mirrors":  mirrors.get(r["archetype"], 0),
                 "source":   "real",
             }
     except Exception:
