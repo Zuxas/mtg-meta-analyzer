@@ -21,16 +21,17 @@ from db.helpers import SQL_NORM_DATE
 def _fetch_archetype_decks(conn, archetype, format_name=None, include_archive=False):
     """
     Return all deck rows (with cards) for a given archetype.
-    Matching is case-insensitive and partial (LIKE '%archetype%').
+    Matching is exact and case-insensitive: a partial match blended
+    "Izzet Prowess Cauldron" lists into "Izzet Prowess" (#29).
     """
     base_query = """
         SELECT d.id, d.archetype, d.player, d.placement, d.event_id,
                e.date, e.name as event_name, e.format
         FROM decks d
         JOIN events e ON e.id = d.event_id
-        WHERE lower(d.archetype) LIKE lower(?)
+        WHERE lower(d.archetype) = lower(?)
     """
-    params = [f"%{archetype}%"]
+    params = [archetype]
 
     from db.formats import format_clause
     _fc, _fp = format_clause(format_name, "e.format")
