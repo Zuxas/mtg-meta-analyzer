@@ -1,4 +1,5 @@
-"""No module may replace sys.stdout/stderr with a new TextIOWrapper at import.
+"""No code may replace sys.stdout/stderr with a new TextIOWrapper, except in
+an `if __name__ == "__main__":` block (which runs once per process).
 
 `sys.stdout = io.TextIOWrapper(sys.stdout.buffer, ...)` orphans the previous
 wrapper; when it is garbage-collected its __del__ closes the SHARED buffer, so
@@ -18,7 +19,9 @@ SCAN = [ROOT / "main.py", ROOT / "fill_database.py", ROOT / "run_gui.py",
         *sorted((ROOT / "scrapers").glob("*.py")),
         *sorted((ROOT / "scripts").glob("*.py")),
         *sorted((ROOT / "analysis").glob("*.py")),
-        *sorted((ROOT / "db").glob("*.py"))]
+        *sorted((ROOT / "db").glob("*.py")),
+        # gui/ too: the Backfill worker re-wrapped stdout on every run (#31).
+        *sorted((ROOT / "gui").rglob("*.py"))]
 
 
 def _module_level_rewraps(path: pathlib.Path) -> list[int]:
@@ -43,9 +46,13 @@ def _module_level_rewraps(path: pathlib.Path) -> list[int]:
                     walk(h.body, guarded)
                 walk(n.finalbody, guarded)
             elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                continue
+                # A function can run many times, which is worse than import
+                # time; a __main__ guard around its definition doesn't help.
+                walk(n.body, False)
+            elif isinstance(n, (ast.For, ast.While, ast.With)):
+                walk(n.body, guarded)
             elif isinstance(n, ast.Assign) and not guarded:
-                seg = ast.get_source_segment(src, n) or ""
+                seg = "".join((ast.get_source_segment(src, n) or "").split())
                 if "TextIOWrapper(sys.std" in seg:
                     hits.append(n.lineno)
 
