@@ -15,13 +15,16 @@ start /min "" "%~f0" -minimized
 exit
 
 :run
-SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
+REM The folder this .bat lives in (works from any clone or worktree)
+SET "PROJECT_DIR=%~dp0"
+SET "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 SET PYTHON=python
 SET PYTHONIOENCODING=utf-8
 SET LOG_FILE=%PROJECT_DIR%\logs\background_fill.log
 SET TIMESTAMP=%DATE% %TIME%
 
 cd /d "%PROJECT_DIR%"
+if not exist "%PROJECT_DIR%\logs" mkdir "%PROJECT_DIR%\logs"
 
 REM Rotate log if over 5 MB
 for %%F in ("%LOG_FILE%") do (
