@@ -12,7 +12,7 @@ Output (to $WEBSITE_DATA, default ../My-Website/data):
 
 import sqlite3, json, os, sys
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 _HERE       = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_HERE))
@@ -39,6 +39,7 @@ META_CONTEXT_DECKS = [
 FORMAT = "modern"
 MIN_MATCHES = 20   # minimum matches for a WR to be shown
 META_TOP_N  = 20   # archetypes to include in meta.json
+META_DAYS   = 30   # meta.json window; was all-time, which ranked a years-old field
 
 def verdict(wr):
     if wr >= 60: return "Heavily Favored"
@@ -54,20 +55,29 @@ def verdict_class(wr):
     if wr >= 48: return "v-even"
     return "v-hard"
 
-def generate_meta(conn):
-    """Meta share by archetype from tournament decklists."""
+def generate_meta(conn, days=None, today=None):
+    """Meta share by archetype from tournament decklists in the last `days` days."""
+    days = META_DAYS if days is None else days
+    today = today or datetime.now()
+    since = (today - timedelta(days=days - 1)).strftime("%Y-%m-%d")   # `days` dates incl. today
+    until = today.strftime("%Y-%m-%d")
+    # events.date mixes ISO and dd/mm/yy: compare and report normalized dates only
+    # (MIN/MAX on the raw text reported "31/10/25" as the latest date in Oct 2026).
+    d = SQL_NORM_DATE.format(col="e.date")
+    window = f"e.format=? AND {d} BETWEEN ? AND ?"
     cur = conn.cursor()
-    cur.execute("SELECT MIN(date), MAX(date), COUNT(*) FROM events WHERE format=?", (FORMAT,))
+    cur.execute(f"SELECT MIN({d}), MAX({d}), COUNT(*) FROM events e WHERE {window}", (FORMAT, since, until))
     min_date, max_date, n_events = cur.fetchone()
-    cur.execute("SELECT COUNT(*) FROM decks d JOIN events e ON d.event_id=e.id WHERE e.format=?", (FORMAT,))
+    cur.execute(f"SELECT COUNT(*) FROM decks d JOIN events e ON d.event_id=e.id WHERE {window}",
+                (FORMAT, since, until))
     total_decks = cur.fetchone()[0]
 
-    cur.execute("""
+    cur.execute(f"""
         SELECT d.archetype, COUNT(*) as cnt
         FROM decks d JOIN events e ON d.event_id=e.id
-        WHERE e.format=?
+        WHERE {window}
         GROUP BY d.archetype ORDER BY cnt DESC LIMIT ?
-    """, (FORMAT, META_TOP_N))
+    """, (FORMAT, since, until, META_TOP_N))
     rows = cur.fetchall()
 
     archetypes = []
@@ -85,6 +95,7 @@ def generate_meta(conn):
     return {
         "generated":    datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "format":       FORMAT,
+        "window_days":  days,
         "event_range":  {"min": min_date, "max": max_date},
         "total_events": n_events,
         "total_decks":  total_decks,
