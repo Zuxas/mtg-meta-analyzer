@@ -14,19 +14,21 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
+SET "PROJECT_DIR=%~dp0"
+SET "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 SET TASK_NAME=MTG-Scryfall-Weekly
 
 REM Remove existing task if present
 schtasks /delete /tn "%TASK_NAME%" /f 2>nul
 
 REM Register the task — weekly on Sunday at 00:00
-schtasks /create /tn "%TASK_NAME%" /tr "cmd /c \"E:\vscode ai project\mtg-meta-analyzer\run_scryfall_weekly.bat\"" /sc weekly /d SUN /st 00:00 /rl HIGHEST /f
+schtasks /create /tn "%TASK_NAME%" /tr "cmd /c \"%PROJECT_DIR%\run_scryfall_weekly.bat\"" /sc weekly /d SUN /st 00:00 /rl HIGHEST /f
 
 IF %ERRORLEVEL% EQU 0 (
     echo.
     echo  Task "%TASK_NAME%" registered successfully.
     echo  Runs every Sunday at midnight.
-    echo  Logs: E:\vscode ai project\mtg-meta-analyzer\logs\scryfall_YYYY-MM-DD.log
+    echo  Logs: %PROJECT_DIR%\logs\scryfall_YYYY-MM-DD.log
     echo.
 ) ELSE (
     echo.

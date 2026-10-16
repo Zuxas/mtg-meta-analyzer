@@ -15,7 +15,9 @@ if %errorlevel% neq 0 (
 )
 
 SET TASK_NAME=MTG-Meta-Analyzer-Background-6AM
-SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
+REM The folder this .bat lives in (works from any clone or worktree)
+SET "PROJECT_DIR=%~dp0"
+SET "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 SET BAT_FILE=%PROJECT_DIR%\background_fill.bat
 
 REM Remove existing task if present

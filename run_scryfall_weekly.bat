@@ -6,9 +6,12 @@ REM  Refreshes the local Scryfall Oracle card database and
 REM  re-enriches any new cards added since the last run.
 REM ============================================================
 
-SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
+REM The folder this .bat lives in (works from any clone or worktree)
+SET "PROJECT_DIR=%~dp0"
+SET "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 SET PYTHON=python
-SET LOG_DATE=%DATE:~10,4%-%DATE:~4,2%-%DATE:~7,2%
+REM Locale-independent date (%DATE% slicing depends on the regional format)
+for /f %%d in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set "LOG_DATE=%%d"
 SET LOG_FILE=%PROJECT_DIR%\logs\scryfall_%LOG_DATE%.log
 
 cd /d "%PROJECT_DIR%"
