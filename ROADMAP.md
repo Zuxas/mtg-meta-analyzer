@@ -6,6 +6,13 @@
 
 ---
 
+## DONE — Issue sweep (2026-10-15/16)
+- [x] #15 privacy scrub + pre-push lists out of the repo + `sensitive-scan.yml` CI
+- [x] #12 per-DB query cache  ·  [x] #23 whole-field meta_share  ·  [x] #26 mirrors excluded from real WR
+- [x] #29 exact archetype matching + CLI resolver  ·  [x] #27 `format_clause` everywhere in win_rates  ·  [x] #31 backfill stdout
+- [x] #42 site meta.json: 30-day window, ISO dates
+- [~] = PR open, not merged: #33 tweak verdicts (PR #43)  ·  [~] #28 fallback seats + `until` (PR #44)  ·  [~] #21 pytest in CI (PR #45)  ·  [~] #20 .bat paths (PR #46)
+
 ## OPEN — Data pipeline (`docs/prompts/DATA_PIPELINE_FIXES.md` + `CHAPIN_METRICS.md`)
 - [x] **Bug 2 — Scryfall bulk API shape change** (2026-09-20) — `jsonl_download_uri` gz-JSONL -> single JSON array on disk (tmp + `os.replace`); `fill_database.py` steps 2/5 degrade to warnings; stdio double-wrap crash fixed. 38,906 cards; 8 tests; 527 green.
 - [~] **`fill_database.py` re-run** — 04:20 run died to a DNS blip (+101 Modern events first); relaunch pending. Verify with `--counts` + `--freshness-only` + per-format events/decks diff.
