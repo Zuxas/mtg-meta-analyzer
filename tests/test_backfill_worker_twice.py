@@ -10,7 +10,10 @@ import io
 import sys
 
 
-def test_backfill_worker_runs_twice(qapp, monkeypatch):
+def test_backfill_worker_runs_twice(monkeypatch):
+    # Plain QApplication, like the other Qt tests: pytest-qt (qapp) is not a dependency.
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])  # noqa: F841 -- keep a reference
     import scrapers.mtgtop8 as mtgtop8
     import analysis.archetypes as archetypes
     from gui.tabs.settings import _BackfillWorker
