@@ -1,6 +1,20 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+Last updated: 2026-10-16 (issue sweep; see the section below). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+
+---
+
+## 10/16 — Issue sweep (merged: #12 #15 #23 #26 #27 #29 #31 #42; open PRs #43-#46)
+- Merge #43-#46 (#33, #28, #21, #20). #45 adds the pytest CI job; then make `pytest (Python 3.12)` a required check on `main`.
+- Owner steps from #15: add the `PRE_PUSH_LOCAL` repo secret; copy `scripts/pre-push` over the installed hook
+  (`pre-push.local` is already in place next to it); decide whether to rewrite git history for the old opponent handles.
+- Fix the pre-push hook to scan the pushed blobs (`git show <sha>:<path>`), not the working tree -- it blocked the #20 push
+  while an older checkout of the .bat files was on disk.
+- Next issues: #25 (infer_bracket_matches fabricates finals -- scraper, needs sign-off), #30 (colour-abbreviation map),
+  #32 (renames to `matches` + summing cells), #22 (freshness tooltip + README pipeline docs), then the scraper/pipeline set
+  (#13 #14 #16 #17 #18 #19 #24 #11), all hot zone.
+- Refresh the site's Strategies data with `python scripts/generate_site_data.py --format modern` and commit
+  `data/modern-meta.json` in the TeamResolve repo.
 
 ---
 
