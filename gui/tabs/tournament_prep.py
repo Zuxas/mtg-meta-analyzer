@@ -21,6 +21,7 @@ from gui.tabs.hypotheses import HypothesesTab
 from gui.tabs.prep_checklist import PrepChecklistTab
 from gui.tabs.event_hub_tab import EventHubTab
 from gui.tabs.scout import ScoutTab
+from gui.tabs.gauntlet import GauntletTab
 
 
 # ---------------------------------------------------------------------------
@@ -135,13 +136,15 @@ class TournamentPrepTab(QWidget):
         self._event_hub      = EventHubTab()
         self._scout          = ScoutTab()
         self._breaker        = BreakerWidget()
+        self._gauntlet       = GauntletTab()
         self._hypotheses     = HypothesesTab()
         inner.addTab(self._prep_checklist, "PREP CHECKLIST")
         inner.addTab(self._rcq,            "EVENT OPTIMIZER")
         inner.addTab(self._event_hub,      "EVENT HUB")
         inner.addTab(self._scout,          "SCOUT")
         inner.addTab(self._breaker,        "BREAKER MATH")
-        inner.addTab(self._hypotheses,     "HYPOTHESES")
+        inner.addTab(self._gauntlet,       "GAUNTLET")
+        inner.addTab(self._hypotheses,     "HYPOTHESES")   # must stay last (Basic/Pro)
         layout.addWidget(inner)
         self._inner = inner
         # HYPOTHESES is Pro-only; MainWindow toggles it via the same
@@ -174,7 +177,7 @@ class TournamentPrepTab(QWidget):
 
     def cleanup(self):
         for sub in (self._prep_checklist, self._rcq, self._event_hub,
-                    self._scout, self._breaker, self._hypotheses):
+                    self._scout, self._breaker, self._gauntlet, self._hypotheses):
             if hasattr(sub, "cleanup"):
                 try:
                     sub.cleanup()
