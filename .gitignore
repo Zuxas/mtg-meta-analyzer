@@ -45,6 +45,7 @@ data/*.csv
 data/*.parquet
 data/untapped/
 data/match_replays/
+data/gauntlets/
 
 # Preferences contains local API key; explicit by filename
 data/preferences.json
