@@ -1,6 +1,13 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-10-16 (issue sweep; see the section below). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+Last updated: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+
+---
+
+## 10/17 — Open PRs #49-#51 (#30, #22, #9)
+- Merge #49 (colour abbreviations), #50 (freshness tooltip + README), #51 (gauntlet builder). All signed, Tom-reviewed, suite green.
+- After #51: add a gauntlet-snapshot loader to mtg-sim (read `field` + decklists from `gauntlets/*.json`, record the sim version with results).
+- Remaining issues all need sign-off: #32 (relabel stored rows -- would also move the 60 names #49 changes), #34 (mtgtop8 tied ranks), #25, #11, #13, #14, #16-#19, #24.
 
 ---
 

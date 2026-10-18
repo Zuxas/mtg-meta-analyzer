@@ -73,7 +73,7 @@
 ## OPEN — Testing & Iteration
 - [ ] Card swap rationale tracker (why you changed cards)
 - [x] **Matchup hypothesis tracker** — `db/hypotheses.py` + `gui/tabs/hypotheses.py` (Tournament Prep sub-tab): log a matchup prediction, validate it against the personal match log. Shipped; 0 hypotheses logged so far.
-- [ ] Gauntlet builder (auto top decks to test against)
+- [ ] Gauntlet builder (auto top decks to test against) -- built in PR #51 (Tournament Prep > GAUNTLET), awaiting merge
 - [ ] Test recommendation engine
 - [ ] Testing insights from logged matches
 
