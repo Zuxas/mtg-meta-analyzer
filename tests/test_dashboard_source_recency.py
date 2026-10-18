@@ -86,7 +86,9 @@ def test_widget_tooltip_from_worker_payload(app, data):
     fresh, rec = data
     tab = DashboardTab()
     try:
-        tab._fmt.setCurrentText("pioneer")
+        tab._fmt.blockSignals(True)   # no refresh: a timer-started worker could
+        tab._fmt.setCurrentText("pioneer")   # outlive the tab and crash a later test
+        tab._fmt.blockSignals(False)
         tab._apply_freshness(fresh, rec)
         assert "matches behind" in tab._fresh_chip.text()
         assert "mtgmelee: dead" in tab._fresh_chip.toolTip()
