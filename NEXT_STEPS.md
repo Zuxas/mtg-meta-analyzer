@@ -7,7 +7,9 @@ Last updated: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue swe
 ## 10/17 — Open PRs #49-#51 (#30, #22, #9)
 - Merge #49 (colour abbreviations), #50 (freshness tooltip + README), #51 (gauntlet builder). All signed, Tom-reviewed, suite green.
 - After #51: add a gauntlet-snapshot loader to mtg-sim (read `field` + decklists from `gauntlets/*.json`, record the sim version with results).
-- Remaining issues all need sign-off: #32 (relabel stored rows -- would also move the 60 names #49 changes), #34 (mtgtop8 tied ranks), #25, #11, #13, #14, #16-#19, #24.
+- Merge #52 + #53 (#32). After #53 merges, the 6 AM `--apply` relabels `matches` too (12 labels / 400 rows on first run; more once #49 lands). Backup taken 2026-10-18: `mtg_meta.backup-2026-10-18-pre-32.db`.
+- mtg-sim: merge #34 (gauntlet snapshot loader) and #35 (MetaBridge restored).
+- Remaining issues all need sign-off: #34 (mtgtop8 tied ranks), #25, #11, #13, #14, #16-#19, #24.
 
 ---
 
