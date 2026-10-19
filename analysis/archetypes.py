@@ -736,12 +736,53 @@ def build_canonical_list():
     return [r["archetype"] for r in rows]
 
 
+def _has_table(conn, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                        (name,)).fetchone() is not None
+
+
+def rename_archetype(conn, old: str, new: str) -> tuple[int, int]:
+    """Rename a stored archetype label in `decks` AND `matches` (both seats and
+    winner_arch) on `conn`, so they commit together. Returns (deck rows, match
+    rows) changed. Quarantined rows in matches_excluded are left as they were,
+    so a restore puts them back unchanged (#32)."""
+    conn.execute("UPDATE decks SET archetype=? WHERE archetype=?", (new, old))
+    decks = conn.execute("SELECT changes()").fetchone()[0]
+    matches = 0
+    if _has_table(conn, "matches"):
+        conn.execute(
+            "UPDATE matches SET "
+            "player1_arch = CASE WHEN player1_arch=? THEN ? ELSE player1_arch END, "
+            "player2_arch = CASE WHEN player2_arch=? THEN ? ELSE player2_arch END, "
+            "winner_arch  = CASE WHEN winner_arch=?  THEN ? ELSE winner_arch END "
+            "WHERE ? IN (player1_arch, player2_arch, winner_arch)",
+            (old, new, old, new, old, new, old))
+        matches = conn.execute("SELECT changes()").fetchone()[0]
+    return decks, matches
+
+
+def _stored_label_counts(conn) -> dict:
+    """{label: [deck rows, match rows]} over decks and both match seats."""
+    counts: dict = {}
+    for (name, n) in conn.execute(
+            "SELECT archetype, COUNT(*) FROM decks "
+            "WHERE archetype IS NOT NULL AND archetype != '' GROUP BY archetype"):
+        counts.setdefault(name, [0, 0])[0] = n
+    if _has_table(conn, "matches"):
+        for (name, n) in conn.execute(
+                "SELECT arch, COUNT(*) FROM ("
+                " SELECT player1_arch AS arch FROM matches UNION ALL"
+                " SELECT player2_arch FROM matches) "
+                "WHERE arch IS NOT NULL AND arch != '' GROUP BY arch"):
+            counts.setdefault(name, [0, 0])[1] = n
+    return counts
+
+
 def apply_normalization(dry_run=False, fuzzy=False, fuzzy_threshold=85):
     """
-    Retroactive migration: update decks.archetype for all known aliases.
-
-    For each distinct archetype name in the DB, if normalize() returns a different
-    canonical name, UPDATE all matching rows.
+    Retroactive migration: rename every stored label that normalize() maps to a
+    different canonical name, in decks AND matches (both seats + winner), in
+    one transaction (#32). Labels that exist only in matches are included.
 
     Args:
         dry_run:         Print changes without modifying the DB.
@@ -753,19 +794,23 @@ def apply_normalization(dry_run=False, fuzzy=False, fuzzy_threshold=85):
     """
     from db.database import get_connection
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT archetype, COUNT(*) as cnt FROM decks "
-            "WHERE archetype IS NOT NULL AND archetype != '' "
-            "GROUP BY archetype ORDER BY cnt DESC"
-        ).fetchall()
+        counts = _stored_label_counts(conn)
+    rows = sorted(counts.items(), key=lambda kv: (-sum(kv[1]), kv[0]))
 
     changes = []
     skipped = 0
-    for row in rows:
-        raw = row["archetype"]
-        canonical = normalize(raw, fuzzy=fuzzy, fuzzy_threshold=fuzzy_threshold)
+    for raw, (n_decks, n_seats) in rows:
+        # Follow a chain (A -> B -> C) to its end, so the result never depends
+        # on the order the renames run in. Bounded in case of a cycle.
+        canonical, seen = raw, set()
+        while canonical not in seen and len(seen) < 10:
+            seen.add(canonical)
+            nxt = normalize(canonical, fuzzy=fuzzy, fuzzy_threshold=fuzzy_threshold)
+            if nxt == canonical:
+                break
+            canonical = nxt
         if canonical != raw:
-            changes.append((raw, canonical, row["cnt"]))
+            changes.append((raw, canonical, n_decks, n_seats))
         else:
             skipped += 1
 
@@ -776,18 +821,19 @@ def apply_normalization(dry_run=False, fuzzy=False, fuzzy_threshold=85):
     print(f"\n  {'DRY RUN — ' if dry_run else ''}Archetype normalization: "
           f"{len(changes)} mappings, {skipped} already canonical\n")
 
-    for raw, canonical, cnt in changes:
-        print(f"  {raw!r:<40} -> {canonical!r}  ({cnt} decks)")
+    for raw, canonical, n_decks, n_seats in changes:
+        print(f"  {raw!r:<40} -> {canonical!r}  ({n_decks} decks, {n_seats} match seats)")
 
     if not dry_run:
         print()
-        with get_connection() as conn:
-            for raw, canonical, _ in changes:
-                conn.execute(
-                    "UPDATE decks SET archetype=? WHERE archetype=?",
-                    (canonical, raw)
-                )
-        print(f"  Applied {len(changes)} mappings to active DB.")
+        d_tot = m_tot = 0
+        with get_connection() as conn:          # one transaction for both tables
+            for raw, canonical, _, _ in changes:
+                d, m = rename_archetype(conn, raw, canonical)
+                d_tot += d
+                m_tot += m
+        print(f"  Applied {len(changes)} mappings to active DB "
+              f"({d_tot} deck rows, {m_tot} match rows).")
     else:
         print(f"\n  (Dry run — no changes made. Run with --apply to commit.)")
 
@@ -919,12 +965,9 @@ def classify_unknown_decks(format_name: str = None, dry_run: bool = True,
         print(f"  {old!r:<40} -> {new!r}  ({count} decks)")
 
     if not dry_run:
-        with get_connection() as conn:
+        with get_connection() as conn:          # decks + matches together (#32)
             for old, new in arch_changes.items():
-                conn.execute(
-                    "UPDATE decks SET archetype=? WHERE archetype=?",
-                    (new, old)
-                )
+                rename_archetype(conn, old, new)
         print(f"\n  Applied {len(arch_changes)} reclassifications.")
 
     return {
@@ -1117,19 +1160,14 @@ def find_card_based_duplicates(
 
 def merge_archetypes(keep: str, remove: str) -> int:
     """
-    Rename all decks with archetype `remove` to `keep` in the active DB.
-    Returns the number of rows updated.
+    Rename archetype `remove` to `keep` in the active DB: decks and matches
+    (both seats + winner) in one transaction (#32). Returns the number of
+    deck rows updated (match rows are updated too).
     """
     from db.database import get_connection
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE decks SET archetype = ? WHERE archetype = ?",
-            (keep, remove)
-        )
-        updated = conn.execute(
-            "SELECT changes() AS n"
-        ).fetchone()["n"]
-    return updated
+        decks, _ = rename_archetype(conn, remove, keep)
+    return decks
 
 
 if __name__ == "__main__":
