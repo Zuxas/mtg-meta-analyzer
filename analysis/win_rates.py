@@ -166,6 +166,21 @@ _DATE_KEY = SQL_NORM_DATE.format(col="e.date")
 _MATCH_DATE_KEY = SQL_NORM_DATE.format(col="event_date")
 
 
+def _match_window(since=None, until=None):
+    """(sql, params) limiting matches to [since, until) on the normalized date.
+
+    `until` is exclusive so a "prior period" ending at the current period's
+    start (Dashboard trend arrows) does not share a day with it (#28)."""
+    sql, params = "", []
+    if since:
+        sql += f" AND ({_MATCH_DATE_KEY}) >= ?"
+        params.append(_dt_to_db_str(since))
+    if until:
+        sql += f" AND ({_MATCH_DATE_KEY}) < ?"
+        params.append(_dt_to_db_str(until))
+    return sql, params
+
+
 # ---------------------------------------------------------------------------
 # Core DB queries
 # ---------------------------------------------------------------------------
@@ -533,9 +548,10 @@ def _meta_standings_from_matches(format_name, since=None, until=None,
 
     Returns a list of dicts compatible with get_meta_standings() output.
     """
-    real_wrs = get_real_archetype_winrates(format_name, since=since, min_matches=0)
+    # `until` was accepted but never applied, so a closed "prior" window ran to today (#28).
+    real_wrs = get_real_archetype_winrates(format_name, since=since, min_matches=0, until=until)
     try:
-        mirrors = _mirror_counts(format_name, since)
+        mirrors = _mirror_counts(format_name, since, until)
     except Exception:
         mirrors = {}
 
@@ -662,6 +678,11 @@ def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
             d = _parse_match_date(r["event_date"])
             if d is None or not (bucket_start <= d < bucket_end):
                 continue
+            # Seats, not matches (#28): a match seats two decks, a mirror is
+            # both of them -- and a mirror says nothing about win rate (#26).
+            if r["player1_arch"] == r["player2_arch"]:
+                appearances += 2
+                continue
             appearances += 1
             is_p1 = r["player1_arch"] == archetype
             if r["result"] == "draw":
@@ -674,7 +695,7 @@ def _archetype_trend_from_matches(archetype, format_name, weeks, since, until,
         for r in total_rows:
             d = _parse_match_date(r["event_date"])
             if d is not None and bucket_start <= d < bucket_end:
-                total_in_bucket += r["n"]
+                total_in_bucket += 2 * r["n"]   # seats
 
         if appearances == 0 and total_in_bucket == 0:
             continue
@@ -1132,7 +1153,8 @@ def _get_real_matchup_winrates_impl(format_name, since, min_matches, min_arch_ap
 
 
 def get_real_archetype_winrates(format_name: str = "standard",
-                                 since=None, min_matches: int = 20) -> dict:
+                                 since=None, min_matches: int = 20,
+                                 until=None) -> dict:
     """
     Return per-archetype win rates from real recorded match results.
 
@@ -1142,21 +1164,19 @@ def get_real_archetype_winrates(format_name: str = "standard",
     Only archetypes with at least ``min_matches`` total games are included.
     """
     since_key = since.isoformat() if hasattr(since, "isoformat") else str(since)
-    cache_key = f"real_arch_wr:{format_name}:{since_key}:{min_matches}"
+    until_key = until.isoformat() if hasattr(until, "isoformat") else str(until)
+    cache_key = f"real_arch_wr:{format_name}:{since_key}:{until_key}:{min_matches}"
     return _cached(cache_key, lambda: _get_real_archetype_winrates_impl(
-        format_name, since, min_matches))
+        format_name, since, min_matches, until))
 
 
-def _mirror_counts(format_name, since=None) -> dict:
+def _mirror_counts(format_name, since=None, until=None) -> dict:
     """{archetype: number of A-vs-A matches} for the format/window (#26)."""
     from db.database import get_connection
     excl = ",".join("?" * len(EXCLUDE_ARCHETYPES))
     fc, params = format_clause(format_name)
-    params = list(params)
-    since_clause = ""
-    if since:
-        since_clause = f" AND ({_MATCH_DATE_KEY}) >= ?"
-        params.append(_dt_to_db_str(since))
+    since_clause, window_params = _match_window(since, until)
+    params = list(params) + window_params
     q = f"""
         SELECT player1_arch AS archetype, COUNT(*) AS mirrors
         FROM matches
@@ -1171,7 +1191,7 @@ def _mirror_counts(format_name, since=None) -> dict:
                 for r in conn.execute(q, params + list(EXCLUDE_ARCHETYPES))}
 
 
-def _get_real_archetype_winrates_impl(format_name, since, min_matches):
+def _get_real_archetype_winrates_impl(format_name, since, min_matches, until=None):
     try:
         from db.matches_queries import _ensure_table
         _ensure_table()
@@ -1182,14 +1202,11 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     excl = ",".join("?" * len(EXCLUDE_ARCHETYPES))
     excl_list = list(EXCLUDE_ARCHETYPES)
 
-    since_clause = ""
     # format_clause: "all" means the supported formats, not a literal (#27).
     fc, params_base = format_clause(format_name)
-    if since:
-        # Use _MATCH_DATE_KEY normalization so DD/MM/YY dates compare correctly.
-        since_str    = _dt_to_db_str(since)   # ISO string
-        since_clause = f" AND ({_MATCH_DATE_KEY}) >= ?"
-        params_base.append(since_str)
+    # Normalized dates, so DD/MM/YY rows compare correctly.
+    since_clause, window_params = _match_window(since, until)
+    params_base = list(params_base) + window_params
 
     q = f"""
         SELECT archetype,
@@ -1234,7 +1251,7 @@ def _get_real_archetype_winrates_impl(format_name, since, min_matches):
     # are left out of wins/losses/total and reported separately.
     result = {}
     try:
-        mirrors = _mirror_counts(format_name, since)
+        mirrors = _mirror_counts(format_name, since, until)
         with get_connection() as conn:
             rows = conn.execute(q, params).fetchall()
         for r in rows:
