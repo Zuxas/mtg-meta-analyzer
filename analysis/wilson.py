@@ -8,6 +8,7 @@ without making predictive claims.
 from __future__ import annotations
 
 import math
+from fractions import Fraction
 
 # Two-sided z at 95% confidence
 _Z_95 = 1.959963984540054
@@ -33,16 +34,20 @@ def classify_tweak(prev_wins: int, prev_total: int,
     """Three-state verdict on whether a variant change moved win rate.
 
     Returns one of:
-      - 'validated' : non-overlapping 95% Wilson bands OR both N>=10 with |delta|>=10pp.
-      - 'promising' : |delta|>=10pp but bands overlap.
+      - 'validated' : the 95% Wilson bands do not overlap. A conservative
+                      heuristic for real separation, not a formal two-proportion test.
+      - 'promising' : |delta| >= 10pp but the bands overlap.
       - 'noisy'     : everything else.
+
+    An N>=10 / 10pp rule used to return 'validated' too, which called
+    4/10 -> 6/10 (bands [0.17, 0.69] and [0.31, 0.83]) a proven improvement.
+    The delta is compared exactly (Fraction), so 6/10 -> 7/10 is 10pp, not
+    0.0999... < 0.10.
     """
     if prev_total == 0 or curr_total == 0:
         return "noisy"
 
-    prev_wr = prev_wins / prev_total
-    curr_wr = curr_wins / curr_total
-    delta = curr_wr - prev_wr
+    delta = Fraction(curr_wins, curr_total) - Fraction(prev_wins, prev_total)
 
     prev_lo, prev_hi = wilson_bounds(prev_wins, prev_total)
     curr_lo, curr_hi = wilson_bounds(curr_wins, curr_total)
@@ -51,8 +56,6 @@ def classify_tweak(prev_wins: int, prev_total: int,
 
     if not bands_overlap:
         return "validated"
-    if prev_total >= 10 and curr_total >= 10 and abs(delta) >= 0.10:
-        return "validated"
-    if abs(delta) >= 0.10:
+    if abs(delta) >= Fraction(1, 10):
         return "promising"
     return "noisy"

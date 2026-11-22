@@ -43,14 +43,18 @@ def test_classify_tweak_promising_when_delta_large_but_bands_overlap():
 
 
 def test_classify_tweak_noisy_when_delta_small():
-    # 5/10 vs 6/10 — delta is +10pp exactly, bands overlap heavily
-    result = classify_tweak(prev_wins=5, prev_total=10,
-                            curr_wins=6, curr_total=10)
-    assert result == "noisy"
+    # 5/10 vs 14/30 (46.7%) — 3.3pp, bands overlap heavily
+    assert classify_tweak(5, 10, 14, 30) == "noisy"
 
 
-def test_classify_tweak_validated_when_both_n_ge_10_and_delta_ge_10pp():
-    # 4/10 (40%) vs 6/10 (60%) — bands overlap but N>=10 and delta=20pp
-    result = classify_tweak(prev_wins=4, prev_total=10,
-                            curr_wins=6, curr_total=10)
-    assert result == "validated"
+def test_classify_tweak_exact_10pp_boundary_is_promising():
+    # #33: 0.7 - 0.6 == 0.0999... in floats, which read as below 10pp
+    assert classify_tweak(5, 10, 6, 10) == "promising"
+    assert classify_tweak(6, 10, 7, 10) == "promising"
+    assert classify_tweak(6, 10, 5, 10) == "promising"     # symmetric
+    assert classify_tweak(50, 100, 59, 100) == "noisy"     # 9pp, just under
+
+
+def test_classify_tweak_overlapping_bands_never_validated():
+    # #33: 4/10 -> 6/10 has bands [0.17, 0.69] / [0.31, 0.83]; N>=10 used to call it validated
+    assert classify_tweak(4, 10, 6, 10) == "promising"
