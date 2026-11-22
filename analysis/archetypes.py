@@ -45,29 +45,18 @@ from thefuzz import process as fuzz_process
 # same key without requiring a separate alias entry for every permutation.
 # ---------------------------------------------------------------------------
 
-# Two-letter guild abbreviations → canonical guild name
-_GUILD_MAP = {
-    "uw": "Azorius",  "wu": "Azorius",
-    "ub": "Dimir",    "bu": "Dimir",
-    "br": "Rakdos",   "rb": "Rakdos",
-    "rg": "Gruul",    "gr": "Gruul",
-    "gw": "Selesnya", "wg": "Selesnya",
-    "wb": "Orzhov",   "bw": "Orzhov",
-    "ur": "Izzet",    "ru": "Izzet",
-    "bg": "Golgari",  "gb": "Golgari",
-    "rw": "Boros",    "wr": "Boros",
-    "gu": "Simic",    "ug": "Simic",
-}
-
-# Three-letter shard/wedge abbreviations → canonical name
-_SHARD_MAP = {
-    "uwr": "Jeskai", "wur": "Jeskai", "rwu": "Jeskai",
-    "brw": "Mardu",  "rwb": "Mardu",  "wbr": "Mardu",
-    "bgu": "Sultai", "ugb": "Sultai", "gub": "Sultai",
-    "gwu": "Bant",   "wug": "Bant",   "ugw": "Bant",
-    "rgw": "Naya",   "grw": "Naya",   "wrg": "Naya",
-    "ubr": "Grixis", "bru": "Grixis", "rub": "Grixis",
-    "urb": "Grixis",
+# Colour sets -> canonical guild / shard / wedge name. Abbreviations are
+# looked up by their SET of letters, so every letter order ('UR', 'RU',
+# 'WUB', 'BWU', ...) maps to the same name.
+_COLOR_PAIR_NAMES = {
+    frozenset(k): v for k, v in {
+        "wu": "Azorius", "ub": "Dimir", "br": "Rakdos", "rg": "Gruul",
+        "gw": "Selesnya", "wb": "Orzhov", "ur": "Izzet", "bg": "Golgari",
+        "rw": "Boros", "gu": "Simic",
+        "wub": "Esper", "ubr": "Grixis", "brg": "Jund", "rgw": "Naya",
+        "gwu": "Bant", "wbg": "Abzan", "urw": "Jeskai", "bgu": "Sultai",
+        "rwb": "Mardu", "gur": "Temur",
+    }.items()
 }
 
 
@@ -83,17 +72,23 @@ def _fix_mono_prefix(name: str) -> str:
 
 def _expand_color_abbrev(name: str) -> str:
     """
-    Replace leading two/three-letter color abbreviations with guild/shard names.
-    e.g. 'UR Prowess' -> 'Izzet Prowess', 'UWR Control' -> 'Jeskai Control'
-    Only replaces when the abbreviation appears as a standalone word token.
+    Replace two/three-letter color abbreviations with guild/shard/wedge names,
+    in any letter order: 'UR Prowess' / 'RU Prowess' -> 'Izzet Prowess',
+    'WUB Control' / 'BWU Control' -> 'Esper Control'. Every standalone word
+    token is checked, not just a leading one; repeated letters ('UUR') and
+    other words are left alone.
     """
     def _replace(m):
         token = m.group(1).lower()
-        return _SHARD_MAP.get(token) or _GUILD_MAP.get(token) or m.group(1)
+        colors = frozenset(token)
+        if len(colors) != len(token):
+            return m.group(1)
+        return _COLOR_PAIR_NAMES.get(colors, m.group(1))
 
-    # Three-letter first (more specific), then two-letter
-    name = re.sub(r'\b([A-Za-z]{3})\b', _replace, name)
-    name = re.sub(r'\b([A-Za-z]{2})\b', _replace, name)
+    # Three-letter first (more specific), then two-letter. A token cut off
+    # by a source's ellipsis ('Madness Bur...') is a word fragment, not colours.
+    name = re.sub(r'\b([A-Za-z]{3})\b(?!\.\.\.|\u2026)', _replace, name)
+    name = re.sub(r'\b([A-Za-z]{2})\b(?!\.\.\.|\u2026)', _replace, name)
     return name
 
 
