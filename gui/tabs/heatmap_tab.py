@@ -64,6 +64,32 @@ def _wr_label(winrate: float) -> str:
 # Background workers
 # ---------------------------------------------------------------------------
 
+def pool_real_matchups(real_raw: dict, norm) -> dict:
+    """Bidirectional {a: {b: {"winrate", "matches"}}} from
+    get_real_matchup_winrates() output, keyed by normalized name.
+
+    Raw pairs that normalize to the same pair ('UR Prowess' and 'Izzet
+    Prowess' vs Dimir) are POOLED: wins, losses and totals are summed and the
+    win rate recomputed (wins / decisive games, 0.5 if none), the same formula
+    get_real_matchup_winrates uses. Pairs that normalize to a mirror are
+    dropped (#32)."""
+    acc: dict = {}
+    for a, opps in real_raw.items():
+        na = norm(a)
+        for b, st in opps.items():
+            nb = norm(b)
+            if na.casefold() == nb.casefold():
+                continue
+            for x, y, w, l in ((na, nb, st["wins"], st["losses"]),
+                               (nb, na, st["losses"], st["wins"])):
+                c = acc.setdefault(x, {}).setdefault(y, [0, 0, 0])
+                c[0] += w
+                c[1] += l
+                c[2] += st["total"]
+    return {x: {y: {"winrate": round(w / (w + l), 4) if w + l else 0.5, "matches": n}
+                for y, (w, l, n) in ys.items()} for x, ys in acc.items()}
+
+
 class _FetchWorker(QThread):
     done  = pyqtSignal(str, dict)  # (format_name, matrix)
     error = pyqtSignal(str)
@@ -123,21 +149,9 @@ class _CombinedWorker(QThread):
             real_raw = get_real_matchup_winrates(
                 self.format_name, since=self.since, min_matches=min_m)
 
-            # Convert canonical (a<b) to full bidirectional matrix
-            # Normalize archetype names so they match meta standings
-            real_matrix = {}
-            for a, opponents in real_raw.items():
-                na = norm_arch(a)
-                for b, stats in opponents.items():
-                    nb = norm_arch(b)
-                    wr_a = stats["win_rate"]
-                    n    = stats["total"]
-                    real_matrix.setdefault(na, {})[nb] = {
-                        "winrate": wr_a, "matches": n,
-                    }
-                    real_matrix.setdefault(nb, {})[na] = {
-                        "winrate": round(1.0 - wr_a, 4), "matches": n,
-                    }
+            # Canonical (a<b) pairs -> bidirectional matrix under normalized
+            # names (so they match meta standings), pooling spellings (#32)
+            real_matrix = pool_real_matchups(real_raw, norm_arch)
 
             # 2) Cached scraped data for this specific format
             from db.matchup_queries import get_matchup_matrix
@@ -887,7 +901,10 @@ class HeatmapTab(QWidget):
             _MIN = {"pioneer": 10, "modern": 5}.get(fmt, 20)
             real_raw = get_real_matchup_winrates(fmt, since=since, min_matches=_MIN)
 
-            # Build bidirectional matrix for just these 12 decks
+            # Build bidirectional matrix for just these 12 decks; every raw
+            # spelling of a pair is pooled, not just the first one found (#32)
+            pooled = {x.lower(): {y.lower(): v for y, v in ys.items()}
+                      for x, ys in pool_real_matchups(real_raw, norm_arch).items()}
             matrix = {}
             source = {}
             for a in top_names:
@@ -896,37 +913,10 @@ class HeatmapTab(QWidget):
                 for b in top_names:
                     if a == b:
                         continue
-                    nb = norm_arch(b).lower()
-                    # Search real data (canonical ordering: a<b)
-                    found = False
-                    for ra, opps in real_raw.items():
-                        if norm_arch(ra).lower() == na:
-                            for rb, stats in opps.items():
-                                if norm_arch(rb).lower() == nb:
-                                    matrix[a][b] = {
-                                        "winrate": stats["win_rate"],
-                                        "matches": stats["total"],
-                                    }
-                                    source[(a, b)] = "real"
-                                    found = True
-                                    break
-                        if found:
-                            break
-                    if not found:
-                        # Try reverse lookup
-                        for ra, opps in real_raw.items():
-                            if norm_arch(ra).lower() == nb:
-                                for rb, stats in opps.items():
-                                    if norm_arch(rb).lower() == na:
-                                        matrix[a][b] = {
-                                            "winrate": round(1.0 - stats["win_rate"], 4),
-                                            "matches": stats["total"],
-                                        }
-                                        source[(a, b)] = "real"
-                                        found = True
-                                        break
-                            if found:
-                                break
+                    cell = pooled.get(na, {}).get(norm_arch(b).lower())
+                    if cell:
+                        matrix[a][b] = dict(cell)
+                        source[(a, b)] = "real"
 
             return matrix, source
 
