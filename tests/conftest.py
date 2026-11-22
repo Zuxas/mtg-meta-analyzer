@@ -78,6 +78,10 @@ def _no_live_db(request, monkeypatch, tmp_path_factory):
     monkeypatch.setattr(_dbm, "DB_PATH", new[_norm(_dbm.DB_PATH)])
     monkeypatch.setattr(_dbm, "ARCHIVE_PATH", new[_norm(_dbm.ARCHIVE_PATH)])
     _redirect_captured_paths(new, monkeypatch)
+    # The scrape-state file lives in the checkout's data/; the Dashboard worker
+    # reads it (source_recency), which also creates its .lock beside it.
+    import db.scrape_state as _ss
+    monkeypatch.setattr(_ss, "STATE_PATH", str(tmp / "scrape_state.json"))
     yield
     # A module first imported INSIDE the test captured the tmp path and no
     # monkeypatch entry exists for it -- put those back to the live paths so a

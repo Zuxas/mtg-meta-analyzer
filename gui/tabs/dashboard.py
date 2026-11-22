@@ -151,6 +151,16 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     except Exception:
         pass
 
+    # Per-source recency (#8 / #22): WHICH source stopped -- e.g. MTGTop8
+    # events current while MTGMelee matches lag. Feeds the chip tooltip.
+    recency = None
+    try:
+        from analysis.source_recency import source_recency
+        from db.formats import formats_for
+        recency = source_recency(formats_for(format_name))
+    except Exception:
+        pass
+
     # Conversion ratio per archetype (CHAPIN Task 2, IC-02): top-cut share /
     # field share from the matches table, over the same window. Enables the
     # "Cascade" status in score_standings. None when unavailable.
@@ -177,7 +187,7 @@ def _load_panel_data(format_name: str, since_dt, top: int,
     return {"standings": standings, "prior_standings": prior_standings,
             "recent": recent, "real_wrs": real_wrs,
             "raw_standings": raw_standings, "ratings": ratings_map,
-            "freshness": freshness, "conversions": conversions,
+            "freshness": freshness, "recency": recency, "conversions": conversions,
             "personal": personal}
 
 
@@ -947,13 +957,38 @@ class DashboardTab(QWidget):
     _CHIP_COLORS = {"fresh": theme.OK, "stale": theme.WARN, "dead": theme.ERR}
 
     @staticmethod
-    def _freshness_chip(fmt: str, fresh) -> tuple[str, str, str]:
+    def _freshness_chip(fmt: str, fresh, recency=None) -> tuple[str, str, str]:
         """(chip text, color, tooltip) for a format's freshness info.
 
         `fresh` is the info dict for `fmt`, or -- for the 'all' view -- a
         {format: info} map, in which case the chip reports the WORST status
         and the tooltip lists every format. None = freshness unavailable.
+        `recency` is source_recency()'s {format: rec} map (or None); it adds
+        a per-source note to the chip and the per-source lines to the tooltip.
         """
+        text, color, tip = DashboardTab._freshness_chip_base(fmt, fresh)
+        if not fresh or not recency:
+            return text, color, tip
+        from analysis.source_recency import describe_recency
+        from analysis.win_rates import is_all_formats
+        recs = (recency if is_all_formats(fmt)
+                else {k: v for k, v in recency.items() if k == fmt.lower()})
+        behind = sorted(f for f, r in recs.items() if r.get("events_without_matches"))
+        partial = sorted(f for f, r in recs.items()
+                         if r.get("diagnosis") == "source_stale" and f not in behind)
+        many = is_all_formats(fmt)
+        if behind:
+            text += " · matches behind" + (f": {', '.join(behind)}" if many else "")
+        elif partial:
+            text += " · source stale" + (f": {', '.join(partial)}" if many else "")
+        lines = [ln for f, r in sorted(recs.items()) for ln in describe_recency(f, r)]
+        if lines:
+            tip += "\n\nBy source:\n" + "\n".join(lines)
+        return text, color, tip
+
+    @staticmethod
+    def _freshness_chip_base(fmt: str, fresh) -> tuple[str, str, str]:
+        """Chip text, color and tooltip from format_freshness() alone."""
         from analysis.data_health import describe_freshness
         from analysis.win_rates import is_all_formats
 
@@ -1009,7 +1044,7 @@ class DashboardTab(QWidget):
                 f"{info['last_match_date']}) — the scrape has stalled; every "
                 f"number on this panel is stale.")
 
-    def _apply_freshness(self, fresh) -> None:
+    def _apply_freshness(self, fresh, recency=None) -> None:
         """Update the chip + every panel banner for the selected format."""
         from analysis.win_rates import is_all_formats
         fmt = self._fmt.currentText()
@@ -1017,7 +1052,7 @@ class DashboardTab(QWidget):
         # take the map for the 'all' view and the single info dict otherwise.
         if fresh and not is_all_formats(fmt):
             fresh = fresh.get(fmt.lower())
-        text, color, tip = self._freshness_chip(fmt, fresh)
+        text, color, tip = self._freshness_chip(fmt, fresh, recency)
         self._fresh_chip.setText(text)
         self._fresh_chip.setToolTip(tip)
         self._fresh_chip.setStyleSheet(
@@ -1058,7 +1093,7 @@ class DashboardTab(QWidget):
             self._personal.setVisible(False)
 
     def _on_panel_data(self, data: dict):
-        self._apply_freshness(data.get("freshness"))
+        self._apply_freshness(data.get("freshness"), data.get("recency"))
         self._apply_personal(data.get("personal"))
         self._standings = data["standings"]
         self._prior_standings = data.get("prior_standings", [])

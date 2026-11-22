@@ -319,9 +319,21 @@ Three Windows Task Scheduler tasks keep the database current. The first-run wiza
 | Daily Standard update | 5:00 PM daily | `run_daily.bat` | Right-click `schedule_task.bat` → Run as Admin |
 | Scryfall card data refresh | Sunday midnight | `run_scryfall_weekly.bat` | Right-click `schedule_scryfall.bat` → Run as Admin |
 
-All output is logged to `logs/background_fill.log` and `logs/YYYY-MM-DD.log`.
+Output is logged to `logs/background_fill.log` (background fill), `logs/YYYY-MM-DD.log` (daily) and `logs/scryfall_YYYY-MM-DD.log` (weekly).
 
-The background fill runs 7 steps: MTGTop8 (Standard / Pioneer / Modern), MTGDecks (Standard / Pioneer / Modern), MTGMelee real match data (Standard / Pioneer / Modern / Legacy / Pauper), Scryfall enrichment, archetype normalization.
+The background fill (`scripts/run_fill_from_prefs.py`, then `scripts/sync_archetypes.py`) runs these steps in order. "Your formats" are the ones selected in Settings / the setup wizard (`data/preferences.json`):
+
+1. **MTGTop8** events and decklists, for your formats.
+2. **MTGDecks**: skipped. Auto-pull has been disabled since 2026-06-04; run it from `fill_database.bat`, the Settings refresh button or the Matchup Data tab instead.
+3. **MTGMelee** real match results, for your formats plus Legacy and Pauper.
+4. **Spicerack** RCQs and other large paper events (last 30 days, top 8), for your formats.
+5. **Scryfall** card enrichment.
+6. **MTGA log**: imports your Arena matches from the local `Player.log` and records a rank snapshot. Skipped quietly if Arena isn't installed.
+7. **Untapped.gg** (Mon / Wed / Fri only): mythic leaderboard, premium data, per-rank meta, matchup matrix, top-50 replay fetch, then match-log rows and decklists from the replay corpus.
+8. **Archetype normalization** (`python -m analysis.archetypes --apply`).
+9. **Archive maintenance** (`python -m db.maintenance`).
+
+Each MTGTop8 / MTGMelee step records its outcome per format in `scrape_state.json`; the Dashboard's freshness chip shows which source is behind.
 
 ---
 
