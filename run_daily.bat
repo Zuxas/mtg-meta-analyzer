@@ -5,13 +5,17 @@ REM  Called by Windows Task Scheduler every day at 5:00 PM PST.
 REM  Logs output to logs\YYYY-MM-DD.log
 REM ============================================================
 
-SET PROJECT_DIR=E:\vscode ai project\mtg-meta-analyzer
+REM The folder this .bat lives in (works from any clone or worktree)
+SET "PROJECT_DIR=%~dp0"
+SET "PROJECT_DIR=%PROJECT_DIR:~0,-1%"
 SET PYTHON=python
 SET PYTHONIOENCODING=utf-8
-SET LOG_DATE=%DATE:~10,4%-%DATE:~4,2%-%DATE:~7,2%
+REM Locale-independent date (%DATE% slicing depends on the regional format)
+for /f %%d in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set "LOG_DATE=%%d"
 SET LOG_FILE=%PROJECT_DIR%\logs\%LOG_DATE%.log
 
 cd /d "%PROJECT_DIR%"
+if not exist "%PROJECT_DIR%\logs" mkdir "%PROJECT_DIR%\logs"
 
 echo ============================================================ >> "%LOG_FILE%"
 echo MTG Meta Analyzer - Daily Run >> "%LOG_FILE%"
