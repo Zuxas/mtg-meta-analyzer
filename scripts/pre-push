@@ -51,63 +51,44 @@ PATTERN="${SECRETS}|${COOKIES}|${PATHS}"
 
 z40=0000000000000000000000000000000000000000
 exit_code=0
-flagged_files=""
+# Not scanned: the hook itself (it holds the patterns by design -- keep this
+# exception to the one file) and generated lockfiles.
+EXCLUDES=(':(exclude)*pre-push' ':(exclude)*.lock' ':(exclude)*package-lock.json')
+
+# Scan what is being PUSHED, read from git objects -- never the working tree,
+# which can hold an older or uncommitted copy. Every commit in the push is
+# scanned (a secret added then removed is still in the pushed history), but
+# only the lines each commit adds, so text already on the remote is not
+# re-flagged.
+added_lines() {   # args = rev range; prints path:line:text for each added line
+    git log -p -U0 --no-color --no-ext-diff --format= "$@" -- . "${EXCLUDES[@]}" 2>/dev/null | awk '
+        /^\+\+\+ / { f = substr($0, 7); next }
+        /^@@/        { match($0, /\+[0-9]+/); n = substr($0, RSTART + 1, RLENGTH - 1); next }
+        /^\+/        { print f ":" n ":" substr($0, 2); n++ }'
+}
 
 while read -r local_ref local_sha remote_ref remote_sha; do
     # Skip deletions
     [ "$local_sha" = "$z40" ] && continue
 
-    # New branch: check everything reachable from local_sha that isn't already remote
-    # Existing branch: check the new commits only
     if [ "$remote_sha" = "$z40" ]; then
-        range="$local_sha"
-        files=$(git ls-tree -r --name-only "$local_sha" 2>/dev/null)
+        # New branch: every commit the remote doesn't have yet.
+        hits=$(added_lines "$local_sha" --not --remotes | grep -iE "$PATTERN")
     else
-        range="$remote_sha..$local_sha"
-        files=$(git diff --name-only "$range" 2>/dev/null)
+        hits=$(added_lines "$remote_sha..$local_sha" | grep -iE "$PATTERN")
     fi
+    [ -z "$hits" ] && continue
 
-    [ -z "$files" ] && continue
-
-    # ── Per-file scan ───────────────────────────────────────────────
-    while IFS= read -r f; do
-        [ -z "$f" ] && continue
-        [ ! -f "$f" ] && continue
-
-        # Skip binaries and generated lockfiles
-        case "$f" in
-            *.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.pdf)        continue ;;
-            *.zip|*.tar|*.tar.gz|*.tgz|*.xz|*.7z)               continue ;;
-            *.exe|*.dll|*.so|*.dylib|*.bin|*.class|*.o)         continue ;;
-            *Cargo.lock|*package-lock.json|*yarn.lock|*Pipfile.lock|*poetry.lock) continue ;;
-            *.mp4|*.mov|*.mp3|*.wav|*.flac)                     continue ;;
-        esac
-
-        # Skip the hook itself — it contains the pattern list by design
-        case "$f" in
-            *pre-push) continue ;;
-        esac
-
-        # Match — capture line numbers
-        if matches=$(grep -niE "$PATTERN" "$f" 2>/dev/null); then
-            if [ -n "$matches" ]; then
-                exit_code=1
-                flagged_files="${flagged_files}${f}\n"
-                printf '\n❌  %s\n' "$f"
-                # PRE_PUSH_QUIET (set in CI, whose logs are public): line
-                # numbers only, so a hit doesn't publish what it caught.
-                if [ -n "${PRE_PUSH_QUIET:-}" ]; then
-                    printf '%s\n' "$matches" | head -5 | cut -d: -f1 | sed 's/^/    line /'
-                else
-                    printf '%s\n' "$matches" | head -5 | sed 's/^/    /'
-                fi
-                count=$(printf '%s\n' "$matches" | wc -l | tr -d ' ')
-                if [ "$count" -gt 5 ]; then
-                    printf '    ... and %d more matches\n' "$((count - 5))"
-                fi
-            fi
-        fi
-    done <<< "$files"
+    exit_code=1
+    # PRE_PUSH_QUIET (set in CI, whose logs are public): line numbers only,
+    # so a hit doesn't publish what it caught.
+    printf '%s\n' "$hits" | awk -F: -v quiet="${PRE_PUSH_QUIET:-}" '
+        $1 != f { f = $1; c = 0; printf "\n❌  %s\n", f }
+        { c++
+          if (c <= 5) {
+              if (quiet != "") printf "    line %s\n", $2
+              else { t = $0; sub(/^[^:]*:/, "", t); printf "    %s\n", t }
+          } else if (c == 6) print "    ... and more" }'
 done
 
 # ── Result ──────────────────────────────────────────────────────────
