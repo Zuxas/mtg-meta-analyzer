@@ -303,7 +303,7 @@ Two local SQLite files are created in `data/` — both are excluded from git:
 - `data/mtg_meta.db` — active dataset (within retention window)
 - `data/mtg_archive.db` — historical data rotated out of the active window
 
-Use `--include-archive` flags on CLI commands to query across both.
+Use `--include-archive` on the deck-analysis commands (`average`, `compare`, `blunder`, `chapin`) to pull archived decks into the average. Other query commands read the active DB only.
 
 **Databases are never pushed to GitHub.** Each machine builds its own local copy by running `fill_database.bat`.
 
