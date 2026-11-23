@@ -18,58 +18,75 @@ from db.helpers import SQL_NORM_DATE
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _archive_attached(conn):
+    """True if the archive DB is ATTACHed on this connection as the alias
+    'archive'. get_combined_connection only attaches when the archive file
+    exists, so include_archive can be requested with no archive present -- in
+    which case the archive queries below are skipped rather than failing."""
+    return any(r[1] == "archive" for r in conn.execute("PRAGMA database_list").fetchall())
+
+
 def _fetch_archetype_decks(conn, archetype, format_name=None, include_archive=False):
     """
-    Return all deck rows (with cards) for a given archetype.
-    Matching is exact and case-insensitive: a partial match blended
-    "Izzet Prowess Cauldron" lists into "Izzet Prowess" (#29).
-    """
-    base_query = """
-        SELECT d.id, d.archetype, d.player, d.placement, d.event_id,
-               e.date, e.name as event_name, e.format
-        FROM decks d
-        JOIN events e ON e.id = d.event_id
-        WHERE lower(d.archetype) = lower(?)
-    """
-    params = [archetype]
+    Return deck rows for an archetype as dicts, each tagged with the database it
+    came from in a ``db`` key ('active' / 'archive'). Matching is exact and
+    case-insensitive: a partial match blended "Izzet Prowess Cauldron" lists
+    into "Izzet Prowess" (#29).
 
+    The active and archive databases allocate ids independently, so a deck's
+    identity is (db, id), never id alone (#24). Each database is queried with
+    its OWN parameterized query against its own tables -- no text-rewriting of
+    table names, which previously left the archive half joined to ACTIVE events
+    (the base query said "JOIN events", which the "FROM events" rewrite missed).
+    """
     from db.formats import format_clause
-    _fc, _fp = format_clause(format_name, "e.format")
-    base_query += _fc
-    params += _fp
 
-    if include_archive:
-        # UNION with archive DB (must be ATTACHed)
-        archive_query = base_query.replace("FROM decks", "FROM archive.decks").replace(
-            "FROM events", "FROM archive.events"
-        )
-        full_query = base_query + " UNION ALL " + archive_query
-        params = params + params
-    else:
-        full_query = base_query
+    def _query(prefix):
+        q = f"""
+            SELECT d.id, d.archetype, d.player, d.placement, d.event_id,
+                   e.date, e.name as event_name, e.format
+            FROM {prefix}decks d
+            JOIN {prefix}events e ON e.id = d.event_id
+            WHERE lower(d.archetype) = lower(?)
+        """
+        fc, fp = format_clause(format_name, "e.format")
+        return q + fc, [archetype] + fp
 
-    return conn.execute(full_query, params).fetchall()
+    active_q, active_params = _query("")
+    rows = [{**dict(r), "db": "active"} for r in conn.execute(active_q, active_params).fetchall()]
+
+    if include_archive and _archive_attached(conn):
+        archive_q, archive_params = _query("archive.")
+        rows += [{**dict(r), "db": "archive"}
+                 for r in conn.execute(archive_q, archive_params).fetchall()]
+
+    return rows
 
 
-def _fetch_deck_cards(conn, deck_ids, include_archive=False):
-    """Return all deck_card rows for a list of deck IDs."""
-    if not deck_ids:
-        return []
-    ph = ",".join("?" * len(deck_ids))
-    query = f"""
-        SELECT dc.deck_id, c.name, dc.quantity, dc.is_sideboard
-        FROM deck_cards dc
-        JOIN cards c ON c.id = dc.card_id
-        WHERE dc.deck_id IN ({ph})
-    """
-    rows = conn.execute(query, deck_ids).fetchall()
+def _fetch_deck_cards(conn, deck_keys, include_archive=False):
+    """Return deck_card rows for a list of (db, id) deck keys, each row tagged
+    with its ``db``. Active ids are looked up only in the active database and
+    archive ids only in the archive, so colliding ids never cross cards between
+    decks (#24)."""
+    active_ids = [i for (db, i) in deck_keys if db == "active"]
+    archive_ids = [i for (db, i) in deck_keys if db == "archive"]
 
-    if include_archive:
-        archive_query = query.replace("FROM deck_cards", "FROM archive.deck_cards").replace(
-            "JOIN cards", "JOIN archive.cards"
-        )
-        rows += conn.execute(archive_query, deck_ids).fetchall()
+    def _cards(prefix, ids):
+        if not ids:
+            return []
+        ph = ",".join("?" * len(ids))
+        q = f"""
+            SELECT dc.deck_id, c.name, dc.quantity, dc.is_sideboard
+            FROM {prefix}deck_cards dc
+            JOIN {prefix}cards c ON c.id = dc.card_id
+            WHERE dc.deck_id IN ({ph})
+        """
+        tag = "archive" if prefix else "active"
+        return [{**dict(r), "db": tag} for r in conn.execute(q, ids).fetchall()]
 
+    rows = _cards("", active_ids)
+    if include_archive and archive_ids and _archive_attached(conn):
+        rows += _cards("archive.", archive_ids)
     return rows
 
 
@@ -106,9 +123,9 @@ def get_average_deck(archetype, format_name=None, min_inclusion=0.25,
         if not deck_rows:
             return None
 
-        deck_ids = [r["id"] for r in deck_rows]
-        total = len(deck_ids)
-        card_rows = _fetch_deck_cards(conn, deck_ids, include_archive)
+        deck_keys = [(r["db"], r["id"]) for r in deck_rows]
+        total = len(deck_keys)
+        card_rows = _fetch_deck_cards(conn, deck_keys, include_archive)
     finally:
         conn.close()
 
@@ -121,7 +138,9 @@ def get_average_deck(archetype, format_name=None, min_inclusion=0.25,
     for row in card_rows:
         key = (row["name"], row["is_sideboard"])
         card_appearances.setdefault(key, []).append(row["quantity"])
-        card_deck_sets.setdefault(key, set()).add(row["deck_id"])
+        # Key by (db, deck_id): active and archive ids collide, so a bare id
+        # would merge two different decks' inclusion counts (#24).
+        card_deck_sets.setdefault(key, set()).add((row["db"], row["deck_id"]))
 
     def _build_card_list(is_sideboard):
         cards = []
