@@ -388,7 +388,7 @@ def _add_date_args(parser):
     parser.add_argument("--until", help="End date: 'today' or '2025-03-20'")
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description="MTG Meta Analyzer -- query tool")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -418,7 +418,6 @@ def main():
     p_tc = sub.add_parser("top-cards", help="Most-played mainboard cards in a format")
     p_tc.add_argument("--format", default="standard")
     p_tc.add_argument("--top", type=int, default=20)
-    p_tc.add_argument("--include-archive", action="store_true")
 
     # search
     p_s = sub.add_parser("search", help="Search decks by archetype name")
@@ -432,7 +431,6 @@ def main():
     p_meta.add_argument("--top", type=int, default=20)
     p_meta.add_argument("--min-appearances", type=int, default=3)
     p_meta.add_argument("--event-type", default=None)
-    p_meta.add_argument("--include-archive", action="store_true")
     _add_date_args(p_meta)
 
     # trend
@@ -441,7 +439,6 @@ def main():
     p_trend.add_argument("--format", default="standard")
     p_trend.add_argument("--weeks", type=int, default=8)
     p_trend.add_argument("--event-type", default=None)
-    p_trend.add_argument("--include-archive", action="store_true")
     _add_date_args(p_trend)
 
     # h2h
@@ -449,7 +446,6 @@ def main():
     p_h2h.add_argument("archetype_a")
     p_h2h.add_argument("archetype_b")
     p_h2h.add_argument("--format", default="standard")
-    p_h2h.add_argument("--include-archive", action="store_true")
     _add_date_args(p_h2h)
 
     # matchups
@@ -457,7 +453,6 @@ def main():
     p_mu.add_argument("archetype")
     p_mu.add_argument("--format", default="standard")
     p_mu.add_argument("--min-shared", type=int, default=2)
-    p_mu.add_argument("--include-archive", action="store_true")
     _add_date_args(p_mu)
 
     # matrix
@@ -465,7 +460,6 @@ def main():
     p_mx.add_argument("--format", default="standard")
     p_mx.add_argument("--top", type=int, default=12)
     p_mx.add_argument("--min-appearances", type=int, default=5)
-    p_mx.add_argument("--include-archive", action="store_true")
     _add_date_args(p_mx)
 
     # field-optimizer
@@ -474,7 +468,6 @@ def main():
     p_fo.add_argument("--field", required=True,
                       help='e.g. "Izzet Prowess x4, Mono Green x3, Azorius Control x2"')
     p_fo.add_argument("--format", default="standard")
-    p_fo.add_argument("--include-archive", action="store_true")
     _add_date_args(p_fo)
 
     # card
@@ -545,7 +538,6 @@ def main():
     p_cm.add_argument("--top", type=int, default=10, help="Number of archetypes (default 10)")
     p_cm.add_argument("--weeks", type=int, default=12, help="Weeks of history (default 12)")
     p_cm.add_argument("--event-type", default=None)
-    p_cm.add_argument("--include-archive", action="store_true")
     _add_date_args(p_cm)
 
     # chart trend
@@ -554,7 +546,6 @@ def main():
     p_ct.add_argument("--format", default="standard")
     p_ct.add_argument("--weeks", type=int, default=12, help="Weeks of history (default 12)")
     p_ct.add_argument("--event-type", default=None)
-    p_ct.add_argument("--include-archive", action="store_true")
     _add_date_args(p_ct)
 
     # chart heatmap
@@ -562,10 +553,13 @@ def main():
     p_ch.add_argument("--format", default="standard")
     p_ch.add_argument("--top", type=int, default=12, help="Number of archetypes (default 12)")
     p_ch.add_argument("--min-appearances", type=int, default=3)
-    p_ch.add_argument("--include-archive", action="store_true")
     _add_date_args(p_ch)
 
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
 
     # Archetype lookups match whole names (#29), so expand a partial CLI name
     # ("prowess") to the one archetype it names first. `search` keeps its own
@@ -621,7 +615,7 @@ def main():
         print_comparison(comp, deck_info=deck)
 
     elif args.cmd == "top-cards":
-        print_top_cards(args.format, args.top, include_archive=args.include_archive)
+        print_top_cards(args.format, args.top)
 
     elif args.cmd == "search":
         rows = search_decks(args.archetype, args.format, args.limit)
@@ -641,7 +635,6 @@ def main():
             event_type=args.event_type,
             min_appearances=args.min_appearances,
             top=args.top,
-            include_archive=args.include_archive,
             since=since,
             until=until,
         )
@@ -657,7 +650,6 @@ def main():
             format_name=args.format,
             weeks=args.weeks,
             event_type=args.event_type,
-            include_archive=args.include_archive,
             since=since,
             until=until,
         )
@@ -672,7 +664,6 @@ def main():
             args.archetype_a,
             args.archetype_b,
             format_name=args.format,
-            include_archive=args.include_archive,
             since=since,
             until=until,
         )
@@ -683,7 +674,6 @@ def main():
         matchups = get_archetype_matchups(
             args.archetype,
             format_name=args.format,
-            include_archive=args.include_archive,
             since=since,
             until=until,
             min_shared_events=args.min_shared,
@@ -695,7 +685,6 @@ def main():
         data = get_matchup_matrix(
             format_name=args.format,
             min_appearances=args.min_appearances,
-            include_archive=args.include_archive,
             since=since,
             until=until,
             top=args.top,
@@ -711,7 +700,6 @@ def main():
         result = optimize_field_composition(
             field,
             format_name=args.format,
-            include_archive=args.include_archive,
             since=since,
             until=until,
         )
@@ -858,7 +846,6 @@ def main():
                 weeks=args.weeks,
                 since=since,
                 until=until,
-                include_archive=args.include_archive,
                 event_type=getattr(args, "event_type", None),
             )
             if path:
@@ -871,7 +858,6 @@ def main():
                 weeks=args.weeks,
                 since=since,
                 until=until,
-                include_archive=args.include_archive,
                 event_type=getattr(args, "event_type", None),
             )
             if path:
@@ -884,7 +870,6 @@ def main():
                 min_appearances=args.min_appearances,
                 since=since,
                 until=until,
-                include_archive=args.include_archive,
             )
             if path:
                 print(f"  Chart opened: {path}")

@@ -1,6 +1,6 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-11-22 (#24 fixed; PRs #43-#53 all merged; Bug 2 follow-up filed). Before: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+Last updated: 2026-11-23 (#54 shipped — dead `--include-archive` flags removed; #24 fixed; PRs #43-#53 all merged). Before: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
 
 ---
 
@@ -11,8 +11,13 @@ Last updated: 2026-11-22 (#24 fixed; PRs #43-#53 all merged; Bug 2 follow-up fil
   the archive is ATTACHed. `tests/test_include_archive_id_collision.py`. Read path, not a hot zone.
 - **Bug 2 follow-up (new issue filed):** `include_archive` is a silent no-op in `get_meta_standings` /
   `get_archetype_stats` / `get_archetype_trend` / `print_top_cards` + `get_deck_by_id` — accepted but never queries
-  `archive.*` (8 files, 14 CLI `--include-archive` flags). Tom's call: remove the dead flags (option B) later; don't
-  implement cross-format archive blending. Not started.
+  `archive.*` (8 files, 14 CLI `--include-archive` flags). Tom's call: remove the dead flags (option B).
+  **Shipped as #54** (`fix/54-remove-include-archive-flags`): dropped the flag from the 10 no-op commands
+  (`top-cards`/`meta`/`trend`/`h2h`/`matchups`/`matrix`/`field-optimizer` + `chart meta`/`trend`/`heatmap`), kept it on
+  the 4 that reach `get_average_deck` (`average`/`compare`/`blunder`/`chapin`); argparse now REJECTS it on the others
+  instead of silently ignoring it. Option 1 (flags + dispatch only — analysis signatures keep the harmless
+  `include_archive=False` default, GUI/internal callers untouched); `main()` split into a testable `build_parser()`.
+  README updated. `tests/test_include_archive_cli.py` (14). Non-hot-zone. PR open for owner review.
 - Remaining open issues (scraper/pipeline set, hot zone, need sign-off): #25 (infer_bracket_matches fabricates finals),
   #13/#14 (melee paging past 500 + per-match format tag), #16-#19 (pipeline/scrapers), #11 (MTGA log hardcoded user id),
   #34 (mtgtop8 tied ranks).
