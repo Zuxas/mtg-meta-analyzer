@@ -96,6 +96,20 @@ def record_format_outcomes(outcomes: dict, path=None) -> None:
             write_scrape_state(status="ok", fmt=fmt, path=path)
 
 
+def pipeline_failures(outcomes: dict, maint_rc: int = 0) -> list:
+    """Core pipeline steps whose failure should make the scheduled run report
+    FAILURE instead of silent success (#16). Core = the per-format scrape steps
+    (recorded in ``outcomes`` as ``{fmt: [(label, rc), ...]}``) plus archive
+    maintenance. Enrichment / throttled network steps (Scryfall, Untapped,
+    Spicerack, the MTGA-log import) stay best-effort and are excluded."""
+    failed = [f"{fmt}/{label}"
+              for fmt, steps in outcomes.items()
+              for (label, rc) in steps if rc]
+    if maint_rc:
+        failed.append("Archive maintenance")
+    return failed
+
+
 def main():
     from db.scrape_sources import MELEE_ALWAYS
     from db.scrape_state import mark_run
@@ -222,7 +236,16 @@ def main():
     run("-m analysis.archetypes", "Archetype normalization (dry-run -- no writes)")
 
     # Archive maintenance (always)
-    run("-m db.maintenance", "Archive maintenance")
+    maint_rc = run("-m db.maintenance", "Archive maintenance")
+
+    # Surface real failures (#16): the scheduled task used to report success no
+    # matter what. Exit non-zero if any CORE step failed, so Task Scheduler (and
+    # background_fill.bat, which now propagates this code) records the failure.
+    failed = pipeline_failures(outcomes, maint_rc)
+    if failed:
+        print(f"\n*** PIPELINE INCOMPLETE -- {len(failed)} core step(s) failed: "
+              f"{', '.join(failed)} ***")
+        sys.exit(2)
 
     mark_run("finished")
     print("\n[done] Background fill complete.")
