@@ -1,13 +1,15 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-11-23 (#16 pipeline fail-loud; #17 nightly `--apply` removed (both merged); #54 dead flags removed (merged); #24 fixed; PRs #43-#53 all merged).
+Last updated: 2026-11-23 (#14 melee per-match format; #16 pipeline fail-loud + #17 nightly `--apply` removed + #54 dead flags removed (all merged); #24 fixed; PRs #43-#53 all merged).
 
 ## 11/23 — hot-zone sprint (Tom-vetted 6-wave plan; owner signed off Waves 2-5)
 - **#54 SHIPPED** (PR #56 merged): removed the 10 no-op `--include-archive` CLI flags; kept `average`/`compare`/`blunder`/`chapin`.
 - **#17 MERGED** (PR #57): the 6 AM `run_fill_from_prefs.py` no longer runs `analysis.archetypes --apply` — it now runs the dry-run (logs pending renames, writes nothing). Applying is manual + backup-first. Decision: remove, not gate. `tests/test_nightly_no_apply.py`.
 - **#16 SHIPPED** (`fix/16-pipeline-fail-loud`, PR open): the 6 AM task used to report success no matter what — `background_fill.bat` self-relaunched (`start /min ... & exit`, exit 0 instantly) and ignored the Python exit code. Now the `.bat` drops the self-relaunch + propagates `%ERRORLEVEL%`, and `main()` exits 2 with `*** PIPELINE INCOMPLETE ***` when a core scrape/maintenance step fails (`pipeline_failures()` helper). Run-lock NOT added (`timeout=60` covers DB contention). **Final smoke owed on the Windows Task Scheduler.** `tests/test_pipeline_failure_exit.py` (6).
 - **#34 PARKED:** needs one real mtgtop8 event-page HTML sample to see the tie-band markup (`3-4`/`5-8`) — can't fetch mtgtop8 from the cloud sandbox, and a synthetic fixture would just encode a guess. Resume with a pasted page or via the owner's browser.
-- Remaining waves (owner-approved, code only; remediation of existing bad rows still gated per dry-run): #16 (scheduler fail-loud), #14 (melee multi-format), #11 (Arena id), #13 (melee paging), #18 (melee recency), #25 (bracket inference), #19 (date norm). Full plan: the "remaining issues execution plan" doc.
+- **#16 SHIPPED** (PR #58, merged): `background_fill.bat` no longer self-relaunches + propagates the exit code; `main()` exits 2 with `*** PIPELINE INCOMPLETE ***` on a core failure. Final Windows Task-Scheduler smoke owed.
+- **#14 SHIPPED** (`fix/14-melee-multiformat`, PR open): each Melee match tagged with its own format; `_parse_pairing_row` reads the per-match `Format` (row or decklist), `_match_rows` keeps only the requested format, drops Limited + other-format rows, logs counts. Stops a Pro Tour's Draft rounds polluting Modern/Standard. Existing bad rows = separate gated remediation (10/02 quarantine already did the known ones). `tests/test_melee_match_format.py` (6).
+- Remaining waves (owner-approved, code only; remediation of existing bad rows still gated per dry-run): #11 (Arena id), #13 (melee paging), #18 (melee recency), #25 (bracket inference), #19 (date norm). Full plan: the "remaining issues execution plan" doc.
  Before: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
 
 ---
