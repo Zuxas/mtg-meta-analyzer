@@ -29,6 +29,7 @@ from datetime import datetime
 from collections import Counter
 
 from db.database import DB_PATH as CENTRAL_DB_PATH
+from db.helpers import arena_user_id
 
 # ---------------------------------------------------------------------------
 # Config
@@ -41,8 +42,9 @@ _MTGA_LOG_DIR = os.path.join(
 PLAYER_LOG = os.path.normpath(os.path.join(_MTGA_LOG_DIR, "Player.log"))
 PLAYER_PREV_LOG = os.path.normpath(os.path.join(_MTGA_LOG_DIR, "Player-prev.log"))
 
-# Your Arena user ID — used to determine which seat is "you"
-MY_USER_ID = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
+# Local Arena user ID — picks the "you" seat. Set `arena_user_id` in
+# preferences.json (or the MTGA_USER_ID env var) for a different account.
+MY_USER_ID = arena_user_id()
 
 # Arena event ID -> human-readable name mapping
 EVENT_NAMES = {

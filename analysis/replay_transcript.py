@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 from db.database import DB_PATH as CENTRAL_DB_PATH
+from db.helpers import arena_user_id
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE_DIR = ROOT / "data" / "match_replays"
@@ -119,7 +120,7 @@ def build_transcript(arena_match_id: str,
 
     # State machine across all matches; we extract only the target match.
     current_match_id = None
-    my_user_id = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"  # TODO: pull from preferences
+    my_user_id = arena_user_id()
     my_seat: Optional[int] = None
     opp_seat: Optional[int] = None
     opp_name = ""
