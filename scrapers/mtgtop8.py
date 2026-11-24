@@ -41,6 +41,16 @@ def _parse_deck_id(url):
     return m.group(1) if m else None
 
 
+def _parse_rank(text):
+    """The leading rank token of a deck's row -> its range START. mtgtop8 shows
+    tied losers as ranges ('3-4', '5-8'); returning the start gives tied decks
+    the SAME placement (3-4 -> 3, 5-8 -> 5), so placement-based head-to-head
+    and _performance_score read them as a tie instead of inventing an order
+    inside the tie by page position (#34). None when no rank is present."""
+    m = re.match(r'\s*(\d+)(?:\s*-\s*\d+)?\b', text or "")
+    return int(m.group(1)) if m else None
+
+
 def _abs_url(href):
     """Convert a relative MTGTop8 href to an absolute URL."""
     href = href.lstrip("/")
@@ -154,11 +164,17 @@ def scrape_event_decks(event_source_id, event_url):
         else:
             player = ""
 
+        # The rank cell ('1', '3-4', '5-8') is the leading token of the row that
+        # wraps the deck (the div above the archetype/player div). Fall back to
+        # page order only when no rank is on the page.
+        gp = parent.find_parent("div") if parent else None
+        rank = _parse_rank(gp.get_text(" ", strip=True)) if gp else None
+
         decks.append({
             "source_id": deck_id,
             "player": player,
             "archetype": archetype,
-            "placement": len(decks) + 1,
+            "placement": rank if rank is not None else len(decks) + 1,
             "url": deck_url,
         })
 
