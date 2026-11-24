@@ -353,6 +353,33 @@ def _round_number(round_name: str) -> int:
     return 0
 
 
+# Melee tags each MATCH with its own Format; a multi-format event (Pro Tour,
+# trios) mixes Draft/Limited and several constructed formats in one tournament.
+# Mirror quarantine_matches.py's predicate so the live scraper and the one-off
+# cleanup script agree on what counts as Limited.
+LIMITED_FORMATS = ("draft", "sealed")
+
+
+def _is_limited(fmt: str | None) -> bool:
+    return bool(fmt) and any(w in fmt.lower() for w in LIMITED_FORMATS)
+
+
+def _match_format(row: dict, comps: list) -> str | None:
+    """The format of THIS match, not the event's combined formatString. Prefer
+    the row-level Format (a single value); fall back to a competitor's decklist
+    Format. A comma-joined value is the event bundle (e.g. "Modern, Standard"),
+    not a per-match signal, so it is ignored."""
+    mf = row.get("Format") or row.get("FormatDescription")
+    if mf and "," not in mf:
+        return mf.strip()
+    for comp in comps:
+        for d in comp.get("Decklists") or []:
+            dmf = d.get("Format")
+            if dmf and "," not in dmf:
+                return dmf.strip()
+    return None
+
+
 def _parse_pairing_row(row: dict, round_num: int) -> dict | None:
     """
     Parse one match dict from GetRoundMatches response.
@@ -415,6 +442,7 @@ def _parse_pairing_row(row: dict, round_num: int) -> dict | None:
             "player2_wins": p2w,
             "draws":        draws,
             "result":       result,
+            "match_format": _match_format(row, comps),
         }
     except Exception as exc:
         log.debug("Failed to parse pairing row: %s", exc)
@@ -476,11 +504,28 @@ def _map_archetype(deck_name: str, fmt: str) -> str:
 
 def _match_rows(t: dict, pairings: list[dict], format_name: str) -> list[dict]:
     """Storable match rows of one tournament: decided matches whose BOTH deck
-    names map to an archetype (unlabelled decks are skipped, never guessed)."""
+    names map to an archetype (unlabelled decks are skipped, never guessed).
+
+    Each match carries its OWN format (#14): in a multi-format event only the
+    matches actually played in ``format_name`` are kept -- Limited (Draft/Sealed)
+    rows are dropped, and matches in a different constructed format are left for
+    that format's own scrape -- so a Pro Tour's Draft rounds never land in Modern
+    or Standard win rates. A match with no per-match Format (ordinary
+    single-format event) is kept as before."""
     rows = []
+    want = format_name.strip().lower()
+    dropped_limited = dropped_other = 0
     for p in pairings:
         if not p["result"]:
             continue  # skip byes / incomplete
+        mf = p.get("match_format")
+        if mf:
+            if _is_limited(mf):
+                dropped_limited += 1
+                continue
+            if mf.lower() != want:
+                dropped_other += 1
+                continue
         arch1 = _map_archetype(p["player1_deck"], format_name)
         arch2 = _map_archetype(p["player2_deck"], format_name)
         if not arch1 or not arch2:
@@ -501,6 +546,10 @@ def _match_rows(t: dict, pairings: list[dict], format_name: str) -> list[dict]:
             "event_date":  t["date"],
             "source":      "mtgmelee",
         })
+    if dropped_limited or dropped_other:
+        log.info("mtgmelee_%s: kept %d, dropped %d Limited + %d other-format row(s) "
+                 "(multi-format event; requested %s)",
+                 t["id"], len(rows), dropped_limited, dropped_other, format_name)
     return rows
 
 
