@@ -214,8 +214,12 @@ def main():
         day_name = _dt.date.today().strftime("%a")
         print(f"\n-- Untapped SKIPPED (throttled to M/W/F, today is {day_name}) --")
 
-    # Archetype normalization (always)
-    run("-m analysis.archetypes --apply", "Archetype normalization")
+    # Archetype normalization -- DRY RUN ONLY (#17): never --apply unattended.
+    # A nightly, unbacked mass-rename of the live decks table is an operational risk,
+    # so the scheduled job only LOGS the pending renames. Applying them is a manual,
+    # backed-up step: `python -m analysis.archetypes --apply` (or
+    # `scripts/audit_pending_renames.py` for a read-only report first).
+    run("-m analysis.archetypes", "Archetype normalization (dry-run -- no writes)")
 
     # Archive maintenance (always)
     run("-m db.maintenance", "Archive maintenance")

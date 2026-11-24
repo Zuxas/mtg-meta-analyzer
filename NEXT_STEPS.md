@@ -1,6 +1,13 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-11-23 (#54 shipped — dead `--include-archive` flags removed; #24 fixed; PRs #43-#53 all merged). Before: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
+Last updated: 2026-11-23 (#17 nightly `--apply` removed; #54 shipped — dead `--include-archive` flags removed; #24 fixed; PRs #43-#53 all merged).
+
+## 11/23 — hot-zone sprint (Tom-vetted 6-wave plan; owner signed off Waves 2-5)
+- **#54 SHIPPED** (PR #56 merged): removed the 10 no-op `--include-archive` CLI flags; kept `average`/`compare`/`blunder`/`chapin`.
+- **#17 SHIPPED** (`fix/17-no-unattended-apply`, PR open): the 6 AM `run_fill_from_prefs.py` no longer runs `analysis.archetypes --apply` — it now runs the dry-run (logs pending renames, writes nothing). Applying is manual + backup-first. Decision: remove, not gate. `tests/test_nightly_no_apply.py`.
+- **#34 PARKED:** needs one real mtgtop8 event-page HTML sample to see the tie-band markup (`3-4`/`5-8`) — can't fetch mtgtop8 from the cloud sandbox, and a synthetic fixture would just encode a guess. Resume with a pasted page or via the owner's browser.
+- Remaining waves (owner-approved, code only; remediation of existing bad rows still gated per dry-run): #16 (scheduler fail-loud), #14 (melee multi-format), #11 (Arena id), #13 (melee paging), #18 (melee recency), #25 (bracket inference), #19 (date norm). Full plan: the "remaining issues execution plan" doc.
+ Before: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
 
 ---
 

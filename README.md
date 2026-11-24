@@ -330,7 +330,7 @@ The background fill (`scripts/run_fill_from_prefs.py`, then `scripts/sync_archet
 5. **Scryfall** card enrichment.
 6. **MTGA log**: imports your Arena matches from the local `Player.log` and records a rank snapshot. Skipped quietly if Arena isn't installed.
 7. **Untapped.gg** (Mon / Wed / Fri only): mythic leaderboard, premium data, per-rank meta, matchup matrix, top-50 replay fetch, then match-log rows and decklists from the replay corpus.
-8. **Archetype normalization** (`python -m analysis.archetypes --apply`).
+8. **Archetype normalization** — *dry-run only* in the scheduled pipeline (logs the pending renames, writes nothing). Applying them is a manual, backed-up step: `python -m analysis.archetypes --apply`.
 9. **Archive maintenance** (`python -m db.maintenance`).
 
 Each MTGTop8 / MTGMelee step records its outcome per format in `scrape_state.json`; the Dashboard's freshness chip shows which source is behind.
