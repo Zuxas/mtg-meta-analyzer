@@ -131,24 +131,8 @@ def _fetch_event(tid: str) -> dict:
            "pairings": []}
     for rid, rname in rounds:
         rnd = ms._round_number(rname)
-        start, rows = 0, []
         try:
-            while True:
-                resp = session.post(
-                    ms._ROUND_URL.format(rid=rid), data=ms._pairing_dt_payload(start, 500),
-                    headers={"X-Requested-With": "XMLHttpRequest",
-                             "Referer": ms._VIEW_URL.format(tid=tid),
-                             "Accept": "application/json, text/javascript, */*; q=0.01"},
-                    timeout=30)
-                resp.raise_for_status()
-                payload = resp.json()
-                page = payload.get("data", [])
-                rows += page
-                total = payload.get("recordsTotal", len(rows))
-                time.sleep(ms._SLEEP)
-                if not page or len(rows) >= total:
-                    break
-                start += len(page)
+            rows = ms.fetch_round_rows(session, tid, rid)
         except Exception as exc:                                   # noqa: BLE001
             out["failed_rounds"].append({"round": rname, "error": str(exc)[:200]})
             time.sleep(ms._SLEEP)

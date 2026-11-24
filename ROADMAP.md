@@ -10,7 +10,8 @@
 - [x] #54 removed no-op `--include-archive` CLI flags (merged)  ·  [x] #17 nightly `--apply` → dry-run (merged)
 - [x] #16 pipeline fails loud (exit 2 + `.bat` exit code; Windows smoke owed) (merged)  ·  [x] #14 per-match Melee format tag (merged)
 - [~] = PR open, not merged: #11 Arena user id config-driven (`db/helpers.py::arena_user_id`, env→prefs→default)
-- Remaining (owner-approved, code only): #13 melee paging · #18 melee recency · #25 bracket inference · #19 date norm. #34 (mtgtop8 tied ranks) PARKED — needs a real event-page HTML sample.
+- [~] #13 Melee pairings paged past 500 + `IncompleteTournament` guard (`fetch_round_rows` shared with relabel; failed round stores nothing, `sys.exit(2)`)
+- Remaining (owner-approved, code only): #18 melee recency · #25 bracket inference · #19 date norm. #34 (mtgtop8 tied ranks) PARKED — needs a real event-page HTML sample.
 
 ## DONE — Issue sweep (2026-10-15/16)
 - [x] #15 privacy scrub + pre-push lists out of the repo + `sensitive-scan.yml` CI
