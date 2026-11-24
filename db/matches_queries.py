@@ -13,7 +13,7 @@ source values: 'mtgmelee' | 'bracket_finals' | 'bracket_sf' | 'bracket_qf'
 import logging
 
 from db.database import get_connection
-from db.helpers import ensure_table as _do_ensure
+from db.helpers import ensure_table as _do_ensure, SQL_NORM_DATE
 from db.match_exclusions import CREATE_SQL as EXCLUSIONS_CREATE_SQL, load_registry, split_rows
 
 log = logging.getLogger(__name__)
@@ -121,7 +121,9 @@ def get_matches(format_name: str, since=None, source: str = None) -> list[dict]:
     q = "SELECT * FROM matches WHERE lower(format) = lower(?)"
     params = [format_name]
     if since:
-        q += " AND event_date >= ?"
+        # Normalize the column so a stored dd/mm/yy row can't string-compare as
+        # newer than an ISO bound ('21/03/24' >= '2026-06-01' is True) -- #19.
+        q += f" AND {SQL_NORM_DATE.format(col='event_date')} >= ?"
         params.append(since.strftime("%Y-%m-%d") if hasattr(since, "strftime") else str(since))
     if source:
         q += " AND source = ?"

@@ -703,12 +703,10 @@ def infer_bracket_matches(format_name: str, dry_run: bool = False) -> int:
     What we can infer with certainty:
       Finals  — 1st beat 2nd  (1 match per event)
 
-    What we infer with reasonable confidence (standard seeding assumed):
-      Semifinals — 1st beat one of {3rd, 4th}; 2nd beat the other
-        If 3rd_arch == 4th_arch: exact pairing known, add both SF matches.
-        Otherwise: add with source='bracket_sf' — some noise accepted.
-
-    Quarterfinals — skipped (seeding unknown without bracket data).
+    Semifinals/quarterfinals are NOT inferred: a 1st-vs-3rd / 2nd-vs-4th guess
+    was wrong whenever seeding differed, and those `bracket_sf` rows counted as
+    real matches in every `FROM matches` query with no way to tell them apart
+    from observed pairings (#19). Only the certain final is recorded.
 
     Only events with a real single-elim top 8 are inferred: League/Preliminary
     are skipped (Swiss-only, no cut) and any event whose deepest placement is
@@ -738,9 +736,7 @@ def infer_bracket_matches(format_name: str, dry_run: bool = False) -> int:
                 e.date,
                 MAX(d.placement)                                            AS max_place,
                 MAX(CASE WHEN d.placement=1 AND d.archetype!='' THEN d.archetype END) AS arch_1,
-                MAX(CASE WHEN d.placement=2 AND d.archetype!='' THEN d.archetype END) AS arch_2,
-                MAX(CASE WHEN d.placement=3 AND d.archetype!='' THEN d.archetype END) AS arch_3,
-                MAX(CASE WHEN d.placement=4 AND d.archetype!='' THEN d.archetype END) AS arch_4
+                MAX(CASE WHEN d.placement=2 AND d.archetype!='' THEN d.archetype END) AS arch_2
             FROM events e
             JOIN decks d ON d.event_id = e.id
             WHERE lower(e.format) = lower(?)
@@ -803,30 +799,6 @@ def infer_bracket_matches(format_name: str, dry_run: bool = False) -> int:
             "source":      "bracket_finals",
         })
 
-        # Semifinals — if we have 3rd and 4th
-        a3, a4 = r["arch_3"], r["arch_4"]
-        if a3 and a4:
-            # 1st_arch beat one SF opponent, 2nd_arch beat the other.
-            # If archetypes match (same deck), pairing is unambiguous for stats.
-            # Add both SF records regardless — at scale the noise averages out.
-            for finalist, sf_opp, sf_result in [
-                (r["arch_1"], a3, "player1"),
-                (r["arch_2"], a4, "player1"),
-            ]:
-                match_rows.append({
-                    "event_id":    eid,
-                    "round":       -2,   # sentinel: semifinals
-                    "player1":     finalist,
-                    "player2":     sf_opp,
-                    "player1_arch": finalist,
-                    "player2_arch": sf_opp,
-                    "winner_arch": finalist,
-                    "result":      sf_result,
-                    "format":      format_name,
-                    "event_date":  date,
-                    "source":      "bracket_sf",
-                })
-
     if dry_run:
         print(f"Bracket inference ({format_name}): {len(match_rows)} matches "
               f"from {len(rows)} events (dry run — not saved)")
@@ -836,6 +808,33 @@ def infer_bracket_matches(format_name: str, dry_run: bool = False) -> int:
     print(f"Bracket inference ({format_name}): saved {saved} matches "
           f"from {len(rows)} events")
     return saved
+
+
+def date_health(format_name: str | None = None) -> dict:
+    """Read-only one-off check (#19): count matches rows whose stored
+    `event_date` is NOT already ISO `YYYY-MM-DD`, and count inferred
+    `bracket_*` rows (bracket_finals kept, bracket_sf no longer produced).
+    Returns {non_iso, bracket_finals, bracket_sf}."""
+    from db.database import get_connection
+    where = "WHERE lower(format)=lower(?)" if format_name else ""
+    args = (format_name,) if format_name else ()
+    with get_connection() as conn:
+        non_iso = conn.execute(
+            f"SELECT COUNT(*) AS n FROM matches {where}"
+            f"{' AND' if where else 'WHERE'} event_date IS NOT NULL "
+            "AND event_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'",
+            args,
+        ).fetchone()["n"]
+        by_src = dict(conn.execute(
+            f"SELECT source, COUNT(*) AS n FROM matches {where}"
+            f"{' AND' if where else 'WHERE'} source LIKE 'bracket%' GROUP BY source",
+            args,
+        ).fetchall())
+    out = {"non_iso": non_iso,
+           "bracket_finals": by_src.get("bracket_finals", 0),
+           "bracket_sf": by_src.get("bracket_sf", 0)}
+    print(f"date_health({format_name or 'all'}): {out}")
+    return out
 
 
 def cleanup_league_bracket_rows(dry_run: bool = True) -> int:
@@ -895,21 +894,13 @@ def _parse_int(val) -> int:
 
 
 def _normalise_date(raw: str) -> str:
-    """Try to normalise various date strings to YYYY-MM-DD. Returns raw on failure."""
-    raw = (raw or "").strip()
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%b %d, %Y", "%B %d, %Y"):
-        try:
-            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-    # Try to extract a 4-digit year + 2+2 digit date
-    m = re.search(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", raw)
-    if m:
-        try:
-            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-    return raw
+    """Normalise a date string to ISO YYYY-MM-DD; returns the raw string on
+    failure. Delegates to db.helpers.normalize_event_date, which reads
+    DD/MM/YY and DD/MM/YYYY correctly -- the old copy tried %m/%d first and had
+    no two-digit-year pattern, so MTGTop8 `events.date` values fed to
+    infer_bracket_matches were mis-dated (#19)."""
+    from db.helpers import normalize_event_date
+    return normalize_event_date(raw) or (raw or "").strip()
 
 
 # ---------------------------------------------------------------------------
@@ -1004,6 +995,8 @@ def main(argv=None):
                              "Preliminary events (dry run unless --commit-cleanup)")
     parser.add_argument("--commit-cleanup", action="store_true",
                         help="Actually delete with --cleanup-league-brackets (default is dry run)")
+    parser.add_argument("--date-health", action="store_true",
+                        help="Count non-ISO matches.event_date rows + bracket_* rows (read-only)")
     parser.add_argument("--counts",  action="store_true",
                         help="Show stored match counts per format and exit")
     parser.add_argument("--tournament-id", action="append", default=[],
@@ -1029,6 +1022,10 @@ def main(argv=None):
 
     if args.test:
         _cmd_test(args)
+        return
+
+    if args.date_health:
+        date_health(args.format)
         return
 
     if args.cleanup_league_brackets:

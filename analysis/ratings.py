@@ -23,6 +23,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from db.database import get_connection
+from db.helpers import SQL_NORM_DATE, normalize_event_date
 
 # ---------------------------------------------------------------------------
 # Glicko-2 constants
@@ -203,7 +204,10 @@ def compute_archetype_ratings(
         """
         params: list = [format_name]
         if since:
-            q += " AND event_date >= ?"
+            # Normalize the column: a raw dd/mm/yy row string-compares as newer
+            # than an ISO bound otherwise, leaking old rows into windowed
+            # ratings that feed the Dashboard (#19).
+            q += f" AND {SQL_NORM_DATE.format(col='event_date')} >= ?"
             params.append(since.strftime("%Y-%m-%d"))
         q += " ORDER BY event_date ASC"
         rows = conn.execute(q, params).fetchall()
@@ -239,10 +243,11 @@ def compute_archetype_ratings(
         else:
             s1, s2 = 0.0, 1.0
 
-        # Week key for rating period
-        date_str = r["event_date"] or "1970-01-01"
+        # Week key for rating period -- normalize first so a dd/mm/yy row that
+        # passed the filter doesn't fall into the 1970 bucket (#19).
+        date_str = normalize_event_date(r["event_date"]) or "1970-01-01"
         try:
-            dt = datetime.strptime(date_str[:10], "%Y-%m-%d")
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
             week_key = (dt - timedelta(days=dt.weekday())).strftime("%Y-%m-%d")
         except ValueError:
             week_key = "1970-01-01"

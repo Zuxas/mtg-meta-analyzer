@@ -12,7 +12,8 @@
 - [~] = PR open, not merged: #11 Arena user id config-driven (`db/helpers.py::arena_user_id`, env→prefs→default)
 - [~] #13 Melee pairings paged past 500 + `IncompleteTournament` guard (`fetch_round_rows` shared with relabel; failed round stores nothing, `sys.exit(2)`)
 - [~] #25 Bracket inference skips League/Preliminary + sub-8 fields, collapses `event_fingerprint_cs` dups, skips events with real rows; `--cleanup-league-brackets` (gated)
-- Remaining (owner-approved, code only): #18 melee recency · #19 date norm. #34 (mtgtop8 tied ranks) PARKED — needs a real event-page HTML sample.
+- [~] #19 Melee `_normalise_date` -> `normalize_event_date` (DD/MM fix), `get_matches`/ratings compare via `SQL_NORM_DATE`, `bracket_sf` guesses dropped; read-only `--date-health`
+- Remaining (owner-approved, code only): #18 melee recency (needs the owner's live melee.gg). #34 (mtgtop8 tied ranks) PARKED — needs a real event-page HTML sample.
 
 ## DONE — Issue sweep (2026-10-15/16)
 - [x] #15 privacy scrub + pre-push lists out of the repo + `sensitive-scan.yml` CI
