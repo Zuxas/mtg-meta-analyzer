@@ -59,21 +59,22 @@ def test_five_oh_list_below_eight_is_skipped():
     assert _matches() == []
 
 
-def test_real_top8_infers_final_plus_two_semis():
+def test_real_top8_infers_only_the_final():
+    # #19: semifinals are no longer guessed -- only the certain final is recorded.
     _event(4, "Modern Challenge 32", "mtgo_challenge_32", "fp-chal", 8)
-    assert infer_bracket_matches("modern") == 3
+    assert infer_bracket_matches("modern") == 1
     rows = _matches()
     finals = [r for r in rows if r["round"] == -1]
-    semis = [r for r in rows if r["round"] == -2]
     assert len(finals) == 1 and finals[0]["winner_arch"] == "A1"
-    assert len(semis) == 2
+    assert [r for r in rows if r["round"] == -2] == []
+    assert [r for r in rows if r["source"] == "bracket_sf"] == []
 
 
 def test_cross_source_duplicate_collapses_to_one_final():
     # Same tournament scraped from two sources shares event_fingerprint_cs.
     _event(5, "RC Modern", "paper", "fp-dup", 8)
     _event(6, "RC Modern", "paper", "fp-dup", 8)
-    assert infer_bracket_matches("modern") == 3        # one event's worth, not 6
+    assert infer_bracket_matches("modern") == 1        # one final, not two
     assert len([r for r in _matches() if r["round"] == -1]) == 1
 
 
