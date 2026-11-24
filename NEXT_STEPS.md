@@ -1,15 +1,15 @@
 # NEXT_STEPS.md — Pick up here next session
 
-Last updated: 2026-11-24 (#18 melee discovery fails loud (code); #19 melee date parse + windowed-query norm + bracket_sf dropped; #25 bracket inference league/dup guard; #13 melee paging past 500 + incomplete-event guard; #11 Arena id config-driven; #14 melee per-match format; #16 pipeline fail-loud + #17 nightly `--apply` removed + #54 dead flags removed (all merged); #24 fixed; PRs #43-#53 all merged).
+Last updated: 2026-11-24 (#34 mtgtop8 tied ranks kept; #18 melee discovery fails loud (code); #19 melee date parse + windowed-query norm + bracket_sf dropped; #25 bracket inference league/dup guard; #13 melee paging past 500 + incomplete-event guard; #11 Arena id config-driven; #14 melee per-match format; #16 pipeline fail-loud + #17 nightly `--apply` removed + #54 dead flags removed (all merged); #24 fixed; PRs #43-#53 all merged).
 
 ## 11/23 — hot-zone sprint (Tom-vetted 6-wave plan; owner signed off Waves 2-5)
 - **#54 SHIPPED** (PR #56 merged): removed the 10 no-op `--include-archive` CLI flags; kept `average`/`compare`/`blunder`/`chapin`.
 - **#17 MERGED** (PR #57): the 6 AM `run_fill_from_prefs.py` no longer runs `analysis.archetypes --apply` — it now runs the dry-run (logs pending renames, writes nothing). Applying is manual + backup-first. Decision: remove, not gate. `tests/test_nightly_no_apply.py`.
 - **#16 SHIPPED** (`fix/16-pipeline-fail-loud`, PR open): the 6 AM task used to report success no matter what — `background_fill.bat` self-relaunched (`start /min ... & exit`, exit 0 instantly) and ignored the Python exit code. Now the `.bat` drops the self-relaunch + propagates `%ERRORLEVEL%`, and `main()` exits 2 with `*** PIPELINE INCOMPLETE ***` when a core scrape/maintenance step fails (`pipeline_failures()` helper). Run-lock NOT added (`timeout=60` covers DB contention). **Final smoke owed on the Windows Task Scheduler.** `tests/test_pipeline_failure_exit.py` (6).
-- **#34 PARKED:** needs one real mtgtop8 event-page HTML sample to see the tie-band markup (`3-4`/`5-8`) — can't fetch mtgtop8 from the cloud sandbox, and a synthetic fixture would just encode a guess. Resume with a pasted page or via the owner's browser.
+- **#34 SHIPPED:** the agent shell reaches mtgtop8 through the proxy (the earlier "can't fetch" note was wrong); verified the tie-rank parse on live event e=94182.
 - **#16 SHIPPED** (PR #58, merged): `background_fill.bat` no longer self-relaunches + propagates the exit code; `main()` exits 2 with `*** PIPELINE INCOMPLETE ***` on a core failure. Final Windows Task-Scheduler smoke owed.
 - **#14 SHIPPED** (`fix/14-melee-multiformat`, PR open): each Melee match tagged with its own format; `_parse_pairing_row` reads the per-match `Format` (row or decklist), `_match_rows` keeps only the requested format, drops Limited + other-format rows, logs counts. Stops a Pro Tour's Draft rounds polluting Modern/Standard. Existing bad rows = separate gated remediation (10/02 quarantine already did the known ones). `tests/test_melee_match_format.py` (6).
-- #18 code portion shipped (discovery failures raise `DiscoveryFailed` -> exit 2; min_players filter logged); its two LIVE-probe ACs (recover_source run + Pioneer probe) need the owner's melee.gg -- issue left OPEN. #34 (mtgtop8 tied ranks) PARKED, needs a real event-page HTML sample. All non-destructive sprint code (#11/#13/#14/#16/#17/#18/#19/#25/#54) merged; gated live-DB cleanups owed on the owner's box (`--cleanup-league-brackets --commit-cleanup`, a `bracket_sf` delete after `--date-health`, #16 `.bat` smoke).
+- #18 code portion shipped (discovery failures raise `DiscoveryFailed` -> exit 2; min_players filter logged); its two LIVE-probe ACs (recover_source run + Pioneer probe) need the owner's melee.gg -- issue left OPEN. #34 (mtgtop8 tied ranks) SHIPPED -- the shell reaches mtgtop8 through the proxy, so it was never actually blocked. All non-destructive sprint code (#11/#13/#14/#16/#17/#18/#19/#25/#54) merged; gated live-DB cleanups owed on the owner's box (`--cleanup-league-brackets --commit-cleanup`, a `bracket_sf` delete after `--date-health`, #16 `.bat` smoke).
  Before: 2026-10-17 (PRs #49-#51; see below). Before: 2026-10-16 (issue sweep). Before: 2026-10-02 (historical Melee relabel tool -- dry-run stage, live apply NOT run; before: 2026-10-01 Melee match gap merged into `ui/polish-kit-rebased`; targeted backfill complete; pre-push scrub of personal names / local paths so `main` can land -- sb-matrix fixtures renamed `izzet_prowess_locked_2026-09-25.*`. Older branch history still contains the originals.)
 
 ---
@@ -39,7 +39,7 @@ Last updated: 2026-11-24 (#18 melee discovery fails loud (code); #19 melee date 
 - After #51: add a gauntlet-snapshot loader to mtg-sim (read `field` + decklists from `gauntlets/*.json`, record the sim version with results).
 - Merge #52 + #53 (#32). After #53 merges, the 6 AM `--apply` relabels `matches` too (12 labels / 400 rows on first run; more once #49 lands). Backup taken 2026-10-18: `mtg_meta.backup-2026-10-18-pre-32.db`.
 - mtg-sim: merge #34 (gauntlet snapshot loader) and #35 (MetaBridge restored).
-- Remaining issues all need sign-off: #34 (mtgtop8 tied ranks), #25, #11, #13, #14, #16-#19, #24.
+- (Historical note) the analyzer issue sweep #11/#13/#14/#16-#19/#24/#25/#34/#54 is all merged.
 
 ---
 

@@ -14,7 +14,8 @@
 - [~] #25 Bracket inference skips League/Preliminary + sub-8 fields, collapses `event_fingerprint_cs` dups, skips events with real rows; `--cleanup-league-brackets` (gated)
 - [~] #19 Melee `_normalise_date` -> `normalize_event_date` (DD/MM fix), `get_matches`/ratings compare via `SQL_NORM_DATE`, `bracket_sf` guesses dropped; read-only `--date-health`
 - [~] #18 (code) Melee discovery failures raise `DiscoveryFailed` -> `main()` exits 2 (was silent `ok`/no-data); `min_players` filter count logged. LIVE ACs (recover_source run, Pioneer probe) owed on the owner's melee.gg
-- Remaining: #18 live-probe ACs (recover_source run, Pioneer probe -- owner's melee.gg) + #34 mtgtop8 tied ranks (PARKED, needs a real event-page HTML sample).
+- [~] #34 mtgtop8 tied ranks (3-4, 5-8) stored as the range START so tied decks share a placement -> head-to-head reads them as a tie; verified on live e=94182
+- Remaining: #18 live-probe ACs only (recover_source run, Pioneer probe -- owner's melee.gg). #34 shipped.
 
 ## DONE — Issue sweep (2026-10-15/16)
 - [x] #15 privacy scrub + pre-push lists out of the repo + `sensitive-scan.yml` CI
