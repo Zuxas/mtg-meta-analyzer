@@ -97,6 +97,13 @@ def _pairing_dt_payload(start: int = 0, length: int = 500) -> dict:
     return p
 
 
+class DiscoveryFailed(Exception):
+    """TournamentSearch discovery did not return a usable result -- the probe or
+    a page request failed, or recordsTotal was 0. This is an OUTAGE (Cloudflare
+    block / API change), NOT a genuine 'no new events', so the run must exit
+    nonzero instead of recording `ok` with no data (#18)."""
+
+
 class IncompleteTournament(Exception):
     """A round failed to fetch, so the event's pairings are incomplete. Callers
     store nothing for it, leaving it retryable on the next run."""
@@ -189,14 +196,17 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
     try:
         total = _total()
     except Exception as exc:
-        log.error("Tournament search probe failed: %s", exc)
-        return []
+        # An outage looks exactly like 'no new events' to the caller; make it
+        # loud so the pipeline records an error instead of a silent ok (#18).
+        raise DiscoveryFailed(f"TournamentSearch probe failed ({fmt_display}): {exc}") from exc
     if total <= 0:
-        log.warning("Tournament search returned recordsTotal=0 (%s)", fmt_display)
-        return []
+        raise DiscoveryFailed(
+            f"TournamentSearch returned recordsTotal=0 ({fmt_display}) -- a supported "
+            "format should never be empty; likely a blocked scraper or a bad format map")
     time.sleep(_SLEEP)
 
     found: dict[str, dict] = {}            # id -> tournament (pages may overlap / repeat rows)
+    filtered = {"n": 0}                    # events seen but below min_players
 
     def _read_page(page_no: int) -> int:
         start = page_no * _SEARCH_PAGE
@@ -205,8 +215,12 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
         rows = resp.json().get("data", []) or []
         for row in rows:
             t = _parse_tournament_row(row, fmt_display)
-            if t and t["player_count"] >= min_players:
+            if not t:
+                continue
+            if t["player_count"] >= min_players:
                 found.setdefault(t["id"], t)
+            else:
+                filtered["n"] += 1
         log.info("Page start=%d: %d rows, %d cumulative qualifying tournaments (%s)",
                  start, len(rows), len(found), fmt_display)
         return len(rows)
@@ -219,9 +233,9 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
         try:
             n = _read_page(page_no)
         except Exception as exc:
-            log.error("Tournament search page start=%d failed: %s",
-                      page_no * _SEARCH_PAGE, exc)
-            break
+            raise DiscoveryFailed(
+                f"TournamentSearch page start={page_no * _SEARCH_PAGE} failed "
+                f"({fmt_display}): {exc}") from exc
         if n == 0 and i > 0:
             break
         time.sleep(_SLEEP)
@@ -238,7 +252,8 @@ def fetch_tournament_list(format_name: str, min_players: int = 32,
     # Newest first (date, then id -- ids grow with creation time).
     results = sorted(found.values(),
                      key=lambda t: (t.get("date") or "", _parse_int(t["id"])), reverse=True)
-    log.info("Total: %d %s tournaments found", len(results), format_name)
+    log.info("Total: %d %s tournaments found (%d below min_players=%d, filtered)",
+             len(results), format_name, filtered["n"], min_players)
     return results
 
 
@@ -935,7 +950,11 @@ def _cmd_test(args):
         print(f"ERROR: {exc}")
 
     # --- Round IDs from most recent tournament ---
-    tournaments = fetch_tournament_list(fmt_display, min_players=32, pages=1)
+    try:
+        tournaments = fetch_tournament_list(fmt_display, min_players=32, pages=1)
+    except DiscoveryFailed as exc:
+        print(f"\nDISCOVERY FAILED: {exc}")
+        return
     if not tournaments:
         print("\nNo tournaments found — cannot test pairings endpoint")
         return
@@ -1036,18 +1055,25 @@ def main(argv=None):
         infer_bracket_matches(args.format, dry_run=args.dry_run)
         return
 
-    if args.tournament_id:
-        scrape_tournaments(args.tournament_id, args.format, pages=args.pages, dry_run=args.dry_run)
-        if LAST_INCOMPLETE:
-            sys.exit(2)
-        return
+    # A discovery outage (probe/page failure, recordsTotal=0) exits nonzero so
+    # the #16 pipeline records an error instead of a silent 'ok, no data' (#18).
+    try:
+        if args.tournament_id:
+            scrape_tournaments(args.tournament_id, args.format, pages=args.pages, dry_run=args.dry_run)
+            if LAST_INCOMPLETE:
+                sys.exit(2)
+            return
 
-    scrape_and_store(
-        format_name=args.format,
-        pages=args.pages,
-        min_players=args.min_players,
-        dry_run=args.dry_run,
-    )
+        scrape_and_store(
+            format_name=args.format,
+            pages=args.pages,
+            min_players=args.min_players,
+            dry_run=args.dry_run,
+        )
+    except DiscoveryFailed as exc:
+        log.error("*** MELEE DISCOVERY FAILED *** %s", exc)
+        sys.exit(2)
+
     if LAST_INCOMPLETE:
         # Pipeline (#16) treats a nonzero rc as an error outcome for this source.
         sys.exit(2)

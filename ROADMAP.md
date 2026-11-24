@@ -13,7 +13,8 @@
 - [~] #13 Melee pairings paged past 500 + `IncompleteTournament` guard (`fetch_round_rows` shared with relabel; failed round stores nothing, `sys.exit(2)`)
 - [~] #25 Bracket inference skips League/Preliminary + sub-8 fields, collapses `event_fingerprint_cs` dups, skips events with real rows; `--cleanup-league-brackets` (gated)
 - [~] #19 Melee `_normalise_date` -> `normalize_event_date` (DD/MM fix), `get_matches`/ratings compare via `SQL_NORM_DATE`, `bracket_sf` guesses dropped; read-only `--date-health`
-- Remaining (owner-approved, code only): #18 melee recency (needs the owner's live melee.gg). #34 (mtgtop8 tied ranks) PARKED — needs a real event-page HTML sample.
+- [~] #18 (code) Melee discovery failures raise `DiscoveryFailed` -> `main()` exits 2 (was silent `ok`/no-data); `min_players` filter count logged. LIVE ACs (recover_source run, Pioneer probe) owed on the owner's melee.gg
+- Remaining: #18 live-probe ACs (recover_source run, Pioneer probe -- owner's melee.gg) + #34 mtgtop8 tied ranks (PARKED, needs a real event-page HTML sample).
 
 ## DONE — Issue sweep (2026-10-15/16)
 - [x] #15 privacy scrub + pre-push lists out of the repo + `sensitive-scan.yml` CI
