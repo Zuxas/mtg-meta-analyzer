@@ -709,39 +709,81 @@ def infer_bracket_matches(format_name: str, dry_run: bool = False) -> int:
         Otherwise: add with source='bracket_sf' — some noise accepted.
 
     Quarterfinals — skipped (seeding unknown without bracket data).
+
+    Only events with a real single-elim top 8 are inferred: League/Preliminary
+    are skipped (Swiss-only, no cut) and any event whose deepest placement is
+    below 8 (a 5-0 list, not a bracket). Cross-source duplicates are collapsed
+    by event_fingerprint_cs so a tournament scraped from two sites yields one
+    final, and an event that already has real pairing rows is left alone.
+    NOTE: a Melee-scraped tournament and its mtgtop8/mtgdecks placement copy
+    live under different event_id namespaces with no shared key, so that
+    cross-source overlap is not dedup'd here (no reliable join exists).
     """
     from db.database import get_combined_connection
     from db.matches_queries import save_matches, get_stored_event_ids
+    from scrapers.challenges import classify_event_type
 
     already = get_stored_event_ids(format_name, source="bracket_finals")
 
     conn = get_combined_connection()
     try:
-        # Fetch all events with at least a 1st and 2nd place deck
+        # max_place is MAX over ALL decks (no placement/archetype filter) so a
+        # League 5-0 dump reads its true depth; the CASE arms still pull the top 4.
         rows = conn.execute("""
             SELECT
-                e.id         AS event_id,
-                e.source_id  AS src_id,
-                e.source     AS src,
+                e.id                  AS event_id,
+                e.name                AS name,
+                e.event_type          AS event_type,
+                e.event_fingerprint_cs AS fp_cs,
                 e.date,
-                MAX(CASE WHEN d.placement=1 THEN d.archetype END) AS arch_1,
-                MAX(CASE WHEN d.placement=2 THEN d.archetype END) AS arch_2,
-                MAX(CASE WHEN d.placement=3 THEN d.archetype END) AS arch_3,
-                MAX(CASE WHEN d.placement=4 THEN d.archetype END) AS arch_4
+                MAX(d.placement)                                            AS max_place,
+                MAX(CASE WHEN d.placement=1 AND d.archetype!='' THEN d.archetype END) AS arch_1,
+                MAX(CASE WHEN d.placement=2 AND d.archetype!='' THEN d.archetype END) AS arch_2,
+                MAX(CASE WHEN d.placement=3 AND d.archetype!='' THEN d.archetype END) AS arch_3,
+                MAX(CASE WHEN d.placement=4 AND d.archetype!='' THEN d.archetype END) AS arch_4
             FROM events e
             JOIN decks d ON d.event_id = e.id
             WHERE lower(e.format) = lower(?)
-              AND d.placement BETWEEN 1 AND 4
-              AND d.archetype != ''
             GROUP BY e.id
             HAVING arch_1 IS NOT NULL AND arch_2 IS NOT NULL
+            ORDER BY e.id
         """, (format_name,)).fetchall()
+
+        # Events that already carry real (non-inferred) pairing rows: never
+        # layer an inferred finals on top of a scraped one for the same event.
+        real_event_ids = {
+            row["event_id"] for row in conn.execute(
+                "SELECT DISTINCT event_id FROM matches "
+                "WHERE lower(format)=lower(?) AND source NOT LIKE 'bracket%'",
+                (format_name,),
+            ).fetchall()
+        }
     finally:
         conn.close()
 
+    # League / Preliminary are Swiss-only (no single-elim cut); mtgtop8 stores
+    # them with event_type NULL, so fall back to the name. max_place < 8 means
+    # the "bracket" is really a 5-0 list or a small pod -- not a top 8.
+    NO_BRACKET_TYPES = {"mtgo_league", "mtgo_preliminary"}
+
     match_rows = []
+    seen_fp = set()
     for r in rows:
         eid = str(r["event_id"])
+        etype = r["event_type"] or classify_event_type(r["name"] or "")
+        if etype in NO_BRACKET_TYPES:
+            continue
+        if (r["max_place"] or 0) < 8:
+            continue
+        if eid in real_event_ids:
+            continue
+        # Collapse cross-source duplicates (same tournament scraped from
+        # mtgtop8 AND mtgdecks share event_fingerprint_cs) to one final.
+        fp = r["fp_cs"]
+        if fp:
+            if fp in seen_fp:
+                continue
+            seen_fp.add(fp)
         if eid in already:
             continue
         date = _normalise_date(r["date"] or "")
@@ -794,6 +836,51 @@ def infer_bracket_matches(format_name: str, dry_run: bool = False) -> int:
     print(f"Bracket inference ({format_name}): saved {saved} matches "
           f"from {len(rows)} events")
     return saved
+
+
+def cleanup_league_bracket_rows(dry_run: bool = True) -> int:
+    """One-off: delete inferred `bracket_*` rows that an earlier run fabricated
+    for League / Preliminary events (which have no single-elim cut). Dry-run by
+    default -- reports the count; pass dry_run=False to delete. Live-DB write."""
+    from db.database import get_combined_connection, get_connection
+    from scrapers.challenges import classify_event_type
+
+    conn = get_combined_connection()
+    try:
+        ev_rows = conn.execute(
+            "SELECT id, name, event_type FROM events"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    no_cut = {
+        str(r["id"]) for r in ev_rows
+        if (r["event_type"] or classify_event_type(r["name"] or "")) in ("mtgo_league", "mtgo_preliminary")
+    }
+    if not no_cut:
+        print("cleanup_league_bracket_rows: no League/Preliminary events found")
+        return 0
+
+    with get_connection() as conn:
+        placeholders = ",".join("?" for _ in no_cut)
+        doomed = conn.execute(
+            f"SELECT COUNT(*) AS n FROM matches "
+            f"WHERE source LIKE 'bracket%' AND event_id IN ({placeholders})",
+            tuple(no_cut),
+        ).fetchone()["n"]
+        if dry_run:
+            print(f"cleanup_league_bracket_rows: would delete {doomed} bracket row(s) "
+                  f"from {len(no_cut)} League/Preliminary event(s) (dry run)")
+            return doomed
+        conn.execute(
+            f"DELETE FROM matches "
+            f"WHERE source LIKE 'bracket%' AND event_id IN ({placeholders})",
+            tuple(no_cut),
+        )
+        conn.commit()
+    print(f"cleanup_league_bracket_rows: deleted {doomed} bracket row(s) "
+          f"from {len(no_cut)} League/Preliminary event(s)")
+    return doomed
 
 
 # ---------------------------------------------------------------------------
@@ -912,6 +999,11 @@ def main(argv=None):
                         help="Dump raw API responses and exit (no DB writes)")
     parser.add_argument("--infer-brackets", action="store_true",
                         help="Infer finals/SF matches from existing top-8 DB placements")
+    parser.add_argument("--cleanup-league-brackets", action="store_true",
+                        help="Delete inferred bracket rows wrongly recorded for League/"
+                             "Preliminary events (dry run unless --commit-cleanup)")
+    parser.add_argument("--commit-cleanup", action="store_true",
+                        help="Actually delete with --cleanup-league-brackets (default is dry run)")
     parser.add_argument("--counts",  action="store_true",
                         help="Show stored match counts per format and exit")
     parser.add_argument("--tournament-id", action="append", default=[],
@@ -937,6 +1029,10 @@ def main(argv=None):
 
     if args.test:
         _cmd_test(args)
+        return
+
+    if args.cleanup_league_brackets:
+        cleanup_league_bracket_rows(dry_run=not args.commit_cleanup)
         return
 
     if args.infer_brackets:
