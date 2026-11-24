@@ -41,6 +41,7 @@ from analysis.replay_transcript import (
     transcript_cache_path,
 )
 from db.database import DB_PATH as CENTRAL_DB_PATH
+from db.helpers import arena_user_id
 
 SCHEMA_VERSION = 3  # 3: Diff-aware per-zoneId zone reconciliation (accurate zone counts); 2: match-scoped; 1: pre-scoping whole-log
 
@@ -207,7 +208,7 @@ def build_event_stream(arena_match_id: str,
     # also appears in the other rotation log.
     in_target_match = False
     target_done = False
-    my_user_id = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
+    my_user_id = arena_user_id()
 
     # ── Event-emission state ──────────────────────────────────
     seq = 0

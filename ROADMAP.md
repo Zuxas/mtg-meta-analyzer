@@ -6,6 +6,12 @@
 
 ---
 
+## DONE/OPEN — Hot-zone sprint (2026-11-23, Tom-vetted 6-wave plan; owner signed off Waves 2-5)
+- [x] #54 removed no-op `--include-archive` CLI flags (merged)  ·  [x] #17 nightly `--apply` → dry-run (merged)
+- [x] #16 pipeline fails loud (exit 2 + `.bat` exit code; Windows smoke owed) (merged)  ·  [x] #14 per-match Melee format tag (merged)
+- [~] = PR open, not merged: #11 Arena user id config-driven (`db/helpers.py::arena_user_id`, env→prefs→default)
+- Remaining (owner-approved, code only): #13 melee paging · #18 melee recency · #25 bracket inference · #19 date norm. #34 (mtgtop8 tied ranks) PARKED — needs a real event-page HTML sample.
+
 ## DONE — Issue sweep (2026-10-15/16)
 - [x] #15 privacy scrub + pre-push lists out of the repo + `sensitive-scan.yml` CI
 - [x] #12 per-DB query cache  ·  [x] #23 whole-field meta_share  ·  [x] #26 mirrors excluded from real WR

@@ -59,6 +59,33 @@ _DEFAULT_WARNING = (
 )
 
 
+# ── Local Arena user id (preferences.json) ────────────────────────────────
+
+# Picks the "you" seat in MTGA logs (#11). Kept as the historical default so an
+# existing setup (the repo owner's) keeps working until the pref is set; any
+# OTHER Arena account should set `arena_user_id` in preferences.json (or the
+# MTGA_USER_ID env var) or its win/loss and play/draw get mis-attributed.
+DEFAULT_ARENA_USER_ID = "GCIUQPR6DRC4XL7L2ZTNU2OMNI"
+
+
+def arena_user_id(prefs_path: str | None = None) -> str:
+    """Local Arena user id for MTGA seat attribution. Order: env MTGA_USER_ID,
+    then `arena_user_id` in preferences.json, then the historical default."""
+    env = os.environ.get("MTGA_USER_ID")
+    if env and env.strip():
+        return env.strip()
+    path = prefs_path or PREFERENCES_PATH
+    try:
+        with open(path, encoding="utf-8") as f:
+            prefs = json.load(f)
+        val = prefs.get("arena_user_id")
+        if val and str(val).strip():
+            return str(val).strip()
+    except Exception:
+        pass
+    return DEFAULT_ARENA_USER_ID
+
+
 def load_active_formats(prefs_path: str | None = None, *, log=print) -> list:
     """
     Return the formats the scrape pipeline should run, from preferences.json.
