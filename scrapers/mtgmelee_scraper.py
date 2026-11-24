@@ -97,6 +97,49 @@ def _pairing_dt_payload(start: int = 0, length: int = 500) -> dict:
     return p
 
 
+class IncompleteTournament(Exception):
+    """A round failed to fetch, so the event's pairings are incomplete. Callers
+    store nothing for it, leaving it retryable on the next run."""
+
+    def __init__(self, tid, failed_rounds):
+        self.tid = tid
+        self.failed_rounds = list(failed_rounds)
+        super().__init__(
+            f"tournament {tid}: {len(self.failed_rounds)} round(s) failed: "
+            + ", ".join(self.failed_rounds)
+        )
+
+
+def fetch_round_rows(session, tid, rid) -> list:
+    """Every GetRoundMatches DataTables row for one round, paged until
+    `recordsTotal` is reached (RC/MagicCon rounds exceed the 500-row page).
+    Raises on any HTTP/JSON failure so the caller decides whether to skip or
+    record the round. Shared by fetch_tournament_pairings and
+    scripts/relabel_melee_history.py."""
+    start, rows = 0, []
+    while True:
+        resp = session.post(
+            _ROUND_URL.format(rid=rid),
+            data=_pairing_dt_payload(start, 500),
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": _VIEW_URL.format(tid=tid),
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        page = payload.get("data", [])
+        rows += page
+        total = payload.get("recordsTotal", len(rows))
+        time.sleep(_SLEEP)
+        if not page or len(rows) >= total:
+            break
+        start += len(page)
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # Tournament list
 # ---------------------------------------------------------------------------
@@ -305,27 +348,16 @@ def fetch_tournament_pairings(tournament_id: str) -> list[dict]:
         return []
 
     matches = []
+    failed = []
     for rid, rname in round_ids:
-        url = _ROUND_URL.format(rid=rid)
         try:
-            resp = session.post(
-                url,
-                data=_pairing_dt_payload(),
-                headers={
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Referer": _VIEW_URL.format(tid=tournament_id),
-                    "Accept": "application/json, text/javascript, */*; q=0.01",
-                },
-                timeout=30,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
+            rows = fetch_round_rows(session, tournament_id, rid)
         except Exception as exc:
             log.warning("GetRoundMatches %s (%s) failed: %s", rid, rname, exc)
+            failed.append(rname)
             time.sleep(_SLEEP)
             continue
 
-        rows = payload.get("data", [])
         rnd_num = _round_number(rname)
         for row in rows:
             m = _parse_pairing_row(row, rnd_num)
@@ -333,8 +365,11 @@ def fetch_tournament_pairings(tournament_id: str) -> list[dict]:
                 matches.append(m)
 
         log.debug("Tournament %s %s (id=%s): %d pairings", tournament_id, rname, rid, len(rows))
-        time.sleep(_SLEEP)
 
+    if failed:
+        # Partial data skews conversion/WR/Glicko on the biggest events; store
+        # nothing so the event is re-fetched next run.
+        raise IncompleteTournament(tournament_id, failed)
     return matches
 
 
@@ -553,6 +588,12 @@ def _match_rows(t: dict, pairings: list[dict], format_name: str) -> list[dict]:
     return rows
 
 
+# Tournament ids skipped on the last scrape because a round failed to fetch
+# (incomplete -> stored nothing -> retryable next run). main() exits nonzero
+# when non-empty so the pipeline records an error outcome.
+LAST_INCOMPLETE: list[str] = []
+
+
 def scrape_tournaments(tournament_ids: list[str], format_name: str, pages: int = 5,
                        dry_run: bool = False) -> dict:
     """
@@ -566,6 +607,7 @@ def scrape_tournaments(tournament_ids: list[str], format_name: str, pages: int =
     """
     from db.matches_queries import save_matches, count_event_matches
 
+    LAST_INCOMPLETE.clear()
     listed = {t["id"]: t for t in fetch_tournament_list(format_name, 0, pages)}
     out = {}
     for tid in [str(x) for x in tournament_ids]:
@@ -575,7 +617,13 @@ def scrape_tournaments(tournament_ids: list[str], format_name: str, pages: int =
                       tid, format_name, pages)
             out[tid] = {"error": "not-listed"}
             continue
-        pairings = fetch_tournament_pairings(tid)
+        try:
+            pairings = fetch_tournament_pairings(tid)
+        except IncompleteTournament as exc:
+            log.error("Tournament %s stored nothing — %s (retry next run)", tid, exc)
+            out[tid] = {"error": "incomplete-rounds", "failed_rounds": exc.failed_rounds}
+            LAST_INCOMPLETE.append(tid)
+            continue
         rows = _match_rows(t, pairings, format_name)
         stats = {"name": t["name"], "date": t["date"], "players": t["player_count"],
                  "pairings": len(pairings), "decided": sum(1 for p in pairings if p["result"]),
@@ -602,6 +650,7 @@ def scrape_and_store(format_name: str, pages: int = 5,
     already_stored = get_stored_event_ids(format_name, source="mtgmelee")
     tournaments    = fetch_tournament_list(format_name, min_players, pages)
 
+    LAST_INCOMPLETE.clear()
     total_saved = 0
     for t in tournaments:
         tid = t["id"]
@@ -613,7 +662,12 @@ def scrape_and_store(format_name: str, pages: int = 5,
             continue
 
         log.info("Scraping %s (%s, %d players) …", t["name"], t["date"], t["player_count"])
-        pairings = fetch_tournament_pairings(tid)
+        try:
+            pairings = fetch_tournament_pairings(tid)
+        except IncompleteTournament as exc:
+            log.error("  %s stored nothing — %s (retry next run)", t["name"], exc)
+            LAST_INCOMPLETE.append(tid)
+            continue
 
         if not pairings:
             log.warning("  No pairings found for tournament %s", tid)
@@ -631,6 +685,9 @@ def scrape_and_store(format_name: str, pages: int = 5,
         log.info("  Saved %d matches from %s%s", saved, t["name"],
                  f" ({len(LAST_SAVE_SKIPPED)} refused: excluded event/round)" if LAST_SAVE_SKIPPED else "")
 
+    if LAST_INCOMPLETE:
+        log.error("%d tournament(s) had failed rounds and were skipped (retryable): %s",
+                  len(LAST_INCOMPLETE), ", ".join(LAST_INCOMPLETE))
     log.info("Done. Total matches saved: %d", total_saved)
     return total_saved
 
@@ -888,6 +945,8 @@ def main(argv=None):
 
     if args.tournament_id:
         scrape_tournaments(args.tournament_id, args.format, pages=args.pages, dry_run=args.dry_run)
+        if LAST_INCOMPLETE:
+            sys.exit(2)
         return
 
     scrape_and_store(
@@ -896,6 +955,9 @@ def main(argv=None):
         min_players=args.min_players,
         dry_run=args.dry_run,
     )
+    if LAST_INCOMPLETE:
+        # Pipeline (#16) treats a nonzero rc as an error outcome for this source.
+        sys.exit(2)
 
 
 if __name__ == "__main__":
